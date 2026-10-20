@@ -10,9 +10,9 @@
     agent,
     changes,
     file = $bindable(),
-    oncomment,
+    comments = $bindable(),
     onclose,
-  }: { agent: Agent; changes: Changes | null; file: string; oncomment: (comment: Comment) => void; onclose: () => void } = $props()
+  }: { agent: Agent; changes: Changes | null; file: string; comments: Comment[]; onclose: () => void } = $props()
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
 
@@ -89,13 +89,30 @@
   let commenting = $state<(Line & { path: string }) | null>(null)
   let note = $state('')
 
+  const indexOf = (path: string, line: Pick<Line, 'side' | 'number'>) =>
+    comments.findIndex((c) => c.path === path && c.line === line.number && c.removed === (line.side === 'old'))
+  const existing = $derived(commenting ? indexOf(commenting.path, commenting) : -1)
+  const marked = $derived(
+    comments.filter((c) => c.path === selected?.path).map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
+  )
+
+  function open(line: Line) {
+    commenting = { ...line, path: selected.path }
+    note = comments[indexOf(selected.path, line)]?.note ?? ''
+  }
+
   function comment(event?: Event) {
     event?.preventDefault()
     if (!commenting || !note.trim()) return
     const { path, side, number, text } = commenting
-    oncomment({ path, line: number, removed: side === 'old', code: text, note: note.trim() })
+    if (existing >= 0) comments[existing].note = note.trim()
+    else comments.push({ path, line: number, removed: side === 'old', code: text, note: note.trim() })
     commenting = null
-    note = ''
+  }
+
+  function remove() {
+    if (existing >= 0) comments.splice(existing, 1)
+    commenting = null
   }
 </script>
 
@@ -184,7 +201,8 @@
             <DiffView
               hunks={shown.hunks}
               split={layout.split}
-              oncomment={(line) => ((commenting = { ...line, path: selected.path }), (note = ''))}
+              oncomment={open}
+              {marked}
               open={commenting?.path === selected.path ? commenting : null}
               {editor}
             />
@@ -231,9 +249,12 @@
       }}
     ></textarea>
     <div class="actions">
-      <span class="hint">Added to your next message · <kbd>Ctrl ↵</kbd></span>
+      {#if existing >= 0}
+        <button type="button" class="btn btn-danger" onclick={remove}>Delete</button>
+      {/if}
+      <span class="hint">{existing >= 0 ? 'In your next message' : 'Added to your next message'} · <kbd>Ctrl ↵</kbd></span>
       <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-      <button class="btn btn-primary" disabled={!note.trim()}>Add comment</button>
+      <button class="btn btn-primary" disabled={!note.trim()}>{existing >= 0 ? 'Save' : 'Add comment'}</button>
     </div>
   </form>
 {/snippet}
@@ -502,6 +523,11 @@
   .inline .btn {
     height: 32px;
     padding: 0 12px;
+  }
+
+  .btn-danger {
+    background: #3a2420;
+    color: #f8d5cc;
   }
 
   .hint {

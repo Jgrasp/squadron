@@ -10,6 +10,7 @@
     limit = 1500,
     oncomment,
     open,
+    marked = [],
     editor,
   }: {
     hunks: Hunk[]
@@ -17,10 +18,12 @@
     limit?: number
     oncomment?: (line: Line) => void
     open?: Pick<Line, 'side' | 'number'> | null
+    marked?: (Pick<Line, 'side' | 'number'> & { note: string })[]
     editor?: Snippet
   } = $props()
 
   const at = (side: Line['side'], number?: number) => open?.side === side && open.number === number
+  const noteAt = (side: Line['side'], number?: number) => marked.find((m) => m.side === side && m.number === number)?.note
 
   const unified = $derived(split ? [] : rows(hunks))
   const paired = $derived(split ? pairs(hunks) : [])
@@ -28,7 +31,12 @@
 </script>
 
 {#snippet plus(line: Line)}
-  {#if oncomment}
+  {@const note = noteAt(line.side, line.number)}
+  {#if note !== undefined}
+    <button class="plus bubble" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
+      <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
+    </button>
+  {:else if oncomment}
     <button class="plus" aria-label="Comment line {line.number}" title="Comment this line" onclick={() => oncomment(line)}>+</button>
   {/if}
 {/snippet}
@@ -42,7 +50,11 @@
         <div class="pair">
           {#each [row.left, row.right] as cell, side (side)}
             {#if cell}
-              <div class="half {cell.kind}" class:picked={side ? at('new', cell.number) : cell.kind === 'del' && at('old', cell.number)}>
+              <div
+                class="half {cell.kind}"
+                class:picked={side ? at('new', cell.number) : cell.kind === 'del' && at('old', cell.number)}
+                class:commented={side ? noteAt('new', cell.number) !== undefined : cell.kind === 'del' && noteAt('old', cell.number) !== undefined}
+              >
                 {#if side === 1 || cell.kind === 'del'}
                   {@render plus({ side: side ? 'new' : 'old', number: cell.number, text: cell.text })}
                 {/if}
@@ -64,7 +76,11 @@
       {#if row.kind === 'head'}
         <div class="head">{row.text}</div>
       {:else}
-        <div class="line {row.kind}" class:picked={row.kind === 'del' ? at('old', row.old) : at('new', row.new)}>
+        <div
+          class="line {row.kind}"
+          class:picked={row.kind === 'del' ? at('old', row.old) : at('new', row.new)}
+          class:commented={(row.kind === 'del' ? noteAt('old', row.old) : noteAt('new', row.new)) !== undefined}
+        >
           {@render plus(row.kind === 'del' ? { side: 'old', number: row.old!, text: row.text } : { side: 'new', number: row.new!, text: row.text })}
           <span class="num">{row.old ?? ''}</span>
           <span class="num">{row.new ?? ''}</span>
@@ -102,7 +118,7 @@
   }
 
   .line {
-    grid-template-columns: 40px 40px 16px 1fr;
+    grid-template-columns: 50px 40px 16px 1fr;
   }
 
   .pair {
@@ -111,7 +127,7 @@
   }
 
   .half {
-    grid-template-columns: 44px 1fr;
+    grid-template-columns: 58px 1fr;
   }
 
   .half + .half {
@@ -162,6 +178,11 @@
     color: var(--del-line);
   }
 
+  .commented {
+    background-image: linear-gradient(rgba(224, 138, 91, 0.1), rgba(224, 138, 91, 0.1));
+    box-shadow: inset 3px 0 0 var(--accent-soft);
+  }
+
   .picked {
     box-shadow: inset 3px 0 0 var(--accent);
   }
@@ -184,7 +205,12 @@
 
   .line:hover .plus,
   .half:hover .plus,
-  .plus:focus-visible {
+  .plus:focus-visible,
+  .bubble {
     opacity: 1;
+  }
+
+  .bubble svg {
+    fill: currentColor;
   }
 </style>

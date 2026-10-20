@@ -315,7 +315,7 @@
   </section>
 
   {#if diffFile !== null}
-    <DiffPanel {agent} {changes} bind:file={diffFile} oncomment={(c) => comments.push(c)} onclose={() => (diffFile = null)} />
+    <DiffPanel {agent} {changes} bind:file={diffFile} bind:comments onclose={() => (diffFile = null)} />
   {/if}
 </main>
 
