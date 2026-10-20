@@ -66,7 +66,7 @@ export async function popOut() {
   projects.board = false
   const popped = await WebviewWindow.getByLabel('board')
   if (popped) return popped.setFocus()
-  new WebviewWindow('board', { title: 'Squadron board', width: 1240, height: 820, minWidth: 760, minHeight: 480 })
+  new WebviewWindow('board', { title: 'Kanban · Squadron', width: 1240, height: 820, minWidth: 760, minHeight: 480 })
 }
 
 export function inspect(path: string) {

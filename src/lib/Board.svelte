@@ -31,10 +31,17 @@
   const agentOf = (card: Card) => agents.find((a) => a.id === card.agent)
   const look = (a: Mirror) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status)
   const label = (a: Mirror) => (a.status === 'waiting' && a.attention.split(' · ')[0]) || LABELS[look(a)]
-  const dragged = $derived(project.cards.find((c) => c.id === drag?.id))
+  const virtual = $derived(
+    agents
+      .filter((a) => a.project === project.path && !project.cards.some((c) => c.agent === a.id))
+      .map((a): Card => ({ id: a.id, key: '', title: a.name, prompt: '', column: 'progress', agent: a.id })),
+  )
+  const cards = $derived([...project.cards, ...virtual])
+  const dragged = $derived(cards.find((c) => c.id === drag?.id))
 
-  function save(cards: Card[]) {
-    actions.cards(project.path, $state.snapshot(cards))
+  function save(next: Card[], keep = '') {
+    const kept = next.filter((c) => c.id === keep || !virtual.some((v) => v.id === c.id))
+    actions.cards(project.path, $state.snapshot(kept))
   }
 
   function create() {
@@ -49,7 +56,7 @@
     event.preventDefault()
     if (!editing?.card.title.trim()) return
     const card = { ...editing.card, key: editing.card.key.trim(), title: editing.card.title.trim(), prompt: editing.card.prompt.trim() }
-    save(editing.fresh ? [...project.cards, card] : project.cards.map((c) => (c.id === card.id ? card : c)))
+    save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
     editing = null
   }
 
@@ -81,7 +88,7 @@
       el.removeEventListener('pointerup', up)
       el.removeEventListener('pointercancel', up)
       if (!drag && e.type === 'pointerup') edit(card)
-      else if (drag?.over) save(moveCard(project.cards, card.id, drag.over, drag.before))
+      else if (drag?.over) save(moveCard(cards, card.id, drag.over, drag.before), card.id)
       drag = null
     }
     el.addEventListener('pointermove', move)
@@ -97,7 +104,7 @@
       const next = COLUMNS[COLUMNS.findIndex(([c]) => c === column) + (event.key === 'ArrowLeft' ? -1 : 1)]
       if (!next) return
       focusId = card.id
-      save(moveCard(project.cards, card.id, next[0]))
+      save(moveCard(cards, card.id, next[0]), card.id)
     }
   }
 
@@ -112,16 +119,25 @@
   <div class="top">
     <div>
       <h1>
-        Board ·
+        {#if onclose}
+          <button class="back" aria-label="Back to the conversation" title="Back to the conversation (Ctrl K)" onclick={onclose}>
+            <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+          </button>
+        {/if}
+        Kanban ·
         {#if popout}
-          <select bind:value={projects.current} aria-label="Project">
-            {#each projects.list as p (p.path)}<option value={p.path}>{p.name}</option>{/each}
-          </select>
+          <span class="pick">
+            {project.name}
+            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            <select bind:value={projects.current} aria-label="Project">
+              {#each projects.list as p (p.path)}<option value={p.path}>{p.name}</option>{/each}
+            </select>
+          </span>
         {:else}
           {project.name}
         {/if}
       </h1>
-      <span>Cards in progress follow the state of their agent</span>
+      <span class="sub">Cards in progress follow the state of their agent</span>
     </div>
     <div class="actions">
       <button class="btn btn-primary" onclick={create}>+ Card</button>
@@ -131,15 +147,12 @@
           Pop out
         </button>
       {/if}
-      {#if onclose}
-        <button class="btn btn-ghost" onclick={onclose} title="Back to the agents (Ctrl K)">Agents</button>
-      {/if}
     </div>
   </div>
 
   <div class="columns">
     {#each COLUMNS as [column, title] (column)}
-      {@const list = project.cards.filter((c) => place(c, agentOf(c)) === column)}
+      {@const list = cards.filter((c) => place(c, agentOf(c)) === column)}
       <section data-column={column} class:over={drag?.over === column} aria-labelledby="column-{column}">
         <h2 id="column-{column}">{title} <span>{list.length}</span></h2>
         <ul>
@@ -214,7 +227,9 @@
         </div>
       </div>
       <footer>
-        {#if !editing.fresh}<button type="button" class="btn btn-danger" onclick={remove}>Delete</button>{/if}
+        {#if !editing.fresh && project.cards.some((c) => c.id === editing?.card.id)}
+          <button type="button" class="btn btn-danger" onclick={remove}>Delete</button>
+        {/if}
         <span class="spacer"></span>
         <button type="button" class="btn btn-secondary" onclick={() => (editing = null)}>Cancel</button>
         <button class="btn btn-primary" disabled={!editing.card.title.trim()}>{editing.fresh ? 'Add card' : 'Save'}</button>
@@ -259,17 +274,68 @@
     font-weight: 700;
   }
 
-  h1 select {
-    height: 34px;
-    padding: 0 8px;
-    border: none;
+  .back {
+    width: 32px;
+    height: 32px;
+    margin-left: -6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
     border-radius: 4px;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    font-weight: 700;
+    color: var(--text-2);
   }
 
-  .top span {
+  .back:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .pick {
+    position: relative;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 34px;
+    margin-left: -8px;
+    padding: 0 6px 0 8px;
+    border-radius: 4px;
+  }
+
+  .pick:hover {
+    background: var(--surface-3);
+  }
+
+  .pick:has(select:focus-visible) {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: 2px;
+  }
+
+  .pick svg {
+    color: var(--text-dim);
+  }
+
+  .pick select {
+    position: absolute;
+    inset: 0;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .pick option {
+    background: var(--menu);
+    font-size: 13.5px;
+    font-weight: 400;
+  }
+
+  h1 svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .sub {
     color: var(--text-dim);
   }
 

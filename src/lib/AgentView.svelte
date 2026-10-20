@@ -5,6 +5,7 @@
   import { changedFiles } from './diff'
   import DiffPanel from './DiffPanel.svelte'
   import { cost, meta, time, tokens } from './format'
+  import { toggleBoard } from './projects.svelte'
   import { calls, type Agent, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
@@ -171,6 +172,10 @@
           Diff <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
         </button>
       {/if}
+      <button class="btn btn-ghost" title="Kanban (Ctrl K)" onclick={toggleBoard}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
+        Kanban
+      </button>
     </div>
 
     <div class="middle">

@@ -14,7 +14,7 @@
     toggleSidebar,
   } from './layout.svelte'
   import NewAgent from './NewAgent.svelte'
-  import { load, move, remove, type Project } from './projects.svelte'
+  import { load, move, remove, toggleBoard, type Project } from './projects.svelte'
 
   let { project }: { project: Project } = $props()
   let error = $state('')
@@ -136,6 +136,8 @@
         <div class="row">
           <button class="btn btn-primary big" onclick={() => (creating = true)}>New agent</button>
           <kbd>Ctrl N</kbd>
+          <button class="btn btn-secondary big" onclick={toggleBoard}>Kanban</button>
+          <kbd>Ctrl K</kbd>
         </div>
       </div>
     </main>

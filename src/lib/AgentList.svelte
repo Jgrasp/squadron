@@ -2,7 +2,7 @@
   import { agents, clock, ofProject, rename, waiting, waitingDetail } from './agents.svelte'
   import { ago, cost } from './format'
   import { layout, toggleSidebar } from './layout.svelte'
-  import { home, toggleBoard, type Project } from './projects.svelte'
+  import { home, type Project } from './projects.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import type { Agent } from './stream'
 
@@ -107,9 +107,6 @@
   <aside class="folded" aria-label="Project agents, collapsed">
     <span class="square" title={project.name}></span>
     <button class="add" aria-label="New agent" title="New agent (Ctrl N)" disabled={!project.exists} onclick={onnew}>+</button>
-    <button class="toggle" aria-label="Board" title="Board (Ctrl K)" onclick={toggleBoard}>
-      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
-    </button>
     <span class="sep" aria-hidden="true"></span>
     <div class="tiles">
       {#each list as agent (agent.id)}
@@ -161,9 +158,6 @@
     </div>
     <div class="actions">
       <button class="new" disabled={!project.exists} onclick={onnew} title="New agent (Ctrl N)">+ Agent</button>
-      <button class="fold" aria-label="Board" title="Board (Ctrl K)" onclick={toggleBoard}>
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
-      </button>
       <button class="fold" aria-label="Collapse the agent list" title="Collapse the list (Ctrl B)" onclick={toggleSidebar}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>

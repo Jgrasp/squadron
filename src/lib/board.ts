@@ -4,7 +4,7 @@ export type Column = 'todo' | 'progress' | 'review' | 'done'
 
 export type Card = { id: string; key: string; title: string; prompt: string; column: Column; agent: string | null }
 
-export type Mirror = Pick<Agent, 'id' | 'project' | 'status' | 'attention'> & { detail: string; done: number; total: number }
+export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention'> & { detail: string; done: number; total: number }
 
 export type Actions = {
   cards(path: string, cards: Card[]): void
@@ -22,6 +22,7 @@ export const COLUMNS: [Column, string][] = [
 export const mirror = (a: Agent, detail: string): Mirror => ({
   id: a.id,
   project: a.project,
+  name: a.name,
   status: a.status,
   attention: a.attention,
   detail,
