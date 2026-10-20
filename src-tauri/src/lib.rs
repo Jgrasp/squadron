@@ -235,6 +235,52 @@ fn set_claude_path(settings: State<Settings>, path: String) -> Result<(), String
 }
 
 #[tauri::command]
+async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<String, String> {
+    let program = settings.claude();
+    let task: String = text.chars().take(2000).collect();
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        std::process::Command::new(program)
+            .current_dir(std::env::temp_dir())
+            .args([
+                "-p",
+                "--model",
+                "haiku",
+                "--effort",
+                "low",
+                "--output-format",
+                "json",
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "project",
+                "--no-session-persistence",
+                "--system-prompt",
+                "You name software tasks. Reply with a title of 2 to 5 words in the language of the task, with no quotes and no final punctuation.",
+                &task,
+            ])
+            .output()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    let reply: serde_json::Value =
+        serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+    let title = reply["result"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .trim_matches(['"', '\'', '.'])
+        .chars()
+        .take(60)
+        .collect::<String>();
+    if reply["is_error"].as_bool().unwrap_or(true) || title.is_empty() {
+        return Err("No title suggested.".into());
+    }
+    Ok(title)
+}
+
+#[tauri::command]
 fn claude_version(path: String) -> Result<String, String> {
     let output = std::process::Command::new(path.trim())
         .arg("--version")
@@ -435,6 +481,7 @@ pub fn run() {
             set_settings,
             set_claude_path,
             claude_version,
+            suggest_title,
             remove_rule,
             create_agent,
             restore_agent,

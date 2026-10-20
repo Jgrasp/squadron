@@ -3,6 +3,7 @@
   import AgentList from './AgentList.svelte'
   import AgentView from './AgentView.svelte'
   import { archiveProject, interrupt, ofProject, selected } from './agents.svelte'
+  import { layout, MAX_SIDEBAR, MIN_SIDEBAR, resizeSidebar } from './layout.svelte'
   import NewAgent from './NewAgent.svelte'
   import { load, move, remove, type Project } from './projects.svelte'
 
@@ -34,6 +35,24 @@
     }
   }
 
+  function drag(event: PointerEvent) {
+    const handle = event.currentTarget as HTMLElement
+    const start = event.clientX - layout.sidebar
+    handle.setPointerCapture(event.pointerId)
+    const move = (e: PointerEvent) => resizeSidebar(e.clientX - start)
+    const up = () => {
+      handle.removeEventListener('pointermove', move)
+      handle.removeEventListener('pointerup', up)
+    }
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', up)
+  }
+
+  function nudge(event: KeyboardEvent) {
+    if (event.key === 'ArrowLeft') resizeSidebar(layout.sidebar - 16)
+    else if (event.key === 'ArrowRight') resizeSidebar(layout.sidebar + 16)
+  }
+
   function keys(event: KeyboardEvent) {
     if (document.querySelector('dialog[open]')) return
     if (event.ctrlKey && event.key === 'n' && project.exists) {
@@ -49,6 +68,19 @@
 
 <div class="body">
   <AgentList {project} current={agent} onnew={() => (creating = true)} onretire={retire} />
+  <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+  <div
+    class="resizer"
+    role="separator"
+    aria-orientation="vertical"
+    aria-label="Resize the agent list"
+    aria-valuenow={layout.sidebar}
+    aria-valuemin={MIN_SIDEBAR}
+    aria-valuemax={MAX_SIDEBAR}
+    tabindex="0"
+    onpointerdown={drag}
+    onkeydown={nudge}
+  ></div>
 
   {#if !project.exists}
     <main class="center">
@@ -102,6 +134,22 @@
     flex: 1;
     min-height: 0;
     display: flex;
+  }
+
+  .resizer {
+    width: 6px;
+    margin: 0 -3px;
+    flex: none;
+    position: relative;
+    z-index: 2;
+    cursor: col-resize;
+  }
+
+  .resizer:hover,
+  .resizer:focus-visible,
+  .resizer:active {
+    background: var(--border-strong);
+    outline: none;
   }
 
   .center {

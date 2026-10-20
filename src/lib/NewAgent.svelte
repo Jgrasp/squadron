@@ -17,8 +17,7 @@
   function submit(event?: Event) {
     event?.preventDefault()
     if (!ready) return
-    const title = name.trim() || text.trim().split(/\s+/).slice(0, 5).join(' ')
-    create(project.path, title, $state.snapshot(options), text.trim())
+    create(project.path, name.trim(), $state.snapshot(options), text.trim())
     onclose()
   }
 </script>
@@ -31,7 +30,7 @@
     <div class="fields">
       <div class="group">
         <label for="agent-name">Name</label>
-        <input id="agent-name" class="field" bind:value={name} placeholder="Defaults to the start of the first message" />
+        <input id="agent-name" class="field" bind:value={name} placeholder="Leave empty to get a title from the first message" />
       </div>
 
       <OptionsFields bind:options />

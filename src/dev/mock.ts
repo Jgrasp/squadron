@@ -183,6 +183,8 @@ mockIPC(
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         return
+      case 'suggest_title':
+        return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
       case 'claude_version':
         return '2.1.304 (Claude Code)'
       case 'remove_rule': {

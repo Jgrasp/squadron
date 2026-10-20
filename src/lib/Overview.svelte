@@ -8,20 +8,23 @@
   let finished = $state(true)
 
   const order = { waiting: 0, error: 1, working: 2, interrupted: 3, done: 4 }
+  const rank = (a: Agent) => (a.attention && a.status !== 'working' ? -1 : order[a.status])
+  const look = (a: Agent) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status)
   const groups = $derived(
     projects.list
       .map((project) => ({
         project,
         list: ofProject(project.path)
           .filter((a) => finished || a.status !== 'done')
-          .sort((a, b) => order[a.status] - order[b.status] || b.since - a.since),
+          .sort((a, b) => rank(a) - rank(b) || b.since - a.since),
         all: ofProject(project.path),
       }))
-      .sort((a, b) => Number(b.all.some((x) => x.status === 'waiting')) - Number(a.all.some((x) => x.status === 'waiting'))),
+      .sort((a, b) => Number(b.all.some((x) => x.attention)) - Number(a.all.some((x) => x.attention))),
   )
   const pending = $derived(waitingAgents().length)
 
   function label(agent: Agent) {
+    if (look(agent) === 'waiting' && agent.status !== 'waiting') return 'Waiting for you'
     switch (agent.status) {
       case 'waiting':
         return agent.asks[0]?.tool_name === 'AskUserQuestion' ? 'Waiting for your answer' : 'Waiting for your approval'
@@ -38,6 +41,7 @@
 
   function last(agent: Agent) {
     if (agent.status === 'waiting') return waitingDetail(agent)
+    if (agent.attention) return agent.attention
     if (agent.status === 'done' && agent.summary) return agent.summary
     return agent.action || agent.summary
   }
@@ -73,7 +77,7 @@
         </tr>
       </thead>
       {#each groups as group (group.project.path)}
-        {@const waiting = group.all.filter((a) => a.status === 'waiting').length}
+        {@const waiting = group.all.filter((a) => a.attention).length}
         <tbody>
           <tr class="project">
             <th scope="colgroup" colspan="6">
@@ -89,8 +93,8 @@
           </tr>
           {#each group.list as agent (agent.id)}
             {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
-            <tr class="agent {agent.status}">
-              <td><span class="state"><StatusIcon status={agent.status} />{label(agent)}</span></td>
+            <tr class="agent {look(agent)}">
+              <td><span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span></td>
               <td>
                 <span class="who">{agent.name}</span>
                 <span class="opts">{modelLabel(agent.options.model)} · {agent.options.effort}</span>
@@ -106,8 +110,8 @@
               </td>
               <td class="mono">{cost(agent.cost)}</td>
               <td>
-                <button class="action" class:answer={agent.status === 'waiting'} onclick={() => show(agent)}>
-                  {agent.status === 'waiting' ? 'Answer' : 'Open'}
+                <button class="action" class:answer={!!agent.attention} onclick={() => show(agent)}>
+                  {agent.attention ? 'Answer' : 'Open'}
                 </button>
               </td>
             </tr>

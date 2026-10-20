@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import { archive, fork, interrupt, reload, reply, send } from './agents.svelte'
+  import { archive, fork, interrupt, reload, rename, reply, send } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -20,6 +20,8 @@
   let below = $state(0)
   let hovered = $state(-1)
   let tooltipTop = $state(0)
+  let renaming = $state(false)
+  let newName = $state('')
   let recall = -1
   let draft = ''
 
@@ -120,6 +122,16 @@
     }
   }
 
+  function startRename() {
+    newName = agent.name
+    renaming = true
+  }
+
+  function finishRename(save: boolean) {
+    if (save) rename(agent.id, newName)
+    renaming = false
+  }
+
   function ondiff(call: ToolCall) {
     diffFile = String(call.result?.data?.filePath ?? call.input.file_path ?? '')
   }
@@ -131,7 +143,19 @@
   <section class="conversation" aria-label="Conversation">
     <div class="top">
       <div class="title">
-        <h1>{agent.name}</h1>
+        {#if renaming}
+          <!-- svelte-ignore a11y_autofocus -->
+          <input
+            class="rename"
+            aria-label="Agent name"
+            bind:value={newName}
+            autofocus
+            onkeydown={(e) => (e.key === 'Enter' ? finishRename(true) : e.key === 'Escape' && finishRename(false))}
+            onblur={() => finishRename(true)}
+          />
+        {:else}
+          <h1><button class="name" title="Rename" onclick={startRename}>{agent.name}</button></h1>
+        {/if}
         <span>{meta(agent)} · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span></span>
       </div>
       {#if files.length}
@@ -226,6 +250,9 @@
             <div class="menu" role="menu" aria-label="Agent actions">
               <button type="button" role="menuitem" onclick={() => ((menuOpen = false), reload(agent.id))}>
                 <strong>Reload</strong><span>Restarts the session, keeps the conversation</span>
+              </button>
+              <button type="button" role="menuitem" onclick={() => ((menuOpen = false), startRename())}>
+                <strong>Rename</strong><span>Give the agent a clearer name</span>
               </button>
               <button
                 type="button"
@@ -435,6 +462,33 @@
   .title > span {
     font-size: 12px;
     color: var(--text-dim);
+  }
+
+  h1 .name {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    border-radius: 3px;
+    text-align: left;
+  }
+
+  h1 .name:hover {
+    box-shadow: 0 0 0 4px var(--surface-2);
+    background: var(--surface-2);
+  }
+
+  .rename {
+    height: 26px;
+    padding: 0 6px;
+    margin-left: -6px;
+    border: none;
+    border-radius: 3px;
+    outline: none;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 2px var(--border-focus);
+    font-size: 15px;
+    font-weight: 600;
   }
 
   .scroller {

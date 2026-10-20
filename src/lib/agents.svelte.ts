@@ -43,7 +43,7 @@ async function spend(usd: number) {
 }
 
 export function waitingAgents() {
-  return agents.list.filter((a) => a.status === 'waiting').sort((a, b) => a.since - b.since)
+  return agents.list.filter((a) => a.attention).sort((a, b) => a.since - b.since)
 }
 
 export function show(agent: Agent) {
@@ -71,7 +71,7 @@ export function ofProject(project: string) {
 }
 
 export function waiting(project: string) {
-  return agents.list.filter((a) => a.project === project && a.status === 'waiting').length
+  return agents.list.filter((a) => a.project === project && a.attention).length
 }
 
 export function selected(project: string) {
@@ -86,6 +86,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const before = agent.cost
   apply(agent, d)
   if (agent.cost > before) spend(agent.cost - before)
+  if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
   if (d.type === 'result' || d.subtype === 'init') persist(agent)
 })
 
@@ -172,6 +173,7 @@ function waitFor(agent: Agent) {
   if (!ask) {
     agent.status = 'working'
     agent.action = 'Resuming…'
+    agent.attention = ''
     return
   }
   agent.status = 'waiting'
@@ -181,6 +183,7 @@ function waitFor(agent: Agent) {
       : ask.tool_name === 'ExitPlanMode'
         ? 'Waiting for your approval · Plan'
         : `Waiting for your approval · ${toolLabel(ask.tool_name).split(' · ')[0]}`
+  agent.attention = agent.action
 }
 
 export function waitingDetail(agent: Agent) {
@@ -279,8 +282,20 @@ export function reply(agent: Agent, text: string) {
 }
 
 export async function create(project: string, name: string, options: Options, text: string) {
-  agents.list.push(newAgent(crypto.randomUUID(), project, name, options))
+  const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
+  agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback, options))
   const agent = agents.list.at(-1)!
+  if (!name) {
+    agent.autoName = true
+    invoke<string>('suggest_title', { text })
+      .then((title) => {
+        if (!agent.autoName) return
+        agent.name = title
+        agent.autoName = false
+        persist(agent)
+      })
+      .catch(() => {})
+  }
   agents.current[project] = agent.id
   userMessage(agent, text)
   persist(agent)
@@ -321,6 +336,7 @@ export async function interrupt(id: string) {
   if (!agent || (agent.status !== 'working' && agent.status !== 'waiting')) return
   agent.interrupting = true
   agent.asks = []
+  agent.attention = ''
   await invoke('interrupt_agent', { id })
   await invoke('cancel_permissions', { agent: id })
 }
@@ -335,6 +351,14 @@ export async function reload(id: string) {
   } catch (e) {
     fail(agent, String(e))
   }
+}
+
+export function rename(id: string, name: string) {
+  const agent = find(id)
+  if (!agent || !name.trim()) return
+  agent.name = name.trim()
+  agent.autoName = false
+  persist(agent)
 }
 
 export async function fork(id: string) {

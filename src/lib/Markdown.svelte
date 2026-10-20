@@ -5,9 +5,37 @@
 </script>
 
 <script lang="ts">
+  import { untrack } from 'svelte'
+
   let { text, streaming = false }: { text: string; streaming?: boolean } = $props()
 
-  const html = $derived(md.render(text))
+  let shown = $state(untrack(() => text.length))
+  let frame = 0
+
+  $effect(() => {
+    const target = text.length
+    if (!streaming || untrack(() => shown) > target) {
+      shown = target
+      return
+    }
+    if (frame) return
+    const step = () => {
+      const left = text.length - shown
+      if (left <= 0) {
+        frame = 0
+        return
+      }
+      shown += Math.max(1, Math.ceil(left / 10))
+      frame = requestAnimationFrame(step)
+    }
+    frame = requestAnimationFrame(step)
+    return () => {
+      cancelAnimationFrame(frame)
+      frame = 0
+    }
+  })
+
+  const html = $derived(md.render(streaming ? text.slice(0, shown) : text))
 </script>
 
 <div class="prose" class:streaming>{@html html}</div>

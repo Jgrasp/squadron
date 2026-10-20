@@ -101,4 +101,15 @@ describe('stream', () => {
     expect(agent.sessionId).not.toBe('parent')
     expect(agent.forkOf).toBeNull()
   })
+
+  it('keeps the agent waiting for you after a turn that ends on a question, until you reply', () => {
+    const agent = fresh()
+    replay(agent, hello)
+    expect(agent.attention).toBe('')
+    apply(agent, { type: 'system', subtype: 'post_turn_summary', status_category: 'blocked', needs_action: 'Pick a colour' })
+    apply(agent, { type: 'result', is_error: false, total_cost_usd: 0.01, usage: {} })
+    expect(agent.attention).toBe('Pick a colour')
+    userMessage(agent, 'Red')
+    expect(agent.attention).toBe('')
+  })
 })

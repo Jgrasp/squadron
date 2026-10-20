@@ -151,6 +151,7 @@ pub fn mcp_config(port: u16, token: &str, agent: &str) -> String {
         "type": "http",
         "url": format!("http://127.0.0.1:{port}/mcp"),
         "headers": {"X-Squadron-Token": token, "X-Squadron-Agent": agent},
+        "timeout": i32::MAX,
     }}})
     .to_string()
 }
@@ -181,6 +182,10 @@ mod tests {
     }
 
     async fn run(mode: &str, prompts: &[&str]) {
+        run_with_delay(mode, prompts, 0).await
+    }
+
+    async fn run_with_delay(mode: &str, prompts: &[&str], delay: u64) {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel::<Ask>();
         let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
         let port = gate.clone().serve().await.unwrap();
@@ -193,6 +198,7 @@ mod tests {
                     ask.input,
                     Value::Object(ask.extra.clone())
                 );
+                tokio::time::sleep(Duration::from_secs(delay)).await;
                 answering.answer(&ask.id, answer_for(&ask)).unwrap();
             }
         });
@@ -246,6 +252,17 @@ mod tests {
         run(
             "plan",
             &["Plan to create a hello.txt file containing hello. Propose your plan."],
+        )
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_waits_for_a_slow_answer() {
+        run_with_delay(
+            "default",
+            &["Use the AskUserQuestion tool to ask whether I prefer blue or red, then repeat my answer in one word."],
+            100,
         )
         .await;
     }

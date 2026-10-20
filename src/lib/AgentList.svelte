@@ -1,6 +1,7 @@
 <script lang="ts">
   import { agents, clock, ofProject, waiting, waitingDetail } from './agents.svelte'
   import { ago, cost } from './format'
+  import { layout } from './layout.svelte'
   import { home, type Project } from './projects.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import type { Agent } from './stream'
@@ -16,7 +17,11 @@
   const pending = $derived(waiting(project.path))
   const total = $derived(list.reduce((sum, a) => sum + a.cost, 0))
 
+  const blocked = (agent: Agent) => !!agent.attention && agent.status !== 'working' && agent.status !== 'error' && !agent.asks.length
+  const look = (agent: Agent) => (blocked(agent) ? 'waiting' : agent.status)
+
   function state(agent: Agent) {
+    if (blocked(agent)) return 'Waiting for you'
     switch (agent.status) {
       case 'working':
         return agent.action
@@ -32,7 +37,7 @@
   }
 </script>
 
-<aside aria-label="Project agents">
+<aside aria-label="Project agents" style:width="{layout.sidebar}px">
   <div class="head">
     <div class="who">
       <span class="square" aria-hidden="true"></span>
@@ -56,12 +61,12 @@
     <div class="list">
       {#each list as agent (agent.id)}
         <button
-          class="agent {agent.status}"
+          class="agent {look(agent)}"
           aria-current={agent.id === current?.id ? 'true' : undefined}
           onclick={() => (agents.current[project.path] = agent.id)}
         >
           <span class="line">
-            <StatusIcon status={agent.status} />
+            <StatusIcon status={look(agent)} />
             <span class="name">{agent.name}</span>
             <span class="cost">{cost(agent.cost)}</span>
           </span>
@@ -70,6 +75,8 @@
             <span class="detail">{agent.action}</span>
           {:else if agent.status === 'waiting'}
             <span class="detail">{waitingDetail(agent)}</span>
+          {:else if blocked(agent)}
+            <span class="detail">{agent.attention}</span>
           {/if}
           {#if agent.tasks.length && agent.status !== 'done'}
             {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
@@ -102,7 +109,6 @@
 
 <style>
   aside {
-    width: 304px;
     flex: none;
     display: flex;
     flex-direction: column;
@@ -125,10 +131,22 @@
     gap: 10px;
   }
 
+  .who {
+    min-width: 0;
+  }
+
   .who div {
+    min-width: 0;
     display: flex;
     flex-direction: column;
     gap: 1px;
+  }
+
+  .who strong,
+  .who small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .who small {
@@ -148,6 +166,8 @@
   }
 
   .new {
+    flex: none;
+    white-space: nowrap;
     height: 32px;
     padding: 0 12px;
     border: 1px dashed var(--border-dashed);

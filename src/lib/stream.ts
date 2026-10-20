@@ -70,6 +70,8 @@ export type Agent = {
   forkOf: string | null
   tasks: Task[]
   summary: string
+  attention: string
+  autoName: boolean
 }
 
 type Json = Record<string, any>
@@ -97,6 +99,8 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     forkOf: null,
     tasks: [],
     summary: '',
+    attention: '',
+    autoName: false,
   }
 }
 
@@ -133,6 +137,7 @@ export function argument(agent: Agent, call: Pick<ToolCall, 'name' | 'input'>): 
 
 export function userMessage(agent: Agent, text: string) {
   agent.entries.push({ kind: 'user', text, at: Date.now() })
+  agent.attention = ''
   if (!agent.alive) agent.processCost = 0
   agent.status = 'working'
   agent.action = 'Starting…'
@@ -183,6 +188,8 @@ export function apply(agent: Agent, d: Json) {
         agent.sessionId = d.session_id
       }
       if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
+      if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
+        agent.attention = String(d.needs_action || d.status_detail || 'Waiting for you')
       if (d.subtype === 'status' && d.status === 'requesting' && agent.status !== 'waiting')
         agent.status = 'working'
       return
@@ -292,6 +299,7 @@ function toolResults(agent: Agent, d: Json) {
 }
 
 function result(agent: Agent, d: Json) {
+  agent.asks = []
   const total = d.total_cost_usd ?? 0
   const cost = Math.max(0, total - agent.processCost)
   agent.processCost = Math.max(agent.processCost, total)
@@ -318,6 +326,7 @@ export function fail(agent: Agent, message: string) {
   agent.asks = []
   agent.status = 'error'
   agent.interrupting = false
+  agent.attention = message.split('\n')[0] || 'Error'
   agent.since = Date.now()
   const missing = message === 'claude-not-found'
   const login = /not logged in|\/login|invalid api key/i.test(message)
@@ -340,6 +349,7 @@ export function exited(agent: Agent, stderr: string) {
 
 export function reloaded(agent: Agent) {
   agent.asks = []
+  agent.attention = ''
   agent.entries.push({ kind: 'reloaded', at: Date.now() })
   agent.processCost = 0
   agent.alive = true

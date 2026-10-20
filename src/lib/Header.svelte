@@ -1,6 +1,6 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
-  import { todayCost, waiting, waitingAgents } from './agents.svelte'
+  import { ofProject, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { cost } from './format'
   import { projects } from './projects.svelte'
 
@@ -117,6 +117,7 @@
     {#each visible as project (project.path)}
       <button
         class="tab"
+        class:working={ofProject(project.path).some((a) => a.status === 'working')}
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         onclick={() => ((projects.overview = false), (projects.current = project.path))}
       >
@@ -443,11 +444,35 @@
     color: var(--text-3);
   }
 
+  .tab:has(.badge) {
+    padding-right: 6px;
+  }
+
+  .tab.working {
+    position: relative;
+  }
+
+  .tab.working::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    background: var(--accent);
+    opacity: 0.05;
+    pointer-events: none;
+    animation: pulse 2s ease-in-out infinite;
+  }
+
+  @keyframes pulse {
+    50% {
+      opacity: 0.3;
+    }
+  }
+
   .badge {
     height: 20px;
     min-width: 20px;
     padding: 0 6px;
-    margin-right: -8px;
     display: inline-flex;
     align-items: center;
     justify-content: center;
