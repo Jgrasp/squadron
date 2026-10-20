@@ -3,6 +3,7 @@ import { emit } from '@tauri-apps/api/event'
 import hello from '../../src-tauri/tests/fixtures/hello.jsonl?raw'
 import nologin from '../../src-tauri/tests/fixtures/nologin.jsonl?raw'
 import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
+import taskList from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 
 type Project = { name: string; path: string; rules: string[] }
@@ -61,7 +62,7 @@ function replay(id: string, text: string) {
     return
   }
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
-  const stream = text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -76,7 +77,7 @@ function replay(id: string, text: string) {
     }
     if (i >= lines.length) return timers.delete(id)
     emit('agent-line', { id, line: lines[i++].replaceAll('/project', projectOf.get(id) ?? '/project') })
-    timers.set(id, window.setTimeout(next, text.includes('long') ? 120 : 60))
+    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') ? 150 : 60))
   }
   next()
 }
@@ -160,6 +161,7 @@ mockIPC(
         return
       case 'load_agents':
         return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
+      case 'fork_agent':
       case 'restore_agent':
         projectOf.set(a.id, a.project)
         return

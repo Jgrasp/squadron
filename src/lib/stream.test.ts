@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import hello from '../../src-tauri/tests/fixtures/hello.jsonl?raw'
 import nologin from '../../src-tauri/tests/fixtures/nologin.jsonl?raw'
 import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
+import tasks from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import { apply, exited, newAgent, userMessage, type Agent, type Entry } from './stream'
@@ -77,5 +78,27 @@ describe('stream', () => {
     exited(agent, 'Segmentation fault\n')
     expect(agent.status).toBe('error')
     expect(agent.action).toBe('Segmentation fault')
+  })
+
+  it('follows the agent task list', () => {
+    const agent = fresh()
+    replay(agent, tasks)
+    expect(agent.tasks.map((t) => [t.id, t.subject, t.status])).toEqual([
+      ['1', 'Write a.txt', 'completed'],
+      ['2', 'Write b.txt', 'completed'],
+      ['3', 'Write c.txt', 'completed'],
+    ])
+    const reply = agent.entries.find((e) => e.kind === 'agent')
+    const names = reply?.kind === 'agent' ? reply.blocks.flatMap((b) => (b.type === 'tools' ? b.calls.map((c) => c.name) : [])) : []
+    expect(names.filter((n) => n === 'Write')).toHaveLength(3)
+  })
+
+  it('keeps the session id and forgets the fork once the new session starts', () => {
+    const agent = fresh()
+    agent.sessionId = 'parent'
+    agent.forkOf = 'Parent agent'
+    replay(agent, hello)
+    expect(agent.sessionId).not.toBe('parent')
+    expect(agent.forkOf).toBeNull()
   })
 })

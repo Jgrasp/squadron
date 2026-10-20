@@ -71,6 +71,13 @@
           {:else if agent.status === 'waiting'}
             <span class="detail">{waitingDetail(agent)}</span>
           {/if}
+          {#if agent.tasks.length && agent.status !== 'done'}
+            {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
+            <span class="progress">
+              <span class="bar" aria-hidden="true"><span style:width="{(done / agent.tasks.length) * 100}%"></span></span>
+              <span class="count">{done}/{agent.tasks.length} tasks</span>
+            </span>
+          {/if}
         </button>
       {/each}
     </div>
@@ -268,6 +275,41 @@
 
   .error .detail {
     color: var(--err-muted);
+  }
+
+  .progress {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0 0 18px;
+  }
+
+  .bar {
+    flex: 1;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+
+  .bar span {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--ok);
+  }
+
+  .waiting .bar {
+    background: #5a3322;
+  }
+
+  .waiting .bar span {
+    background: var(--accent);
+  }
+
+  .count {
+    font: 11px var(--mono);
+    color: var(--text-dim);
   }
 
   .empty {

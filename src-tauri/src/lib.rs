@@ -283,8 +283,9 @@ fn restore_agent(
     project: PathBuf,
     options: claude::Options,
     session_id: Option<String>,
+    fork: bool,
 ) -> Result<(), String> {
-    agents.register(&id, project, options, session_id, false)
+    agents.register(&id, project, options, session_id, fork)
 }
 
 #[tauri::command]

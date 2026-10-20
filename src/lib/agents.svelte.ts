@@ -6,6 +6,7 @@ import { matches, ruleFor, ruleLabel } from './rules'
 import {
   apply,
   argument,
+  INTERNAL,
   exited,
   fail,
   newAgent,
@@ -86,7 +87,13 @@ export async function restore() {
       agent.action = 'Stopped when Squadron closed'
     }
     agents.list.push(agent)
-    await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: agent.sessionId }).catch(
+    await invoke('restore_agent', {
+      id: agent.id,
+      project: agent.project,
+      options: agent.options,
+      sessionId: agent.sessionId,
+      fork: !!agent.forkOf,
+    }).catch(
       (e) => fail(find(agent.id)!, String(e)),
     )
   }
@@ -104,7 +111,11 @@ listen<Ask>('permission-request', ({ payload: ask }) => {
   const agent = find(ask.agent)
   if (!agent) return decide(ask.id, { behavior: 'deny', message: 'Unknown Squadron agent.' })
   const rules = projects.list.find((p) => p.path === agent.project)?.rules ?? []
-  if ((agent.allowEdits && EDITS.includes(ask.tool_name)) || rules.some((r) => matches(r, ask.tool_name, ask.input)))
+  if (
+    INTERNAL.includes(ask.tool_name) ||
+    (agent.allowEdits && EDITS.includes(ask.tool_name)) ||
+    rules.some((r) => matches(r, ask.tool_name, ask.input))
+  )
     return decide(ask.id, { behavior: 'allow', updatedInput: ask.input })
   agent.asks.push(ask)
   waitFor(agent)
@@ -283,6 +294,28 @@ export async function reload(id: string) {
   } catch (e) {
     fail(agent, String(e))
   }
+}
+
+export async function fork(id: string) {
+  const source = find(id)
+  if (!source?.sessionId) return
+  const copy = newAgent(crypto.randomUUID(), source.project, `${source.name} (fork)`, $state.snapshot(source.options))
+  const snapshot = $state.snapshot(source)
+  copy.entries = [...snapshot.entries, { kind: 'forked', at: Date.now(), from: source.name }]
+  copy.tasks = snapshot.tasks
+  copy.sessionId = source.sessionId
+  copy.forkOf = source.name
+  copy.status = 'done'
+  copy.action = `Forked from ${source.name}`
+  agents.list.push(copy)
+  const agent = agents.list.at(-1)!
+  agents.current[agent.project] = agent.id
+  try {
+    await invoke('fork_agent', { id: agent.id, from: id, project: agent.project, options: agent.options })
+  } catch (e) {
+    fail(agent, String(e))
+  }
+  persist(agent)
 }
 
 export async function archive(id: string) {

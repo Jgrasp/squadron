@@ -1,6 +1,6 @@
 <script lang="ts">
   import { tick } from 'svelte'
-  import { archive, interrupt, reload, reply, send } from './agents.svelte'
+  import { archive, fork, interrupt, reload, reply, send } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -226,6 +226,14 @@
             <div class="menu" role="menu" aria-label="Agent actions">
               <button type="button" role="menuitem" onclick={() => ((menuOpen = false), reload(agent.id))}>
                 <strong>Reload</strong><span>Restarts the session, keeps the conversation</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                disabled={!agent.sessionId}
+                onclick={() => ((menuOpen = false), fork(agent.id))}
+              >
+                <strong>Fork</strong><span>New agent, same context</span>
               </button>
               <span class="rule" aria-hidden="true"></span>
               <button type="button" role="menuitem" onclick={() => ((menuOpen = false), archive(agent.id))}>
@@ -513,7 +521,11 @@
     text-align: left;
   }
 
-  .menu button:hover {
+  .menu button:disabled {
+    opacity: 0.45;
+  }
+
+  .menu button:not(:disabled):hover {
     background: var(--menu-hover);
   }
 

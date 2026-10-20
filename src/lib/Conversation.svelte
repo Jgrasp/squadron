@@ -6,7 +6,7 @@
   import PermissionCard from './PermissionCard.svelte'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
-  import type { Agent, Block, ToolCall } from './stream'
+  import { INTERNAL, type Agent, type Block, type ToolCall } from './stream'
   import ToolRow from './ToolRow.svelte'
 
   let { agent, ondiff }: { agent: Agent; ondiff: (call: ToolCall) => void } = $props()
@@ -47,7 +47,7 @@
       if (block.type === 'thinking') {
         work.thinking = true
         work.ms = block.ms === undefined || work.ms === undefined ? undefined : work.ms + block.ms
-      } else work.calls.push(...block.calls)
+      } else work.calls.push(...block.calls.filter((c) => !INTERNAL.includes(c.name)))
     }
     return out
   }
@@ -94,6 +94,12 @@
       <strong>Interrupted by you · {time(entry.at)}</strong>
       <span>The reply stops here. Nothing was undone in the files.</span>
     </div>
+  {:else if entry.kind === 'forked'}
+    <div class="separator" role="separator">
+      <span></span>
+      Forked from {entry.from} · {time(entry.at)} · context kept
+      <span></span>
+    </div>
   {:else if entry.kind === 'reloaded'}
     <div class="separator" role="separator">
       <span></span>
@@ -124,6 +130,23 @@
     <PermissionCard {agent} {ask} />
   {/if}
 {/each}
+
+{#if agent.tasks.length}
+  <details class="tasks" open={working}>
+    <summary>
+      <span class="chevron" aria-hidden="true">›</span>
+      Tasks · {agent.tasks.filter((t) => t.status === 'completed').length} of {agent.tasks.length}
+    </summary>
+    <ul>
+      {#each agent.tasks as task (task.toolUseId)}
+        <li class={task.status}>
+          <span class="mark" aria-hidden="true">{task.status === 'completed' ? '✓' : task.status === 'in_progress' ? '●' : '○'}</span>
+          {task.status === 'in_progress' ? (task.activeForm ?? task.subject) : task.subject}
+        </li>
+      {/each}
+    </ul>
+  </details>
+{/if}
 
 {#if working}
   <span class="turn live">
@@ -317,6 +340,53 @@
     padding-left: 38px;
     font-size: 12px;
     color: var(--text-dim);
+  }
+
+  .tasks {
+    padding: 12px 16px;
+    border-radius: 6px;
+    background: var(--surface-1);
+  }
+
+  .tasks ul {
+    margin: 8px 0 0;
+    padding: 0 0 0 26px;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    font-size: 13px;
+  }
+
+  .tasks li {
+    display: flex;
+    gap: 8px;
+    color: var(--text-muted);
+  }
+
+  .tasks li.completed {
+    color: var(--text-dim);
+    text-decoration: line-through;
+    text-decoration-color: var(--text-faint);
+  }
+
+  .tasks li.in_progress {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .mark {
+    width: 12px;
+    flex: none;
+    text-align: center;
+  }
+
+  .completed .mark {
+    color: var(--done);
+  }
+
+  .in_progress .mark {
+    color: var(--accent);
   }
 
   .separator {

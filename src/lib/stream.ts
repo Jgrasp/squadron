@@ -26,6 +26,16 @@ export type Ask = {
   tool_use_id: string | null
 }
 
+export type Task = {
+  id: string
+  toolUseId: string
+  subject: string
+  activeForm?: string
+  status: 'pending' | 'in_progress' | 'completed'
+}
+
+export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
+
 export type Usage = { cost: number; input: number; output: number; ms: number }
 
 export type Entry =
@@ -34,6 +44,7 @@ export type Entry =
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
   | { kind: 'reloaded'; at: number }
+  | { kind: 'forked'; at: number; from: string }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
   | { kind: 'decision'; at: number; tone: 'ok' | 'bad'; title: string; detail: string; note?: string }
 
@@ -56,6 +67,8 @@ export type Agent = {
   asks: Ask[]
   allowEdits: boolean
   sessionId: string | null
+  forkOf: string | null
+  tasks: Task[]
 }
 
 type Json = Record<string, any>
@@ -80,6 +93,8 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     asks: [],
     allowEdits: false,
     sessionId: null,
+    forkOf: null,
+    tasks: [],
   }
 }
 
@@ -161,7 +176,10 @@ export function apply(agent: Agent, d: Json) {
   agent.alive = true
   switch (d.type) {
     case 'system':
-      if (d.subtype === 'init' && d.session_id) agent.sessionId = d.session_id
+      if (d.subtype === 'init' && d.session_id) {
+        if (d.session_id !== agent.sessionId) agent.forkOf = null
+        agent.sessionId = d.session_id
+      }
       if (d.subtype === 'status' && d.status === 'requesting' && agent.status !== 'waiting')
         agent.status = 'working'
       return
@@ -217,12 +235,38 @@ function assistant(agent: Agent, d: Json) {
       const entry = agentEntry(agent)
       const block = entry.blocks.findLast((b) => b.type === 'thinking' && b.ms === undefined)
       if (block?.type === 'thinking') block.ms = d.thinking_duration_ms ?? 0
+      else entry.blocks.push({ type: 'thinking', ms: d.thinking_duration_ms ?? 0 })
     } else if (c.type === 'tool_use') {
       const call = calls(agent).find((x) => x.id === c.id)
       if (call) call.input = c.input
-      agent.action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
+      else {
+        const entry = agentEntry(agent)
+        const last = entry.blocks.at(-1)
+        const added: ToolCall = { id: c.id, name: c.name, input: c.input }
+        if (last?.type === 'tools') last.calls.push(added)
+        else entry.blocks.push({ type: 'tools', calls: [added] })
+      }
+      if (INTERNAL.includes(c.name)) track(agent, c)
+      else agent.action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
     } else if (c.type === 'text' && !agentEntry(agent).blocks.some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`))) {
       agentEntry(agent).blocks.push({ type: 'text', text: c.text, key: `${d.message.id}:full` })
+    }
+  }
+}
+
+function track(agent: Agent, c: Json) {
+  const input = c.input ?? {}
+  if (c.name === 'TaskCreate') {
+    agent.tasks.push({ id: '', toolUseId: c.id, subject: String(input.subject ?? ''), activeForm: input.activeForm, status: 'pending' })
+  } else if (c.name === 'TaskUpdate') {
+    const task = agent.tasks.find((t) => t.id === String(input.taskId))
+    if (!task) return
+    if (input.status === 'deleted') agent.tasks = agent.tasks.filter((t) => t !== task)
+    else {
+      if (input.status) task.status = input.status
+      if (input.subject) task.subject = input.subject
+      if (input.activeForm) task.activeForm = input.activeForm
+      if (task.status === 'in_progress') agent.action = task.activeForm ?? task.subject
     }
   }
 }
@@ -232,6 +276,8 @@ function toolResults(agent: Agent, d: Json) {
   if (!Array.isArray(content)) return
   for (const c of content as Json[]) {
     if (c.type !== 'tool_result') continue
+    const created = agent.tasks.find((t) => t.toolUseId === c.tool_use_id && !t.id)
+    if (created && d.tool_use_result?.task?.id) created.id = String(d.tool_use_result.task.id)
     const call = calls(agent).find((x) => x.id === c.tool_use_id)
     if (call)
       call.result = {
