@@ -2,10 +2,13 @@
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { ofProject, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { cost } from './format'
+  import { settings } from './settings.svelte'
   import { projects } from './projects.svelte'
 
-  let { onadd, onsettings }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude') => void } =
-    $props()
+  let {
+    onadd,
+    onsettings,
+  }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude' | 'preferences') => void } = $props()
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
@@ -91,6 +94,9 @@
           <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('claude'))}>
             <span><strong>Claude Code</strong><small>Executable</small></span>
           </button>
+          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('preferences'))}>
+            <span><strong>Preferences</strong><small>Working tab effect</small></span>
+          </button>
           <span class="rule" aria-hidden="true"></span>
           <button role="menuitem" onclick={() => appWindow.close()}>
             <span>Quit</span><kbd>Ctrl Q</kbd>
@@ -116,8 +122,7 @@
     <span class="divider" aria-hidden="true"></span>
     {#each visible as project (project.path)}
       <button
-        class="tab"
-        class:working={ofProject(project.path).some((a) => a.status === 'working')}
+        class="tab {ofProject(project.path).some((a) => a.status === 'working') ? `effect-${settings.tab_effect}` : ''}"
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         onclick={() => ((projects.overview = false), (projects.current = project.path))}
       >
@@ -446,27 +451,6 @@
 
   .tab:has(.badge) {
     padding-right: 6px;
-  }
-
-  .tab.working {
-    position: relative;
-  }
-
-  .tab.working::after {
-    content: '';
-    position: absolute;
-    inset: 0;
-    border-radius: 4px;
-    background: var(--accent);
-    opacity: 0.05;
-    pointer-events: none;
-    animation: pulse 2s ease-in-out infinite;
-  }
-
-  @keyframes pulse {
-    50% {
-      opacity: 0.3;
-    }
   }
 
   .badge {

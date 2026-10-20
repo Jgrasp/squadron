@@ -3,7 +3,7 @@
   import AgentList from './AgentList.svelte'
   import AgentView from './AgentView.svelte'
   import { archiveProject, interrupt, ofProject, selected } from './agents.svelte'
-  import { layout, MAX_SIDEBAR, MIN_SIDEBAR, resizeSidebar } from './layout.svelte'
+  import { layout, MAX_SIDEBAR, MIN_SIDEBAR, resizeSidebar, toggleSidebar } from './layout.svelte'
   import NewAgent from './NewAgent.svelte'
   import { load, move, remove, type Project } from './projects.svelte'
 
@@ -55,7 +55,10 @@
 
   function keys(event: KeyboardEvent) {
     if (document.querySelector('dialog[open]')) return
-    if (event.ctrlKey && event.key === 'n' && project.exists) {
+    if (event.ctrlKey && event.key === 'b') {
+      event.preventDefault()
+      toggleSidebar()
+    } else if (event.ctrlKey && event.key === 'n' && project.exists) {
       event.preventDefault()
       creating = true
     } else if (event.key === 'Escape' && agent) {
@@ -68,6 +71,7 @@
 
 <div class="body">
   <AgentList {project} current={agent} onnew={() => (creating = true)} onretire={retire} />
+  {#if !layout.collapsed}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div
     class="resizer"
@@ -81,6 +85,7 @@
     onpointerdown={drag}
     onkeydown={nudge}
   ></div>
+  {/if}
 
   {#if !project.exists}
     <main class="center">

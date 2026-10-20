@@ -5,9 +5,9 @@
   import OptionsFields from './OptionsFields.svelte'
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
-  import { saveSettings, settings } from './settings.svelte'
+  import { saveSettings, settings, type TabEffect } from './settings.svelte'
 
-  export type Tab = 'defaults' | 'rules' | 'claude'
+  export type Tab = 'defaults' | 'rules' | 'claude' | 'preferences'
 
   let { tab = $bindable(), onclose }: { tab: Tab; onclose: () => void } = $props()
 
@@ -15,10 +15,16 @@
     ['defaults', 'Agent defaults'],
     ['rules', 'Permission rules'],
     ['claude', 'Claude Code'],
+    ['preferences', 'Preferences'],
+  ]
+  const effects: [TabEffect, string, string][] = [
+    ['snake', 'Snake', 'A light trail runs around the tab, one lap every 2.4 s'],
+    ['pulse', 'Pulse', 'The tab background breathes, one cycle every 2 s'],
   ]
 
   let defaults = $state({ ...settings.defaults })
   let claude = $state(settings.claude)
+  let effect = $state<TabEffect>(settings.tab_effect)
   let version = $state('')
   let error = $state('')
   let saved = $state(false)
@@ -28,7 +34,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults) })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -81,6 +87,19 @@
       {:else}
         <p class="empty">No rules yet. Choosing Always on a permission card adds one here.</p>
       {/each}
+    {:else if tab === 'preferences'}
+      <p class="intro">How a project tab shows that one of its agents is working. The animation stops when the system asks for reduced motion.</p>
+      <div class="effects" role="group" aria-label="Working tab effect">
+        {#each effects as [id, title, hint] (id)}
+          <button aria-pressed={effect === id} onclick={() => (effect = id)}>
+            <span class="sample effect-{id}">
+              <span class="dot" aria-hidden="true"></span>BMC
+            </span>
+            <strong>{title}</strong>
+            <span class="hint">{hint}</span>
+          </button>
+        {/each}
+      </div>
     {:else}
       <p class="intro">Squadron starts every agent with this executable.</p>
       <label for="claude-path">Executable</label>
@@ -229,6 +248,58 @@
   .bad {
     margin: 0;
     color: var(--err-text);
+  }
+
+  .effects {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px;
+  }
+
+  .effects button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 14px;
+    border-radius: 4px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    text-align: left;
+  }
+
+  .effects button[aria-pressed='true'] {
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 2px var(--text);
+  }
+
+  .effects strong {
+    font-weight: 600;
+  }
+
+  .effects .hint {
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .sample {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 30px;
+    margin-bottom: 4px;
+    padding: 0 14px 0 12px;
+    border-radius: 4px;
+    background: var(--bg-tabs);
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  .sample .dot {
+    width: 9px;
+    height: 9px;
+    border-radius: 2px;
+    background: var(--accent);
   }
 
   footer {

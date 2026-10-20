@@ -1,9 +1,15 @@
 import { invoke } from '@tauri-apps/api/core'
 import type { Options } from './stream'
 
-export type Config = { claude: string; defaults: Options }
+export type TabEffect = 'pulse' | 'snake'
 
-export const settings = $state<Config>({ claude: 'claude', defaults: { model: 'opus', effort: 'high', mode: 'default' } })
+export type Config = { claude: string; defaults: Options; tab_effect: TabEffect }
+
+export const settings = $state<Config>({
+  claude: 'claude',
+  defaults: { model: 'opus', effort: 'high', mode: 'default' },
+  tab_effect: 'pulse',
+})
 
 export async function loadSettings() {
   Object.assign(settings, await invoke<Config>('get_settings'))

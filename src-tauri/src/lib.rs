@@ -170,6 +170,7 @@ struct Settings {
 struct Config {
     claude: String,
     defaults: claude::Options,
+    tab_effect: String,
 }
 
 impl Default for Config {
@@ -181,6 +182,7 @@ impl Default for Config {
                 effort: "high".into(),
                 mode: "default".into(),
             },
+            tab_effect: "pulse".into(),
         }
     }
 }
@@ -203,6 +205,9 @@ impl Settings {
 
     fn save(&self, mut config: Config) -> Result<(), String> {
         config.defaults.check()?;
+        if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
+            return Err(format!("Unknown tab effect: {}", config.tab_effect));
+        }
         config.claude = config.claude.trim().to_string();
         if config.claude.is_empty() {
             config.claude = "claude".into();
