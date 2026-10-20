@@ -1,18 +1,26 @@
 <script lang="ts">
   import { ask, open } from '@tauri-apps/plugin-dialog'
-  import { home, load, move, remove, type Project } from './projects.svelte'
+  import AgentList from './AgentList.svelte'
+  import AgentView from './AgentView.svelte'
+  import { archiveProject, interrupt, ofProject, selected } from './agents.svelte'
+  import NewAgent from './NewAgent.svelte'
+  import { load, move, remove, type Project } from './projects.svelte'
 
   let { project }: { project: Project } = $props()
   let error = $state('')
+  let creating = $state(false)
+
+  const agent = $derived(selected(project.path))
 
   async function retire() {
-    const confirmed = await ask(`Retirer ${project.name} de Squadron ? Le dossier n'est pas touché.`, {
-      title: 'Retirer le projet',
-      kind: 'warning',
-      okLabel: 'Retirer',
-      cancelLabel: 'Annuler',
-    })
-    if (confirmed) await remove(project.path)
+    const running = ofProject(project.path).length
+    const confirmed = await ask(
+      `Retirer ${project.name} de Squadron ? Le dossier n’est pas touché.${running ? ` Ses ${running} agent${running > 1 ? 's seront arrêtés' : ' sera arrêté'}.` : ''}`,
+      { title: 'Retirer le projet', kind: 'warning', okLabel: 'Retirer', cancelLabel: 'Annuler' },
+    )
+    if (!confirmed) return
+    await archiveProject(project.path)
+    await remove(project.path)
   }
 
   async function relocate() {
@@ -25,51 +33,25 @@
       error = String(e)
     }
   }
+
+  function keys(event: KeyboardEvent) {
+    if (document.querySelector('dialog[open]')) return
+    if (event.ctrlKey && event.key === 'n' && project.exists) {
+      event.preventDefault()
+      creating = true
+    } else if (event.key === 'Escape' && agent) {
+      interrupt(agent.id)
+    }
+  }
 </script>
 
+<svelte:window onkeydown={keys} />
+
 <div class="body">
-  <aside aria-label="Agents du projet">
-    <div class="head">
-      <div class="who">
-        <span class="square" aria-hidden="true"></span>
-        <div>
-          <strong>{project.name}</strong>
-          <small class:bad={!project.exists}>{project.exists ? 'Aucun agent' : 'Dossier introuvable'}</small>
-        </div>
-      </div>
-      <button class="new" disabled={!project.exists}>+ Agent</button>
-    </div>
+  <AgentList {project} current={agent} onnew={() => (creating = true)} onretire={retire} />
 
-    <div class="empty">
-      <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"
-        ><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" stroke-dasharray="3 3" /></svg
-      >
-      {project.exists
-        ? `Les agents de ${project.name} apparaîtront ici, avec leur état et leur coût.`
-        : 'Tu pourras créer des agents dès que le dossier sera retrouvé.'}
-    </div>
-
-    <div class="info">
-      <span class="mono">{home(project.path)}</span>
-      <span>{project.git ? `Git · ${project.branch ?? 'dépôt'}` : 'Pas de dépôt Git détecté'}</span>
-      <button class="retire" onclick={retire}>Retirer le projet</button>
-    </div>
-  </aside>
-
-  <main>
-    {#if project.exists}
-      <div class="box">
-        <span class="plus" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-        </span>
-        <h1>Lance le premier agent de {project.name}</h1>
-        <p>Donne-lui un nom, choisis le modèle, l'effort et le mode de permission, puis écris sa première consigne.</p>
-        <div class="row">
-          <button class="btn btn-primary big">Nouvel agent</button>
-          <kbd>Ctrl N</kbd>
-        </div>
-      </div>
-    {:else}
+  {#if !project.exists}
+    <main class="center">
       <section class="missing" role="alert" aria-labelledby="introuvable">
         <div class="title">
           <span class="icon" aria-hidden="true">
@@ -89,9 +71,31 @@
           <button class="btn btn-danger" onclick={retire}>Retirer le projet</button>
         </div>
       </section>
-    {/if}
-  </main>
+    </main>
+  {:else if agent}
+    {#key agent.id}
+      <AgentView {agent} />
+    {/key}
+  {:else}
+    <main class="center">
+      <div class="box">
+        <span class="plus" aria-hidden="true">
+          <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+        </span>
+        <h1>Lance le premier agent de {project.name}</h1>
+        <p>Donne-lui un nom, choisis le modèle, l’effort et le mode de permission, puis écris sa première consigne.</p>
+        <div class="row">
+          <button class="btn btn-primary big" onclick={() => (creating = true)}>Nouvel agent</button>
+          <kbd>Ctrl N</kbd>
+        </div>
+      </div>
+    </main>
+  {/if}
 </div>
+
+{#if creating}
+  <NewAgent {project} onclose={() => (creating = false)} />
+{/if}
 
 <style>
   .body {
@@ -100,113 +104,7 @@
     display: flex;
   }
 
-  aside {
-    width: 304px;
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border);
-  }
-
-  .head {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    padding: 2px 4px 10px;
-  }
-
-  .who {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .who div {
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .who small {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .who small.bad {
-    color: var(--err-text);
-  }
-
-  .square {
-    width: 12px;
-    height: 12px;
-    border-radius: 3px;
-    background: var(--accent);
-  }
-
-  .new {
-    height: 32px;
-    padding: 0 12px;
-    border: 1px dashed var(--border-dashed);
-    border-radius: 4px;
-    color: var(--text-2);
-    font-weight: 500;
-  }
-
-  .new:disabled {
-    opacity: 0.4;
-  }
-
-  .empty {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-    padding: 0 24px;
-    text-align: center;
-    color: var(--text-dim);
-    font-size: 12.5px;
-    line-height: 1.5;
-  }
-
-  .empty svg {
-    fill: none;
-    stroke: var(--text-faint);
-    stroke-width: 1.6;
-  }
-
-  .info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px;
-    border-radius: 4px;
-    background: var(--surface-1);
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .info .mono {
-    color: var(--text-3);
-    overflow-wrap: anywhere;
-  }
-
-  .retire {
-    align-self: flex-start;
-    margin-top: 4px;
-    color: var(--text-dim);
-    text-decoration: underline;
-  }
-
-  .retire:hover {
-    color: var(--err-text);
-  }
-
-  main {
+  .center {
     flex: 1;
     min-width: 0;
     display: flex;

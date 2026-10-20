@@ -1,11 +1,17 @@
 use serde::Deserialize;
 use serde_json::{Value, json};
-use std::io::{self, BufRead, BufReader, Write};
+use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
-use std::process::{Child, ChildStdin, Command, Stdio};
+use std::process::{ChildStdin, Command, Stdio};
+use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::thread;
 
 pub const TESTED_VERSION: &str = "2.1.304";
+
+const MODELS: [&str; 3] = ["opus", "sonnet", "haiku"];
+const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
+const MODES: [&str; 4] = ["default", "acceptEdits", "plan", "auto"];
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -36,8 +42,30 @@ pub enum Event {
     Other,
 }
 
-pub fn command(dir: &Path) -> Command {
-    let mut cmd = Command::new("claude");
+#[derive(Clone, Debug, Deserialize)]
+pub struct Options {
+    pub model: String,
+    pub effort: String,
+    pub mode: String,
+}
+
+impl Options {
+    pub fn check(&self) -> Result<(), String> {
+        if !MODELS.contains(&self.model.as_str()) {
+            return Err(format!("Modèle inconnu : {}", self.model));
+        }
+        if !EFFORTS.contains(&self.effort.as_str()) {
+            return Err(format!("Effort inconnu : {}", self.effort));
+        }
+        if !MODES.contains(&self.mode.as_str()) {
+            return Err(format!("Mode de permission inconnu : {}", self.mode));
+        }
+        Ok(())
+    }
+}
+
+pub fn command(program: &str, dir: &Path, options: &Options, resume: Option<&str>) -> Command {
+    let mut cmd = Command::new(program);
     cmd.current_dir(dir).args([
         "-p",
         "--input-format",
@@ -46,23 +74,47 @@ pub fn command(dir: &Path) -> Command {
         "stream-json",
         "--verbose",
         "--include-partial-messages",
+        "--model",
+        &options.model,
+        "--effort",
+        &options.effort,
+        "--permission-mode",
+        &options.mode,
     ]);
+    if let Some(id) = resume {
+        cmd.args(["--resume", id]);
+    }
     cmd
 }
 
 pub struct Session {
-    child: Child,
+    pid: libc::pid_t,
     stdin: ChildStdin,
+    alive: Arc<AtomicBool>,
 }
 
 impl Session {
     pub fn start(
         mut cmd: Command,
         mut on_event: impl FnMut(&str, Event) + Send + 'static,
+        on_exit: impl FnOnce(String) + Send + 'static,
     ) -> io::Result<Self> {
-        let mut child = cmd.stdin(Stdio::piped()).stdout(Stdio::piped()).spawn()?;
+        let mut child = cmd
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::piped())
+            .spawn()?;
         let stdin = child.stdin.take().expect("stdin is piped");
         let stdout = child.stdout.take().expect("stdout is piped");
+        let mut stderr = child.stderr.take().expect("stderr is piped");
+        let errors = thread::spawn(move || {
+            let mut text = String::new();
+            let _ = stderr.read_to_string(&mut text);
+            text
+        });
+        let alive = Arc::new(AtomicBool::new(true));
+        let flag = alive.clone();
+        let pid = child.id() as libc::pid_t;
         thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 match serde_json::from_str::<Event>(&line) {
@@ -82,8 +134,15 @@ impl Session {
                     Err(e) => log::warn!("ligne illisible dans le flux de claude : {e}"),
                 }
             }
+            let _ = child.wait();
+            flag.store(false, Ordering::SeqCst);
+            on_exit(errors.join().unwrap_or_default());
         });
-        Ok(Self { child, stdin })
+        Ok(Self { pid, stdin, alive })
+    }
+
+    pub fn alive(&self) -> bool {
+        self.alive.load(Ordering::SeqCst)
     }
 
     pub fn send(&mut self, text: &str) -> io::Result<()> {
@@ -92,12 +151,22 @@ impl Session {
         self.stdin.flush()
     }
 
-    /// Claude Code finit le tour en erreur puis s'arrête : continuer demandera `--resume`.
-    pub fn interrupt(mut self) -> io::Result<()> {
-        if unsafe { libc::kill(self.child.id() as libc::pid_t, libc::SIGINT) } != 0 {
+    /// Claude Code finit le tour en erreur puis s'arrête : continuer demande `--resume`.
+    pub fn interrupt(&self) -> io::Result<()> {
+        self.signal(libc::SIGINT)
+    }
+
+    pub fn stop(&self) -> io::Result<()> {
+        self.signal(libc::SIGTERM)
+    }
+
+    fn signal(&self, signal: libc::c_int) -> io::Result<()> {
+        if !self.alive() {
+            return Ok(());
+        }
+        if unsafe { libc::kill(self.pid, signal) } != 0 {
             return Err(io::Error::last_os_error());
         }
-        thread::spawn(move || self.child.wait());
         Ok(())
     }
 }
@@ -124,6 +193,7 @@ mod tests {
         let mut session = Session::start(
             fake_claude(r#"read -r _ && cat "$0$1""#, fixture),
             move |_, event| tx.send(event).unwrap(),
+            |_| {},
         )
         .unwrap();
         session.send("bonjour").unwrap();
@@ -141,6 +211,8 @@ mod tests {
             ("hello.jsonl", false),
             ("tools.jsonl", false),
             ("sigint.jsonl", true),
+            ("twoturns.jsonl", false),
+            ("nologin.jsonl", true),
         ] {
             let events = replay(fixture);
             assert_eq!(events.len(), lines(fixture), "{fixture}");
@@ -172,18 +244,42 @@ mod tests {
     }
 
     #[test]
-    fn interrupt_stops_the_process() {
-        let (tx, rx) = mpsc::channel::<()>();
+    fn interrupt_stops_the_process_and_reports_stderr() {
+        let (started, ready) = mpsc::channel();
+        let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
-            fake_claude("read -r _ && exec sleep 30", ""),
-            move |_, _| tx.send(()).unwrap(),
+            fake_claude(
+                r#"echo oups >&2; echo '{"type":"ready"}'; read -r _ && exec sleep 30"#,
+                "",
+            ),
+            move |_, _| started.send(()).unwrap(),
+            move |stderr| tx.send(stderr).unwrap(),
         )
         .unwrap();
+        ready.recv_timeout(Duration::from_secs(5)).unwrap();
         session.send("bonjour").unwrap();
+        assert!(session.alive());
         session.interrupt().unwrap();
+        assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), "oups\n");
+        assert!(!session.alive());
         assert_eq!(
-            rx.recv_timeout(Duration::from_secs(5)),
+            rx.recv_timeout(Duration::from_millis(100)),
             Err(RecvTimeoutError::Disconnected)
         );
+    }
+
+    #[test]
+    fn rejects_unknown_options() {
+        let ok = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "auto".into(),
+        };
+        assert!(ok.check().is_ok());
+        let flag = Options {
+            model: "--dangerously-skip-permissions".into(),
+            ..ok
+        };
+        assert!(flag.check().is_err());
     }
 }

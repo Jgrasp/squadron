@@ -1,11 +1,13 @@
+pub mod agents;
 pub mod claude;
 pub mod projects;
 
+use agents::Agents;
 use projects::{Folder, Project};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, State};
+use tauri::{AppHandle, Manager, RunEvent, State};
 
 struct Projects {
     file: PathBuf,
@@ -110,46 +112,119 @@ fn move_project(
     })
 }
 
-#[derive(Default)]
-struct Agent(Mutex<Option<claude::Session>>);
+struct Settings {
+    file: PathBuf,
+    claude: Mutex<String>,
+}
 
-#[tauri::command]
-fn send(app: AppHandle, agent: State<Agent>, dir: String, text: String) -> Result<(), String> {
-    let mut session = agent.0.lock().unwrap();
-    if session.is_none() {
-        let started = claude::Session::start(claude::command(Path::new(&dir)), move |line, _| {
-            let _ = app.emit("claude", line);
-        });
-        *session = Some(started.map_err(|e| e.to_string())?);
+#[derive(Serialize, serde::Deserialize)]
+struct SettingsFile {
+    claude: String,
+}
+
+impl Settings {
+    fn load(file: PathBuf) -> Self {
+        let claude = std::fs::read_to_string(&file)
+            .ok()
+            .and_then(|text| serde_json::from_str::<SettingsFile>(&text).ok())
+            .map_or_else(|| "claude".to_string(), |s| s.claude);
+        Self {
+            file,
+            claude: Mutex::new(claude),
+        }
     }
-    let sent = session.as_mut().unwrap().send(&text);
-    if sent.is_err() {
-        *session = None;
+
+    fn claude(&self) -> String {
+        self.claude.lock().unwrap().clone()
     }
-    sent.map_err(|e| e.to_string())
 }
 
 #[tauri::command]
-fn interrupt(agent: State<Agent>) -> Result<(), String> {
-    match agent.0.lock().unwrap().take() {
-        Some(session) => session.interrupt().map_err(|e| e.to_string()),
-        None => Ok(()),
+fn claude_path(settings: State<Settings>) -> String {
+    settings.claude()
+}
+
+#[tauri::command]
+fn set_claude_path(settings: State<Settings>, path: String) -> Result<(), String> {
+    let path = if path.trim().is_empty() {
+        "claude".to_string()
+    } else {
+        path.trim().to_string()
+    };
+    if let Some(dir) = settings.file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
     }
+    let text = serde_json::to_string_pretty(&SettingsFile {
+        claude: path.clone(),
+    })
+    .map_err(|e| e.to_string())?;
+    std::fs::write(&settings.file, text).map_err(|e| e.to_string())?;
+    *settings.claude.lock().unwrap() = path;
+    Ok(())
+}
+
+#[tauri::command]
+fn create_agent(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    project: PathBuf,
+    options: claude::Options,
+    text: String,
+) -> Result<(), String> {
+    agents.create(&app, &settings.claude(), id, project, options, &text)
+}
+
+#[tauri::command]
+fn send_message(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    text: String,
+) -> Result<(), String> {
+    agents.send(&app, &settings.claude(), &id, &text)
+}
+
+#[tauri::command]
+fn interrupt_agent(agents: State<Agents>, id: String) -> Result<(), String> {
+    agents.interrupt(&id)
+}
+
+#[tauri::command]
+fn reload_agent(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+) -> Result<(), String> {
+    agents.reload(&app, &settings.claude(), &id)
+}
+
+#[tauri::command]
+fn archive_agent(agents: State<Agents>, id: String) {
+    agents.archive(&id)
 }
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
-        .manage(Agent::default())
+        .manage(Agents::default())
         .invoke_handler(tauri::generate_handler![
             list_projects,
             inspect_folder,
             add_project,
             remove_project,
             move_project,
-            send,
-            interrupt
+            claude_path,
+            set_claude_path,
+            create_agent,
+            send_message,
+            interrupt_agent,
+            reload_agent,
+            archive_agent
         ])
         .setup(|app| {
             if cfg!(debug_assertions) {
@@ -159,13 +234,20 @@ pub fn run() {
                         .build(),
                 )?;
             }
-            let file = app.path().app_config_dir()?.join("projects.json");
+            let config = app.path().app_config_dir()?;
+            let file = config.join("projects.json");
             app.manage(Projects {
                 list: Mutex::new(projects::load(&file)),
                 file,
             });
+            app.manage(Settings::load(config.join("settings.json")));
             Ok(())
         })
-        .run(tauri::generate_context!())
-        .expect("error while building tauri application");
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                app.state::<Agents>().stop_all();
+            }
+        });
 }

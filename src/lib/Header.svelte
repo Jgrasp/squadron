@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
+  import { waiting } from './agents.svelte'
   import { projects } from './projects.svelte'
 
   let { onadd }: { onadd: () => void } = $props()
@@ -93,6 +94,7 @@
       >
         <span class="dot" aria-hidden="true"></span>
         {project.name}
+        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}
         {#if !project.exists}
           <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label="Dossier introuvable"
             ><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg
@@ -109,6 +111,9 @@
           onclick={() => (moreOpen = !moreOpen)}
         >
           +{hidden.length}
+          {#if hidden.some((p) => waiting(p.path))}
+            <span class="badge">{hidden.reduce((n, p) => n + waiting(p.path), 0)}</span>
+          {/if}
           <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
             ><path d="M6 9l6 6 6-6" /></svg
           >
@@ -124,6 +129,7 @@
             {#each found as project (project.path)}
               <button role="menuitem" onclick={() => choose(project.path)}>
                 <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
+                {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}
               </button>
             {/each}
           </div>
@@ -344,6 +350,25 @@
 
   .tab[aria-current='page'] .dot {
     background: var(--accent);
+  }
+
+  .badge {
+    height: 20px;
+    min-width: 20px;
+    padding: 0 6px;
+    margin-right: -8px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 11.5px;
+    font-weight: 700;
+  }
+
+  .menu .badge {
+    margin-right: 0;
   }
 
   .warn {
