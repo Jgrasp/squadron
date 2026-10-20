@@ -168,8 +168,18 @@ mockIPC(
         return a.path.endsWith('resume.txt') ? '2\n' : null
       case 'open_in_editor':
         return
-      case 'claude_path':
-        return claudePath
+      case 'get_settings':
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' } }
+      case 'set_settings':
+        claudePath = (a as unknown as { config: { claude: string } }).config.claude
+        return
+      case 'claude_version':
+        return '2.1.304 (Claude Code)'
+      case 'remove_rule': {
+        const project = projects.find((p) => p.path === a.path)
+        if (project) project.rules = project.rules.filter((r) => r !== a.rule)
+        return views()
+      }
       case 'set_claude_path':
         claudePath = a.path
         return

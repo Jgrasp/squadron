@@ -6,12 +6,16 @@
   import EmptyProjects from './lib/EmptyProjects.svelte'
   import Header from './lib/Header.svelte'
   import ProjectView from './lib/ProjectView.svelte'
+  import Settings, { type Tab } from './lib/Settings.svelte'
+  import { loadSettings } from './lib/settings.svelte'
   import { restore, saveAll } from './lib/agents.svelte'
   import { current, load, projects } from './lib/projects.svelte'
 
   let adding: string | null = $state(null)
+  let settingsTab = $state<Tab | null>(null)
   const project = $derived(current())
 
+  loadSettings()
   load().then(restore)
 
   $effect(() => {
@@ -51,7 +55,7 @@
 <svelte:window onkeydown={shortcuts} onclick={links} />
 
 <div class="app">
-  <Header onadd={() => (adding = '')} />
+  <Header onadd={() => (adding = '')} onsettings={(tab) => (settingsTab = tab)} />
   {#if projects.list.length === 0}
     <EmptyProjects onadd={() => (adding = '')} />
   {:else if project}
@@ -60,6 +64,10 @@
     {/key}
   {/if}
 </div>
+
+{#if settingsTab !== null}
+  <Settings bind:tab={settingsTab} onclose={() => (settingsTab = null)} />
+{/if}
 
 {#if adding !== null}
   <AddProject path={adding} onclose={() => (adding = null)} />

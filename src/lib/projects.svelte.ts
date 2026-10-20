@@ -44,6 +44,10 @@ export async function addRule(path: string, rule: string) {
   set(await invoke<Project[]>('add_rule', { path, rule }))
 }
 
+export async function removeRule(path: string, rule: string) {
+  set(await invoke<Project[]>('remove_rule', { path, rule }))
+}
+
 export function inspect(path: string) {
   return invoke<Inspection>('inspect_folder', { path })
 }

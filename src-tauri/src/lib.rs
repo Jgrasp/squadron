@@ -118,6 +118,20 @@ fn add_rule(projects: State<Projects>, path: PathBuf, rule: String) -> Result<Ve
 }
 
 #[tauri::command]
+fn remove_rule(
+    projects: State<Projects>,
+    path: PathBuf,
+    rule: String,
+) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        if let Some(project) = list.iter_mut().find(|p| p.path == path) {
+            project.rules.retain(|r| r != &rule);
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command]
 fn answer_permission(
     gate: State<Gate>,
     id: String,
@@ -148,29 +162,88 @@ fn move_project(
 
 struct Settings {
     file: PathBuf,
-    claude: Mutex<String>,
+    config: Mutex<Config>,
 }
 
-#[derive(Serialize, serde::Deserialize)]
-struct SettingsFile {
+#[derive(Clone, Serialize, serde::Deserialize)]
+#[serde(default)]
+struct Config {
     claude: String,
+    defaults: claude::Options,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            claude: "claude".into(),
+            defaults: claude::Options {
+                model: "opus".into(),
+                effort: "high".into(),
+                mode: "default".into(),
+            },
+        }
+    }
 }
 
 impl Settings {
     fn load(file: PathBuf) -> Self {
-        let claude = std::fs::read_to_string(&file)
+        let config = std::fs::read_to_string(&file)
             .ok()
-            .and_then(|text| serde_json::from_str::<SettingsFile>(&text).ok())
-            .map_or_else(|| "claude".to_string(), |s| s.claude);
+            .and_then(|text| serde_json::from_str::<Config>(&text).ok())
+            .unwrap_or_default();
         Self {
             file,
-            claude: Mutex::new(claude),
+            config: Mutex::new(config),
         }
     }
 
     fn claude(&self) -> String {
-        self.claude.lock().unwrap().clone()
+        self.config.lock().unwrap().claude.clone()
     }
+
+    fn save(&self, mut config: Config) -> Result<(), String> {
+        config.defaults.check()?;
+        config.claude = config.claude.trim().to_string();
+        if config.claude.is_empty() {
+            config.claude = "claude".into();
+        }
+        if let Some(dir) = self.file.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let text = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+        std::fs::write(&self.file, text).map_err(|e| e.to_string())?;
+        *self.config.lock().unwrap() = config;
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn get_settings(settings: State<Settings>) -> Config {
+    settings.config.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn set_settings(settings: State<Settings>, config: Config) -> Result<(), String> {
+    settings.save(config)
+}
+
+#[tauri::command]
+fn set_claude_path(settings: State<Settings>, path: String) -> Result<(), String> {
+    let mut config = settings.config.lock().unwrap().clone();
+    config.claude = path;
+    settings.save(config)
+}
+
+#[tauri::command]
+fn claude_version(path: String) -> Result<String, String> {
+    let output = std::process::Command::new(path.trim())
+        .arg("--version")
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
 }
 
 #[tauri::command]
@@ -187,30 +260,6 @@ fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, 
 fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| e.to_string())
-}
-
-#[tauri::command]
-fn claude_path(settings: State<Settings>) -> String {
-    settings.claude()
-}
-
-#[tauri::command]
-fn set_claude_path(settings: State<Settings>, path: String) -> Result<(), String> {
-    let path = if path.trim().is_empty() {
-        "claude".to_string()
-    } else {
-        path.trim().to_string()
-    };
-    if let Some(dir) = settings.file.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    let text = serde_json::to_string_pretty(&SettingsFile {
-        claude: path.clone(),
-    })
-    .map_err(|e| e.to_string())?;
-    std::fs::write(&settings.file, text).map_err(|e| e.to_string())?;
-    *settings.claude.lock().unwrap() = path;
-    Ok(())
 }
 
 #[tauri::command]
@@ -339,8 +388,11 @@ pub fn run() {
             cancel_permissions,
             read_project_file,
             open_in_editor,
-            claude_path,
+            get_settings,
+            set_settings,
             set_claude_path,
+            claude_version,
+            remove_rule,
             create_agent,
             restore_agent,
             fork_agent,

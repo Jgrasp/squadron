@@ -3,7 +3,8 @@
   import { waiting } from './agents.svelte'
   import { projects } from './projects.svelte'
 
-  let { onadd }: { onadd: () => void } = $props()
+  let { onadd, onsettings }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude') => void } =
+    $props()
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
@@ -77,6 +78,18 @@
             <span class="triangle big" aria-hidden="true"></span>
             <span><strong>Squadron</strong><small>Version 0.1.0 · Linux</small></span>
           </div>
+          <span class="section">Agents</span>
+          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('defaults'))}>
+            <span><strong>Agent defaults</strong><small>Model, effort and mode of new agents</small></span>
+          </button>
+          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('rules'))}>
+            <span><strong>Permission rules</strong><small>What each project always allows</small></span>
+          </button>
+          <span class="section">Application</span>
+          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('claude'))}>
+            <span><strong>Claude Code</strong><small>Executable</small></span>
+          </button>
+          <span class="rule" aria-hidden="true"></span>
           <button role="menuitem" onclick={() => appWindow.close()}>
             <span>Quit</span><kbd>Ctrl Q</kbd>
           </button>
@@ -263,6 +276,41 @@
     margin-left: auto;
     font: 12px var(--mono);
     color: var(--text-dim);
+  }
+
+  .section {
+    padding: 8px 10px 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .menu .item {
+    height: auto;
+    padding: 9px 10px;
+  }
+
+  .item span {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .item strong {
+    font-weight: 600;
+  }
+
+  .item small {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .rule {
+    height: 1px;
+    margin: 6px 4px;
+    background: var(--border-strong);
   }
 
   .about {
