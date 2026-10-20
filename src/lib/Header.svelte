@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
-  import { waiting } from './agents.svelte'
+  import { todayCost, waiting, waitingAgents } from './agents.svelte'
+  import { cost } from './format'
   import { projects } from './projects.svelte'
 
   let { onadd, onsettings }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude') => void } =
@@ -14,7 +15,7 @@
   let search = $state('')
 
   const fit = $derived.by(() => {
-    const available = headerWidth - 2 * 170 - 34 - 64
+    const available = headerWidth - 2 * 200 - 34 - 64 - 130
     let used = 0
     let count = 0
     for (const el of measures.slice(0, projects.list.length)) {
@@ -39,6 +40,7 @@
   )
 
   function choose(path: string) {
+    projects.overview = false
     projects.current = path
     moreOpen = false
     search = ''
@@ -99,11 +101,24 @@
   </div>
 
   <nav aria-label="Projects">
+    <button
+      class="tab overview"
+      aria-current={projects.overview ? 'page' : undefined}
+      title="Overview (Ctrl J jumps to the next agent waiting for you)"
+      onclick={() => (projects.overview = true)}
+    >
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
+        ><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg
+      >
+      Overview
+      {#if waitingAgents().length}<span class="badge outline">{waitingAgents().length}</span>{/if}
+    </button>
+    <span class="divider" aria-hidden="true"></span>
     {#each visible as project (project.path)}
       <button
         class="tab"
-        aria-current={project.path === projects.current ? 'page' : undefined}
-        onclick={() => (projects.current = project.path)}
+        aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
+        onclick={() => ((projects.overview = false), (projects.current = project.path))}
       >
         <span class="dot" aria-hidden="true"></span>
         {project.name}
@@ -153,6 +168,7 @@
   </nav>
 
   <div class="end" data-tauri-drag-region>
+    <span class="today" title="Cost of today, all agents">Today <span>{cost(todayCost())}</span></span>
     <button class="win" aria-label="Minimize" onclick={() => appWindow.minimize()}>–</button>
     <button class="win" aria-label="Maximize" onclick={() => appWindow.toggleMaximize()}>□</button>
     <button class="win" aria-label="Close" onclick={() => appWindow.close()}>×</button>
@@ -398,6 +414,33 @@
 
   .tab[aria-current='page'] .dot {
     background: var(--accent);
+  }
+
+  .divider {
+    width: 1px;
+    margin: 6px 2px;
+    background: var(--border-strong);
+  }
+
+  .overview {
+    padding: 0 8px 0 10px;
+  }
+
+  .badge.outline {
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--accent-soft);
+  }
+
+  .today {
+    margin-right: 6px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .today span {
+    font-family: var(--mono);
+    color: var(--text-3);
   }
 
   .badge {

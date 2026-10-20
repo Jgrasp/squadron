@@ -8,7 +8,8 @@
   import ProjectView from './lib/ProjectView.svelte'
   import Settings, { type Tab } from './lib/Settings.svelte'
   import { loadSettings } from './lib/settings.svelte'
-  import { restore, saveAll } from './lib/agents.svelte'
+  import { jumpToWaiting, loadToday, restore, saveAll } from './lib/agents.svelte'
+  import Overview from './lib/Overview.svelte'
   import { current, load, projects } from './lib/projects.svelte'
 
   let adding: string | null = $state(null)
@@ -16,6 +17,7 @@
   const project = $derived(current())
 
   loadSettings()
+  loadToday()
   load().then(restore)
 
   $effect(() => {
@@ -49,6 +51,10 @@
 
   function shortcuts(event: KeyboardEvent) {
     if (event.ctrlKey && event.key === 'q') getCurrentWindow().close()
+    else if (event.ctrlKey && event.key === 'j' && !document.querySelector('dialog[open]')) {
+      event.preventDefault()
+      if (!jumpToWaiting()) projects.overview = true
+    }
   }
 </script>
 
@@ -56,7 +62,9 @@
 
 <div class="app">
   <Header onadd={() => (adding = '')} onsettings={(tab) => (settingsTab = tab)} />
-  {#if projects.list.length === 0}
+  {#if projects.overview}
+    <Overview />
+  {:else if projects.list.length === 0}
     <EmptyProjects onadd={() => (adding = '')} />
   {:else if project}
     {#key project.path}

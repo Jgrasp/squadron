@@ -161,6 +161,14 @@ mockIPC(
         return
       case 'load_agents':
         return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
+      case 'add_cost': {
+        const key = `cost:${a.day}`
+        const total = Number(localStorage.getItem(key) ?? 0) + Number(a.usd)
+        localStorage.setItem(key, String(total))
+        return total
+      }
+      case 'day_cost':
+        return Number(localStorage.getItem(`cost:${a.day}`) ?? 0)
       case 'fork_agent':
       case 'restore_agent':
         projectOf.set(a.id, a.project)

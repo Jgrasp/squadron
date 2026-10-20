@@ -69,6 +69,7 @@ export type Agent = {
   sessionId: string | null
   forkOf: string | null
   tasks: Task[]
+  summary: string
 }
 
 type Json = Record<string, any>
@@ -95,6 +96,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     sessionId: null,
     forkOf: null,
     tasks: [],
+    summary: '',
   }
 }
 
@@ -180,6 +182,7 @@ export function apply(agent: Agent, d: Json) {
         if (d.session_id !== agent.sessionId) agent.forkOf = null
         agent.sessionId = d.session_id
       }
+      if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
       if (d.subtype === 'status' && d.status === 'requesting' && agent.status !== 'waiting')
         agent.status = 'working'
       return

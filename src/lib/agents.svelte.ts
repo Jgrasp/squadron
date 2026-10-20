@@ -21,6 +21,45 @@ import {
 export const agents = $state({ list: [] as Agent[], current: {} as Record<string, string> })
 
 export const clock = $state({ now: Date.now() })
+
+const dayOf = (at: number) => new Date(at).toLocaleDateString('sv')
+
+export const today = $state({ day: dayOf(Date.now()), usd: 0 })
+
+export function todayCost() {
+  return today.day === dayOf(clock.now) ? today.usd : 0
+}
+
+export async function loadToday() {
+  today.day = dayOf(Date.now())
+  today.usd = await invoke<number>('day_cost', { day: today.day })
+}
+
+async function spend(usd: number) {
+  const day = dayOf(Date.now())
+  const total = await invoke<number>('add_cost', { day, usd })
+  today.day = day
+  today.usd = total
+}
+
+export function waitingAgents() {
+  return agents.list.filter((a) => a.status === 'waiting').sort((a, b) => a.since - b.since)
+}
+
+export function show(agent: Agent) {
+  projects.overview = false
+  projects.current = agent.project
+  agents.current[agent.project] = agent.id
+}
+
+export function jumpToWaiting() {
+  const queue = waitingAgents()
+  if (!queue.length) return false
+  const shown = projects.overview ? undefined : selected(projects.current)
+  const at = queue.findIndex((a) => a.id === shown?.id)
+  show(queue[(at + 1) % queue.length])
+  return true
+}
 setInterval(() => (clock.now = Date.now()), 1000)
 
 export function find(id: string) {
@@ -44,7 +83,9 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const agent = find(payload.id)
   if (!agent) return
   const d = JSON.parse(payload.line)
+  const before = agent.cost
   apply(agent, d)
+  if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result' || d.subtype === 'init') persist(agent)
 })
 

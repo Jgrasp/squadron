@@ -11,7 +11,7 @@ export type Project = {
 
 export type Inspection = Project & { taken_by: string | null }
 
-export const projects = $state({ list: [] as Project[], current: '' })
+export const projects = $state({ list: [] as Project[], current: '', overview: false })
 
 export function current(): Project | undefined {
   return projects.list.find((p) => p.path === projects.current)

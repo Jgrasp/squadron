@@ -302,6 +302,48 @@ fn fork_agent(
     agents.register(&id, project, options, Some(session), true)
 }
 
+struct Usage {
+    file: PathBuf,
+    days: Mutex<std::collections::BTreeMap<String, f64>>,
+}
+
+fn check_day(day: &str) -> Result<(), String> {
+    let ok = day.len() == 10
+        && day.chars().enumerate().all(|(i, c)| {
+            if i == 4 || i == 7 {
+                c == '-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
+    if ok {
+        Ok(())
+    } else {
+        Err("Invalid day.".into())
+    }
+}
+
+#[tauri::command]
+fn add_cost(usage: State<Usage>, day: String, usd: f64) -> Result<f64, String> {
+    check_day(&day)?;
+    if !usd.is_finite() || usd < 0.0 {
+        return Err("Invalid cost.".into());
+    }
+    let mut days = usage.days.lock().unwrap();
+    let total = *days.entry(day).and_modify(|t| *t += usd).or_insert(usd);
+    let text = serde_json::to_string_pretty(&*days).map_err(|e| e.to_string())?;
+    if let Some(dir) = usage.file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&usage.file, text).map_err(|e| e.to_string())?;
+    Ok(total)
+}
+
+#[tauri::command]
+fn day_cost(usage: State<Usage>, day: String) -> f64 {
+    usage.days.lock().unwrap().get(&day).copied().unwrap_or(0.0)
+}
+
 struct AgentFiles(PathBuf);
 
 impl AgentFiles {
@@ -400,6 +442,8 @@ pub fn run() {
             save_agent,
             delete_agent_file,
             load_agents,
+            add_cost,
+            day_cost,
             send_message,
             interrupt_agent,
             reload_agent,
@@ -421,6 +465,15 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            let file = config.join("usage.json");
+            let days = std::fs::read_to_string(&file)
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or_default();
+            app.manage(Usage {
+                file,
+                days: Mutex::new(days),
+            });
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {
