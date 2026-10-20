@@ -3,6 +3,7 @@ import { invoke } from '@tauri-apps/api/core'
 export type Project = {
   name: string
   path: string
+  rules: string[]
   exists: boolean
   git: boolean
   branch: string | null
@@ -37,6 +38,10 @@ export async function remove(path: string) {
 export async function move(path: string, to: string) {
   set(await invoke<Project[]>('move_project', { path, to }))
   projects.current = to
+}
+
+export async function addRule(path: string, rule: string) {
+  set(await invoke<Project[]>('add_rule', { path, rule }))
 }
 
 export function inspect(path: string) {

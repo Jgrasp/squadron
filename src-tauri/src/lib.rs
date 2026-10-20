@@ -1,13 +1,15 @@
 pub mod agents;
 pub mod claude;
+pub mod permissions;
 pub mod projects;
 
 use agents::Agents;
+use permissions::Gate;
 use projects::{Folder, Project};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Manager, RunEvent, State};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
 
 struct Projects {
     file: PathBuf,
@@ -17,7 +19,7 @@ struct Projects {
 impl Projects {
     fn views(list: &[Project]) -> Vec<Folder> {
         list.iter()
-            .map(|p| Folder::of(p.name.clone(), &p.path))
+            .map(|p| Folder::of(p.name.clone(), &p.path, p.rules.clone()))
             .collect()
     }
 
@@ -64,7 +66,7 @@ fn inspect_folder(projects: State<Projects>, path: PathBuf) -> Inspection {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     Inspection {
-        folder: Folder::of(name, &path),
+        folder: Folder::of(name, &path, Vec::new()),
         taken_by: list
             .iter()
             .find(|p| projects::same_folder(&p.path, &path))
@@ -84,7 +86,11 @@ fn add_project(
     }
     projects.update(|list| {
         check_new_folder(list, &path)?;
-        list.push(Project { name, path });
+        list.push(Project {
+            name,
+            path,
+            rules: Vec::new(),
+        });
         Ok(())
     })
 }
@@ -95,6 +101,34 @@ fn remove_project(projects: State<Projects>, path: PathBuf) -> Result<Vec<Folder
         list.retain(|p| p.path != path);
         Ok(())
     })
+}
+
+#[tauri::command]
+fn add_rule(projects: State<Projects>, path: PathBuf, rule: String) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        let project = list
+            .iter_mut()
+            .find(|p| p.path == path)
+            .ok_or("Projet inconnu.")?;
+        if !project.rules.contains(&rule) {
+            project.rules.push(rule);
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn answer_permission(
+    gate: State<Gate>,
+    id: String,
+    decision: serde_json::Value,
+) -> Result<(), String> {
+    gate.answer(&id, decision)
+}
+
+#[tauri::command]
+fn cancel_permissions(gate: State<Gate>, agent: String) {
+    gate.cancel(&agent)
 }
 
 #[tauri::command]
@@ -235,6 +269,9 @@ pub fn run() {
             add_project,
             remove_project,
             move_project,
+            add_rule,
+            answer_permission,
+            cancel_permissions,
             read_project_file,
             open_in_editor,
             claude_path,
@@ -260,6 +297,14 @@ pub fn run() {
                 file,
             });
             app.manage(Settings::load(config.join("settings.json")));
+            let handle = app.handle().clone();
+            let token = uuid::Uuid::new_v4().simple().to_string();
+            let gate = Gate::new(token.clone(), move |ask| {
+                let _ = handle.emit("permission-request", ask);
+            });
+            let port = tauri::async_runtime::block_on(gate.clone().serve())?;
+            app.state::<Agents>().endpoint(port, token);
+            app.manage(gate);
             Ok(())
         })
         .build(tauri::generate_context!())

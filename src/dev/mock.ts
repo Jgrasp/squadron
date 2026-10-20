@@ -5,32 +5,61 @@ import nologin from '../../src-tauri/tests/fixtures/nologin.jsonl?raw'
 import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 
-type Project = { name: string; path: string }
+type Project = { name: string; path: string; rules: string[] }
 
 const projects: Project[] = [
-  { name: 'BMC', path: '/home/quentin/agence/bmc' },
-  { name: 'Fileas', path: '/home/quentin/agence/fileas' },
-  { name: 'Lumen', path: '/home/quentin/agence/lumen-absent' },
+  { name: 'BMC', path: '/home/quentin/agence/bmc', rules: [] },
+  { name: 'Fileas', path: '/home/quentin/agence/fileas', rules: [] },
+  { name: 'Lumen', path: '/home/quentin/agence/lumen-absent', rules: [] },
 ]
 
 if (location.search.includes('many'))
   for (const name of ['Mercure', 'Atlas', 'Optika', 'Vinéa', 'Kalia', 'Sorbet', 'Néréide', 'Pixel Rando'])
-    projects.push({ name, path: `/home/quentin/agence/${name.toLowerCase()}` })
+    projects.push({ name, path: `/home/quentin/agence/${name.toLowerCase()}`, rules: [] })
 
-const folder = (name: string, path: string) => ({
+const folder = (name: string, path: string, rules: string[] = []) => ({
   name,
   path,
+  rules,
   exists: !path.includes('absent'),
   git: !path.includes('fileas'),
   branch: path.includes('fileas') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p) => folder(p.name, p.path))
+const views = () => projects.map((p) => folder(p.name, p.path, p.rules))
 
 const timers = new Map<string, number>()
 let claudePath = 'claude'
 
+const asks: Record<string, [string, Record<string, unknown>]> = {
+  permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Met à jour le plugin' }],
+  modifie: ['Edit', { file_path: 'src/Segmentation/ChannelSegmentResolver.php', old_string: 'resolve(CustomerInterface $customer)', new_string: 'resolve(\n        CustomerInterface $customer,\n        ?ChannelInterface $channel = null,\n    )' }],
+  mcp: ['mcp__github__create_pull_request', { owner: 'agence', repo: 'bmc', base: 'develop', head: 'feat/BAT-809', title: 'BAT-809 · Pilotage des batchs', draft: true }],
+  plan: ['ExitPlanMode', { plan: '# Export CSV des segments\n\n1. Ajouter l’action `export_csv` à la grille.\n2. Créer `SegmentCsvExporter`.\n3. Tester l’exporter.' }],
+  questions: ['AskUserQuestion', { questions: [
+    { question: 'Quel séparateur pour le CSV ?', header: 'Séparateur', multiSelect: false, options: [{ label: 'Point-virgule (Recommended)', description: 'Excel FR' }, { label: 'Virgule' }, { label: 'Tabulation' }] },
+    { question: 'Quelles colonnes ajouter ?', header: 'Colonnes', multiSelect: true, options: [{ label: 'Date de création' }, { label: 'Nombre de commandes' }, { label: 'Chiffre d’affaires' }] },
+  ] }],
+  question: ['AskUserQuestion', { questions: [
+    { question: 'Comment traiter les 3 tests en échec ?', header: 'Tests', multiSelect: false, options: [
+      { label: 'Adapter les tests (Recommended)', description: 'Les tests suivent le nouveau comportement de split()' },
+      { label: 'Restaurer les clés dans split()', description: 'Garde le comportement d’avant' },
+      { label: 'Marquer les tests incomplets', description: 'La CI reste verte, un ticket est à ouvrir' },
+    ] },
+  ] }],
+}
+const waitingReplay = new Map<string, () => void>()
+let askId = 0
+
 function replay(id: string, text: string) {
+  const key = Object.keys(asks).find((k) => text.includes(k))
+  if (key) {
+    const [tool_name, input] = asks[key]
+    const ask = String(askId++)
+    waitingReplay.set(ask, () => replay(id, 'ok'))
+    emit('permission-request', { id: ask, agent: id, tool_name, input: { ...input, file_path: input.file_path ? `${projectOf.get(id)}/${input.file_path}` : undefined }, tool_use_id: null })
+    return
+  }
   if (claudePath === 'claude' && text.includes('introuvable')) throw 'claude-introuvable'
   const stream = text.includes('outil') ? tools : text.includes('erreur') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
@@ -87,7 +116,7 @@ mockIPC(
           taken_by: projects.find((p) => p.path === a.path)?.name ?? null,
         }
       case 'add_project':
-        projects.push({ name: a.name, path: a.path })
+        projects.push({ name: a.name, path: a.path, rules: [] })
         return views()
       case 'remove_project':
         projects.splice(
@@ -115,7 +144,16 @@ mockIPC(
       case 'archive_agent':
         clearTimeout(timers.get(a.id))
         return
+      case 'answer_permission':
+        waitingReplay.get(a.id)?.()
+        waitingReplay.delete(a.id)
+        return
+      case 'cancel_permissions':
+      case 'add_rule':
+        if (cmd === 'add_rule') projects.find((p) => p.path === a.path)?.rules.push(a.rule)
+        return cmd === 'add_rule' ? views() : undefined
       case 'read_project_file':
+        if (a.path.endsWith('.php')) return 'final class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'
         return a.path.endsWith('resume.txt') ? '2\n' : null
       case 'open_in_editor':
         return

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { agents, clock, ofProject, waiting } from './agents.svelte'
+  import { agents, clock, ofProject, waiting, waitingDetail } from './agents.svelte'
   import { ago, cost } from './format'
   import { home, type Project } from './projects.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -68,6 +68,8 @@
           <span class="state">{state(agent)}</span>
           {#if agent.status === 'error' && agent.action}
             <span class="detail">{agent.action}</span>
+          {:else if agent.status === 'waiting'}
+            <span class="detail">{waitingDetail(agent)}</span>
           {/if}
         </button>
       {/each}
@@ -258,6 +260,10 @@
   .error .state {
     font: 600 12.5px var(--sans);
     color: var(--err-text);
+  }
+
+  .waiting .detail {
+    color: #ddbba8;
   }
 
   .error .detail {

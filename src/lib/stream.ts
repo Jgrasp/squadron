@@ -18,6 +18,14 @@ export type Block =
   | { type: 'text'; text: string; key: string }
   | { type: 'tools'; calls: ToolCall[] }
 
+export type Ask = {
+  id: string
+  agent: string
+  tool_name: string
+  input: Record<string, any>
+  tool_use_id: string | null
+}
+
 export type Usage = { cost: number; input: number; output: number; ms: number }
 
 export type Entry =
@@ -27,6 +35,7 @@ export type Entry =
   | ({ kind: 'interrupted'; at: number } & Usage)
   | { kind: 'reloaded'; at: number }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
+  | { kind: 'decision'; at: number; tone: 'ok' | 'bad'; title: string; detail: string; note?: string }
 
 export type Agent = {
   id: string
@@ -44,6 +53,8 @@ export type Agent = {
   alive: boolean
   processCost: number
   interrupting: boolean
+  asks: Ask[]
+  allowEdits: boolean
 }
 
 type Json = Record<string, any>
@@ -65,6 +76,8 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     alive: false,
     processCost: 0,
     interrupting: false,
+    asks: [],
+    allowEdits: false,
   }
 }
 
@@ -250,6 +263,7 @@ function result(agent: Agent, d: Json) {
 }
 
 export function fail(agent: Agent, message: string) {
+  agent.asks = []
   agent.status = 'error'
   agent.interrupting = false
   agent.since = Date.now()
@@ -261,6 +275,7 @@ export function fail(agent: Agent, message: string) {
 
 export function exited(agent: Agent, stderr: string) {
   agent.alive = false
+  agent.asks = []
   if (agent.interrupting) {
     agent.interrupting = false
     agent.status = 'interrupted'
@@ -272,6 +287,7 @@ export function exited(agent: Agent, stderr: string) {
 }
 
 export function reloaded(agent: Agent) {
+  agent.asks = []
   agent.entries.push({ kind: 'reloaded', at: Date.now() })
   agent.processCost = 0
   agent.alive = true

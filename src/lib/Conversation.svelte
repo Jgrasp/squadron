@@ -3,6 +3,9 @@
   import ErrorCard from './ErrorCard.svelte'
   import { cost, duration, time, tokens } from './format'
   import Markdown from './Markdown.svelte'
+  import PermissionCard from './PermissionCard.svelte'
+  import PlanCard from './PlanCard.svelte'
+  import QuestionCard from './QuestionCard.svelte'
   import type { Agent, Block, ToolCall } from './stream'
   import ToolRow from './ToolRow.svelte'
 
@@ -99,6 +102,26 @@
     </div>
   {:else if entry.kind === 'error'}
     <ErrorCard {agent} {entry} />
+  {:else if entry.kind === 'decision'}
+    <div class="decision {entry.tone}">
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true">
+        {#if entry.tone === 'ok'}<path d="M4 12l5 5L20 6" />{:else}<path d="M6 6l12 12M18 6L6 18" />{/if}
+      </svg>
+      <strong>{entry.title}</strong>
+      <span class="detail">{entry.detail}</span>
+      <span class="at">{time(entry.at)}</span>
+    </div>
+    {#if entry.note}<span class="note">{entry.note}</span>{/if}
+  {/if}
+{/each}
+
+{#each agent.asks as ask (ask.id)}
+  {#if ask.tool_name === 'AskUserQuestion'}
+    <QuestionCard {agent} {ask} />
+  {:else if ask.tool_name === 'ExitPlanMode'}
+    <PlanCard {agent} {ask} />
+  {:else}
+    <PermissionCard {agent} {ask} />
   {/if}
 {/each}
 
@@ -241,6 +264,59 @@
 
   .interrupted span {
     color: var(--text-muted);
+  }
+
+  .decision {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 9px 14px;
+    border-radius: 4px;
+    background: #1f2321;
+    box-shadow: inset 0 0 0 1px #33403b;
+    font-size: 12.5px;
+  }
+
+  .decision svg {
+    color: var(--ok);
+    stroke-width: 2.6;
+  }
+
+  .decision strong {
+    font-weight: 600;
+    color: var(--ok-text);
+    white-space: nowrap;
+  }
+
+  .decision.bad {
+    background: #241917;
+    box-shadow: inset 0 0 0 1px #4a2e29;
+  }
+
+  .decision.bad svg,
+  .decision.bad strong {
+    color: var(--err-text);
+  }
+
+  .detail {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-family: var(--mono);
+    color: var(--text-3);
+  }
+
+  .at {
+    color: var(--text-dim);
+  }
+
+  .note {
+    margin-top: -8px;
+    padding-left: 38px;
+    font-size: 12px;
+    color: var(--text-dim);
   }
 
   .separator {

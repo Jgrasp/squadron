@@ -7,22 +7,26 @@ use std::path::{Path, PathBuf};
 pub struct Project {
     pub name: String,
     pub path: PathBuf,
+    #[serde(default)]
+    pub rules: Vec<String>,
 }
 
 #[derive(Serialize)]
 pub struct Folder {
     pub name: String,
     pub path: PathBuf,
+    pub rules: Vec<String>,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
 }
 
 impl Folder {
-    pub fn of(name: String, path: &Path) -> Self {
+    pub fn of(name: String, path: &Path, rules: Vec<String>) -> Self {
         Self {
             name,
             path: path.to_path_buf(),
+            rules,
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -137,6 +141,7 @@ mod tests {
         let projects = vec![Project {
             name: "bmc".into(),
             path: "/home/user/bmc".into(),
+            rules: vec!["Bash(git push:*)".into()],
         }];
         save(&file, &projects).unwrap();
         assert_eq!(load(&file), projects);

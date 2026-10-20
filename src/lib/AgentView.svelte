@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { archive, interrupt, reload, send } from './agents.svelte'
+  import { archive, interrupt, reload, reply, send } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -23,8 +23,15 @@
   const totals = $derived(files.reduce((t, f) => ({ add: t.add + f.add, del: t.del + f.del }), { add: 0, del: 0 }))
 
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
+  const pending = $derived(agent.asks[0]?.tool_name)
   const placeholder = $derived(
-    agent.status === 'working'
+    pending === 'AskUserQuestion'
+      ? `Réponse libre à ${agent.name}…`
+      : pending === 'ExitPlanMode'
+        ? 'Ce qui doit changer dans le plan…'
+        : pending
+          ? `Refuser avec une consigne pour ${agent.name}…`
+          : agent.status === 'working'
       ? 'Ajouter une consigne, lue dès la fin de l’action en cours…'
       : agent.status === 'interrupted'
         ? 'Nouvelle consigne, ou « continue » pour reprendre'
@@ -82,7 +89,7 @@
     if (!message) return
     text = ''
     stuck = true
-    send(agent.id, message)
+    if (!reply(agent, message)) send(agent.id, message)
   }
 
   function keys(event: KeyboardEvent) {
@@ -202,7 +209,9 @@
           </div>
         {/if}
       </div>
-      <button class="btn btn-primary send" disabled={!text.trim()}>Envoyer</button>
+      <button class="btn btn-primary send" disabled={!text.trim()}>
+        {pending === 'AskUserQuestion' ? 'Répondre' : pending === 'ExitPlanMode' ? 'Envoyer la remarque' : pending ? 'Refuser' : 'Envoyer'}
+      </button>
     </div>
   </form>
   </section>

@@ -15,10 +15,14 @@ struct Agent {
     session: Option<Session>,
     session_id: Arc<Mutex<Option<String>>>,
     run: Arc<AtomicU32>,
+    mcp: Option<String>,
 }
 
 #[derive(Default)]
-pub struct Agents(Mutex<HashMap<String, Agent>>);
+pub struct Agents {
+    list: Mutex<HashMap<String, Agent>>,
+    endpoint: Mutex<Option<(u16, String)>>,
+}
 
 #[derive(Clone, Serialize)]
 struct Line<'a> {
@@ -33,6 +37,16 @@ struct Exit<'a> {
 }
 
 impl Agents {
+    pub fn endpoint(&self, port: u16, token: String) {
+        *self.endpoint.lock().unwrap() = Some((port, token));
+    }
+
+    fn mcp(&self, id: &str) -> Option<String> {
+        let endpoint = self.endpoint.lock().unwrap();
+        let (port, token) = endpoint.as_ref()?;
+        Some(crate::permissions::mcp_config(*port, token, id))
+    }
+
     pub fn create(
         &self,
         app: &AppHandle,
@@ -43,25 +57,27 @@ impl Agents {
         text: &str,
     ) -> Result<(), String> {
         options.check()?;
-        let mut list = self.0.lock().unwrap();
+        let mcp = self.mcp(&id);
+        let mut list = self.list.lock().unwrap();
         let agent = list.entry(id.clone()).or_insert(Agent {
             project,
             options,
             session: None,
             session_id: Default::default(),
             run: Default::default(),
+            mcp,
         });
         send(app, program, &id, agent, text)
     }
 
     pub fn send(&self, app: &AppHandle, program: &str, id: &str, text: &str) -> Result<(), String> {
-        let mut list = self.0.lock().unwrap();
+        let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Agent inconnu.")?;
         send(app, program, id, agent, text)
     }
 
     pub fn interrupt(&self, id: &str) -> Result<(), String> {
-        let list = self.0.lock().unwrap();
+        let list = self.list.lock().unwrap();
         match list.get(id).and_then(|a| a.session.as_ref()) {
             Some(session) => session.interrupt().map_err(|e| e.to_string()),
             None => Ok(()),
@@ -69,7 +85,7 @@ impl Agents {
     }
 
     pub fn reload(&self, app: &AppHandle, program: &str, id: &str) -> Result<(), String> {
-        let mut list = self.0.lock().unwrap();
+        let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Agent inconnu.")?;
         if let Some(session) = agent.session.take() {
             let _ = session.stop();
@@ -78,13 +94,13 @@ impl Agents {
     }
 
     pub fn archive(&self, id: &str) {
-        if let Some(agent) = self.0.lock().unwrap().remove(id) {
+        if let Some(agent) = self.list.lock().unwrap().remove(id) {
             stop(agent);
         }
     }
 
     pub fn stop_all(&self) {
-        self.0
+        self.list
             .lock()
             .unwrap()
             .drain()
@@ -122,7 +138,13 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
     }
     let run = agent.run.fetch_add(1, Ordering::SeqCst) + 1;
     let resume = agent.session_id.lock().unwrap().clone();
-    let cmd = claude::command(program, &agent.project, &agent.options, resume.as_deref());
+    let cmd = claude::command(
+        program,
+        &agent.project,
+        &agent.options,
+        resume.as_deref(),
+        agent.mcp.as_deref(),
+    );
     let (lines_app, exit_app) = (app.clone(), app.clone());
     let (lines_id, exit_id) = (id.to_string(), id.to_string());
     let (lines_run, exit_run) = (agent.run.clone(), agent.run.clone());

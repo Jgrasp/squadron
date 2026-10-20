@@ -64,7 +64,13 @@ impl Options {
     }
 }
 
-pub fn command(program: &str, dir: &Path, options: &Options, resume: Option<&str>) -> Command {
+pub fn command(
+    program: &str,
+    dir: &Path,
+    options: &Options,
+    resume: Option<&str>,
+    mcp: Option<&str>,
+) -> Command {
     let mut cmd = Command::new(program);
     cmd.current_dir(dir).args([
         "-p",
@@ -83,6 +89,14 @@ pub fn command(program: &str, dir: &Path, options: &Options, resume: Option<&str
     ]);
     if let Some(id) = resume {
         cmd.args(["--resume", id]);
+    }
+    if let Some(config) = mcp {
+        cmd.args([
+            "--mcp-config",
+            config,
+            "--permission-prompt-tool",
+            crate::permissions::TOOL,
+        ]);
     }
     cmd
 }
