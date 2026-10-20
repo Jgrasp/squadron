@@ -68,11 +68,13 @@
 
   function grab(event: PointerEvent, card: Card) {
     if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return
-    const el = event.currentTarget as HTMLElement
     const [x0, y0] = [event.clientX, event.clientY]
-    el.setPointerCapture(event.pointerId)
+    let moved = false
+    ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
     const move = (e: PointerEvent) => {
-      if (!drag && Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return
+      if (!e.buttons) return end(e, true)
+      if (!moved && Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return
+      moved = true
       const under = document.elementFromPoint(e.clientX, e.clientY)
       const target = under?.closest<HTMLElement>('[data-card]')
       const after = target && e.clientY > target.getBoundingClientRect().top + target.offsetHeight / 2
@@ -84,18 +86,22 @@
         before: after ? ((target.nextElementSibling as HTMLElement | null)?.dataset.card ?? null) : (target?.dataset.card ?? null),
       }
     }
-    const up = (e: PointerEvent) => {
-      el.removeEventListener('pointermove', move)
-      el.removeEventListener('pointerup', up)
-      el.removeEventListener('pointercancel', up)
-      if (!drag && e.type === 'pointerup') edit(card)
-      else if (drag?.over) save(moveCard(cards, card.id, drag.over, drag.before), card.id)
+    const listeners: [string, (e: Event) => void][] = [
+      ['pointermove', move as (e: Event) => void],
+      ['pointerup', (e) => end(e, true)],
+      ['pointercancel', (e) => end(e, false)],
+      ['blur', (e) => end(e, false)],
+      ['keydown', (e) => (e as KeyboardEvent).key === 'Escape' && end(e, false)],
+    ]
+    const end = (e: Event, drop: boolean) => {
+      for (const [name, listener] of listeners) window.removeEventListener(name, listener)
+      if (!moved && e.type === 'pointerup') edit(card)
+      else if (drop && drag?.over) save(moveCard(cards, card.id, drag.over, drag.before), card.id)
       drag = null
     }
-    el.addEventListener('pointermove', move)
-    el.addEventListener('pointerup', up)
-    el.addEventListener('pointercancel', up)
+    for (const [name, listener] of listeners) window.addEventListener(name, listener)
   }
+
 
   function keys(event: KeyboardEvent, card: Card, column: Column) {
     if (event.target !== event.currentTarget) return
@@ -191,6 +197,7 @@
               tabindex="0"
               aria-keyshortcuts="Enter Alt+ArrowLeft Alt+ArrowRight"
               onpointerdown={(e) => grab(e, card)}
+              ondragstart={(e) => e.preventDefault()}
               onkeydown={(e) => keys(e, card, column)}
               use:refocus={card.id}
             >
