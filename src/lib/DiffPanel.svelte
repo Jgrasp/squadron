@@ -30,20 +30,20 @@
       : null,
   )
   const name = (path: string) => path.split('/').pop()
-  const status = $derived(!selected ? '' : current === null ? 'SUPPRIMÉ' : selected.baseline === null ? 'NOUVEAU' : 'MODIFIÉ')
+  const status = $derived(!selected ? '' : current === null ? 'DELETED' : selected.baseline === null ? 'NEW' : 'MODIFIED')
 </script>
 
 <section class="panel" aria-label="Diff">
   <div class="top">
     <div class="title">
       <h2>Diff</h2>
-      <span>Modifications de {agent.name} · {files.length} fichier{files.length > 1 ? 's' : ''}</span>
+      <span>Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}</span>
     </div>
-    <button class="close" aria-label="Fermer le panneau" onclick={onclose}>×</button>
+    <button class="close" aria-label="Close panel" onclick={onclose}>×</button>
   </div>
 
   {#if files.length}
-    <div class="tabs" role="tablist" aria-label="Fichiers modifiés">
+    <div class="tabs" role="tablist" aria-label="Changed files">
       {#each files as f (f.path)}
         <button role="tab" aria-selected={f === selected} title={relative(agent, f.path)} onclick={() => (file = f.path)}>
           {name(f.path)} <span class="add">+{f.add}</span>{#if f.del}<span class="del">−{f.del}</span>{/if}
@@ -55,31 +55,31 @@
       {#if selected}
         <div class="file">
           <div class="file-head">
-            <span class="badge" class:new={status === 'NOUVEAU'} class:gone={status === 'SUPPRIMÉ'}>{status}</span>
+            <span class="badge" class:new={status === 'NEW'} class:gone={status === 'DELETED'}>{status}</span>
             <span class="path">{relative(agent, selected.path)}</span>
-            <span class="by">{selected.calls.length} modification{selected.calls.length > 1 ? 's' : ''}</span>
+            <span class="by">{selected.calls.length} edit{selected.calls.length > 1 ? 's' : ''}</span>
           </div>
           {#if error}
             <p class="empty">{error}</p>
           {:else if !patch}
-            <p class="empty">Lecture du fichier…</p>
+            <p class="empty">Reading the file…</p>
           {:else if patch.hunks.length}
             <DiffView hunks={patch.hunks} />
           {:else}
-            <p class="empty">Le fichier est revenu à son état d’origine.</p>
+            <p class="empty">The file is back to its original state.</p>
           {/if}
         </div>
       {/if}
     </div>
 
     <div class="foot">
-      <span>Diff depuis le premier passage de l’agent sur le fichier</span>
+      <span>Diff since the agent first touched the file</span>
       <button class="btn btn-secondary" onclick={() => invoke('open_in_editor', { project: agent.project, path: selected.path })}>
-        Ouvrir dans l’éditeur
+        Open in editor
       </button>
     </div>
   {:else}
-    <p class="empty pad">{agent.name} n’a encore modifié aucun fichier.</p>
+    <p class="empty pad">{agent.name} has not changed any file yet.</p>
   {/if}
 </section>
 

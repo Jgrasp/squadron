@@ -14,7 +14,7 @@
   const mcp = $derived(ask.tool_name.startsWith('mcp__'))
   const project = $derived(projects.list.find((p) => p.path === agent.project))
   const title = $derived(
-    ask.tool_name === 'Bash' ? 'Exécuter une commande ?' : edit ? 'Modifier un fichier ?' : 'Utiliser un outil ?',
+    ask.tool_name === 'Bash' ? 'Run a command?' : edit ? 'Edit a file?' : 'Use a tool?',
   )
   const detail = $derived(argument(agent, { name: ask.tool_name, input: ask.input }))
   const params = $derived(
@@ -24,12 +24,12 @@
   )
   const always = $derived.by(() => {
     if (edit)
-      return `${agent.name} pourra modifier les fichiers du projet sans te demander jusqu’à la fin de sa session. Les commandes Bash continueront de demander.`
+      return `${agent.name} will edit the project files without asking until its session ends. Bash commands will still ask.`
     const rule = ruleFor(ask.tool_name, ask.input)
-    if (ask.tool_name === 'Bash') return { code: ruleLabel(rule), text: `dans ${project?.name}, pour tous ses agents.` }
+    if (ask.tool_name === 'Bash') return { code: ruleLabel(rule), text: `in ${project?.name}, for all its agents.` }
     if (rule.startsWith('WebFetch(domain:'))
-      return `Les agents de ${project?.name} pourront lire ${rule.slice(16, -1)} sans te demander.`
-    return `Les agents de ${project?.name} pourront appeler ${toolLabel(ask.tool_name)} sans te demander.`
+      return `${project?.name} agents will read ${rule.slice(16, -1)} without asking.`
+    return `${project?.name} agents will call ${toolLabel(ask.tool_name)} without asking.`
   })
 
   let patch = $state<ReturnType<typeof structuredPatch> | null>(null)
@@ -68,7 +68,7 @@
   })
 </script>
 
-<section class="card" aria-label="Demande de permission">
+<section class="card" aria-label="Permission request">
   <div class="head">
     <span class="icon" aria-hidden="true">
       {#if ask.tool_name === 'Bash'}
@@ -86,7 +86,7 @@
     {#if edit && patch}
       <span class="mono"><span class="add">+{changes.add}</span> <span class="del">−{changes.del}</span></span>
     {:else if mcp}
-      <span class="tag">Serveur MCP</span>
+      <span class="tag">MCP server</span>
     {/if}
   </div>
 
@@ -108,13 +108,13 @@
   {/if}
 
   <div class="actions">
-    <button class="btn allow" onclick={() => allow(agent, ask)}>Autoriser</button>
-    <button class="btn always" onclick={() => allow(agent, ask, true)}>Toujours</button>
-    <button class="btn refuse" onclick={() => deny(agent, ask)}>Refuser</button>
+    <button class="btn allow" onclick={() => allow(agent, ask)}>Allow</button>
+    <button class="btn always" onclick={() => allow(agent, ask, true)}>Always</button>
+    <button class="btn refuse" onclick={() => deny(agent, ask)}>Deny</button>
   </div>
   <div class="note">
-    <strong>Toujours</strong>
-    <span>{#if typeof always === 'string'}{always}{:else}Autorise <code>{always.code}</code> {always.text}{/if}</span>
+    <strong>Always</strong>
+    <span>{#if typeof always === 'string'}{always}{:else}Allows <code>{always.code}</code> {always.text}{/if}</span>
   </div>
 </section>
 

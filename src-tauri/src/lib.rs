@@ -30,7 +30,7 @@ impl Projects {
         let mut list = self.list.lock().unwrap();
         let mut next = list.clone();
         change(&mut next)?;
-        projects::save(&self.file, &next).map_err(|e| format!("Sauvegarde impossible : {e}"))?;
+        projects::save(&self.file, &next).map_err(|e| format!("Could not save: {e}"))?;
         *list = next;
         Ok(Self::views(&list))
     }
@@ -38,10 +38,10 @@ impl Projects {
 
 fn check_new_folder(list: &[Project], path: &Path) -> Result<(), String> {
     if !path.is_dir() {
-        return Err("Ce dossier n'existe pas ou n'est pas accessible.".into());
+        return Err("This folder does not exist or cannot be read.".into());
     }
     match list.iter().find(|p| projects::same_folder(&p.path, path)) {
-        Some(p) => Err(format!("Ce dossier est déjà le projet {}.", p.name)),
+        Some(p) => Err(format!("This folder is already the {} project.", p.name)),
         None => Ok(()),
     }
 }
@@ -82,7 +82,7 @@ fn add_project(
 ) -> Result<Vec<Folder>, String> {
     let name = name.trim().to_string();
     if name.is_empty() {
-        return Err("Donne un nom au projet.".into());
+        return Err("Give the project a name.".into());
     }
     projects.update(|list| {
         check_new_folder(list, &path)?;
@@ -109,7 +109,7 @@ fn add_rule(projects: State<Projects>, path: PathBuf, rule: String) -> Result<Ve
         let project = list
             .iter_mut()
             .find(|p| p.path == path)
-            .ok_or("Projet inconnu.")?;
+            .ok_or("Unknown project.")?;
         if !project.rules.contains(&rule) {
             project.rules.push(rule);
         }
@@ -175,7 +175,7 @@ impl Settings {
 
 #[tauri::command]
 fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, String> {
-    let file = projects::inside(&project, &path).ok_or("Fichier hors du projet.")?;
+    let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     match std::fs::read_to_string(file) {
         Ok(text) => Ok(Some(text)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
@@ -185,7 +185,7 @@ fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, 
 
 #[tauri::command]
 fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
-    let file = projects::inside(&project, &path).ok_or("Fichier hors du projet.")?;
+    let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| e.to_string())
 }
 

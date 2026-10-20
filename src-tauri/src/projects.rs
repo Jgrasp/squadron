@@ -39,7 +39,7 @@ pub fn load(file: &Path) -> Vec<Project> {
         return Vec::new();
     };
     serde_json::from_str(&text).unwrap_or_else(|e| {
-        log::error!("{} illisible ({e}), mis de côté en .bak", file.display());
+        log::error!("{} is unreadable ({e}), set aside as .bak", file.display());
         let _ = fs::rename(file, file.with_extension("json.bak"));
         Vec::new()
     })
@@ -146,7 +146,7 @@ mod tests {
         save(&file, &projects).unwrap();
         assert_eq!(load(&file), projects);
 
-        fs::write(&file, "{pas du json").unwrap();
+        fs::write(&file, "{not json").unwrap();
         assert!(load(&file).is_empty());
         assert!(dir.join("projects.json.bak").exists());
     }

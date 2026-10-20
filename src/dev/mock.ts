@@ -32,19 +32,19 @@ const timers = new Map<string, number>()
 let claudePath = 'claude'
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
-  permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Met à jour le plugin' }],
-  modifie: ['Edit', { file_path: 'src/Segmentation/ChannelSegmentResolver.php', old_string: 'resolve(CustomerInterface $customer)', new_string: 'resolve(\n        CustomerInterface $customer,\n        ?ChannelInterface $channel = null,\n    )' }],
+  permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
+  edit: ['Edit', { file_path: 'src/Segmentation/ChannelSegmentResolver.php', old_string: 'resolve(CustomerInterface $customer)', new_string: 'resolve(\n        CustomerInterface $customer,\n        ?ChannelInterface $channel = null,\n    )' }],
   mcp: ['mcp__github__create_pull_request', { owner: 'agence', repo: 'bmc', base: 'develop', head: 'feat/BAT-809', title: 'BAT-809 · Pilotage des batchs', draft: true }],
-  plan: ['ExitPlanMode', { plan: '# Export CSV des segments\n\n1. Ajouter l’action `export_csv` à la grille.\n2. Créer `SegmentCsvExporter`.\n3. Tester l’exporter.' }],
+  plan: ['ExitPlanMode', { plan: '# Segment CSV export\n\n1. Add the `export_csv` action to the grid.\n2. Create `SegmentCsvExporter`.\n3. Test the exporter.' }],
   questions: ['AskUserQuestion', { questions: [
-    { question: 'Quel séparateur pour le CSV ?', header: 'Séparateur', multiSelect: false, options: [{ label: 'Point-virgule (Recommended)', description: 'Excel FR' }, { label: 'Virgule' }, { label: 'Tabulation' }] },
-    { question: 'Quelles colonnes ajouter ?', header: 'Colonnes', multiSelect: true, options: [{ label: 'Date de création' }, { label: 'Nombre de commandes' }, { label: 'Chiffre d’affaires' }] },
+    { question: 'Which CSV separator?', header: 'Separator', multiSelect: false, options: [{ label: 'Semicolon (Recommended)', description: 'French Excel' }, { label: 'Comma' }, { label: 'Tab' }] },
+    { question: 'Which columns to add?', header: 'Columns', multiSelect: true, options: [{ label: 'Creation date' }, { label: 'Order count' }, { label: 'Revenue' }] },
   ] }],
   question: ['AskUserQuestion', { questions: [
-    { question: 'Comment traiter les 3 tests en échec ?', header: 'Tests', multiSelect: false, options: [
-      { label: 'Adapter les tests (Recommended)', description: 'Les tests suivent le nouveau comportement de split()' },
-      { label: 'Restaurer les clés dans split()', description: 'Garde le comportement d’avant' },
-      { label: 'Marquer les tests incomplets', description: 'La CI reste verte, un ticket est à ouvrir' },
+    { question: 'How should I handle the 3 failing tests?', header: 'Tests', multiSelect: false, options: [
+      { label: 'Update the tests (Recommended)', description: 'Tests follow the new split() behaviour' },
+      { label: 'Restore keys in split()', description: 'Keeps the previous behaviour' },
+      { label: 'Mark the tests incomplete', description: 'CI stays green, a ticket must be opened' },
     ] },
   ] }],
 }
@@ -60,13 +60,13 @@ function replay(id: string, text: string) {
     emit('permission-request', { id: ask, agent: id, tool_name, input: { ...input, file_path: input.file_path ? `${projectOf.get(id)}/${input.file_path}` : undefined }, tool_use_id: null })
     return
   }
-  if (claudePath === 'claude' && text.includes('introuvable')) throw 'claude-introuvable'
-  const stream = text.includes('outil') ? tools : text.includes('erreur') ? nologin : text.includes('long') ? sigint : hello
+  if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
+  const stream = text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
     .filter((l) => !(text.includes('long') && /"type":"(result|user)"/.test(l) && /interrupted|aborted/.test(l)))
-  const crash = text.includes('plante')
+  const crash = text.includes('crash')
   let i = 0
   const next = () => {
     if (crash && i === 6) {
@@ -75,7 +75,7 @@ function replay(id: string, text: string) {
       return
     }
     if (i >= lines.length) return timers.delete(id)
-    emit('agent-line', { id, line: lines[i++].replaceAll('/projet', projectOf.get(id) ?? '/projet') })
+    emit('agent-line', { id, line: lines[i++].replaceAll('/project', projectOf.get(id) ?? '/project') })
     timers.set(id, window.setTimeout(next, text.includes('long') ? 120 : 60))
   }
   next()
@@ -89,18 +89,18 @@ if (location.search.includes('stress'))
     const { find, agents } = await import('../lib/agents.svelte')
     const { apply, userMessage } = await import('../lib/stream')
     const started = performance.now()
-    await create(projects[0].path, 'Session longue', { model: 'opus', effort: 'high', mode: 'default' }, 'Début')
+    await create(projects[0].path, 'Long session', { model: 'opus', effort: 'high', mode: 'default' }, 'Start')
     const agent = find(agents.list.at(-1)!.id)!
     for (let turn = 0; turn < 120; turn++) {
-      if (turn) userMessage(agent, `Consigne ${turn} : continue le travail sur le module ${turn}`)
+      if (turn) userMessage(agent, `Instruction ${turn}: keep working on module ${turn}`)
       for (const line of (turn % 2 ? tools : sigint).trim().split('\n')) {
-        const d = JSON.parse(line.replaceAll('/projet', projects[0].path))
+        const d = JSON.parse(line.replaceAll('/project', projects[0].path))
         if (d.type === 'result' && d.is_error) continue
         apply(agent, d)
       }
       apply(agent, { type: 'result', is_error: false, total_cost_usd: turn * 0.01, usage: {}, duration_ms: 42000 })
     }
-    console.log('stress', Math.round(performance.now() - started), 'ms', agent.entries.length, 'entrées')
+    console.log('stress', Math.round(performance.now() - started), 'ms', agent.entries.length, 'entries')
   }, 300)
 
 mockWindows('main')

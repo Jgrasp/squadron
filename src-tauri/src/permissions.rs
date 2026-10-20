@@ -56,7 +56,7 @@ impl Gate {
         }
     }
 
-    /// Demande à l'utilisateur de Squadron s'il autorise un outil.
+    /// Asks the Squadron user whether a tool may run.
     #[tool]
     async fn permission(
         &self,
@@ -72,7 +72,7 @@ impl Gate {
                 .to_string()
         };
         if header("x-squadron-token") != self.token {
-            return deny("Requête refusée : jeton Squadron invalide.").to_string();
+            return deny("Request refused: invalid Squadron token.").to_string();
         }
         let agent = header("x-squadron-agent");
         let id = self.next.fetch_add(1, Ordering::SeqCst).to_string();
@@ -90,7 +90,7 @@ impl Gate {
             extra: request.extra,
         });
         rx.await
-            .unwrap_or_else(|_| deny("Demande annulée."))
+            .unwrap_or_else(|_| deny("Request cancelled."))
             .to_string()
     }
 
@@ -98,14 +98,14 @@ impl Gate {
         match decision["behavior"].as_str() {
             Some("allow") if decision["updatedInput"].is_object() => {}
             Some("deny") if decision["message"].is_string() => {}
-            _ => return Err("Réponse de permission invalide.".into()),
+            _ => return Err("Invalid permission answer.".into()),
         }
         let (_, tx) = self
             .pending
             .lock()
             .unwrap()
             .remove(id)
-            .ok_or("Cette demande n'attend plus de réponse.")?;
+            .ok_or("This request no longer waits for an answer.")?;
         let _ = tx.send(decision);
         Ok(())
     }
@@ -128,7 +128,7 @@ impl Gate {
         let port = listener.local_addr()?.port();
         tokio::spawn(async move {
             if let Err(e) = axum::serve(listener, router).await {
-                log::error!("serveur de permissions arrêté : {e}");
+                log::error!("permission server stopped: {e}");
             }
         });
         Ok(port)
@@ -169,7 +169,7 @@ mod tests {
                 for q in input["questions"].as_array().cloned().unwrap_or_default() {
                     answers.insert(
                         q["question"].as_str().unwrap_or_default().into(),
-                        "Rouge".into(),
+                        "Red".into(),
                     );
                 }
                 input["answers"] = Value::Object(answers);
@@ -182,7 +182,7 @@ mod tests {
 
     async fn run(mode: &str, prompts: &[&str]) {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel::<Ask>();
-        let gate = Gate::new("jeton".into(), move |ask| asks_tx.send(ask).unwrap());
+        let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
         let port = gate.clone().serve().await.unwrap();
         let answering = gate.clone();
         tokio::spawn(async move {
@@ -204,7 +204,7 @@ mod tests {
             effort: "low".into(),
             mode: mode.into(),
         };
-        let config = mcp_config(port, "jeton", "agent-1");
+        let config = mcp_config(port, "token", "agent-1");
         let cmd = claude::command("claude", &dir, &options, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(
@@ -228,24 +228,24 @@ mod tests {
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "lance le vrai claude"]
+    #[ignore = "runs the real claude"]
     async fn real_claude_default_mode() {
         run(
             "default",
             &[
-                "Exécute la commande bash `curl -s -o page.html https://example.com` puis réponds OK.",
-                "Utilise l'outil AskUserQuestion pour me demander si je préfère bleu ou rouge, puis répète ma réponse en un mot.",
+                "Run the bash command `curl -s -o page.html https://example.com` then reply OK.",
+                "Use the AskUserQuestion tool to ask whether I prefer blue or red, then repeat my answer in one word.",
             ],
         )
         .await;
     }
 
     #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "lance le vrai claude"]
+    #[ignore = "runs the real claude"]
     async fn real_claude_plan_mode() {
         run(
             "plan",
-            &["Prévois de créer un fichier hello.txt contenant bonjour. Propose ton plan."],
+            &["Plan to create a hello.txt file containing hello. Propose your plan."],
         )
         .await;
     }

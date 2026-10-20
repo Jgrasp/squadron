@@ -12,10 +12,10 @@
   let { agent, ondiff }: { agent: Agent; ondiff: (call: ToolCall) => void } = $props()
 
   const kinds: [string[], string, string][] = [
-    [['Read', 'Grep', 'Glob', 'LS'], 'lecture', 'lectures'],
-    [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'modification', 'modifications'],
-    [['Bash'], 'commande', 'commandes'],
-    [['WebFetch', 'WebSearch'], 'recherche web', 'recherches web'],
+    [['Read', 'Grep', 'Glob', 'LS'], 'read', 'reads'],
+    [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'edit', 'edits'],
+    [['Bash'], 'command', 'commands'],
+    [['WebFetch', 'WebSearch'], 'web lookup', 'web lookups'],
   ]
 
   function summary(calls: ToolCall[]) {
@@ -26,7 +26,7 @@
       if (n) parts.push(`${n} ${n > 1 ? many : one}`)
       rest -= n
     }
-    if (rest) parts.push(`${rest} autre${rest > 1 ? 's' : ''}`)
+    if (rest) parts.push(`${rest} other${rest > 1 ? 's' : ''}`)
     return `${calls.length} action${calls.length > 1 ? 's' : ''} · ${parts.join(', ')}`
   }
 
@@ -67,7 +67,7 @@
         {:else}
           {#if segment.thinking}
             <div class="thought">
-              {segment.ms === undefined ? 'Réfléchit…' : segment.ms < 1000 ? 'A réfléchi un instant' : `A réfléchi ${duration(segment.ms)}`}
+              {segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
             </div>
           {/if}
           {#if segment.calls.length}
@@ -86,18 +86,18 @@
   {:else if entry.kind === 'turn'}
     <span class="turn">
       <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
-      Tour {entry.index} terminé · {cost(entry.cost)} · {tokens(entry.input)} entrée · {tokens(entry.output)} sortie · {duration(entry.ms)}
+      Turn {entry.index} done · {cost(entry.cost)} · {tokens(entry.input)} in · {tokens(entry.output)} out · {duration(entry.ms)}
     </span>
   {:else if entry.kind === 'interrupted'}
     <div class="interrupted">
       <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" /></svg>
-      <strong>Interrompu par toi · {time(entry.at)}</strong>
-      <span>La réponse s’arrête ici. Rien n’a été annulé dans les fichiers.</span>
+      <strong>Interrupted by you · {time(entry.at)}</strong>
+      <span>The reply stops here. Nothing was undone in the files.</span>
     </div>
   {:else if entry.kind === 'reloaded'}
     <div class="separator" role="separator">
       <span></span>
-      Session rechargée · {time(entry.at)} · conversation conservée
+      Session reloaded · {time(entry.at)} · conversation kept
       <span></span>
     </div>
   {:else if entry.kind === 'error'}
@@ -130,7 +130,7 @@
     <svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
       ><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg
     >
-    Tour en cours · {tokens(agent.live.input)} entrée · {tokens(agent.live.outputDone + agent.live.output)} sortie · {duration(
+    Turn in progress · {tokens(agent.live.input)} in · {tokens(agent.live.outputDone + agent.live.output)} out · {duration(
       Math.max(0, clock.now - agent.live.started),
     )}
   </span>

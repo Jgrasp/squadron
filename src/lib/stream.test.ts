@@ -11,8 +11,8 @@ function replay(agent: Agent, stream: string) {
 }
 
 function fresh() {
-  const agent = newAgent('a', '/projet', 'Test', { model: 'haiku', effort: 'low', mode: 'default' })
-  userMessage(agent, 'bonjour')
+  const agent = newAgent('a', '/project', 'Test', { model: 'haiku', effort: 'low', mode: 'default' })
+  userMessage(agent, 'hello')
   return agent
 }
 
@@ -38,7 +38,7 @@ describe('stream', () => {
     const calls = reply?.kind === 'agent' ? reply.blocks.flatMap((b) => (b.type === 'tools' ? b.calls : [])) : []
     expect(calls.map((c) => c.name)).toEqual(['Read', 'Bash', 'Write'])
     expect(calls.every((c) => c.result && !c.result.error)).toBe(true)
-    expect(calls[2].input.file_path).toBe('/projet/resume.txt')
+    expect(calls[2].input.file_path).toBe('/project/resume.txt')
     expect(calls[2].result?.data?.type).toBe('create')
     expect(reply?.kind === 'agent' && reply.blocks.filter((b) => b.type === 'thinking').every((b) => b.type === 'thinking' && b.ms !== undefined)).toBe(true)
     expect(agent.status).toBe('done')

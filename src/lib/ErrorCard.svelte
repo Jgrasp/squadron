@@ -27,37 +27,37 @@
   }
 </script>
 
-<section class="card" role="alert" aria-labelledby="erreur-{entry.at}">
+<section class="card" role="alert" aria-labelledby="error-{entry.at}">
   {#if entry.missing}
     <div class="title">
       <span class="icon" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8" /></svg>
       </span>
-      <h2 id="erreur-{entry.at}">Claude Code introuvable</h2>
+      <h2 id="error-{entry.at}">Claude Code not found</h2>
     </div>
-    <p>Squadron lance chaque agent avec la commande <code>claude</code>. Elle n’est pas dans le PATH de ta session.</p>
-    <label for="chemin-{entry.at}">Chemin de l’exécutable</label>
+    <p>Squadron starts every agent with the <code>claude</code> command. It is not in your session PATH.</p>
+    <label for="path-{entry.at}">Executable path</label>
     <div class="row">
-      <input id="chemin-{entry.at}" class="field" bind:value={path} placeholder="/home/user/.local/bin/claude" spellcheck="false" />
-      <button class="btn btn-danger" onclick={browse}>Parcourir…</button>
+      <input id="path-{entry.at}" class="field" bind:value={path} placeholder="/home/user/.local/bin/claude" spellcheck="false" />
+      <button class="btn btn-danger" onclick={browse}>Browse…</button>
     </div>
     <div class="row">
-      <button class="btn btn-primary" onclick={useClaude}>Réessayer</button>
-      <a href="https://docs.claude.com/fr/docs/claude-code/setup" target="_blank" rel="noreferrer">Installer Claude Code</a>
+      <button class="btn btn-primary" onclick={useClaude}>Retry</button>
+      <a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noreferrer">Install Claude Code</a>
     </div>
   {:else if entry.login}
     <div class="title">
       <span class="icon" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
       </span>
-      <h2 id="erreur-{entry.at}">Claude Code n’est pas connecté</h2>
+      <h2 id="error-{entry.at}">Claude Code is not logged in</h2>
     </div>
-    <p>Connecte-toi une fois dans un terminal, puis réessaie. Les autres agents ne sont pas concernés tant que leur session est ouverte.</p>
+    <p>Log in once in a terminal, then retry. Other agents are not affected while their session stays open.</p>
     <pre><span>$</span> claude
 <span>&gt;</span> /login</pre>
     <div class="row">
-      <button class="btn btn-primary" onclick={() => copy('claude')}>{copied ? 'Copié' : 'Copier la commande'}</button>
-      <button class="btn btn-danger" onclick={() => retry(agent.id)}>Réessayer</button>
+      <button class="btn btn-primary" onclick={() => copy('claude')}>{copied ? 'Copied' : 'Copy the command'}</button>
+      <button class="btn btn-danger" onclick={() => retry(agent.id)}>Retry</button>
       <span class="raw">{entry.message}</span>
     </div>
   {:else}
@@ -66,15 +66,15 @@
         <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg>
       </span>
       <span class="head">
-        <h2 id="erreur-{entry.at}">La session s’est arrêtée</h2>
+        <h2 id="error-{entry.at}">The session stopped</h2>
         <small>{time(entry.at)}</small>
       </span>
     </div>
     <pre>{entry.message}</pre>
-    <p>Les modifications déjà faites sont conservées. Recharger relance la session avec toute la conversation.</p>
+    <p>Changes already made are kept. Reload restarts the session with the whole conversation.</p>
     <div class="row">
-      <button class="btn btn-primary" onclick={() => reload(agent.id)}>Recharger</button>
-      <button class="btn btn-danger" onclick={() => copy(entry.message)}>{copied ? 'Copié' : 'Copier l’erreur'}</button>
+      <button class="btn btn-primary" onclick={() => reload(agent.id)}>Reload</button>
+      <button class="btn btn-danger" onclick={() => copy(entry.message)}>{copied ? 'Copied' : 'Copy the error'}</button>
     </div>
   {/if}
 </section>

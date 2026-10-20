@@ -72,20 +72,20 @@
         >
       </button>
       {#if menuOpen}
-        <div class="menu" role="menu" aria-label="Menu Squadron">
+        <div class="menu" role="menu" aria-label="Squadron menu">
           <div class="about">
             <span class="triangle big" aria-hidden="true"></span>
             <span><strong>Squadron</strong><small>Version 0.1.0 · Linux</small></span>
           </div>
           <button role="menuitem" onclick={() => appWindow.close()}>
-            <span>Quitter</span><kbd>Ctrl Q</kbd>
+            <span>Quit</span><kbd>Ctrl Q</kbd>
           </button>
         </div>
       {/if}
     </div>
   </div>
 
-  <nav aria-label="Projets">
+  <nav aria-label="Projects">
     {#each visible as project (project.path)}
       <button
         class="tab"
@@ -96,7 +96,7 @@
         {project.name}
         {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}
         {#if !project.exists}
-          <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label="Dossier introuvable"
+          <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label="Folder not found"
             ><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg
           >
         {/if}
@@ -119,12 +119,12 @@
           >
         </button>
         {#if moreOpen}
-          <div class="menu right" role="menu" aria-label="Autres projets">
+          <div class="menu right" role="menu" aria-label="Other projects">
             <label class="search">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
                 ><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg
               >
-              <input bind:value={search} placeholder="Chercher un projet" aria-label="Chercher un projet" />
+              <input bind:value={search} placeholder="Search a project" aria-label="Search a project" />
             </label>
             {#each found as project (project.path)}
               <button role="menuitem" onclick={() => choose(project.path)}>
@@ -136,13 +136,13 @@
         {/if}
       </div>
     {/if}
-    <button class="add" aria-label="Ajouter un projet" title="Ajouter un projet" onclick={onadd}>+</button>
+    <button class="add" aria-label="Add a project" title="Add a project" onclick={onadd}>+</button>
   </nav>
 
   <div class="end" data-tauri-drag-region>
-    <button class="win" aria-label="Réduire" onclick={() => appWindow.minimize()}>–</button>
-    <button class="win" aria-label="Agrandir" onclick={() => appWindow.toggleMaximize()}>□</button>
-    <button class="win" aria-label="Fermer" onclick={() => appWindow.close()}>×</button>
+    <button class="win" aria-label="Minimize" onclick={() => appWindow.minimize()}>–</button>
+    <button class="win" aria-label="Maximize" onclick={() => appWindow.toggleMaximize()}>□</button>
+    <button class="win" aria-label="Close" onclick={() => appWindow.close()}>×</button>
   </div>
 
   <div class="measure" aria-hidden="true">

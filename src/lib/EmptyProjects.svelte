@@ -8,17 +8,17 @@
       <path d="M32 4L60 52H4L32 4Z" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" />
       <path d="M32 24L44 46H20L32 24Z" fill="var(--accent)" opacity="0.35" />
     </svg>
-    <h1>Aucun projet pour l'instant</h1>
+    <h1>No projects yet</h1>
     <p>
-      Un projet, c'est un dossier local. Squadron y lance tes agents Claude Code et te prévient quand
-      l'un d'eux a besoin de toi. Git est facultatif.
+      A project is a local folder. Squadron runs your Claude Code agents in it and tells you when one
+      of them needs you. Git is optional.
     </p>
-    <button class="btn btn-primary" onclick={onadd}>Ajouter un projet</button>
+    <button class="btn btn-primary" onclick={onadd}>Add a project</button>
     <div class="drop">
       <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"
         ><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg
       >
-      ou glisse un dossier ici
+      or drop a folder here
     </div>
   </div>
 </main>

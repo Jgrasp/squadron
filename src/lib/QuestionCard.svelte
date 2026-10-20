@@ -39,15 +39,15 @@
 
 <svelte:window onkeydown={keys} />
 
-<section class="card" aria-label="Question de l’agent">
+<section class="card" aria-label="Agent question">
   <div class="head">
     <span class="icon" aria-hidden="true">?</span>
-    <span class="title">{simple ? questions[0].question : `${questions.length} question${questions.length > 1 ? 's' : ''} de ${agent.name}`}</span>
-    {#if !simple}<span class="count">{done} sur {questions.length} répondue{done > 1 ? 's' : ''}</span>{/if}
+    <span class="title">{simple ? questions[0].question : `${questions.length} question${questions.length > 1 ? 's' : ''} from ${agent.name}`}</span>
+    {#if !simple}<span class="count">{done} of {questions.length} answered</span>{/if}
   </div>
 
   {#if simple}
-    <div class="options" role="group" aria-label="Choix de réponse">
+    <div class="options" role="group" aria-label="Answer choices">
       {#each questions[0].options as option, i (option.label)}
         <button class="option" onclick={() => choose(questions[0], option.label)}>
           <span class="key">{i + 1}</span>
@@ -55,20 +55,20 @@
             <strong>{clean(option.label)}</strong>
             {#if option.description}<span>{option.description}</span>{/if}
           </span>
-          {#if recommended(option.label)}<span class="badge">Recommandé</span>{/if}
+          {#if recommended(option.label)}<span class="badge">Recommended</span>{/if}
         </button>
       {/each}
     </div>
-    <span class="hint">Un clic pour répondre, ou écris une réponse libre ci-dessous.</span>
+    <span class="hint">One click to answer, or write a free answer below.</span>
   {:else}
     {#each questions as q, n (q.question)}
       <fieldset class:current={!picked[q.question]?.length && questions.findIndex((x) => !picked[x.question]?.length) === n}>
         <legend>
           <span>{n + 1} · {q.question}</span>
           {#if picked[q.question]?.length}
-            <span class="ok">Répondu</span>
+            <span class="ok">Answered</span>
           {:else if q.multiSelect}
-            <span class="multi">Plusieurs choix possibles</span>
+            <span class="multi">Several choices allowed</span>
           {/if}
         </legend>
         <div class="choices" class:grid={q.multiSelect}>
@@ -96,8 +96,8 @@
       </fieldset>
     {/each}
     <div class="footer">
-      <button class="btn send" aria-disabled={done < questions.length} onclick={send}>Envoyer les réponses</button>
-      <span class="hint">Réponds à chaque question, ou écris une réponse libre ci-dessous.</span>
+      <button class="btn send" aria-disabled={done < questions.length} onclick={send}>Send answers</button>
+      <span class="hint">Answer every question, or write a free answer below.</span>
     </div>
   {/if}
 </section>

@@ -70,7 +70,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     cost: 0,
     tokens: 0,
     turns: 0,
-    action: 'Démarre…',
+    action: 'Starting…',
     since: Date.now(),
     live: { input: 0, output: 0, outputDone: 0, started: Date.now() },
     alive: false,
@@ -116,7 +116,7 @@ export function userMessage(agent: Agent, text: string) {
   agent.entries.push({ kind: 'user', text, at: Date.now() })
   if (!agent.alive) agent.processCost = 0
   agent.status = 'working'
-  agent.action = 'Démarre…'
+  agent.action = 'Starting…'
   agent.since = Date.now()
   agent.live = { input: 0, output: 0, outputDone: 0, started: Date.now() }
 }
@@ -190,10 +190,10 @@ function stream(agent: Agent, d: Json) {
     const entry = agentEntry(agent)
     if (block.type === 'text') {
       entry.blocks.push({ type: 'text', text: '', key })
-      agent.action = 'Rédige la réponse…'
+      agent.action = 'Writing the reply…'
     } else if (block.type === 'thinking') {
       entry.blocks.push({ type: 'thinking' })
-      agent.action = 'Réfléchit…'
+      agent.action = 'Thinking…'
     } else if (block.type === 'tool_use') {
       const call: ToolCall = { id: block.id, name: block.name, input: {} }
       const last = entry.blocks.at(-1)
@@ -249,11 +249,11 @@ function result(agent: Agent, d: Json) {
   if (agent.interrupting) {
     agent.interrupting = false
     agent.status = 'interrupted'
-    agent.action = 'Interrompu · attend ta consigne'
+    agent.action = 'Interrupted · waiting for your instruction'
     agent.entries.push({ kind: 'interrupted', at: Date.now(), ...used })
   } else if (d.is_error) {
     const message = String(d.result ?? ((d.errors ?? []).join('\n') || d.subtype))
-    fail(agent, message || 'La session s’est arrêtée.')
+    fail(agent, message || 'The session stopped.')
   } else {
     agent.turns += 1
     agent.status = 'done'
@@ -267,9 +267,9 @@ export function fail(agent: Agent, message: string) {
   agent.status = 'error'
   agent.interrupting = false
   agent.since = Date.now()
-  const missing = message === 'claude-introuvable'
+  const missing = message === 'claude-not-found'
   const login = /not logged in|\/login|invalid api key/i.test(message)
-  agent.action = missing ? 'Claude Code introuvable' : login ? 'Claude Code non connecté' : message.split('\n')[0]
+  agent.action = missing ? 'Claude Code not found' : login ? 'Claude Code not logged in' : message.split('\n')[0]
   agent.entries.push({ kind: 'error', at: Date.now(), message, login, missing })
 }
 
@@ -279,10 +279,10 @@ export function exited(agent: Agent, stderr: string) {
   if (agent.interrupting) {
     agent.interrupting = false
     agent.status = 'interrupted'
-    agent.action = 'Interrompu · attend ta consigne'
+    agent.action = 'Interrupted · waiting for your instruction'
     agent.entries.push({ kind: 'interrupted', at: Date.now(), cost: 0, input: 0, output: 0, ms: 0 })
   } else if (agent.status === 'working' || agent.status === 'waiting') {
-    fail(agent, stderr.trim() || 'La session s’est arrêtée pendant la réponse de l’agent.')
+    fail(agent, stderr.trim() || 'The session stopped while the agent was replying.')
   }
 }
 
@@ -294,6 +294,6 @@ export function reloaded(agent: Agent) {
   agent.interrupting = false
   if (agent.status !== 'done') {
     agent.status = 'done'
-    agent.action = 'Session rechargée'
+    agent.action = 'Session reloaded'
   }
 }

@@ -14,8 +14,8 @@
 
   const problem = $derived.by(() => {
     if (!info || !path.trim()) return ''
-    if (!info.exists) return "Ce dossier n'existe pas ou n'est pas accessible."
-    if (info.taken_by) return `Ce dossier est déjà le projet ${info.taken_by}.`
+    if (!info.exists) return "This folder does not exist or cannot be read."
+    if (info.taken_by) return `This folder is already the ${info.taken_by} project.`
     return ''
   })
   const ready = $derived(!!info?.exists && !info.taken_by && !!name.trim() && !busy)
@@ -57,25 +57,25 @@
   }
 </script>
 
-<Dialog title="Ajouter un projet" {onclose} width={520}>
+<Dialog title="Add a project" {onclose} width={520}>
   <form onsubmit={submit}>
-    <p class="intro">Un projet, c'est un dossier local où Squadron lance tes agents.</p>
+    <p class="intro">A project is a local folder where Squadron runs your agents.</p>
     <div class="fields">
       <div class="group">
-        <label for="dossier">Dossier du projet</label>
+        <label for="folder">Project folder</label>
         <div class="row">
           <input
-            id="dossier"
+            id="folder"
             class="field mono"
             bind:value={path}
-            placeholder="/chemin/du/projet"
+            placeholder="/path/to/project"
             aria-invalid={!!problem}
-            aria-describedby="dossier-etat"
+            aria-describedby="folder-state"
             spellcheck="false"
           />
-          <button type="button" class="btn btn-secondary browse" onclick={browse}>Parcourir…</button>
+          <button type="button" class="btn btn-secondary browse" onclick={browse}>Browse…</button>
         </div>
-        <span id="dossier-etat" class="state">
+        <span id="folder-state" class="state">
           {#if problem}
             <span class="bad">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
@@ -84,30 +84,30 @@
               {problem}
               {#if info?.taken_by}
                 <button type="button" class="link" onclick={() => goTo(info!.taken_by!)}
-                  >Aller à {info.taken_by}</button
+                  >Go to {info.taken_by}</button
                 >
               {/if}
             </span>
           {:else if info?.git}
             <span class="good">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
-              Dépôt Git détecté{#if info.branch}&nbsp;· branche <code>{info.branch}</code>{/if}
+              Git repository found{#if info.branch}&nbsp;· branch <code>{info.branch}</code>{/if}
             </span>
           {:else if info}
-            <span>Pas de dépôt Git : Squadron fonctionne aussi sans.</span>
+            <span>No Git repository: Squadron works without one too.</span>
           {/if}
         </span>
       </div>
       <div class="group">
-        <label for="nom">Nom</label>
-        <input id="nom" class="field" bind:value={name} disabled={!info?.exists || !!info.taken_by} />
-        <span class="state">Prérempli avec le nom du dossier.</span>
+        <label for="name">Name</label>
+        <input id="name" class="field" bind:value={name} disabled={!info?.exists || !!info.taken_by} />
+        <span class="state">Filled in from the folder name.</span>
       </div>
       {#if error}<p class="bad" role="alert">{error}</p>{/if}
     </div>
     <footer>
-      <button type="button" class="btn btn-secondary" onclick={onclose}>Annuler</button>
-      <button class="btn btn-primary" disabled={!ready}>Ajouter le projet</button>
+      <button type="button" class="btn btn-secondary" onclick={onclose}>Cancel</button>
+      <button class="btn btn-primary" disabled={!ready}>Add project</button>
     </footer>
   </form>
 </Dialog>

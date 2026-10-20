@@ -52,13 +52,13 @@ pub struct Options {
 impl Options {
     pub fn check(&self) -> Result<(), String> {
         if !MODELS.contains(&self.model.as_str()) {
-            return Err(format!("Modèle inconnu : {}", self.model));
+            return Err(format!("Unknown model: {}", self.model));
         }
         if !EFFORTS.contains(&self.effort.as_str()) {
-            return Err(format!("Effort inconnu : {}", self.effort));
+            return Err(format!("Unknown effort: {}", self.effort));
         }
         if !MODES.contains(&self.mode.as_str()) {
-            return Err(format!("Mode de permission inconnu : {}", self.mode));
+            return Err(format!("Unknown permission mode: {}", self.mode));
         }
         Ok(())
     }
@@ -140,12 +140,12 @@ impl Session {
                             && v != TESTED_VERSION
                         {
                             log::warn!(
-                                "Claude Code {v} non testé, version épinglée : {TESTED_VERSION}"
+                                "Claude Code {v} is untested, pinned version: {TESTED_VERSION}"
                             );
                         }
                         on_event(&line, event);
                     }
-                    Err(e) => log::warn!("ligne illisible dans le flux de claude : {e}"),
+                    Err(e) => log::warn!("unreadable line in the claude stream: {e}"),
                 }
             }
             let _ = child.wait();
@@ -165,7 +165,7 @@ impl Session {
         self.stdin.flush()
     }
 
-    /// Claude Code finit le tour en erreur puis s'arrête : continuer demande `--resume`.
+    /// Claude Code ends the turn with an error then exits: continuing needs `--resume`.
     pub fn interrupt(&self) -> io::Result<()> {
         self.signal(libc::SIGINT)
     }
@@ -210,7 +210,7 @@ mod tests {
             |_| {},
         )
         .unwrap();
-        session.send("bonjour").unwrap();
+        session.send("hello").unwrap();
         rx.iter().collect()
     }
 
@@ -271,7 +271,7 @@ mod tests {
         )
         .unwrap();
         ready.recv_timeout(Duration::from_secs(5)).unwrap();
-        session.send("bonjour").unwrap();
+        session.send("hello").unwrap();
         assert!(session.alive());
         session.interrupt().unwrap();
         assert_eq!(rx.recv_timeout(Duration::from_secs(5)).unwrap(), "oups\n");

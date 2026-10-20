@@ -53,7 +53,7 @@ listen<{ id: string; stderr: string }>('agent-exit', ({ payload }) => {
 
 listen<Ask>('permission-request', ({ payload: ask }) => {
   const agent = find(ask.agent)
-  if (!agent) return decide(ask.id, { behavior: 'deny', message: 'Agent inconnu de Squadron.' })
+  if (!agent) return decide(ask.id, { behavior: 'deny', message: 'Unknown Squadron agent.' })
   const rules = projects.list.find((p) => p.path === agent.project)?.rules ?? []
   if ((agent.allowEdits && EDITS.includes(ask.tool_name)) || rules.some((r) => matches(r, ask.tool_name, ask.input)))
     return decide(ask.id, { behavior: 'allow', updatedInput: ask.input })
@@ -70,16 +70,16 @@ function waitFor(agent: Agent) {
   const ask = agent.asks[0]
   if (!ask) {
     agent.status = 'working'
-    agent.action = 'Reprend…'
+    agent.action = 'Resuming…'
     return
   }
   agent.status = 'waiting'
   agent.action =
     ask.tool_name === 'AskUserQuestion'
-      ? 'Attend ta réponse · Question'
+      ? 'Waiting for your answer · Question'
       : ask.tool_name === 'ExitPlanMode'
-        ? 'Attend ton accord · Plan'
-        : `Attend ton accord · ${toolLabel(ask.tool_name).split(' · ')[0]}`
+        ? 'Waiting for your approval · Plan'
+        : `Waiting for your approval · ${toolLabel(ask.tool_name).split(' · ')[0]}`
 }
 
 export function waitingDetail(agent: Agent) {
@@ -110,15 +110,15 @@ export async function allow(agent: Agent, ask: Ask, always = false) {
   let note: string | undefined
   if (always && EDITS.includes(ask.tool_name)) {
     agent.allowEdits = true
-    note = `${agent.name} modifie les fichiers sans demander jusqu’à la fin de sa session`
+    note = `${agent.name} edits files without asking until its session ends`
   } else if (always) {
     const rule = ruleFor(ask.tool_name, ask.input)
     await addRule(agent.project, rule)
-    note = `Règle ajoutée pour ${projects.list.find((p) => p.path === agent.project)?.name} : ${ruleLabel(rule)}`
+    note = `Rule added for ${projects.list.find((p) => p.path === agent.project)?.name}: ${ruleLabel(rule)}`
   }
   return settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
     tone: 'ok',
-    title: always ? 'Toujours autorisé' : 'Autorisé une fois',
+    title: always ? 'Always allowed' : 'Allowed once',
     detail: detailOf(agent, ask),
     note,
   })
@@ -128,8 +128,8 @@ export function deny(agent: Agent, ask: Ask, message = '') {
   return settle(
     agent,
     ask,
-    { behavior: 'deny', message: message || 'L’utilisateur a refusé.' },
-    { tone: 'bad', title: 'Refusé', detail: detailOf(agent, ask), note: message ? `Avec ta consigne : « ${message} »` : undefined },
+    { behavior: 'deny', message: message || 'The user denied this.' },
+    { tone: 'bad', title: 'Denied', detail: detailOf(agent, ask), note: message ? `With your instruction: “${message}”` : undefined },
   )
 }
 
@@ -140,7 +140,7 @@ export function answer(agent: Agent, ask: Ask, answers: Record<string, string>) 
     { behavior: 'allow', updatedInput: { ...ask.input, answers } },
     {
       tone: 'ok',
-      title: 'Répondu',
+      title: 'Answered',
       detail: Object.entries(answers)
         .map(([q, a]) => `${q} → ${a.replace(/\s*\((recommended|recommandé)\)/gi, '')}`)
         .join(' · '),
@@ -153,14 +153,14 @@ export function plan(agent: Agent, ask: Ask, choice: 'edits' | 'ask' | 'continue
     return settle(
       agent,
       ask,
-      { behavior: 'deny', message: remark || 'Continue à planifier, ne modifie rien pour l’instant.' },
-      { tone: 'bad', title: 'Plan à revoir', detail: 'Continuer à planifier', note: remark ? `Avec ta remarque : « ${remark} »` : undefined },
+      { behavior: 'deny', message: remark || 'Keep planning, do not change anything yet.' },
+      { tone: 'bad', title: 'Plan to revise', detail: 'Keep planning', note: remark ? `With your feedback: “${remark}”` : undefined },
     )
   if (choice === 'edits') agent.allowEdits = true
   return settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
     tone: 'ok',
-    title: 'Plan validé',
-    detail: choice === 'edits' ? 'Lancé en « accepter les modifications »' : 'Lancé en demandant à chaque modification',
+    title: 'Plan approved',
+    detail: choice === 'edits' ? 'Started in “accept edits”' : 'Started, asking for each edit',
   })
 }
 
@@ -204,7 +204,7 @@ export async function retry(id: string) {
   const last = agent?.entries.findLast((e) => e.kind === 'user')
   if (!agent || last?.kind !== 'user') return
   agent.status = 'working'
-  agent.action = 'Démarre…'
+  agent.action = 'Starting…'
   try {
     await invoke('send_message', { id, text: last.text })
   } catch (e) {

@@ -21,18 +21,18 @@
       case 'working':
         return agent.action
       case 'done':
-        return `Fini ${ago(agent.since, clock.now)}`
+        return `Done ${ago(agent.since, clock.now)}`
       case 'interrupted':
-        return 'Interrompu · attend ta consigne'
+        return 'Interrupted · waiting for your instruction'
       case 'waiting':
         return agent.action
       case 'error':
-        return 'Erreur · session arrêtée'
+        return 'Error · session stopped'
     }
   }
 </script>
 
-<aside aria-label="Agents du projet">
+<aside aria-label="Project agents">
   <div class="head">
     <div class="who">
       <span class="square" aria-hidden="true"></span>
@@ -40,16 +40,16 @@
         <strong>{project.name}</strong>
         <small class:bad={!project.exists}>
           {#if !project.exists}
-            Dossier introuvable
+            Folder not found
           {:else if list.length}
-            {list.length} agent{list.length > 1 ? 's' : ''}{#if pending}&nbsp;· {pending} t’attend{pending > 1 ? 'ent' : ''}{/if}
+            {list.length} agent{list.length > 1 ? 's' : ''}{#if pending}&nbsp;· {pending} waiting for you{/if}
           {:else}
-            Aucun agent
+            No agents
           {/if}
         </small>
       </div>
     </div>
-    <button class="new" disabled={!project.exists} onclick={onnew} title="Nouvel agent (Ctrl N)">+ Agent</button>
+    <button class="new" disabled={!project.exists} onclick={onnew} title="New agent (Ctrl N)">+ Agent</button>
   </div>
 
   {#if list.length}
@@ -80,16 +80,16 @@
         ><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" stroke-dasharray="3 3" /></svg
       >
       {project.exists
-        ? `Les agents de ${project.name} apparaîtront ici, avec leur état et leur coût.`
-        : 'Tu pourras créer des agents dès que le dossier sera retrouvé.'}
+        ? `${project.name} agents will show up here, with their state and cost.`
+        : 'You can create agents once the folder is found again.'}
     </div>
   {/if}
 
   <div class="info">
     <span class="mono">{home(project.path)}</span>
-    <span>{project.git ? `Git · ${project.branch ?? 'dépôt'}` : 'Pas de dépôt Git détecté'}</span>
-    <span>Coût du projet · {cost(total)}</span>
-    <button class="retire" onclick={onretire}>Retirer le projet</button>
+    <span>{project.git ? `Git · ${project.branch ?? 'repository'}` : 'No Git repository'}</span>
+    <span>Project cost · {cost(total)}</span>
+    <button class="retire" onclick={onretire}>Remove project</button>
   </div>
 </aside>
 

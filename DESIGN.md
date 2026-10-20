@@ -1,6 +1,6 @@
 # Squadron — Design
 
-Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions » (écrans C1 à C25). Thème sombre unique, brun chaud et cuivre. Les valeurs ci-dessous sont relevées dans la maquette ; elles vivent en variables CSS dans `src/app.css`.
+Interface en anglais. Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions » (écrans C1 à C25). Thème sombre unique, brun chaud et cuivre. Les valeurs ci-dessous sont relevées dans la maquette ; elles vivent en variables CSS dans `src/app.css`.
 
 ## Couleurs
 
@@ -138,7 +138,7 @@ Nom 15px 600, puis « modèle · effort · mode · coût · tokens » en 12px `-
 - **Repères d'historique** (permission répondue) : ligne 12,5px, padding 9px 14px. Autorisé : fond `#1F2321`, contour `#33403B`, libellé `--ok-text`. Refusé : fond `#241917`, contour `#4A2E29`, libellé `--err-text`. Détail en dessous (règle ajoutée, consigne de refus) en 12px `--text-dim`.
 - **Interruption** : encart `--surface-2`, contour `#4E443E`, « Interrompu par toi · heure », puis « Tour interrompu ». **Rechargement** : séparateur horizontal « Session rechargée · heure · conversation conservée ».
 - **Bouton « Dernier message »** : pilule claire flottante en bas de la conversation, rayon 18px, quand on a remonté.
-- **Colonne de repères** : un trait par message de l'utilisateur, placé à sa position relative. Inactif : 10×2px `--text-faint` ; actif (message affiché) : 18×3px `--accent` avec halo. Au survol, info-bulle `--menu` de 300px : « Message N · heure » puis le texte. Au clic, défilement jusqu'au message.
+- **Colonne de repères** : un trait par message de l'utilisateur, les traits groupés et centrés verticalement dans la colonne (ils se resserrent quand il y en a beaucoup). Inactif : 10×2px `--text-faint` ; actif (message affiché) : 18×3px `--accent` avec halo. Au survol, info-bulle `--menu` de 300px à hauteur du trait : « Message N · heure » puis le texte. Au clic, défilement jusqu'au message.
 
 ### Cartes qui attendent l'utilisateur
 Fond `--wait-bg`, contour `--wait-border`, padding 16–18px, rayon 6px, espacement 12px. Icône 30px `--accent` sur `--accent-ink`. Titre `--wait-text` 600, détail en mono `--wait-text-2`.

@@ -7,7 +7,7 @@ use std::sync::atomic::{AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
-pub const NOT_FOUND: &str = "claude-introuvable";
+pub const NOT_FOUND: &str = "claude-not-found";
 
 struct Agent {
     project: PathBuf,
@@ -72,7 +72,7 @@ impl Agents {
 
     pub fn send(&self, app: &AppHandle, program: &str, id: &str, text: &str) -> Result<(), String> {
         let mut list = self.list.lock().unwrap();
-        let agent = list.get_mut(id).ok_or("Agent inconnu.")?;
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
         send(app, program, id, agent, text)
     }
 
@@ -86,7 +86,7 @@ impl Agents {
 
     pub fn reload(&self, app: &AppHandle, program: &str, id: &str) -> Result<(), String> {
         let mut list = self.list.lock().unwrap();
-        let agent = list.get_mut(id).ok_or("Agent inconnu.")?;
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
         if let Some(session) = agent.session.take() {
             let _ = session.stop();
         }
@@ -129,12 +129,12 @@ fn send(
     if sent.is_err() {
         agent.session = None;
     }
-    sent.map_err(|e| format!("Message non transmis à Claude Code : {e}"))
+    sent.map_err(|e| format!("Message not delivered to Claude Code: {e}"))
 }
 
 fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<(), String> {
     if !agent.project.is_dir() {
-        return Err("Le dossier du projet est introuvable.".into());
+        return Err("The project folder cannot be found.".into());
     }
     let run = agent.run.fetch_add(1, Ordering::SeqCst) + 1;
     let resume = agent.session_id.lock().unwrap().clone();
@@ -184,7 +184,7 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
     )
     .map_err(|e| match e.kind() {
         ErrorKind::NotFound => NOT_FOUND.to_string(),
-        _ => format!("Lancement de Claude Code impossible : {e}"),
+        _ => format!("Claude Code could not start: {e}"),
     })?;
     agent.session = Some(session);
     Ok(())

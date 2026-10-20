@@ -15,8 +15,8 @@
   async function retire() {
     const running = ofProject(project.path).length
     const confirmed = await ask(
-      `Retirer ${project.name} de Squadron ? Le dossier n’est pas touché.${running ? ` Ses ${running} agent${running > 1 ? 's seront arrêtés' : ' sera arrêté'}.` : ''}`,
-      { title: 'Retirer le projet', kind: 'warning', okLabel: 'Retirer', cancelLabel: 'Annuler' },
+      `Remove ${project.name} from Squadron? The folder is left untouched.${running ? ` Its ${running} agent${running > 1 ? 's' : ''} will be stopped.` : ''}`,
+      { title: 'Remove project', kind: 'warning', okLabel: 'Remove', cancelLabel: 'Cancel' },
     )
     if (!confirmed) return
     await archiveProject(project.path)
@@ -52,23 +52,23 @@
 
   {#if !project.exists}
     <main class="center">
-      <section class="missing" role="alert" aria-labelledby="introuvable">
+      <section class="missing" role="alert" aria-labelledby="missing">
         <div class="title">
           <span class="icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg>
           </span>
-          <h1 id="introuvable">Le dossier de {project.name} est introuvable</h1>
+          <h1 id="missing">The {project.name} folder cannot be found</h1>
         </div>
         <code>{project.path}</code>
         <p>
-          Il a peut-être été déplacé, renommé, ou il est sur un disque non monté. Indique son nouvel
-          emplacement pour créer des agents dans {project.name}.
+          It may have been moved, renamed, or it lives on an unmounted disk. Point to its new location
+          to create agents in {project.name}.
         </p>
         {#if error}<p class="bad">{error}</p>{/if}
         <div class="row">
-          <button class="btn btn-primary" onclick={relocate}>Choisir le nouvel emplacement…</button>
-          <button class="btn btn-danger" onclick={load}>Réessayer</button>
-          <button class="btn btn-danger" onclick={retire}>Retirer le projet</button>
+          <button class="btn btn-primary" onclick={relocate}>Choose the new location…</button>
+          <button class="btn btn-danger" onclick={load}>Retry</button>
+          <button class="btn btn-danger" onclick={retire}>Remove project</button>
         </div>
       </section>
     </main>
@@ -82,10 +82,10 @@
         <span class="plus" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
         </span>
-        <h1>Lance le premier agent de {project.name}</h1>
-        <p>Donne-lui un nom, choisis le modèle, l’effort et le mode de permission, puis écris sa première consigne.</p>
+        <h1>Start the first {project.name} agent</h1>
+        <p>Give it a name, pick the model, the effort and the permission mode, then write its first instruction.</p>
         <div class="row">
-          <button class="btn btn-primary big" onclick={() => (creating = true)}>Nouvel agent</button>
+          <button class="btn btn-primary big" onclick={() => (creating = true)}>New agent</button>
           <kbd>Ctrl N</kbd>
         </div>
       </div>

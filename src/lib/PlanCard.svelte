@@ -6,23 +6,23 @@
   let { agent, ask }: { agent: Agent; ask: Ask } = $props()
 </script>
 
-<section class="card" aria-label="Approbation du plan">
+<section class="card" aria-label="Plan approval">
   <div class="head">
     <span class="icon" aria-hidden="true">
       <svg width="16" height="16" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg>
     </span>
     <span class="what">
-      <strong>Valider le plan ?</strong>
-      <span>{agent.name} n’a encore rien modifié. Il attend ton feu vert pour commencer.</span>
+      <strong>Approve the plan?</strong>
+      <span>{agent.name} has not changed anything yet. It waits for your go-ahead.</span>
     </span>
   </div>
   <div class="plan"><Markdown text={String(ask.input.plan ?? '')} /></div>
   <div class="actions">
-    <button class="btn go" onclick={() => plan(agent, ask, 'edits')}>Lancer · accepter les modifications</button>
-    <button class="btn ask" onclick={() => plan(agent, ask, 'ask')}>Lancer · demander à chaque modification</button>
-    <button class="btn more" onclick={() => plan(agent, ask, 'continue')}>Continuer à planifier</button>
+    <button class="btn go" onclick={() => plan(agent, ask, 'edits')}>Start · accept edits</button>
+    <button class="btn ask" onclick={() => plan(agent, ask, 'ask')}>Start · ask for each edit</button>
+    <button class="btn more" onclick={() => plan(agent, ask, 'continue')}>Keep planning</button>
   </div>
-  <span class="hint">Pour ajuster le plan, écris ta remarque ci-dessous.</span>
+  <span class="hint">To adjust the plan, write your feedback below.</span>
 </section>
 
 <style>

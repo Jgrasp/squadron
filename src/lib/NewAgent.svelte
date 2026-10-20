@@ -9,10 +9,10 @@
   const models: Options['model'][] = ['opus', 'sonnet', 'haiku']
   const efforts: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
   const modes: { value: Options['mode']; title: string; hint: string }[] = [
-    { value: 'default', title: 'Demander tout', hint: 'Chaque outil attend ton accord' },
-    { value: 'acceptEdits', title: 'Accepter les modifications', hint: 'Les Edit passent, les commandes demandent' },
-    { value: 'plan', title: 'Plan', hint: 'Propose un plan, n’agit qu’après validation' },
-    { value: 'auto', title: 'Auto', hint: 'Claude Code décide, et ne demande que pour les actions risquées' },
+    { value: 'default', title: 'Ask for everything', hint: 'Every tool waits for your approval' },
+    { value: 'acceptEdits', title: 'Accept edits', hint: 'Edits go through, commands ask' },
+    { value: 'plan', title: 'Plan', hint: 'Proposes a plan, acts only once approved' },
+    { value: 'auto', title: 'Auto', hint: 'Claude Code decides, and only asks for risky actions' },
   ]
 
   let saved: Options = { model: 'opus', effort: 'high', mode: 'default' }
@@ -38,21 +38,21 @@
   }
 </script>
 
-<Dialog title="Nouvel agent" {onclose} width={620}>
+<Dialog title="New agent" {onclose} width={620}>
   {#snippet badge()}
-    <span class="in"><span class="dot" aria-hidden="true"></span>dans {project.name}</span>
+    <span class="in"><span class="dot" aria-hidden="true"></span>in {project.name}</span>
   {/snippet}
   <form onsubmit={submit}>
     <div class="fields">
       <div class="group">
-        <label for="nom-agent">Nom</label>
-        <input id="nom-agent" class="field" bind:value={name} placeholder="Par défaut, le début du premier message" />
+        <label for="agent-name">Name</label>
+        <input id="agent-name" class="field" bind:value={name} placeholder="Defaults to the start of the first message" />
       </div>
 
       <div class="pair">
         <div class="group">
-          <span id="modele" class="label">Modèle</span>
-          <div class="segments" role="group" aria-labelledby="modele">
+          <span id="model" class="label">Model</span>
+          <div class="segments" role="group" aria-labelledby="model">
             {#each models as model (model)}
               <button type="button" aria-pressed={options.model === model} onclick={() => (options.model = model)}>
                 {model[0].toUpperCase() + model.slice(1)}
@@ -73,7 +73,7 @@
       </div>
 
       <div class="group">
-        <span id="mode" class="label">Mode de permission</span>
+        <span id="mode" class="label">Permission mode</span>
         <div class="modes" role="group" aria-labelledby="mode">
           {#each modes as mode (mode.value)}
             <button type="button" aria-pressed={options.mode === mode.value} onclick={() => (options.mode = mode.value)}>
@@ -85,10 +85,10 @@
       </div>
 
       <div class="group">
-        <label for="premier-message">Premier message</label>
+        <label for="first-message">First message</label>
         <!-- svelte-ignore a11y_autofocus -->
         <textarea
-          id="premier-message"
+          id="first-message"
           class="field"
           rows="4"
           bind:value={text}
@@ -99,9 +99,9 @@
     </div>
 
     <footer>
-      <span class="hint"><kbd>Ctrl ↵</kbd> pour lancer</span>
-      <button type="button" class="btn btn-secondary" onclick={onclose}>Annuler</button>
-      <button class="btn btn-primary" disabled={!ready}>Lancer l’agent</button>
+      <span class="hint"><kbd>Ctrl ↵</kbd> to start</span>
+      <button type="button" class="btn btn-secondary" onclick={onclose}>Cancel</button>
+      <button class="btn btn-primary" disabled={!ready}>Start agent</button>
     </footer>
   </form>
 </Dialog>

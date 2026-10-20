@@ -16,13 +16,13 @@
   })
   const code = $derived.by(() => {
     if (call.name !== 'Bash' || !call.result) return ''
-    if (call.result.data?.interrupted) return 'interrompu'
-    return failed ? 'échec' : 'code 0'
+    if (call.result.data?.interrupted) return 'interrupted'
+    return failed ? 'failed' : 'code 0'
   })
 </script>
 
 {#if edit}
-  <button class="row action" title="Ouvrir dans le panneau Diff" onclick={() => ondiff(call)} disabled={!call.result}>
+  <button class="row action" title="Open in the Diff panel" onclick={() => ondiff(call)} disabled={!call.result}>
     <span class="name">{call.name}</span>
     <span class="arg">{arg}</span>
     {#if call.result}
@@ -39,7 +39,7 @@
       <span class="name">{call.name}</span>
       <span class="arg">{arg}</span>
       {#if code}<span class="code" class:ok={code === 'code 0'}>{code}</span>{/if}
-      <span class="go">sortie ›</span>
+      <span class="go">output ›</span>
     </summary>
     <pre>{output}</pre>
   </details>

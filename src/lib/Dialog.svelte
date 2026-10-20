@@ -31,7 +31,7 @@
       <h1 id="dialog-title">{title}</h1>
       {@render badge?.()}
     </div>
-    <button class="close" aria-label="Fermer la fenêtre" onclick={onclose}>×</button>
+    <button class="close" aria-label="Close dialog" onclick={onclose}>×</button>
   </div>
   {@render children()}
 </dialog>
