@@ -223,7 +223,72 @@ fn create_agent(
     options: claude::Options,
     text: String,
 ) -> Result<(), String> {
-    agents.create(&app, &settings.claude(), id, project, options, &text)
+    agents.register(&id, project, options, None, false)?;
+    agents.send(&app, &settings.claude(), &id, &text)
+}
+
+#[tauri::command]
+fn restore_agent(
+    agents: State<Agents>,
+    id: String,
+    project: PathBuf,
+    options: claude::Options,
+    session_id: Option<String>,
+) -> Result<(), String> {
+    agents.register(&id, project, options, session_id, false)
+}
+
+#[tauri::command]
+fn fork_agent(
+    agents: State<Agents>,
+    id: String,
+    from: String,
+    project: PathBuf,
+    options: claude::Options,
+) -> Result<(), String> {
+    let session = agents
+        .session_id(&from)
+        .ok_or("This agent has no session to fork yet.")?;
+    agents.register(&id, project, options, Some(session), true)
+}
+
+struct AgentFiles(PathBuf);
+
+impl AgentFiles {
+    fn path(&self, id: &str) -> Result<PathBuf, String> {
+        if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err("Invalid agent id.".into());
+        }
+        Ok(self.0.join(format!("{id}.json")))
+    }
+}
+
+#[tauri::command]
+fn save_agent(files: State<AgentFiles>, id: String, data: String) -> Result<(), String> {
+    let path = files.path(&id)?;
+    std::fs::create_dir_all(&files.0).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
+    std::fs::rename(tmp, path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String> {
+    match std::fs::remove_file(files.path(&id)?) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+        _ => Ok(()),
+    }
+}
+
+#[tauri::command]
+fn load_agents(files: State<AgentFiles>) -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir(&files.0) else {
+        return Vec::new();
+    };
+    dir.filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .collect()
 }
 
 #[tauri::command]
@@ -277,6 +342,11 @@ pub fn run() {
             claude_path,
             set_claude_path,
             create_agent,
+            restore_agent,
+            fork_agent,
+            save_agent,
+            delete_agent_file,
+            load_agents,
             send_message,
             interrupt_agent,
             reload_agent,
@@ -297,6 +367,7 @@ pub fn run() {
                 file,
             });
             app.manage(Settings::load(config.join("settings.json")));
+            app.manage(AgentFiles(config.join("agents")));
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {

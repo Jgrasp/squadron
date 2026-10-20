@@ -55,6 +55,7 @@ export type Agent = {
   interrupting: boolean
   asks: Ask[]
   allowEdits: boolean
+  sessionId: string | null
 }
 
 type Json = Record<string, any>
@@ -78,6 +79,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     interrupting: false,
     asks: [],
     allowEdits: false,
+    sessionId: null,
   }
 }
 
@@ -159,6 +161,7 @@ export function apply(agent: Agent, d: Json) {
   agent.alive = true
   switch (d.type) {
     case 'system':
+      if (d.subtype === 'init' && d.session_id) agent.sessionId = d.session_id
       if (d.subtype === 'status' && d.status === 'requesting' && agent.status !== 'waiting')
         agent.status = 'working'
       return

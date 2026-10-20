@@ -16,6 +16,7 @@ struct Agent {
     session_id: Arc<Mutex<Option<String>>>,
     run: Arc<AtomicU32>,
     mcp: Option<String>,
+    fork: bool,
 }
 
 #[derive(Default)]
@@ -47,27 +48,38 @@ impl Agents {
         Some(crate::permissions::mcp_config(*port, token, id))
     }
 
-    pub fn create(
+    pub fn register(
         &self,
-        app: &AppHandle,
-        program: &str,
-        id: String,
+        id: &str,
         project: PathBuf,
         options: Options,
-        text: &str,
+        session_id: Option<String>,
+        fork: bool,
     ) -> Result<(), String> {
         options.check()?;
-        let mcp = self.mcp(&id);
-        let mut list = self.list.lock().unwrap();
-        let agent = list.entry(id.clone()).or_insert(Agent {
-            project,
-            options,
-            session: None,
-            session_id: Default::default(),
-            run: Default::default(),
-            mcp,
-        });
-        send(app, program, &id, agent, text)
+        if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err("Invalid agent id.".into());
+        }
+        let mcp = self.mcp(id);
+        self.list
+            .lock()
+            .unwrap()
+            .entry(id.to_string())
+            .or_insert(Agent {
+                project,
+                options,
+                session: None,
+                session_id: Arc::new(Mutex::new(session_id)),
+                run: Default::default(),
+                mcp,
+                fork,
+            });
+        Ok(())
+    }
+
+    pub fn session_id(&self, id: &str) -> Option<String> {
+        let list = self.list.lock().unwrap();
+        list.get(id)?.session_id.lock().unwrap().clone()
     }
 
     pub fn send(&self, app: &AppHandle, program: &str, id: &str, text: &str) -> Result<(), String> {
@@ -143,8 +155,10 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
         &agent.project,
         &agent.options,
         resume.as_deref(),
+        agent.fork,
         agent.mcp.as_deref(),
     );
+    agent.fork = false;
     let (lines_app, exit_app) = (app.clone(), app.clone());
     let (lines_id, exit_id) = (id.to_string(), id.to_string());
     let (lines_run, exit_run) = (agent.run.clone(), agent.run.clone());

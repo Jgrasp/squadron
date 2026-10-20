@@ -152,6 +152,17 @@ mockIPC(
       case 'add_rule':
         if (cmd === 'add_rule') projects.find((p) => p.path === a.path)?.rules.push(a.rule)
         return cmd === 'add_rule' ? views() : undefined
+      case 'save_agent':
+        localStorage.setItem(`agent:${a.id}`, a.data)
+        return
+      case 'delete_agent_file':
+        localStorage.removeItem(`agent:${a.id}`)
+        return
+      case 'load_agents':
+        return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
+      case 'restore_agent':
+        projectOf.set(a.id, a.project)
+        return
       case 'read_project_file':
         if (a.path.endsWith('.php')) return 'final class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'
         return a.path.endsWith('resume.txt') ? '2\n' : null

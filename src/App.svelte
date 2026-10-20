@@ -6,12 +6,25 @@
   import EmptyProjects from './lib/EmptyProjects.svelte'
   import Header from './lib/Header.svelte'
   import ProjectView from './lib/ProjectView.svelte'
+  import { restore, saveAll } from './lib/agents.svelte'
   import { current, load, projects } from './lib/projects.svelte'
 
   let adding: string | null = $state(null)
   const project = $derived(current())
 
-  load()
+  load().then(restore)
+
+  $effect(() => {
+    const appWindow = getCurrentWindow()
+    const unlisten = appWindow.onCloseRequested(async (event) => {
+      event.preventDefault()
+      await saveAll().catch(() => {})
+      await appWindow.destroy()
+    })
+    return () => {
+      unlisten.then((stop) => stop())
+    }
+  })
 
   $effect(() => {
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {

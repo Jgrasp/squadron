@@ -41,14 +41,63 @@ export function selected(project: string) {
 
 listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const agent = find(payload.id)
-  if (agent) apply(agent, JSON.parse(payload.line))
+  if (!agent) return
+  const d = JSON.parse(payload.line)
+  apply(agent, d)
+  if (d.type === 'result' || d.subtype === 'init') persist(agent)
 })
+
+const timers = new Map<string, number>()
+
+export function persist(agent: Agent) {
+  clearTimeout(timers.get(agent.id))
+  timers.set(agent.id, window.setTimeout(() => save(agent), 600))
+}
+
+function save(agent: Agent) {
+  clearTimeout(timers.get(agent.id))
+  timers.delete(agent.id)
+  const { live, alive, processCost, interrupting, asks, ...kept } = $state.snapshot(agent)
+  return invoke('save_agent', { id: agent.id, data: JSON.stringify(kept) })
+}
+
+export function saveAll() {
+  return Promise.all(agents.list.map(save))
+}
+
+export async function restore() {
+  const known = new Set(projects.list.map((p) => p.path))
+  const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
+    try {
+      return [JSON.parse(text) as Agent]
+    } catch {
+      return []
+    }
+  })
+  saved.sort((a, b) => (a.entries[0]?.kind === 'user' ? a.entries[0].at : 0) - (b.entries[0]?.kind === 'user' ? b.entries[0].at : 0))
+  for (const data of saved) {
+    if (!known.has(data.project)) {
+      invoke('delete_agent_file', { id: data.id })
+      continue
+    }
+    const agent: Agent = { ...newAgent(data.id, data.project, data.name, data.options), ...data, asks: [], alive: false }
+    if (agent.status === 'working' || agent.status === 'waiting') {
+      agent.status = 'interrupted'
+      agent.action = 'Stopped when Squadron closed'
+    }
+    agents.list.push(agent)
+    await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: agent.sessionId }).catch(
+      (e) => fail(find(agent.id)!, String(e)),
+    )
+  }
+}
 
 listen<{ id: string; stderr: string }>('agent-exit', ({ payload }) => {
   const agent = find(payload.id)
   if (!agent) return
   exited(agent, payload.stderr)
   invoke('cancel_permissions', { agent: agent.id })
+  persist(agent)
 })
 
 listen<Ask>('permission-request', ({ payload: ask }) => {
@@ -100,6 +149,7 @@ function settle(agent: Agent, ask: Ask, decision: Record<string, unknown>, entry
   agent.asks = agent.asks.filter((a) => a.id !== ask.id)
   agent.entries.push({ kind: 'decision', at: Date.now(), ...entry })
   waitFor(agent)
+  persist(agent)
   return decide(ask.id, decision).catch((e) => fail(agent, String(e)))
 }
 
@@ -181,6 +231,7 @@ export async function create(project: string, name: string, options: Options, te
   const agent = agents.list.at(-1)!
   agents.current[project] = agent.id
   userMessage(agent, text)
+  persist(agent)
   try {
     await invoke('create_agent', { id: agent.id, project, options, text })
   } catch (e) {
@@ -192,6 +243,7 @@ export async function send(id: string, text: string) {
   const agent = find(id)
   if (!agent) return
   userMessage(agent, text)
+  persist(agent)
   try {
     await invoke('send_message', { id, text })
   } catch (e) {
@@ -227,14 +279,17 @@ export async function reload(id: string) {
   try {
     await invoke('reload_agent', { id })
     reloaded(agent)
+    persist(agent)
   } catch (e) {
     fail(agent, String(e))
   }
 }
 
 export async function archive(id: string) {
+  clearTimeout(timers.get(id))
   await invoke('archive_agent', { id })
   await invoke('cancel_permissions', { agent: id })
+  await invoke('delete_agent_file', { id })
   agents.list = agents.list.filter((a) => a.id !== id)
 }
 

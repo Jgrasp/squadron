@@ -69,26 +69,32 @@ pub fn command(
     dir: &Path,
     options: &Options,
     resume: Option<&str>,
+    fork: bool,
     mcp: Option<&str>,
 ) -> Command {
     let mut cmd = Command::new(program);
-    cmd.current_dir(dir).args([
-        "-p",
-        "--input-format",
-        "stream-json",
-        "--output-format",
-        "stream-json",
-        "--verbose",
-        "--include-partial-messages",
-        "--model",
-        &options.model,
-        "--effort",
-        &options.effort,
-        "--permission-mode",
-        &options.mode,
-    ]);
+    cmd.current_dir(dir)
+        .env("CLAUDE_CODE_ENABLE_TODO_TOOLS", "1")
+        .args([
+            "-p",
+            "--input-format",
+            "stream-json",
+            "--output-format",
+            "stream-json",
+            "--verbose",
+            "--include-partial-messages",
+            "--model",
+            &options.model,
+            "--effort",
+            &options.effort,
+            "--permission-mode",
+            &options.mode,
+        ]);
     if let Some(id) = resume {
         cmd.args(["--resume", id]);
+        if fork {
+            cmd.arg("--fork-session");
+        }
     }
     if let Some(config) = mcp {
         cmd.args([
@@ -295,5 +301,62 @@ mod tests {
             ..ok
         };
         assert!(flag.check().is_err());
+    }
+
+    fn real_turn(dir: &Path, resume: Option<&str>, fork: bool, prompt: &str) -> (String, String) {
+        let options = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+        };
+        let (tx, rx) = mpsc::channel();
+        let mut session = Session::start(
+            command("claude", dir, &options, resume, fork, None),
+            move |_, event| {
+                if let Event::Result {
+                    result, session_id, ..
+                } = event
+                {
+                    tx.send((session_id, result.unwrap_or_default())).unwrap();
+                }
+            },
+            |_| {},
+        )
+        .unwrap();
+        session.send(prompt).unwrap();
+        let answer = rx.recv_timeout(Duration::from_secs(120)).unwrap();
+        session.stop().unwrap();
+        answer
+    }
+
+    #[test]
+    #[ignore = "runs the real claude"]
+    fn real_claude_resumes_and_forks_a_session() {
+        let dir = std::env::temp_dir().join("squadron-resume");
+        std::fs::create_dir_all(&dir).unwrap();
+        let (id, _) = real_turn(
+            &dir,
+            None,
+            false,
+            "Remember the code word PELICAN. Reply only OK.",
+        );
+        let (resumed, answer) = real_turn(
+            &dir,
+            Some(&id),
+            false,
+            "What is the code word? Reply with the word only.",
+        );
+        println!("resumed {resumed} -> {answer}");
+        assert_eq!(resumed, id);
+        assert!(answer.contains("PELICAN"));
+        let (forked, answer) = real_turn(
+            &dir,
+            Some(&id),
+            true,
+            "What is the code word? Reply with the word only.",
+        );
+        println!("forked {forked} -> {answer}");
+        assert_ne!(forked, id);
+        assert!(answer.contains("PELICAN"));
     }
 }
