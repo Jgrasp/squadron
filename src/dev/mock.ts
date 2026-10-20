@@ -6,28 +6,34 @@ import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
 import taskList from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[] }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[] }
 
-const projects: Project[] = [
+const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'BMC', path: '/home/quentin/agence/bmc', rules: [] },
   { name: 'Fileas', path: '/home/quentin/agence/fileas', rules: [] },
   { name: 'Lumen', path: '/home/quentin/agence/lumen-absent', rules: [] },
 ]
 
+const label = location.search.includes('board') ? 'board' : 'main'
+const channel = new BroadcastChannel('squadron-events')
+channel.onmessage = ({ data }) => data.target === label && emit(data.event, data.payload)
+let popup: Window | null = null
+
 if (location.search.includes('many'))
   for (const name of ['Mercure', 'Atlas', 'Optika', 'Vinéa', 'Kalia', 'Sorbet', 'Néréide', 'Pixel Rando'])
     projects.push({ name, path: `/home/quentin/agence/${name.toLowerCase()}`, rules: [] })
 
-const folder = (name: string, path: string, rules: string[] = []) => ({
+const folder = (name: string, path: string, rules: string[] = [], cards: unknown[] = []) => ({
   name,
   path,
   rules,
+  cards,
   exists: !path.includes('absent'),
   git: !path.includes('fileas'),
   branch: path.includes('fileas') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p) => folder(p.name, p.path, p.rules))
+const views = () => projects.map((p) => folder(p.name, p.path, p.rules, p.cards))
 
 const timers = new Map<string, number>()
 let claudePath = 'claude'
@@ -105,7 +111,7 @@ if (location.search.includes('stress'))
     console.log('stress', Math.round(performance.now() - started), 'ms', agent.entries.length, 'entries')
   }, 300)
 
-mockWindows('main')
+mockWindows(label)
 mockIPC(
   (cmd, args) => {
     const a = args as Record<string, string>
@@ -197,6 +203,18 @@ mockIPC(
       case 'set_claude_path':
         claudePath = a.path
         return
+      case 'set_cards':
+        projects.find((p) => p.path === a.path)!.cards = (args as { cards: unknown[] }).cards
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return views()
+      case 'plugin:webview|create_webview_window':
+        popup = window.open('/?board', 'board', 'popup,width=1240,height=820')
+        return
+      case 'plugin:window|get_all_windows':
+        return popup && !popup.closed ? [label, 'board'] : [label]
+      case 'plugin:window|set_focus':
+        if (label === 'main') popup?.focus()
+        return
       case 'plugin:dialog|open':
         return '/home/quentin/agence/mercure'
       case 'plugin:dialog|ask':
@@ -205,3 +223,10 @@ mockIPC(
   },
   { shouldMockEvents: true },
 )
+
+const internals = (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args: any, options?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__
+const mocked = internals.invoke
+internals.invoke = async (cmd, args, options) => {
+  if (cmd !== 'plugin:event|emit_to') return mocked(cmd, args, options)
+  channel.postMessage({ target: args.target.label, event: args.event, payload: JSON.parse(JSON.stringify(args.payload ?? null)) })
+}

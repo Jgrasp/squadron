@@ -1,9 +1,12 @@
 import { invoke } from '@tauri-apps/api/core'
+import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
+import type { Card } from './board'
 
 export type Project = {
   name: string
   path: string
   rules: string[]
+  cards: Card[]
   exists: boolean
   git: boolean
   branch: string | null
@@ -11,7 +14,7 @@ export type Project = {
 
 export type Inspection = Project & { taken_by: string | null }
 
-export const projects = $state({ list: [] as Project[], current: '', overview: false })
+export const projects = $state({ list: [] as Project[], current: '', overview: false, board: false })
 
 export function current(): Project | undefined {
   return projects.list.find((p) => p.path === projects.current)
@@ -46,6 +49,24 @@ export async function addRule(path: string, rule: string) {
 
 export async function removeRule(path: string, rule: string) {
   set(await invoke<Project[]>('remove_rule', { path, rule }))
+}
+
+export async function setCards(path: string, cards: Card[]) {
+  set(await invoke<Project[]>('set_cards', { path, cards }))
+}
+
+export async function toggleBoard() {
+  const popped = await WebviewWindow.getByLabel('board')
+  if (popped) return popped.setFocus()
+  projects.overview = false
+  projects.board = !projects.board
+}
+
+export async function popOut() {
+  projects.board = false
+  const popped = await WebviewWindow.getByLabel('board')
+  if (popped) return popped.setFocus()
+  new WebviewWindow('board', { title: 'Squadron board', width: 1240, height: 820, minWidth: 760, minHeight: 480 })
 }
 
 export function inspect(path: string) {

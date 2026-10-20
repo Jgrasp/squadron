@@ -1,0 +1,23 @@
+import { describe, expect, it } from 'vitest'
+import { moveCard, place, type Card, type Mirror } from './board'
+
+const card = (id: string, column: Card['column'] = 'todo'): Card => ({ id, key: '', title: id, prompt: '', column, agent: null })
+const agent = (status: Mirror['status']): Mirror => ({ id: 'a', project: '/p', status, attention: '', detail: '', done: 0, total: 0 })
+
+describe('board', () => {
+  it('places a card after its agent until it is done', () => {
+    expect(place(card('c', 'todo'))).toBe('todo')
+    expect(place(card('c', 'todo'), agent('working'))).toBe('progress')
+    expect(place(card('c', 'progress'), agent('waiting'))).toBe('progress')
+    expect(place(card('c', 'progress'), agent('done'))).toBe('review')
+    expect(place(card('c', 'done'), agent('working'))).toBe('done')
+  })
+
+  it('moves a card to a column, before another card or at the end', () => {
+    const cards = [card('a'), card('b'), card('c', 'review')]
+    expect(moveCard(cards, 'a', 'review').map((c) => [c.id, c.column])).toEqual([['b', 'todo'], ['c', 'review'], ['a', 'review']])
+    expect(moveCard(cards, 'c', 'todo', 'a').map((c) => c.id)).toEqual(['c', 'a', 'b'])
+    expect(moveCard(cards, 'b', 'done', 'b').map((c) => [c.id, c.column])).toEqual([['a', 'todo'], ['b', 'done'], ['c', 'review']])
+    expect(moveCard(cards, 'x', 'done')).toBe(cards)
+  })
+})

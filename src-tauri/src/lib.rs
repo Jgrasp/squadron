@@ -5,11 +5,11 @@ pub mod projects;
 
 use agents::Agents;
 use permissions::Gate;
-use projects::{Folder, Project};
+use projects::{Card, Folder, Project};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use tauri::{AppHandle, Emitter, Manager, RunEvent, State};
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 
 struct Projects {
     file: PathBuf,
@@ -18,9 +18,7 @@ struct Projects {
 
 impl Projects {
     fn views(list: &[Project]) -> Vec<Folder> {
-        list.iter()
-            .map(|p| Folder::of(p.name.clone(), &p.path, p.rules.clone()))
-            .collect()
+        list.iter().map(Folder::of).collect()
     }
 
     fn update(
@@ -66,7 +64,11 @@ fn inspect_folder(projects: State<Projects>, path: PathBuf) -> Inspection {
         .map(|n| n.to_string_lossy().into_owned())
         .unwrap_or_default();
     Inspection {
-        folder: Folder::of(name, &path, Vec::new()),
+        folder: Folder::of(&Project {
+            name,
+            path: path.clone(),
+            ..Default::default()
+        }),
         taken_by: list
             .iter()
             .find(|p| projects::same_folder(&p.path, &path))
@@ -89,7 +91,7 @@ fn add_project(
         list.push(Project {
             name,
             path,
-            rules: Vec::new(),
+            ..Default::default()
         });
         Ok(())
     })
@@ -127,6 +129,21 @@ fn remove_rule(
         if let Some(project) = list.iter_mut().find(|p| p.path == path) {
             project.rules.retain(|r| r != &rule);
         }
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn set_cards(
+    projects: State<Projects>,
+    path: PathBuf,
+    cards: Vec<Card>,
+) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        list.iter_mut()
+            .find(|p| p.path == path)
+            .ok_or("Unknown project.")?
+            .cards = cards;
         Ok(())
     })
 }
@@ -488,6 +505,7 @@ pub fn run() {
             claude_version,
             suggest_title,
             remove_rule,
+            set_cards,
             create_agent,
             restore_agent,
             fork_agent,
@@ -535,6 +553,11 @@ pub fn run() {
             app.state::<Agents>().endpoint(port, token);
             app.manage(gate);
             Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { emitTo, listen } from '@tauri-apps/api/event'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { openUrl } from '@tauri-apps/plugin-opener'
@@ -8,13 +9,54 @@
   import ProjectView from './lib/ProjectView.svelte'
   import Settings, { type Tab } from './lib/Settings.svelte'
   import { loadSettings } from './lib/settings.svelte'
-  import { jumpToWaiting, loadToday, restore, saveAll } from './lib/agents.svelte'
+  import { agents, create, find, jumpToWaiting, loadToday, restore, saveAll, show, waitingDetail } from './lib/agents.svelte'
+  import Board from './lib/Board.svelte'
+  import { mirror, place, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
-  import { current, load, projects } from './lib/projects.svelte'
+  import { current, load, popOut, projects, setCards, toggleBoard } from './lib/projects.svelte'
 
   let adding: string | null = $state(null)
   let settingsTab = $state<Tab | null>(null)
   const project = $derived(current())
+  const mirrored = $derived(
+    agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? a.action : a.attention)),
+  )
+
+  const actions: Actions = {
+    cards: setCards,
+    async start(path, card, name, options, text) {
+      const id = await create(path, name, options, text)
+      const cards = projects.list.find((p) => p.path === path)?.cards ?? []
+      setCards(path, cards.map((c) => (c.id === card ? { ...c, agent: id, column: 'progress' } : c)))
+    },
+    show(id) {
+      const agent = find(id)
+      if (!agent) return
+      show(agent)
+      getCurrentWindow().setFocus()
+    },
+  }
+
+  const boardState = () => ({ projects: $state.snapshot(projects.list), current: projects.current, agents: mirrored })
+
+  $effect(() => {
+    emitTo('board', 'board-state', boardState())
+  })
+
+  $effect(() => {
+    for (const p of projects.list) {
+      const cards = p.cards.map((c) => {
+        const column = place(c, mirrored.find((a) => a.id === c.agent))
+        return column === c.column ? c : { ...c, column }
+      })
+      if (cards.some((c, i) => c !== p.cards[i])) setCards(p.path, $state.snapshot(cards))
+    }
+  })
+
+  listen('board-ready', () => emitTo('board', 'board-state', boardState()))
+  listen<{ name: keyof Actions; args: unknown[] }>('board-do', ({ payload }) =>
+    (actions[payload.name] as (...args: unknown[]) => void)(...payload.args),
+  )
 
   loadSettings()
   loadToday()
@@ -54,6 +96,9 @@
     else if (event.ctrlKey && event.key === 'j' && !document.querySelector('dialog[open]')) {
       event.preventDefault()
       if (!jumpToWaiting()) projects.overview = true
+    } else if (event.ctrlKey && event.key === 'k' && !document.querySelector('dialog[open]')) {
+      event.preventDefault()
+      toggleBoard()
     }
   }
 </script>
@@ -68,7 +113,11 @@
     <EmptyProjects onadd={() => (adding = '')} />
   {:else if project}
     {#key project.path}
-      <ProjectView {project} />
+      {#if projects.board}
+        <Board {project} agents={mirrored} {actions} onclose={() => (projects.board = false)} onpopout={popOut} />
+      {:else}
+        <ProjectView {project} />
+      {/if}
     {/key}
   {/if}
 </div>

@@ -2,7 +2,7 @@
   import { ask, open } from '@tauri-apps/plugin-dialog'
   import AgentList from './AgentList.svelte'
   import AgentView from './AgentView.svelte'
-  import { archiveProject, interrupt, ofProject, selected } from './agents.svelte'
+  import { archiveProject, create, interrupt, ofProject, selected } from './agents.svelte'
   import {
     dragSidebar,
     FOLDED_SIDEBAR,
@@ -143,7 +143,7 @@
 </div>
 
 {#if creating}
-  <NewAgent {project} onclose={() => (creating = false)} />
+  <NewAgent {project} start={(name, options, text) => create(project.path, name, options, text)} onclose={() => (creating = false)} />
 {/if}
 
 <style>

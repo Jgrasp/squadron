@@ -3,12 +3,36 @@ use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
 
-#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Project {
     pub name: String,
     pub path: PathBuf,
     #[serde(default)]
     pub rules: Vec<String>,
+    #[serde(default)]
+    pub cards: Vec<Card>,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+#[serde(rename_all = "lowercase")]
+pub enum Column {
+    Todo,
+    Progress,
+    Review,
+    Done,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Card {
+    pub id: String,
+    #[serde(default)]
+    pub key: String,
+    pub title: String,
+    #[serde(default)]
+    pub prompt: String,
+    pub column: Column,
+    #[serde(default)]
+    pub agent: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -16,17 +40,20 @@ pub struct Folder {
     pub name: String,
     pub path: PathBuf,
     pub rules: Vec<String>,
+    pub cards: Vec<Card>,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
 }
 
 impl Folder {
-    pub fn of(name: String, path: &Path, rules: Vec<String>) -> Self {
+    pub fn of(project: &Project) -> Self {
+        let path = &project.path;
         Self {
-            name,
-            path: path.to_path_buf(),
-            rules,
+            name: project.name.clone(),
+            path: path.clone(),
+            rules: project.rules.clone(),
+            cards: project.cards.clone(),
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -142,8 +169,21 @@ mod tests {
             name: "bmc".into(),
             path: "/home/user/bmc".into(),
             rules: vec!["Bash(git push:*)".into()],
+            cards: vec![Card {
+                id: "c1".into(),
+                key: "T16".into(),
+                title: "Segment export".into(),
+                prompt: String::new(),
+                column: Column::Review,
+                agent: Some("a1".into()),
+            }],
         }];
         save(&file, &projects).unwrap();
+        assert!(
+            fs::read_to_string(&file)
+                .unwrap()
+                .contains(r#""column": "review""#)
+        );
         assert_eq!(load(&file), projects);
 
         fs::write(&file, "{not json").unwrap();

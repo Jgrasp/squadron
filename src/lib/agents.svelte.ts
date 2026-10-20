@@ -48,6 +48,7 @@ export function waitingAgents() {
 
 export function show(agent: Agent) {
   projects.overview = false
+  projects.board = false
   projects.current = agent.project
   agents.current[agent.project] = agent.id
 }
@@ -119,6 +120,7 @@ export async function restore() {
   })
   saved.sort((a, b) => (a.entries[0]?.kind === 'user' ? a.entries[0].at : 0) - (b.entries[0]?.kind === 'user' ? b.entries[0].at : 0))
   for (const data of saved) {
+    if (find(data.id)) continue
     if (!known.has(data.project)) {
       invoke('delete_agent_file', { id: data.id })
       continue
@@ -304,6 +306,7 @@ export async function create(project: string, name: string, options: Options, te
   } catch (e) {
     fail(agent, String(e))
   }
+  return agent.id
 }
 
 export async function send(id: string, text: string) {

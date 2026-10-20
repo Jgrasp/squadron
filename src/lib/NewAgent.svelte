@@ -1,15 +1,25 @@
 <script lang="ts">
-  import { create } from './agents.svelte'
   import Dialog from './Dialog.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import type { Project } from './projects.svelte'
+  import { untrack } from 'svelte'
   import { settings } from './settings.svelte'
   import type { Options } from './stream'
 
-  let { project, onclose }: { project: Project; onclose: () => void } = $props()
+  let {
+    project,
+    draft = { name: '', text: '' },
+    start,
+    onclose,
+  }: {
+    project: Project
+    draft?: { name: string; text: string }
+    start: (name: string, options: Options, text: string) => void
+    onclose: () => void
+  } = $props()
 
-  let name = $state('')
-  let text = $state('')
+  let name = $state(untrack(() => draft.name))
+  let text = $state(untrack(() => draft.text))
   let options = $state<Options>({ ...settings.defaults })
 
   const ready = $derived(text.trim().length > 0)
@@ -17,7 +27,7 @@
   function submit(event?: Event) {
     event?.preventDefault()
     if (!ready) return
-    create(project.path, name.trim(), $state.snapshot(options), text.trim())
+    start(name.trim(), $state.snapshot(options), text.trim())
     onclose()
   }
 </script>
