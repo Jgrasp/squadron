@@ -8,14 +8,18 @@
   const title = $derived(`${comment.path}:${comment.line}${comment.removed ? ' · removed line' : ''}\n${comment.code.trim()}\n\n${comment.note}`)
 </script>
 
-<span class="chip" class:light {title}>
+{#snippet body()}
   <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
-  {#if onopen}
-    <button type="button" class="ref" onclick={onopen} aria-label="Open {comment.path} line {comment.line} in the diff">{ref}</button>
-  {:else}
-    <span class="ref">{ref}</span>
-  {/if}
+  <span class="ref">{ref}</span>
   <span class="note">{comment.note}</span>
+{/snippet}
+
+<span class="chip" class:light {title}>
+  {#if onopen}
+    <button type="button" class="open" onclick={onopen} aria-label="Edit the comment on {comment.path} line {comment.line}">{@render body()}</button>
+  {:else}
+    {@render body()}
+  {/if}
   {#if onremove}
     <button type="button" class="remove" aria-label="Remove the comment on {ref}" onclick={onremove}>×</button>
   {/if}
@@ -55,7 +59,15 @@
     color: var(--text-2);
   }
 
-  button.ref:hover {
+  .open {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .open:hover .ref {
     color: var(--text-strong);
     text-decoration: underline;
   }

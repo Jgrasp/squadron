@@ -11,8 +11,9 @@
     changes,
     file = $bindable(),
     comments = $bindable(),
+    target = $bindable(),
     onclose,
-  }: { agent: Agent; changes: Changes | null; file: string; comments: Comment[]; onclose: () => void } = $props()
+  }: { agent: Agent; changes: Changes | null; file: string; comments: Comment[]; target: Comment | null; onclose: () => void } = $props()
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
 
@@ -100,6 +101,15 @@
     commenting = { ...line, path: selected.path }
     note = comments[indexOf(selected.path, line)]?.note ?? ''
   }
+
+  $effect(() => {
+    if (!target || shown?.path !== target.path) return
+    commenting = { side: target.removed ? 'old' : 'new', number: target.line, text: target.code, path: target.path }
+    note = target.note
+    target = null
+  })
+
+  const reveal = (el: HTMLElement) => el.scrollIntoView({ block: 'center' })
 
   function comment(event?: Event) {
     event?.preventDefault()
@@ -231,7 +241,7 @@
 </section>
 
 {#snippet editor()}
-  <form class="inline" onsubmit={comment}>
+  <form class="inline" onsubmit={comment} use:reveal>
     <label for="line-comment" class="sr-only">Comment on line {commenting?.number}</label>
     <!-- svelte-ignore a11y_autofocus -->
     <textarea

@@ -51,6 +51,7 @@
   })
 
   let comments = $state<Comment[]>([])
+  let target = $state<Comment | null>(null)
   const sent = $derived(agent.entries.flatMap((e) => (e.kind === 'user' ? [e.text] : [])))
 
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
@@ -257,7 +258,7 @@
       {#if comments.length}
         <div class="attached" aria-label="Comments on the diff, sent with your message">
           {#each comments as comment, i (i)}
-            <CommentChip {comment} onopen={() => (diffFile = comment.path)} onremove={() => comments.splice(i, 1)} />
+            <CommentChip {comment} onopen={() => ((target = comment), (diffFile = comment.path))} onremove={() => comments.splice(i, 1)} />
           {/each}
         </div>
       {/if}
@@ -315,7 +316,7 @@
   </section>
 
   {#if diffFile !== null}
-    <DiffPanel {agent} {changes} bind:file={diffFile} bind:comments onclose={() => (diffFile = null)} />
+    <DiffPanel {agent} {changes} bind:file={diffFile} bind:comments bind:target onclose={() => (diffFile = null)} />
   {/if}
 </main>
 
