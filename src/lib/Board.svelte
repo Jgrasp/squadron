@@ -2,7 +2,7 @@
   import { COLUMNS, moveCard, place, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
   import NewAgent from './NewAgent.svelte'
-  import { projects, type Project } from './projects.svelte'
+  import { home, projects, type Project } from './projects.svelte'
   import StatusIcon from './StatusIcon.svelte'
 
   let {
@@ -27,6 +27,7 @@
   let starting = $state<Card | null>(null)
   let drag = $state<{ id: string; x: number; y: number; over: Column | null; before: string | null } | null>(null)
   let focusId = ''
+  let picking = $state(false)
 
   const agentOf = (card: Card) => agents.find((a) => a.id === card.agent)
   const look = (a: Mirror) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status)
@@ -115,28 +116,43 @@
   }
 </script>
 
+<svelte:window
+  onclick={(e) => !(e.target as HTMLElement).closest('[data-pick]') && (picking = false)}
+  onkeydown={(e) => e.key === 'Escape' && (picking = false)}
+/>
+
 <main class:popout>
   <div class="top">
     <div>
-      <h1>
+      <div class="heading">
         {#if onclose}
           <button class="back" aria-label="Back to the conversation" title="Back to the conversation (Ctrl K)" onclick={onclose}>
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
           </button>
         {/if}
-        Kanban ·
+        <h1>Kanban · {#if popout}<span class="sr-only">{project.name}</span>{:else}{project.name}{/if}</h1>
         {#if popout}
-          <span class="pick">
-            {project.name}
-            <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-            <select bind:value={projects.current} aria-label="Project">
-              {#each projects.list as p (p.path)}<option value={p.path}>{p.name}</option>{/each}
-            </select>
+          <span class="pick" data-pick>
+            <button aria-haspopup="menu" aria-expanded={picking} onclick={() => (picking = !picking)}>
+              {project.name}
+              <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+            </button>
+            {#if picking}
+              <div class="menu" role="menu" aria-label="Projects">
+                {#each projects.list as p (p.path)}
+                  <button
+                    role="menuitemradio"
+                    aria-checked={p.path === project.path}
+                    onclick={() => ((projects.current = p.path), (picking = false))}
+                  >
+                    <strong>{p.name}</strong><span>{home(p.path)}</span>
+                  </button>
+                {/each}
+              </div>
+            {/if}
           </span>
-        {:else}
-          {project.name}
         {/if}
-      </h1>
+      </div>
       <span class="sub">Cards in progress follow the state of their agent</span>
     </div>
     <div class="actions">
@@ -265,11 +281,15 @@
     padding: 24px 32px 16px;
   }
 
-  h1 {
+  .heading {
     display: flex;
     align-items: center;
     gap: 8px;
-    margin: 0 0 4px;
+    margin-bottom: 4px;
+  }
+
+  h1 {
+    margin: 0;
     font-size: 22px;
     font-weight: 700;
   }
@@ -292,6 +312,9 @@
 
   .pick {
     position: relative;
+  }
+
+  .pick > button {
     display: inline-flex;
     align-items: center;
     gap: 4px;
@@ -299,35 +322,63 @@
     margin-left: -8px;
     padding: 0 6px 0 8px;
     border-radius: 4px;
+    font-size: 22px;
+    font-weight: 700;
   }
 
-  .pick:hover {
+  .pick > button:hover,
+  .pick > button[aria-expanded='true'] {
     background: var(--surface-3);
   }
 
-  .pick:has(select:focus-visible) {
-    outline: 2px solid var(--accent-soft);
-    outline-offset: 2px;
-  }
-
-  .pick svg {
+  .pick > button svg {
     color: var(--text-dim);
   }
 
-  .pick select {
+  .menu {
     position: absolute;
-    inset: 0;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .pick option {
+    top: 40px;
+    left: -8px;
+    z-index: 5;
+    width: 270px;
+    max-height: 60vh;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
     background: var(--menu);
-    font-size: 13.5px;
-    font-weight: 400;
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
   }
 
-  h1 svg {
+  .menu button {
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 9px 10px;
+    border-radius: 4px;
+    text-align: left;
+    font-size: 13.5px;
+  }
+
+  .menu button:hover,
+  .menu button[aria-checked='true'] {
+    background: var(--menu-hover);
+  }
+
+  .menu strong {
+    font-weight: 600;
+  }
+
+  .menu span {
+    font: 12px var(--mono);
+    color: var(--text-muted);
+  }
+
+  .heading svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
