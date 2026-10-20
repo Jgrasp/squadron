@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changedFiles, counts } from './diff'
+import { changedFiles, counts, pairs, rows, type Cell } from './diff'
 import type { ToolCall } from './stream'
 
 const edit = (id: string, path: string, data: Record<string, unknown>): ToolCall => ({
@@ -25,6 +25,28 @@ describe('diff', () => {
     expect(files.map((f) => [f.path, f.baseline, f.calls.length, f.add, f.del])).toEqual([
       ['/p/a', 'v1', 2, 2, 2],
       ['/p/new', null, 1, 1, 0],
+    ])
+  })
+
+  it('lays out hunks unified and side by side', () => {
+    const hunks = [{ oldStart: 1, newStart: 1, lines: [' a', '-b', '-c', '+B', ' d', '+e', '\\ No newline at end of file'] }]
+    expect(rows(hunks).map((r) => (r.kind === 'head' ? r.text : `${r.kind}:${r.old ?? ''}:${r.new ?? ''}:${r.text}`))).toEqual([
+      '@@ -1,4 +1,4 @@',
+      'same:1:1:a',
+      'del:2::b',
+      'del:3::c',
+      'add::2:B',
+      'same:4:3:d',
+      'add::4:e',
+    ])
+    const cell = (c: Cell | null) => (c ? `${c.kind}${c.number}${c.text}` : '-')
+    expect(pairs(hunks).map((p) => (p.kind === 'head' ? 'head' : `${cell(p.left)}|${cell(p.right)}`))).toEqual([
+      'head',
+      'same1a|same1a',
+      'del2b|add2B',
+      'del3c|-',
+      'same4d|same3d',
+      '-|add4e',
     ])
   })
 })

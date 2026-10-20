@@ -1,43 +1,98 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { structuredPatch } from 'diff'
-  import { changedFiles } from './diff'
-  import DiffView from './DiffView.svelte'
+  import { parsePatch, structuredPatch } from 'diff'
+  import Dialog from './Dialog.svelte'
+  import { changedFiles, type Changes, type Hunk } from './diff'
+  import DiffView, { type Line } from './DiffView.svelte'
+  import { layout, setSplit } from './layout.svelte'
   import { calls, relative, type Agent } from './stream'
 
-  let { agent, file = $bindable(), onclose }: { agent: Agent; file: string; onclose: () => void } = $props()
+  let {
+    agent,
+    changes,
+    file = $bindable(),
+    oncomment,
+    onclose,
+  }: { agent: Agent; changes: Changes | null; file: string; oncomment: (text: string) => void; onclose: () => void } = $props()
 
-  const files = $derived(changedFiles(calls(agent)))
+  const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
+
+  const edited = $derived(changedFiles(calls(agent)).map((f) => ({ ...f, path: relative(agent, f.path) })))
+  const files = $derived(
+    changes
+      ? changes.files
+          .map((f) => ({ path: f.path, add: f.add ?? 0, del: f.del ?? 0, edits: edited.find((e) => e.path === f.path)?.calls.length ?? 0 }))
+          .sort((a, b) => Number(b.edits > 0) - Number(a.edits > 0))
+      : edited.map((f) => ({ path: f.path, add: f.add, del: f.del, edits: f.calls.length })),
+  )
+  const mine = $derived(files.filter((f) => f.edits).length)
   const selected = $derived(files.find((f) => f.path === file) ?? files[0])
-  let current = $state<string | null | undefined>(undefined)
+
+  let view = $state<{ path: string; hunks: Hunk[]; status: string; binary: boolean } | null>(null)
   let error = $state('')
+  let loads = 0
 
   $effect(() => {
-    const target = selected
-    if (!target) return
-    void target.calls.length
-    current = undefined
-    invoke<string | null>('read_project_file', { project: agent.project, path: target.path })
-      .then((text) => {
-        if (target === selected) current = text
+    const path = selected?.path
+    if (!path) return
+    const git = changes && { from: changes.from, now: changes.now, status: changes.files.find((f) => f.path === path)?.status ?? '' }
+    const baseline = edited.find((f) => f.path === path)?.baseline ?? null
+    void selected.edits
+    const run = ++loads
+    error = ''
+    const loading = git
+      ? invoke<string>('git_patch', { project: agent.project, from: git.from, now: git.now, path }).then((text) => ({
+          path,
+          hunks: (parsePatch(text)[0]?.hunks ?? []) as Hunk[],
+          status: STATUS[git.status] ?? 'MODIFIED',
+          binary: /^Binary files /m.test(text),
+        }))
+      : invoke<string | null>('read_project_file', { project: agent.project, path }).then((current) => ({
+          path,
+          hunks: structuredPatch(path, path, baseline ?? '', current ?? '', '', '', { context: 3 }).hunks as Hunk[],
+          status: current === null ? 'DELETED' : baseline === null ? 'NEW' : 'MODIFIED',
+          binary: false,
+        }))
+    loading
+      .then((result) => {
+        if (run === loads) view = result
       })
-      .catch((e) => (error = String(e)))
+      .catch((e) => {
+        if (run === loads) error = String(e)
+      })
   })
 
-  const patch = $derived(
-    selected && current !== undefined
-      ? structuredPatch(selected.path, selected.path, selected.baseline ?? '', current ?? '', '', '', { context: 3 })
-      : null,
-  )
+  const shown = $derived(view?.path === selected?.path ? view : null)
   const name = (path: string) => path.split('/').pop()
-  const status = $derived(!selected ? '' : current === null ? 'DELETED' : selected.baseline === null ? 'NEW' : 'MODIFIED')
+
+  let commenting = $state<(Line & { path: string }) | null>(null)
+  let note = $state('')
+
+  function comment(event?: Event) {
+    event?.preventDefault()
+    if (!commenting || !note.trim()) return
+    const { path, side, number, text } = commenting
+    oncomment(`${path}:${number}${side === 'old' ? ' (removed line)' : ''}\n> ${text.trim()}\n${note.trim()}`)
+    commenting = null
+    note = ''
+  }
 </script>
 
-<section class="panel" aria-label="Diff">
+<section class="panel" class:split={layout.split} aria-label="Diff">
   <div class="top">
     <div class="title">
       <h2>Diff</h2>
-      <span>Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}</span>
+      <span>
+        {#if changes}
+          {files.length} file{files.length > 1 ? 's' : ''} changed in the folder · {mine} edited by {agent.name}
+        {:else}
+          Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
+        {/if}
+      </span>
+    </div>
+    <div class="modes" role="group" aria-label="Diff layout">
+      <button aria-pressed={!layout.split} onclick={() => setSplit(false)}>Unified</button>
+      <button aria-pressed={layout.split} onclick={() => setSplit(true)}>Split</button>
     </div>
     <button class="close" aria-label="Close panel" onclick={onclose}>×</button>
   </div>
@@ -45,7 +100,13 @@
   {#if files.length}
     <div class="tabs" role="tablist" aria-label="Changed files">
       {#each files as f (f.path)}
-        <button role="tab" aria-selected={f === selected} title={relative(agent, f.path)} onclick={() => (file = f.path)}>
+        <button
+          role="tab"
+          aria-selected={f === selected}
+          class:other={!f.edits}
+          title={f.edits ? f.path : `${f.path} · not edited by ${agent.name}`}
+          onclick={() => (file = f.path)}
+        >
           {name(f.path)} <span class="add">+{f.add}</span>{#if f.del}<span class="del">−{f.del}</span>{/if}
         </button>
       {/each}
@@ -55,16 +116,24 @@
       {#if selected}
         <div class="file">
           <div class="file-head">
-            <span class="badge" class:new={status === 'NEW'} class:gone={status === 'DELETED'}>{status}</span>
-            <span class="path">{relative(agent, selected.path)}</span>
-            <span class="by">{selected.calls.length} edit{selected.calls.length > 1 ? 's' : ''}</span>
+            {#if shown}
+              <span class="badge" class:new={shown.status === 'NEW'} class:gone={shown.status === 'DELETED'}>{shown.status}</span>
+            {/if}
+            <span class="path">{selected.path}</span>
+            <span class="by">{selected.edits ? `${selected.edits} edit${selected.edits > 1 ? 's' : ''} by ${agent.name}` : `Not edited by ${agent.name}`}</span>
           </div>
           {#if error}
             <p class="empty">{error}</p>
-          {:else if !patch}
+          {:else if !shown}
             <p class="empty">Reading the file…</p>
-          {:else if patch.hunks.length}
-            <DiffView hunks={patch.hunks} />
+          {:else if shown.binary}
+            <p class="empty">Binary file, no preview.</p>
+          {:else if shown.hunks.length}
+            <DiffView
+              hunks={shown.hunks}
+              split={layout.split}
+              oncomment={(line) => ((commenting = { ...line, path: selected.path }), (note = ''))}
+            />
           {:else}
             <p class="empty">The file is back to its original state.</p>
           {/if}
@@ -73,20 +142,56 @@
     </div>
 
     <div class="foot">
-      <span>Diff since the agent first touched the file</span>
+      <span>
+        {changes
+          ? agent.base
+            ? `Everything that changed in the folder since ${agent.name} started`
+            : 'Uncommitted changes of the folder'
+          : 'Diff since the agent first touched the file'}
+      </span>
       <button class="btn btn-secondary" onclick={() => invoke('open_in_editor', { project: agent.project, path: selected.path })}>
         Open in editor
       </button>
     </div>
   {:else}
-    <p class="empty pad">{agent.name} has not changed any file yet.</p>
+    <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent.name} has not changed any file yet.`}</p>
   {/if}
 </section>
+
+{#if commenting}
+  <Dialog title="Comment line {commenting.number}" width={560} onclose={() => (commenting = null)}>
+    <form onsubmit={comment}>
+      <div class="comment">
+        <div class="quote">
+          <span>{commenting.path}:{commenting.number}{commenting.side === 'old' ? ' · removed line' : ''}</span>
+          <code>{commenting.text}</code>
+        </div>
+        <label for="line-comment" class="sr-only">Comment</label>
+        <!-- svelte-ignore a11y_autofocus -->
+        <textarea
+          id="line-comment"
+          class="field"
+          rows="4"
+          bind:value={note}
+          placeholder="What should {agent.name} change here?"
+          autofocus
+          onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && comment(e)}
+        ></textarea>
+      </div>
+      <footer>
+        <span class="hint">Added to your message to {agent.name}</span>
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>Add comment</button>
+      </footer>
+    </form>
+  </Dialog>
+{/if}
 
 <style>
   .panel {
     width: 680px;
-    flex: none;
+    min-width: 420px;
+    flex: 0 1 auto;
     display: flex;
     flex-direction: column;
     border-left: 1px solid var(--border);
@@ -119,6 +224,31 @@
   .title span {
     font-size: 12px;
     color: var(--text-dim);
+  }
+
+  .panel.split {
+    width: 1120px;
+  }
+
+  .modes {
+    display: flex;
+    padding: 2px;
+    border-radius: 4px;
+    background: var(--surface-2);
+  }
+
+  .modes button {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 12.5px;
+  }
+
+  .modes button[aria-pressed='true'] {
+    background: var(--surface-4);
+    color: var(--text-strong);
+    font-weight: 600;
   }
 
   .close {
@@ -154,6 +284,11 @@
     background: var(--surface-4);
     box-shadow: inset 0 0 0 1px var(--text-faint);
     color: var(--text-strong);
+  }
+
+  .tabs button.other {
+    color: var(--text-dim);
+    box-shadow: inset 0 0 0 1px var(--border);
   }
 
   .add {
@@ -244,5 +379,59 @@
   .foot .btn {
     height: 32px;
     padding: 0 12px;
+  }
+
+  .comment {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    padding: 10px 22px 20px;
+  }
+
+  .quote {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    padding: 10px 12px;
+    border-radius: 4px;
+    background: var(--bg-app);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .quote span {
+    font: 12px var(--mono);
+    color: var(--text-dim);
+  }
+
+  .quote code {
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
+    font-size: 12.5px;
+    color: var(--text-3);
+  }
+
+  .comment textarea {
+    height: auto;
+    padding: 12px 14px;
+    resize: none;
+    line-height: 1.5;
+  }
+
+  footer {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 16px 22px 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  footer .btn {
+    height: 40px;
+  }
+
+  .hint {
+    flex: 1;
+    font-size: 12.5px;
+    color: var(--text-dim);
   }
 </style>

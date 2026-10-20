@@ -218,6 +218,24 @@ mockIPC(
       case 'plugin:window|set_focus':
         if (label === 'main') popup?.focus()
         return
+      case 'git_snapshot':
+        return a.project.includes('fileas') ? null : 'a'.repeat(40)
+      case 'git_changes':
+        if (a.project.includes('fileas')) throw 'not a git repository'
+        return {
+          from: 'a'.repeat(40),
+          now: 'b'.repeat(40),
+          files: [
+            { path: 'composer.lock', status: 'M', add: 3, del: 3 },
+            { path: 'resume.txt', status: 'M', add: 1, del: 1 },
+            { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 6, del: 2 },
+            { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
+          ],
+        }
+      case 'git_patch':
+        return a.path.endsWith('Test.php')
+          ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
+          : `diff --git a/${a.path} b/${a.path}\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
       case 'plugin:dialog|open':
         return '/home/quentin/agence/mercure'
       case 'plugin:dialog|ask':

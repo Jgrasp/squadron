@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod claude;
+pub mod git;
 pub mod permissions;
 pub mod projects;
 
@@ -326,6 +327,33 @@ fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, 
 }
 
 #[tauri::command]
+async fn git_snapshot(project: PathBuf) -> Option<String> {
+    tauri::async_runtime::spawn_blocking(move || git::snapshot(&project).ok())
+        .await
+        .ok()
+        .flatten()
+}
+
+#[tauri::command]
+async fn git_changes(project: PathBuf, base: Option<String>) -> Result<git::Changes, String> {
+    tauri::async_runtime::spawn_blocking(move || git::changes(&project, base.as_deref()))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn git_patch(
+    project: PathBuf,
+    from: String,
+    now: String,
+    path: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || git::patch(&project, &from, &now, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| e.to_string())
@@ -500,6 +528,9 @@ pub fn run() {
             cancel_permissions,
             read_project_file,
             open_in_editor,
+            git_snapshot,
+            git_changes,
+            git_patch,
             get_settings,
             set_settings,
             set_claude_path,

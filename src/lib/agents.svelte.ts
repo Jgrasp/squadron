@@ -300,6 +300,7 @@ export async function create(project: string, name: string, options: Options, te
   }
   agents.current[project] = agent.id
   userMessage(agent, text)
+  agent.base = await invoke<string | null>('git_snapshot', { project })
   persist(agent)
   try {
     await invoke('create_agent', { id: agent.id, project, options, text })
@@ -373,6 +374,7 @@ export async function fork(id: string) {
   copy.tasks = snapshot.tasks
   copy.sessionId = source.sessionId
   copy.forkOf = source.name
+  copy.base = source.base
   copy.status = 'done'
   copy.action = `Forked from ${source.name}`
   agents.list.push(copy)

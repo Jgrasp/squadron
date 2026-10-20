@@ -1,12 +1,13 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core'
   import { tick } from 'svelte'
   import { archive, fork, interrupt, reload, rename, reply, send } from './agents.svelte'
   import Conversation from './Conversation.svelte'
-  import { changedFiles } from './diff'
+  import { changedFiles, type Changes } from './diff'
   import DiffPanel from './DiffPanel.svelte'
   import { cost, meta, time, tokens } from './format'
   import { toggleBoard } from './projects.svelte'
-  import { calls, type Agent, type ToolCall } from './stream'
+  import { calls, relative, type Agent, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
@@ -26,8 +27,31 @@
   let recall = -1
   let draft = ''
 
-  const files = $derived(changedFiles(calls(agent)))
+  const edited = $derived(changedFiles(calls(agent)))
+  const edits = $derived(edited.reduce((n, f) => n + f.calls.length, 0))
+  const panelOpen = $derived(diffFile !== null)
+  let changes = $state<Changes | null>(null)
+  let refreshes = 0
+  const files = $derived(changes ? changes.files.map((f) => ({ add: f.add ?? 0, del: f.del ?? 0 })) : edited)
   const totals = $derived(files.reduce((t, f) => ({ add: t.add + f.add, del: t.del + f.del }), { add: 0, del: 0 }))
+
+  $effect(() => {
+    void agent.turns
+    void edits
+    void panelOpen
+    const run = ++refreshes
+    invoke<Changes>('git_changes', { project: agent.project, base: agent.base })
+      .then((result) => {
+        if (run === refreshes) changes = result
+      })
+      .catch(() => {
+        if (run === refreshes) changes = null
+      })
+  })
+
+  function addComment(block: string) {
+    text = text.trim() ? `${text.trimEnd()}\n\n${block}` : block
+  }
   const sent = $derived(agent.entries.flatMap((e) => (e.kind === 'user' ? [e.text] : [])))
 
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
@@ -134,7 +158,7 @@
   }
 
   function ondiff(call: ToolCall) {
-    diffFile = String(call.result?.data?.filePath ?? call.input.file_path ?? '')
+    diffFile = relative(agent, call.result?.data?.filePath ?? call.input.file_path ?? '')
   }
 </script>
 
@@ -282,7 +306,7 @@
   </section>
 
   {#if diffFile !== null}
-    <DiffPanel {agent} bind:file={diffFile} onclose={() => (diffFile = null)} />
+    <DiffPanel {agent} {changes} bind:file={diffFile} oncomment={addComment} onclose={() => (diffFile = null)} />
   {/if}
 </main>
 

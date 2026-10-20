@@ -72,6 +72,7 @@ export type Agent = {
   summary: string
   attention: string
   autoName: boolean
+  base: string | null
 }
 
 type Json = Record<string, any>
@@ -101,6 +102,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     summary: '',
     attention: '',
     autoName: false,
+    base: null,
   }
 }
 

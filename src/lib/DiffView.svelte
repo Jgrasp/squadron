@@ -1,45 +1,66 @@
 <script lang="ts">
-  type Hunk = { oldStart: number; newStart: number; lines: string[] }
+  import { pairs, rows, type Hunk } from './diff'
 
-  let { hunks, limit = 1500 }: { hunks: Hunk[]; limit?: number } = $props()
+  export type Line = { side: 'old' | 'new'; number: number; text: string }
 
-  type Row = { kind: 'head' | 'add' | 'del' | 'same'; old?: number; new?: number; text: string }
+  let {
+    hunks,
+    split = false,
+    limit = 1500,
+    oncomment,
+  }: { hunks: Hunk[]; split?: boolean; limit?: number; oncomment?: (line: Line) => void } = $props()
 
-  const rows = $derived.by(() => {
-    const out: Row[] = []
-    for (const hunk of hunks) {
-      let old = hunk.oldStart
-      let now = hunk.newStart
-      const lines = hunk.lines.filter((l) => !l.startsWith('\\'))
-      const oldCount = lines.filter((l) => l[0] !== '+').length
-      const newCount = lines.filter((l) => l[0] !== '-').length
-      if (oldCount > 0) out.push({ kind: 'head', text: `@@ -${hunk.oldStart},${oldCount} +${hunk.newStart},${newCount} @@` })
-      for (const line of lines) {
-        const text = line.slice(1)
-        if (line[0] === '+') out.push({ kind: 'add', new: now++, text })
-        else if (line[0] === '-') out.push({ kind: 'del', old: old++, text })
-        else out.push({ kind: 'same', old: old++, new: now++, text })
-      }
-    }
-    return out
-  })
+  const unified = $derived(split ? [] : rows(hunks))
+  const paired = $derived(split ? pairs(hunks) : [])
+  const total = $derived(split ? paired.length : unified.length)
 </script>
 
-<div class="diff">
-  {#each rows.slice(0, limit) as row, i (i)}
-    {#if row.kind === 'head'}
-      <div class="head">{row.text}</div>
-    {:else}
-      <div class="line {row.kind}">
-        <span class="num">{row.old ?? ''}</span>
-        <span class="num">{row.new ?? ''}</span>
-        <span class="sign">{row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ''}</span>
-        <span class="text">{row.text}</span>
-      </div>
-    {/if}
-  {/each}
-  {#if rows.length > limit}
-    <div class="head">… {rows.length - limit} lignes de plus</div>
+{#snippet plus(line: Line)}
+  {#if oncomment}
+    <button class="plus" aria-label="Comment line {line.number}" title="Comment this line" onclick={() => oncomment(line)}>+</button>
+  {/if}
+{/snippet}
+
+<div class="diff" class:split>
+  {#if split}
+    {#each paired.slice(0, limit) as row, i (i)}
+      {#if row.kind === 'head'}
+        <div class="head">{row.text}</div>
+      {:else}
+        <div class="pair">
+          {#each [row.left, row.right] as cell, side (side)}
+            {#if cell}
+              <div class="half {cell.kind}">
+                {#if side === 1 || cell.kind === 'del'}
+                  {@render plus({ side: side ? 'new' : 'old', number: cell.number, text: cell.text })}
+                {/if}
+                <span class="num">{cell.number}</span>
+                <span class="text">{cell.text}</span>
+              </div>
+            {:else}
+              <div class="half blank"></div>
+            {/if}
+          {/each}
+        </div>
+      {/if}
+    {/each}
+  {:else}
+    {#each unified.slice(0, limit) as row, i (i)}
+      {#if row.kind === 'head'}
+        <div class="head">{row.text}</div>
+      {:else}
+        <div class="line {row.kind}">
+          {@render plus(row.kind === 'del' ? { side: 'old', number: row.old!, text: row.text } : { side: 'new', number: row.new!, text: row.text })}
+          <span class="num">{row.old ?? ''}</span>
+          <span class="num">{row.new ?? ''}</span>
+          <span class="sign">{row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ''}</span>
+          <span class="text">{row.text}</span>
+        </div>
+      {/if}
+    {/each}
+  {/if}
+  {#if total > limit}
+    <div class="head">… {total - limit} more lines</div>
   {/if}
 </div>
 
@@ -56,9 +77,31 @@
     color: var(--text-dim);
   }
 
-  .line {
+  .line,
+  .half {
+    position: relative;
     display: grid;
+  }
+
+  .line {
     grid-template-columns: 40px 40px 16px 1fr;
+  }
+
+  .pair {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
+  }
+
+  .half {
+    grid-template-columns: 44px 1fr;
+  }
+
+  .half + .half {
+    border-left: 1px solid var(--border);
+  }
+
+  .half.blank {
+    background: repeating-linear-gradient(135deg, transparent 0 6px, rgba(255, 255, 255, 0.02) 6px 12px);
   }
 
   .num {
@@ -66,6 +109,10 @@
     text-align: right;
     color: #918579;
     user-select: none;
+  }
+
+  .half .num {
+    padding-right: 10px;
   }
 
   .sign {
@@ -95,5 +142,27 @@
 
   .del .num {
     color: var(--del-line);
+  }
+
+  .plus {
+    position: absolute;
+    top: 1px;
+    left: 4px;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 14px/1 var(--sans);
+    opacity: 0;
+  }
+
+  .line:hover .plus,
+  .half:hover .plus,
+  .plus:focus-visible {
+    opacity: 1;
   }
 </style>

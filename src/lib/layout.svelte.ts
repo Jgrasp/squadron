@@ -3,12 +3,21 @@ export const MAX_SIDEBAR = 560
 
 let stored = 304
 let folded = false
+let split = false
 try {
   stored = Number(localStorage.getItem('squadron.sidebar')) || 304
   folded = localStorage.getItem('squadron.collapsed') === '1'
+  split = localStorage.getItem('squadron.diff') === 'split'
 } catch {}
 
-export const layout = $state({ sidebar: Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, stored)), collapsed: folded })
+export const layout = $state({ sidebar: Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, stored)), collapsed: folded, split })
+
+export function setSplit(on: boolean) {
+  layout.split = on
+  try {
+    localStorage.setItem('squadron.diff', on ? 'split' : 'unified')
+  } catch {}
+}
 
 export const FOLDED_SIDEBAR = 68
 const FOLD_BELOW = (FOLDED_SIDEBAR + MIN_SIDEBAR) / 2
