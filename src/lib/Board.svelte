@@ -130,11 +130,18 @@
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
           </button>
         {/if}
-        <h1>Kanban · {#if popout}<span class="sr-only">{project.name}</span>{:else}{project.name}{/if}</h1>
+        <h1>
+          Kanban ·
+          {#if popout}
+            <span class="sr-only">{project.name}</span>
+          {:else}
+            <span class="square" aria-hidden="true" style:background={project.color}></span>{project.name}
+          {/if}
+        </h1>
         {#if popout}
           <span class="pick" data-pick>
             <button aria-haspopup="menu" aria-expanded={picking} onclick={() => (picking = !picking)}>
-              {project.name}
+              <span class="square" aria-hidden="true" style:background={project.color}></span>{project.name}
               <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
             {#if picking}
@@ -145,7 +152,8 @@
                     aria-checked={p.path === project.path}
                     onclick={() => ((projects.current = p.path), (picking = false))}
                   >
-                    <strong>{p.name}</strong><span>{home(p.path)}</span>
+                    <strong><span class="square" aria-hidden="true" style:background={p.color}></span>{p.name}</strong>
+                    <span>{home(p.path)}</span>
                   </button>
                 {/each}
               </div>
@@ -289,9 +297,27 @@
   }
 
   h1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
     margin: 0;
     font-size: 22px;
     font-weight: 700;
+  }
+
+  .square {
+    flex: none;
+    width: 12px;
+    height: 12px;
+    margin: 0 2px;
+    border-radius: 3px;
+  }
+
+  .menu .square {
+    width: 9px;
+    height: 9px;
+    margin: 0 8px 0 0;
+    border-radius: 2px;
   }
 
   .back {
@@ -317,7 +343,7 @@
   .pick > button {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
+    gap: 8px;
     height: 34px;
     margin-left: -8px;
     padding: 0 6px 0 8px;
@@ -370,6 +396,8 @@
   }
 
   .menu strong {
+    display: flex;
+    align-items: center;
     font-weight: 600;
   }
 

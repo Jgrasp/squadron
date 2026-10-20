@@ -28,6 +28,7 @@ impl Projects {
         let mut list = self.list.lock().unwrap();
         let mut next = list.clone();
         change(&mut next)?;
+        projects::paint(&mut next);
         projects::save(&self.file, &next).map_err(|e| format!("Could not save: {e}"))?;
         *list = next;
         Ok(Self::views(&list))
@@ -529,8 +530,12 @@ pub fn run() {
             }
             let config = app.path().app_config_dir()?;
             let file = config.join("projects.json");
+            let mut list = projects::load(&file);
+            if projects::paint(&mut list) {
+                let _ = projects::save(&file, &list);
+            }
             app.manage(Projects {
-                list: Mutex::new(projects::load(&file)),
+                list: Mutex::new(list),
                 file,
             });
             app.manage(Settings::load(config.join("settings.json")));

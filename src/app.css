@@ -254,19 +254,20 @@ pre,
 }
 
 .effect-pulse::after {
-  background: var(--accent);
+  background: var(--project, var(--accent));
   opacity: 0.05;
   animation: pulse 2s ease-in-out infinite;
 }
 
 .effect-snake::after {
   padding: 1.5px;
+  --tint: var(--project, var(--accent));
   background: conic-gradient(
     from var(--snake),
-    rgba(224, 138, 91, 0.35) 0deg 230deg,
-    var(--accent) 300deg,
-    var(--wait-btn-text) 345deg,
-    rgba(224, 138, 91, 0.35) 360deg
+    color-mix(in srgb, var(--tint) 35%, transparent) 0deg 230deg,
+    var(--tint) 300deg,
+    color-mix(in srgb, var(--tint) 15%, white) 345deg,
+    color-mix(in srgb, var(--tint) 35%, transparent) 360deg
   );
   -webkit-mask:
     linear-gradient(#000 0 0) content-box,

@@ -124,6 +124,7 @@
       <button
         class="tab {ofProject(project.path).some((a) => a.status === 'working') ? `effect-${settings.tab_effect}` : ''}"
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
+        style:--project={project.color}
         onclick={() => ((projects.overview = false), (projects.current = project.path))}
       >
         <span class="dot" aria-hidden="true"></span>
@@ -161,7 +162,7 @@
               <input bind:value={search} placeholder="Search a project" aria-label="Search a project" />
             </label>
             {#each found as project (project.path)}
-              <button role="menuitem" onclick={() => choose(project.path)}>
+              <button role="menuitem" style:--project={project.color} onclick={() => choose(project.path)}>
                 <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
                 {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}
               </button>
@@ -402,11 +403,15 @@
     color: var(--text);
   }
 
+  .tab[style] {
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 32%, transparent);
+  }
+
   .tab[aria-current='page'] {
-    background: rgba(224, 138, 91, 0.16);
+    background: color-mix(in srgb, var(--project, var(--accent)) 16%, transparent);
     box-shadow:
-      inset 0 0 0 1px rgba(224, 138, 91, 0.75),
-      0 0 18px rgba(224, 138, 91, 0.28);
+      inset 0 0 0 1px color-mix(in srgb, var(--project, var(--accent)) 75%, transparent),
+      0 0 18px color-mix(in srgb, var(--project, var(--accent)) 28%, transparent);
     color: var(--text-strong);
     font-weight: 600;
   }
@@ -415,11 +420,7 @@
     width: 9px;
     height: 9px;
     border-radius: 2px;
-    background: var(--text-faint);
-  }
-
-  .tab[aria-current='page'] .dot {
-    background: var(--accent);
+    background: var(--project, var(--text-faint));
   }
 
   .divider {

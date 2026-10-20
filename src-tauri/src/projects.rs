@@ -11,6 +11,26 @@ pub struct Project {
     pub rules: Vec<String>,
     #[serde(default)]
     pub cards: Vec<Card>,
+    #[serde(default)]
+    pub color: String,
+}
+
+pub const COLORS: [&str; 6] = [
+    "#A78BFA", "#2DD4BF", "#F472B6", "#60A5FA", "#A3E635", "#FACC15",
+];
+
+pub fn paint(list: &mut [Project]) -> bool {
+    let mut changed = false;
+    for i in 0..list.len() {
+        if !list[i].color.is_empty() {
+            continue;
+        }
+        let used = |c: &str| list.iter().filter(|p| p.color == c).count();
+        let color = COLORS.iter().min_by_key(|c| used(c)).unwrap().to_string();
+        list[i].color = color;
+        changed = true;
+    }
+    changed
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -41,6 +61,7 @@ pub struct Folder {
     pub path: PathBuf,
     pub rules: Vec<String>,
     pub cards: Vec<Card>,
+    pub color: String,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
@@ -54,6 +75,7 @@ impl Folder {
             path: path.clone(),
             rules: project.rules.clone(),
             cards: project.cards.clone(),
+            color: project.color.clone(),
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -160,6 +182,19 @@ mod tests {
     }
 
     #[test]
+    fn gives_each_project_the_least_used_color() {
+        let project = |color: &str| Project {
+            color: color.into(),
+            ..Default::default()
+        };
+        let mut list = vec![project(""), project(COLORS[0]), project("")];
+        assert!(paint(&mut list));
+        let colors: Vec<_> = list.iter().map(|p| p.color.as_str()).collect();
+        assert_eq!(colors, [COLORS[1], COLORS[0], COLORS[2]]);
+        assert!(!paint(&mut list));
+    }
+
+    #[test]
     fn saves_reloads_and_sets_aside_a_broken_file() {
         let dir = temp("store");
         let file = dir.join("projects.json");
@@ -177,6 +212,7 @@ mod tests {
                 column: Column::Review,
                 agent: Some("a1".into()),
             }],
+            color: "#A78BFA".into(),
         }];
         save(&file, &projects).unwrap();
         assert!(

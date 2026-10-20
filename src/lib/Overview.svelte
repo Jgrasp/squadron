@@ -81,7 +81,7 @@
         <tbody>
           <tr class="project">
             <th scope="colgroup" colspan="6">
-              <span class="name"><span class="square" aria-hidden="true"></span>{group.project.name}</span>
+              <span class="name"><span class="square" aria-hidden="true" style:background={group.project.color}></span>{group.project.name}</span>
               <span class="path">{home(group.project.path)}</span>
               <span class="meta">
                 {group.all.length

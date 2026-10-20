@@ -34,7 +34,7 @@
 
 <Dialog title="New agent" {onclose} width={620}>
   {#snippet badge()}
-    <span class="in"><span class="dot" aria-hidden="true"></span>in {project.name}</span>
+    <span class="in" style:--project={project.color}><span class="dot" aria-hidden="true"></span>in {project.name}</span>
   {/snippet}
   <form onsubmit={submit}>
     <div class="fields">
@@ -75,8 +75,8 @@
     height: 26px;
     padding: 0 10px;
     border-radius: 3px;
-    background: rgba(224, 138, 91, 0.16);
-    box-shadow: inset 0 0 0 1px rgba(224, 138, 91, 0.6);
+    background: color-mix(in srgb, var(--project) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 60%, transparent);
     font-size: 12.5px;
     font-weight: 600;
   }
@@ -84,8 +84,8 @@
   .dot {
     width: 8px;
     height: 8px;
-    border-radius: 4px;
-    background: var(--accent);
+    border-radius: 2px;
+    background: var(--project);
   }
 
   .fields {

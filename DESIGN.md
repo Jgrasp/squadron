@@ -43,6 +43,10 @@ Interface en anglais. Source : page « Cuivre » du canvas Claude Design « Squa
 | `--text-dim` | `#A89C94` | Métadonnées, légendes |
 | `--text-faint` | `#6E625B` | Repères inactifs, icônes éteintes |
 
+### Projets
+
+Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette, gardée dans `projects.json` : `#A78BFA`, `#2DD4BF`, `#F472B6`, `#60A5FA`, `#A3E635`, `#FACC15`. Elle colore le carré du projet (onglets, liste des agents, Overview, Kanban, dialogue New agent), le fond et le contour de l'onglet actif, et l'effet de l'onglet qui travaille (C14).
+
 ### Accent cuivre et « t'attend »
 
 Le cuivre signale ce qui attend l'utilisateur : permission, question, plan, badge.
@@ -170,4 +174,4 @@ Anneau de l'agent qui travaille : rotation 1,4s linéaire. Curseur de streaming 
 Vrais `button`, `a`, `input` et `label`. `aria-label` sur chaque bouton icône. Focus clavier visible : anneau 2px `--accent-soft`. Les cartes d'attente sont des `section` étiquetées, les erreurs des `role="alert"`.
 
 ## Hors V1
-Présents dans la maquette, non implémentés : Overview, couleur par projet et effet d'onglet animé (C14), panneaux Terminal, Éditeur et Kanban, boutons Éditeur/Terminal/Kanban de l'en-tête d'agent, Forker, progression « N/M tâches », menu Squadron au-delà de « Claude Code » et « Quitter », « Dossier proche » (C24), « Réordonner les onglets » (C25).
+Présents dans la maquette, non implémentés : Overview, panneaux Terminal, Éditeur et Kanban, boutons Éditeur/Terminal/Kanban de l'en-tête d'agent, Forker, progression « N/M tâches », menu Squadron au-delà de « Claude Code » et « Quitter », « Dossier proche » (C24), « Réordonner les onglets » (C25).

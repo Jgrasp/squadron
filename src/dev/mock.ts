@@ -23,17 +23,20 @@ if (location.search.includes('many'))
   for (const name of ['Mercure', 'Atlas', 'Optika', 'Vinéa', 'Kalia', 'Sorbet', 'Néréide', 'Pixel Rando'])
     projects.push({ name, path: `/home/quentin/agence/${name.toLowerCase()}`, rules: [] })
 
-const folder = (name: string, path: string, rules: string[] = [], cards: unknown[] = []) => ({
+const COLORS = ['#A78BFA', '#2DD4BF', '#F472B6', '#60A5FA', '#A3E635', '#FACC15']
+
+const folder = (name: string, path: string, rules: string[] = [], cards: unknown[] = [], color = COLORS[0]) => ({
   name,
   path,
   rules,
   cards,
+  color,
   exists: !path.includes('absent'),
   git: !path.includes('fileas'),
   branch: path.includes('fileas') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p) => folder(p.name, p.path, p.rules, p.cards))
+const views = () => projects.map((p, i) => folder(p.name, p.path, p.rules, p.cards, COLORS[i % COLORS.length]))
 
 const timers = new Map<string, number>()
 let claudePath = 'claude'

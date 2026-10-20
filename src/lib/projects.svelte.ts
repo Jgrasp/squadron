@@ -7,6 +7,7 @@ export type Project = {
   path: string
   rules: string[]
   cards: Card[]
+  color: string
   exists: boolean
   git: boolean
   branch: string | null

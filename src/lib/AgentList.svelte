@@ -104,7 +104,7 @@
 {/snippet}
 
 {#if layout.collapsed}
-  <aside class="folded" aria-label="Project agents, collapsed">
+  <aside class="folded" aria-label="Project agents, collapsed" style:--project={project.color}>
     <span class="square" title={project.name}></span>
     <button class="add" aria-label="New agent" title="New agent (Ctrl N)" disabled={!project.exists} onclick={onnew}>+</button>
     <span class="sep" aria-hidden="true"></span>
@@ -139,7 +139,7 @@
     {/if}
   </aside>
 {:else}
-<aside aria-label="Project agents" style:width="{layout.sidebar}px">
+<aside aria-label="Project agents" style:width="{layout.sidebar}px" style:--project={project.color}>
   <div class="head">
     <div class="who">
       <span class="square" aria-hidden="true"></span>
@@ -260,7 +260,7 @@
     width: 12px;
     height: 12px;
     border-radius: 3px;
-    background: var(--accent);
+    background: var(--project);
   }
 
   .new {
