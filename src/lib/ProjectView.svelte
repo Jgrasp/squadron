@@ -3,7 +3,16 @@
   import AgentList from './AgentList.svelte'
   import AgentView from './AgentView.svelte'
   import { archiveProject, interrupt, ofProject, selected } from './agents.svelte'
-  import { layout, MAX_SIDEBAR, MIN_SIDEBAR, resizeSidebar, toggleSidebar } from './layout.svelte'
+  import {
+    dragSidebar,
+    FOLDED_SIDEBAR,
+    layout,
+    MAX_SIDEBAR,
+    MIN_SIDEBAR,
+    resizeSidebar,
+    setCollapsed,
+    toggleSidebar,
+  } from './layout.svelte'
   import NewAgent from './NewAgent.svelte'
   import { load, move, remove, type Project } from './projects.svelte'
 
@@ -37,9 +46,9 @@
 
   function drag(event: PointerEvent) {
     const handle = event.currentTarget as HTMLElement
-    const start = event.clientX - layout.sidebar
+    const start = event.clientX - (layout.collapsed ? FOLDED_SIDEBAR : layout.sidebar)
     handle.setPointerCapture(event.pointerId)
-    const move = (e: PointerEvent) => resizeSidebar(e.clientX - start)
+    const move = (e: PointerEvent) => dragSidebar(e.clientX - start)
     const up = () => {
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', up)
@@ -49,8 +58,13 @@
   }
 
   function nudge(event: KeyboardEvent) {
-    if (event.key === 'ArrowLeft') resizeSidebar(layout.sidebar - 16)
-    else if (event.key === 'ArrowRight') resizeSidebar(layout.sidebar + 16)
+    if (event.key === 'ArrowLeft') {
+      if (layout.sidebar <= MIN_SIDEBAR) setCollapsed(true)
+      else resizeSidebar(layout.sidebar - 16)
+    } else if (event.key === 'ArrowRight') {
+      if (layout.collapsed) setCollapsed(false)
+      else resizeSidebar(layout.sidebar + 16)
+    }
   }
 
   function keys(event: KeyboardEvent) {
@@ -71,21 +85,19 @@
 
 <div class="body">
   <AgentList {project} current={agent} onnew={() => (creating = true)} onretire={retire} />
-  {#if !layout.collapsed}
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div
     class="resizer"
     role="separator"
     aria-orientation="vertical"
     aria-label="Resize the agent list"
-    aria-valuenow={layout.sidebar}
-    aria-valuemin={MIN_SIDEBAR}
+    aria-valuenow={layout.collapsed ? FOLDED_SIDEBAR : layout.sidebar}
+    aria-valuemin={FOLDED_SIDEBAR}
     aria-valuemax={MAX_SIDEBAR}
     tabindex="0"
     onpointerdown={drag}
     onkeydown={nudge}
   ></div>
-  {/if}
 
   {#if !project.exists}
     <main class="center">
