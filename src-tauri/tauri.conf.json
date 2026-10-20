@@ -13,10 +13,12 @@
     "windows": [
       {
         "title": "Squadron",
-        "width": 800,
-        "height": 600,
+        "width": 1440,
+        "height": 900,
         "resizable": true,
-        "fullscreen": false
+        "minWidth": 1000,
+        "minHeight": 640,
+        "decorations": false
       }
     ],
     "security": {
