@@ -33,7 +33,7 @@
 {#snippet plus(line: Line)}
   {@const note = noteAt(line.side, line.number)}
   {#if note !== undefined}
-    <button class="plus bubble" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
+    <button class="plus bubble effect-snake" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
       <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
     </button>
   {:else if oncomment}
@@ -118,7 +118,7 @@
   }
 
   .line {
-    grid-template-columns: 50px 40px 16px 1fr;
+    grid-template-columns: 56px 40px 16px 1fr;
   }
 
   .pair {
@@ -127,7 +127,7 @@
   }
 
   .half {
-    grid-template-columns: 58px 1fr;
+    grid-template-columns: 64px 1fr;
   }
 
   .half + .half {
@@ -190,7 +190,7 @@
   .plus {
     position: absolute;
     top: 1px;
-    left: 4px;
+    left: 9px;
     width: 18px;
     height: 18px;
     display: flex;
@@ -208,6 +208,14 @@
   .plus:focus-visible,
   .bubble {
     opacity: 1;
+  }
+
+  .bubble {
+    top: 0;
+    width: 20px;
+    height: 20px;
+    background: var(--wait-bg);
+    color: var(--accent-soft);
   }
 
   .bubble svg {
