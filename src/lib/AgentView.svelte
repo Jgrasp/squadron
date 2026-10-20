@@ -183,19 +183,20 @@
         {/if}
         <span>{meta(agent)} · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span></span>
       </div>
-      {#if files.length}
-        <button
-          class="btn btn-ghost"
-          aria-pressed={diffFile !== null}
-          title="See the agent’s changes"
-          onclick={() => (diffFile = diffFile === null ? '' : null)}
+      <button
+        class="btn btn-ghost"
+        aria-pressed={diffFile !== null}
+        title="See the agent’s changes"
+        onclick={() => (diffFile = diffFile === null ? '' : null)}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
+          ><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" /></svg
         >
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
-            ><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" /></svg
-          >
-          Diff <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
-        </button>
-      {/if}
+        Diff
+        {#if totals.add || totals.del}
+          <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
+        {/if}
+      </button>
       <button class="btn btn-ghost" title="Kanban (Ctrl K)" onclick={toggleBoard}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
         Kanban
