@@ -36,10 +36,17 @@ export type Task = {
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
+export type Comment = { path: string; line: number; removed: boolean; code: string; note: string }
+
+export function prompt(text: string, comments: Comment[] = []) {
+  const blocks = comments.map((c) => `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}`)
+  return [...blocks, text].filter(Boolean).join('\n\n')
+}
+
 export type Usage = { cost: number; input: number; output: number; ms: number }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[] }
   | { kind: 'agent'; blocks: Block[] }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
@@ -137,8 +144,8 @@ export function argument(agent: Agent, call: Pick<ToolCall, 'name' | 'input'>): 
   }
 }
 
-export function userMessage(agent: Agent, text: string) {
-  agent.entries.push({ kind: 'user', text, at: Date.now() })
+export function userMessage(agent: Agent, text: string, comments: Comment[] = []) {
+  agent.entries.push({ kind: 'user', text, at: Date.now(), ...(comments.length ? { comments } : {}) })
   agent.attention = ''
   if (!agent.alive) agent.processCost = 0
   agent.status = 'working'

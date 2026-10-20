@@ -5,7 +5,7 @@ import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
 import tasks from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
-import { apply, exited, newAgent, userMessage, type Agent, type Entry } from './stream'
+import { apply, exited, newAgent, prompt, userMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -111,5 +111,15 @@ describe('stream', () => {
     expect(agent.attention).toBe('Pick a colour')
     userMessage(agent, 'Red')
     expect(agent.attention).toBe('')
+  })
+
+  it('puts diff comments before the message sent to Claude', () => {
+    const comments = [
+      { path: 'src/a.php', line: 12, removed: false, code: '    return [];', note: 'Use the repository' },
+      { path: 'b.txt', line: 3, removed: true, code: 'old', note: 'Why?' },
+    ]
+    expect(prompt('Go on', comments)).toBe('src/a.php:12\n> return [];\nUse the repository\n\nb.txt:3 (removed line)\n> old\nWhy?\n\nGo on')
+    expect(prompt('', comments.slice(1))).toBe('b.txt:3 (removed line)\n> old\nWhy?')
+    expect(prompt('Hi')).toBe('Hi')
   })
 })

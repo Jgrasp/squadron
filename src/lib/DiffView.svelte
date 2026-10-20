@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte'
   import { pairs, rows, type Hunk } from './diff'
 
   export type Line = { side: 'old' | 'new'; number: number; text: string }
@@ -8,7 +9,18 @@
     split = false,
     limit = 1500,
     oncomment,
-  }: { hunks: Hunk[]; split?: boolean; limit?: number; oncomment?: (line: Line) => void } = $props()
+    open,
+    editor,
+  }: {
+    hunks: Hunk[]
+    split?: boolean
+    limit?: number
+    oncomment?: (line: Line) => void
+    open?: Pick<Line, 'side' | 'number'> | null
+    editor?: Snippet
+  } = $props()
+
+  const at = (side: Line['side'], number?: number) => open?.side === side && open.number === number
 
   const unified = $derived(split ? [] : rows(hunks))
   const paired = $derived(split ? pairs(hunks) : [])
@@ -30,7 +42,7 @@
         <div class="pair">
           {#each [row.left, row.right] as cell, side (side)}
             {#if cell}
-              <div class="half {cell.kind}">
+              <div class="half {cell.kind}" class:picked={side ? at('new', cell.number) : cell.kind === 'del' && at('old', cell.number)}>
                 {#if side === 1 || cell.kind === 'del'}
                   {@render plus({ side: side ? 'new' : 'old', number: cell.number, text: cell.text })}
                 {/if}
@@ -42,6 +54,9 @@
             {/if}
           {/each}
         </div>
+        {#if at('old', row.left?.kind === 'del' ? row.left.number : undefined) || at('new', row.right?.number)}
+          {@render editor?.()}
+        {/if}
       {/if}
     {/each}
   {:else}
@@ -49,13 +64,16 @@
       {#if row.kind === 'head'}
         <div class="head">{row.text}</div>
       {:else}
-        <div class="line {row.kind}">
+        <div class="line {row.kind}" class:picked={row.kind === 'del' ? at('old', row.old) : at('new', row.new)}>
           {@render plus(row.kind === 'del' ? { side: 'old', number: row.old!, text: row.text } : { side: 'new', number: row.new!, text: row.text })}
           <span class="num">{row.old ?? ''}</span>
           <span class="num">{row.new ?? ''}</span>
           <span class="sign">{row.kind === 'add' ? '+' : row.kind === 'del' ? '−' : ''}</span>
           <span class="text">{row.text}</span>
         </div>
+        {#if row.kind === 'del' ? at('old', row.old) : at('new', row.new)}
+          {@render editor?.()}
+        {/if}
       {/if}
     {/each}
   {/if}
@@ -142,6 +160,10 @@
 
   .del .num {
     color: var(--del-line);
+  }
+
+  .picked {
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .plus {

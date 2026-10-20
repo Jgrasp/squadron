@@ -10,10 +10,12 @@ import {
   exited,
   fail,
   newAgent,
+  prompt,
   reloaded,
   userMessage,
   type Agent,
   type Ask,
+  type Comment,
   type Entry,
   type Options,
 } from './stream'
@@ -310,13 +312,13 @@ export async function create(project: string, name: string, options: Options, te
   return agent.id
 }
 
-export async function send(id: string, text: string) {
+export async function send(id: string, text: string, comments: Comment[] = []) {
   const agent = find(id)
   if (!agent) return
-  userMessage(agent, text)
+  userMessage(agent, text, comments)
   persist(agent)
   try {
-    await invoke('send_message', { id, text })
+    await invoke('send_message', { id, text: prompt(text, comments) })
   } catch (e) {
     fail(agent, String(e))
   }
@@ -329,7 +331,7 @@ export async function retry(id: string) {
   agent.status = 'working'
   agent.action = 'Starting…'
   try {
-    await invoke('send_message', { id, text: last.text })
+    await invoke('send_message', { id, text: prompt(last.text, last.comments) })
   } catch (e) {
     fail(agent, String(e))
   }

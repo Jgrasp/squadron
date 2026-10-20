@@ -1,11 +1,10 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { parsePatch, structuredPatch } from 'diff'
-  import Dialog from './Dialog.svelte'
   import { changedFiles, type Changes, type Hunk } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
   import { layout, MIN_DIFF, resizeDiff, setSplit, toggleDiffFull } from './layout.svelte'
-  import { calls, relative, type Agent } from './stream'
+  import { calls, relative, type Agent, type Comment } from './stream'
 
   let {
     agent,
@@ -13,7 +12,7 @@
     file = $bindable(),
     oncomment,
     onclose,
-  }: { agent: Agent; changes: Changes | null; file: string; oncomment: (text: string) => void; onclose: () => void } = $props()
+  }: { agent: Agent; changes: Changes | null; file: string; oncomment: (comment: Comment) => void; onclose: () => void } = $props()
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
 
@@ -94,7 +93,7 @@
     event?.preventDefault()
     if (!commenting || !note.trim()) return
     const { path, side, number, text } = commenting
-    oncomment(`${path}:${number}${side === 'old' ? ' (removed line)' : ''}\n> ${text.trim()}\n${note.trim()}`)
+    oncomment({ path, line: number, removed: side === 'old', code: text, note: note.trim() })
     commenting = null
     note = ''
   }
@@ -186,6 +185,8 @@
               hunks={shown.hunks}
               split={layout.split}
               oncomment={(line) => ((commenting = { ...line, path: selected.path }), (note = ''))}
+              open={commenting?.path === selected.path ? commenting : null}
+              {editor}
             />
           {:else}
             <p class="empty">The file is back to its original state.</p>
@@ -211,34 +212,31 @@
   {/if}
 </section>
 
-{#if commenting}
-  <Dialog title="Comment line {commenting.number}" width={560} onclose={() => (commenting = null)}>
-    <form onsubmit={comment}>
-      <div class="comment">
-        <div class="quote">
-          <span>{commenting.path}:{commenting.number}{commenting.side === 'old' ? ' · removed line' : ''}</span>
-          <code>{commenting.text}</code>
-        </div>
-        <label for="line-comment" class="sr-only">Comment</label>
-        <!-- svelte-ignore a11y_autofocus -->
-        <textarea
-          id="line-comment"
-          class="field"
-          rows="4"
-          bind:value={note}
-          placeholder="What should {agent.name} change here?"
-          autofocus
-          onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && comment(e)}
-        ></textarea>
-      </div>
-      <footer>
-        <span class="hint">Added to your message to {agent.name}</span>
-        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-        <button class="btn btn-primary" disabled={!note.trim()}>Add comment</button>
-      </footer>
-    </form>
-  </Dialog>
-{/if}
+{#snippet editor()}
+  <form class="inline" onsubmit={comment}>
+    <label for="line-comment" class="sr-only">Comment on line {commenting?.number}</label>
+    <!-- svelte-ignore a11y_autofocus -->
+    <textarea
+      id="line-comment"
+      class="field"
+      rows="3"
+      bind:value={note}
+      placeholder="What should {agent.name} change here?"
+      autofocus
+      onkeydown={(e) => {
+        if (e.key === 'Escape') {
+          e.stopPropagation()
+          commenting = null
+        } else if (e.ctrlKey && e.key === 'Enter') comment(e)
+      }}
+    ></textarea>
+    <div class="actions">
+      <span class="hint">Added to your next message · <kbd>Ctrl ↵</kbd></span>
+      <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
+      <button class="btn btn-primary" disabled={!note.trim()}>Add comment</button>
+    </div>
+  </form>
+{/snippet}
 
 <style>
   .panel {
@@ -473,57 +471,46 @@
     padding: 0 12px;
   }
 
-  .comment {
+  .inline {
     display: flex;
     flex-direction: column;
-    gap: 12px;
-    padding: 10px 22px 20px;
+    gap: 8px;
+    margin: 6px 12px 10px 48px;
+    padding: 10px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    box-shadow:
+      inset 0 0 0 1px var(--border-strong),
+      0 8px 24px rgba(0, 0, 0, 0.35);
+    font: 13.5px/1.4 var(--sans);
+    color: var(--text);
   }
 
-  .quote {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 10px 12px;
-    border-radius: 4px;
-    background: var(--bg-app);
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
-
-  .quote span {
-    font: 12px var(--mono);
-    color: var(--text-dim);
-  }
-
-  .quote code {
-    white-space: pre-wrap;
-    overflow-wrap: anywhere;
-    font-size: 12.5px;
-    color: var(--text-3);
-  }
-
-  .comment textarea {
+  .inline textarea {
     height: auto;
-    padding: 12px 14px;
-    resize: none;
+    padding: 10px 12px;
+    resize: vertical;
     line-height: 1.5;
   }
 
-  footer {
+  .inline .actions {
     display: flex;
     align-items: center;
     gap: 8px;
-    padding: 16px 22px 20px;
-    border-top: 1px solid var(--border);
   }
 
-  footer .btn {
-    height: 40px;
+  .inline .btn {
+    height: 32px;
+    padding: 0 12px;
   }
 
   .hint {
     flex: 1;
-    font-size: 12.5px;
+    font-size: 12px;
     color: var(--text-dim);
+  }
+
+  kbd {
+    font-family: var(--mono);
   }
 </style>

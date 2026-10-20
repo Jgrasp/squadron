@@ -7,7 +7,8 @@
   import DiffPanel from './DiffPanel.svelte'
   import { cost, meta, time, tokens } from './format'
   import { toggleBoard } from './projects.svelte'
-  import { calls, relative, type Agent, type ToolCall } from './stream'
+  import CommentChip from './CommentChip.svelte'
+  import { calls, prompt, relative, type Agent, type Comment, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
@@ -49,9 +50,7 @@
       })
   })
 
-  function addComment(block: string) {
-    text = text.trim() ? `${text.trimEnd()}\n\n${block}` : block
-  }
+  let comments = $state<Comment[]>([])
   const sent = $derived(agent.entries.flatMap((e) => (e.kind === 'user' ? [e.text] : [])))
 
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
@@ -75,7 +74,7 @@
   function measure() {
     const users = agent.entries.flatMap((e) => (e.kind === 'user' ? [e] : []))
     const els = [...column.querySelectorAll<HTMLElement>('[data-user]')]
-    marks = els.map((el, i) => ({ offset: el.offsetTop, text: users[i]?.text ?? '', at: users[i]?.at ?? 0 }))
+    marks = els.map((el, i) => ({ offset: el.offsetTop, text: prompt(users[i]?.text ?? '', users[i]?.comments), at: users[i]?.at ?? 0 }))
     const view = scroller.scrollTop + scroller.clientHeight / 3
     active = marks.findLastIndex((m) => m.offset <= view)
     below = marks.filter((m) => m.offset > scroller.scrollTop + scroller.clientHeight).length
@@ -119,11 +118,13 @@
   function submit(event?: Event) {
     event?.preventDefault()
     const message = text.trim()
-    if (!message) return
+    const attached = $state.snapshot(comments)
+    if (!message && !attached.length) return
     text = ''
+    comments = []
     recall = -1
     stuck = true
-    if (!reply(agent, message)) send(agent.id, message)
+    if (!reply(agent, prompt(message, attached))) send(agent.id, message, attached)
   }
 
   function show(area: HTMLTextAreaElement, value: string) {
@@ -253,6 +254,13 @@
     </div>
 
     <form class="composer" onsubmit={submit}>
+      {#if comments.length}
+        <div class="attached" aria-label="Comments on the diff, sent with your message">
+          {#each comments as comment, i (i)}
+            <CommentChip {comment} onopen={() => (diffFile = comment.path)} onremove={() => comments.splice(i, 1)} />
+          {/each}
+        </div>
+      {/if}
       <div class="bar">
         <label for="composer" class="sr-only">Message to the agent</label>
         <textarea id="composer" rows="1" bind:value={text} {placeholder} onkeydown={keys}></textarea>
@@ -299,7 +307,7 @@
             </div>
           {/if}
         </div>
-        <button class="btn btn-primary send" disabled={!text.trim()}>
+        <button class="btn btn-primary send" disabled={!text.trim() && !comments.length}>
           {pending === 'AskUserQuestion' ? 'Answer' : pending === 'ExitPlanMode' ? 'Send feedback' : pending ? 'Deny' : 'Send'}
         </button>
       </div>
@@ -307,7 +315,7 @@
   </section>
 
   {#if diffFile !== null}
-    <DiffPanel {agent} {changes} bind:file={diffFile} oncomment={addComment} onclose={() => (diffFile = null)} />
+    <DiffPanel {agent} {changes} bind:file={diffFile} oncomment={(c) => comments.push(c)} onclose={() => (diffFile = null)} />
   {/if}
 </main>
 
@@ -540,6 +548,14 @@
     flex: none;
     padding: 12px 20px 18px;
     border-top: 1px solid var(--border);
+  }
+
+  .attached {
+    max-width: 740px;
+    margin: 0 auto 8px;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
   .bar {

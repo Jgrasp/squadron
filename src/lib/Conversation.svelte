@@ -1,5 +1,6 @@
 <script lang="ts">
   import { clock } from './agents.svelte'
+  import CommentChip from './CommentChip.svelte'
   import ErrorCard from './ErrorCard.svelte'
   import { cost, duration, time, tokens } from './format'
   import Markdown from './Markdown.svelte'
@@ -58,7 +59,12 @@
 
 {#each agent.entries as entry, i (i)}
   {#if entry.kind === 'user'}
-    <div class="user" data-user={i}>{entry.text}</div>
+    <div class="user" data-user={i}>
+      {#if entry.comments}
+        <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
+      {/if}
+      {#if entry.text}<div class="said">{entry.text}</div>{/if}
+    </div>
   {:else if entry.kind === 'agent'}
     <div class="agent">
       {#each segments(entry.blocks) as segment, s (s)}
@@ -168,8 +174,21 @@
     background: var(--text);
     color: var(--ink);
     line-height: 1.5;
-    white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  .said {
+    white-space: pre-wrap;
+  }
+
+  .chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .chips:not(:last-child) {
+    margin-bottom: 8px;
   }
 
   .agent {
