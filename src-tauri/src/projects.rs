@@ -55,6 +55,18 @@ pub fn same_folder(a: &Path, b: &Path) -> bool {
     canonical(a) == canonical(b)
 }
 
+pub fn inside(project: &Path, file: &Path) -> Option<PathBuf> {
+    let root = fs::canonicalize(project).ok()?;
+    let file = project.join(file);
+    let resolved = match fs::canonicalize(&file) {
+        Ok(path) => path,
+        Err(_) => fs::canonicalize(file.parent()?)
+            .ok()?
+            .join(file.file_name()?),
+    };
+    resolved.starts_with(&root).then_some(resolved)
+}
+
 fn branch(dir: &Path) -> Option<String> {
     let dot_git = dir.join(".git");
     let git_dir = if dot_git.is_file() {
@@ -101,6 +113,19 @@ mod tests {
         assert_eq!(branch(&repo).as_deref(), Some("4eb5853"));
 
         assert_eq!(branch(&temp("plain")), None);
+    }
+
+    #[test]
+    fn keeps_file_access_inside_the_project() {
+        let root = temp("inside");
+        fs::create_dir(root.join("src")).unwrap();
+        fs::write(root.join("src/a.php"), "").unwrap();
+        assert!(inside(&root, Path::new("src/a.php")).is_some());
+        assert!(inside(&root, &root.join("src/new.php")).is_some());
+        assert!(inside(&root, Path::new("../escape.txt")).is_none());
+        assert!(inside(&root, Path::new("/etc/passwd")).is_none());
+        std::os::unix::fs::symlink("/etc", root.join("src/etc")).unwrap();
+        assert!(inside(&root, Path::new("src/etc/passwd")).is_none());
     }
 
     #[test]

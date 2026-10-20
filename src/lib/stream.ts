@@ -116,7 +116,7 @@ function agentEntry(agent: Agent) {
   return entry
 }
 
-function calls(agent: Agent) {
+export function calls(agent: Agent) {
   return agent.entries.flatMap((e) =>
     e.kind === 'agent' ? e.blocks.flatMap((b) => (b.type === 'tools' ? b.calls : [])) : [],
   )
@@ -168,8 +168,10 @@ function stream(agent: Agent, d: Json) {
     agent.live.outputDone += agent.live.output
     agent.live.output = u.output_tokens ?? 0
     agent.live.input = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0)
+    agent.tokens = agent.live.input + agent.live.output
   } else if (e.type === 'message_delta') {
     agent.live.output = e.usage?.output_tokens ?? agent.live.output
+    agent.tokens = agent.live.input + agent.live.output
   } else if (e.type === 'content_block_start') {
     const block = e.content_block
     const entry = agentEntry(agent)
@@ -230,7 +232,6 @@ function result(agent: Agent, d: Json) {
   agent.processCost = Math.max(agent.processCost, total)
   const used = usage(d, cost)
   agent.cost += cost
-  agent.tokens += used.input + used.output
   agent.since = Date.now()
   if (agent.interrupting) {
     agent.interrupting = false

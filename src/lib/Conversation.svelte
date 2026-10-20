@@ -60,7 +60,7 @@
     <div class="agent">
       {#each segments(entry.blocks) as segment, s (s)}
         {#if segment.type === 'text'}
-          <Markdown text={segment.text} />
+          <Markdown text={segment.text} streaming={working && i === agent.entries.length - 1 && segment === entry.blocks.at(-1)} />
         {:else}
           {#if segment.thinking}
             <div class="thought">

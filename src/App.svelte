@@ -1,6 +1,7 @@
 <script lang="ts">
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { getCurrentWindow } from '@tauri-apps/api/window'
+  import { openUrl } from '@tauri-apps/plugin-opener'
   import AddProject from './lib/AddProject.svelte'
   import EmptyProjects from './lib/EmptyProjects.svelte'
   import Header from './lib/Header.svelte'
@@ -21,12 +22,20 @@
     }
   })
 
+  function links(event: MouseEvent) {
+    const link = (event.target as HTMLElement).closest('a[href]')
+    const href = link?.getAttribute('href')
+    if (!href || href.startsWith('#')) return
+    event.preventDefault()
+    if (/^https?:\/\//.test(href)) openUrl(href)
+  }
+
   function shortcuts(event: KeyboardEvent) {
     if (event.ctrlKey && event.key === 'q') getCurrentWindow().close()
   }
 </script>
 
-<svelte:window onkeydown={shortcuts} />
+<svelte:window onkeydown={shortcuts} onclick={links} />
 
 <div class="app">
   <Header onadd={() => (adding = '')} />

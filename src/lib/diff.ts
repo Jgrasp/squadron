@@ -24,3 +24,26 @@ export function counts(call: ToolCall) {
     }
   return { add, del }
 }
+
+export type FileChanges = { path: string; baseline: string | null; calls: ToolCall[]; add: number; del: number }
+
+export function changedFiles(calls: ToolCall[]): FileChanges[] {
+  const files = new Map<string, FileChanges>()
+  for (const call of calls) {
+    if (!EDITS.includes(call.name) || !call.result || call.result.error) continue
+    const data = call.result.data ?? {}
+    const path = String(data.filePath ?? call.input.file_path ?? call.input.notebook_path ?? '')
+    if (!path) continue
+    let file = files.get(path)
+    if (!file) {
+      const original = data.type === 'create' ? null : (data.originalFile ?? null)
+      file = { path, baseline: typeof original === 'string' ? original : null, calls: [], add: 0, del: 0 }
+      files.set(path, file)
+    }
+    const c = counts(call)
+    file.calls.push(call)
+    file.add += c.add
+    file.del += c.del
+  }
+  return [...files.values()]
+}

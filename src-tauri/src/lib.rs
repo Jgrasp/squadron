@@ -140,6 +140,22 @@ impl Settings {
 }
 
 #[tauri::command]
+fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, String> {
+    let file = projects::inside(&project, &path).ok_or("Fichier hors du projet.")?;
+    match std::fs::read_to_string(file) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
+    let file = projects::inside(&project, &path).ok_or("Fichier hors du projet.")?;
+    tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn claude_path(settings: State<Settings>) -> String {
     settings.claude()
 }
@@ -211,6 +227,7 @@ fn archive_agent(agents: State<Agents>, id: String) {
 pub fn run() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
         .manage(Agents::default())
         .invoke_handler(tauri::generate_handler![
             list_projects,
@@ -218,6 +235,8 @@ pub fn run() {
             add_project,
             remove_project,
             move_project,
+            read_project_file,
+            open_in_editor,
             claude_path,
             set_claude_path,
             create_agent,

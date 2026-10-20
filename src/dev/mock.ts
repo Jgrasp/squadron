@@ -54,6 +54,26 @@ function replay(id: string, text: string) {
 
 const projectOf = new Map<string, string>()
 
+if (location.search.includes('stress'))
+  setTimeout(async () => {
+    const { create } = await import('../lib/agents.svelte')
+    const { find, agents } = await import('../lib/agents.svelte')
+    const { apply, userMessage } = await import('../lib/stream')
+    const started = performance.now()
+    await create(projects[0].path, 'Session longue', { model: 'opus', effort: 'high', mode: 'default' }, 'Début')
+    const agent = find(agents.list.at(-1)!.id)!
+    for (let turn = 0; turn < 120; turn++) {
+      if (turn) userMessage(agent, `Consigne ${turn} : continue le travail sur le module ${turn}`)
+      for (const line of (turn % 2 ? tools : sigint).trim().split('\n')) {
+        const d = JSON.parse(line.replaceAll('/projet', projects[0].path))
+        if (d.type === 'result' && d.is_error) continue
+        apply(agent, d)
+      }
+      apply(agent, { type: 'result', is_error: false, total_cost_usd: turn * 0.01, usage: {}, duration_ms: 42000 })
+    }
+    console.log('stress', Math.round(performance.now() - started), 'ms', agent.entries.length, 'entrées')
+  }, 300)
+
 mockWindows('main')
 mockIPC(
   (cmd, args) => {
@@ -94,6 +114,10 @@ mockIPC(
       case 'reload_agent':
       case 'archive_agent':
         clearTimeout(timers.get(a.id))
+        return
+      case 'read_project_file':
+        return a.path.endsWith('resume.txt') ? '2\n' : null
+      case 'open_in_editor':
         return
       case 'claude_path':
         return claudePath
