@@ -2,16 +2,32 @@
   import { clock } from './agents.svelte'
   import { cost, tokens } from './format'
   import SidePanel from './SidePanel.svelte'
+  import SubagentLog from './SubagentLog.svelte'
   import type { Agent, Subagent } from './stream'
   import { asking, count, LABEL, lookOf, type Look } from './subagents'
 
   let {
     agent,
-    selected = null,
-    onopen,
+    viewing,
+    onview,
     onprefill,
+    onquote,
     onclose,
-  }: { agent: Agent; selected?: string | null; onopen: (sub: Subagent) => void; onprefill: (text: string) => void; onclose: () => void } = $props()
+  }: {
+    agent: Agent
+    viewing: string | null
+    onview: (id: string | null) => void
+    onprefill: (text: string) => void
+    onquote: (text: string) => void
+    onclose: () => void
+  } = $props()
+
+  let selected = $state<string | null>(null)
+  const open = $derived(agent.subagents.find((s) => s.id === viewing))
+
+  $effect(() => {
+    if (viewing) selected = viewing
+  })
 
   type Filter = 'all' | Look
 
@@ -65,8 +81,12 @@
 
 <SidePanel kind="subagents" title="Subagents" {onclose}>
   {#snippet sub()}
-    {subs.length} launched by {agent.name} · {types}
+    {#if open}#{open.num} · {open.name}{:else}{subs.length} launched by {agent.name} · {types}{/if}
   {/snippet}
+
+  {#if open}
+    <SubagentLog {agent} sub={open} {onview} {onquote} />
+  {:else}
 
   <div class="filters">
     <div class="chips" role="group" aria-label="Filter by state">
@@ -103,7 +123,7 @@
             class:picked={s.id === selected}
             aria-label="Subagent #{s.num} · {s.name} · {LABEL[look]}"
             title="Open the log"
-            onclick={() => onopen(s)}
+            onclick={() => onview(s.id)}
           >
             <span class="dot {look}"></span>
             <span class="num">#{s.num}</span>
@@ -123,6 +143,7 @@
       <button class="relaunch" title="Fills in a message to {agent.name}" onclick={relaunch}>Ask to relaunch the {failed.length} failed</button>
     {/if}
   </div>
+  {/if}
 </SidePanel>
 
 <style>

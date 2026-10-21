@@ -6,7 +6,7 @@ import tasks from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
-import { apply, calls, exited, newAgent, prompt, subagentOf, userMessage, type Agent, type Entry } from './stream'
+import { apply, calls, exited, newAgent, prompt, replayLog, subagentOf, userMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -180,5 +180,23 @@ describe('stream', () => {
     for (const line of lines.slice(0, lines.findIndex((l) => l.includes('task_started')) + 1)) apply(agent, JSON.parse(line))
     exited(agent, '')
     expect(agent.subagents[0].status).toBe('stopped')
+  })
+
+  it('rebuilds a subagent log from its transcript', () => {
+    const agent = fresh()
+    replay(agent, subagents)
+    const sub = agent.subagents[0]
+    const live = sub.log.flatMap((b) => (b.type === 'tools' ? b.calls.map((c) => c.name) : []))
+    const transcript = subagents
+      .trim()
+      .split('\n')
+      .map((l) => JSON.parse(l))
+      .filter((d) => d.parent_tool_use_id === sub.id)
+      .map((d) => JSON.stringify({ ...d, parent_tool_use_id: null, timestamp: '2026-10-21T14:02:41.000Z', toolUseResult: d.tool_use_result }))
+      .join('\n')
+    replayLog(agent, sub, `${transcript}\nnot json`)
+    expect(sub.log.flatMap((b) => (b.type === 'tools' ? b.calls.map((c) => c.name) : []))).toEqual(live)
+    expect(sub.log[0].at).toBe(Date.parse('2026-10-21T14:02:41.000Z'))
+    expect(sub.log.some((b) => b.type === 'tools' && b.calls[0].result)).toBe(true)
   })
 })

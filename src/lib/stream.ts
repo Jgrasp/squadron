@@ -14,9 +14,9 @@ export type ToolCall = {
 }
 
 export type Block =
-  | { type: 'thinking'; ms?: number; text?: string }
-  | { type: 'text'; text: string; key: string }
-  | { type: 'tools'; calls: ToolCall[] }
+  | { type: 'thinking'; ms?: number; text?: string; at?: number }
+  | { type: 'text'; text: string; key: string; at?: number }
+  | { type: 'tools'; calls: ToolCall[]; at?: number }
 
 export type Ask = {
   id: string
@@ -352,27 +352,43 @@ function assistant(agent: Agent, d: Json) {
   if (d.parent_tool_use_id && !sub) return
   if (sub) sub.model = d.message.model ?? sub.model
   const blocks = (): Block[] => (sub ? sub.log : agentEntry(agent).blocks)
+  const at = sub ? { at: d.timestamp ? Date.parse(d.timestamp) : Date.now() } : {}
   for (const c of d.message.content as Json[]) {
     if (c.type === 'thinking') {
       const block = blocks().findLast((b) => b.type === 'thinking' && b.ms === undefined)
       if (block?.type === 'thinking') block.ms = d.thinking_duration_ms ?? 0
-      else blocks().push({ type: 'thinking', ms: d.thinking_duration_ms ?? 0, ...(sub && c.thinking ? { text: c.thinking } : {}) })
+      else blocks().push({ type: 'thinking', ms: d.thinking_duration_ms ?? 0, ...(sub && c.thinking ? { text: c.thinking } : {}), ...at })
     } else if (c.type === 'tool_use') {
       const call = calls(agent).find((x) => x.id === c.id)
       if (call) call.input = c.input
       else {
         const last = blocks().at(-1)
         const added: ToolCall = { id: c.id, name: c.name, input: c.input }
-        if (last?.type === 'tools') last.calls.push(added)
-        else blocks().push({ type: 'tools', calls: [added] })
+        if (last?.type === 'tools' && !sub) last.calls.push(added)
+        else blocks().push({ type: 'tools', calls: [added], ...at })
       }
       const action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
       if (sub) sub.last = action
       else if (INTERNAL.includes(c.name)) track(agent, c)
       else agent.action = action
     } else if (c.type === 'text' && (sub || !blocks().some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`)))) {
-      blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}` })
+      blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, ...at })
     }
+  }
+}
+
+export function replayLog(agent: Agent, sub: Subagent, transcript: string) {
+  sub.log = []
+  for (const line of transcript.split('\n')) {
+    let d: Json
+    try {
+      d = JSON.parse(line)
+    } catch {
+      continue
+    }
+    const routed = { ...d, parent_tool_use_id: sub.id, tool_use_result: d.toolUseResult }
+    if (d.type === 'assistant') assistant(agent, routed)
+    else if (d.type === 'user') toolResults(agent, routed)
   }
 }
 

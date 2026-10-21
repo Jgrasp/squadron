@@ -6,9 +6,9 @@
   import DiffView from './DiffView.svelte'
   import { projects } from './projects.svelte'
   import { ruleFor, ruleLabel } from './rules'
-  import { argument, relative, subagentOf, type Agent, type Ask } from './stream'
+  import { argument, relative, subagentOf, type Agent, type Ask, type Subagent } from './stream'
 
-  let { agent, ask }: { agent: Agent; ask: Ask } = $props()
+  let { agent, ask, onlog }: { agent: Agent; ask: Ask; onlog?: (sub: Subagent) => void } = $props()
 
   const edit = $derived(EDITS.includes(ask.tool_name))
   const sub = $derived(subagentOf(agent, ask.tool_use_id))
@@ -89,7 +89,11 @@
     </span>
     <span class="what">
       <strong>{title}</strong>
-      {#if sub}<span class="by">Requested by subagent #{sub.num} · {sub.name}</span>{/if}
+      {#if sub}
+        <span class="by">
+          Requested by subagent #{sub.num} · {sub.name}{#if onlog}{' · '}<button class="log" onclick={() => onlog(sub)}>open its log</button>{/if}
+        </span>
+      {/if}
       <span class="mono">{edit ? `${ask.tool_name} · ${relative(agent, ask.input.file_path)}` : ask.tool_name === 'Bash' ? `Bash · ${detail}` : toolLabel(ask.tool_name)}</span>
     </span>
     {#if edit && patch}
@@ -175,6 +179,11 @@
   .by {
     font-size: 12.5px;
     color: var(--wait-text-2);
+  }
+
+  .log {
+    color: var(--accent-link);
+    text-decoration: underline;
   }
 
   .what strong {

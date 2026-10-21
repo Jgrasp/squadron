@@ -202,7 +202,7 @@
   {:else if ask.tool_name === 'ExitPlanMode'}
     <PlanCard {agent} {ask} />
   {:else}
-    <PermissionCard {agent} {ask} />
+    <PermissionCard {agent} {ask} onlog={onsubagent} />
   {/if}
 {/each}
 

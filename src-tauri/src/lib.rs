@@ -469,6 +469,27 @@ async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
 }
 
 #[tauri::command]
+fn subagent_log(session: String, task: String) -> Result<Option<String>, String> {
+    let safe =
+        |id: &str| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+    if !safe(&session) || !safe(&task) {
+        return Err("Invalid session or subagent id.".into());
+    }
+    let root = std::env::var_os("CLAUDE_CONFIG_DIR")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude")))
+        .ok_or("No Claude Code folder.")?
+        .join("projects");
+    let file = format!("agent-{task}.jsonl");
+    Ok(std::fs::read_dir(root)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|dir| dir.path().join(&session).join("subagents").join(&file))
+        .find(|path| path.is_file())
+        .and_then(|path| std::fs::read_to_string(path).ok()))
+}
+
+#[tauri::command]
 async fn git_patch(
     project: PathBuf,
     from: String,
@@ -712,6 +733,7 @@ pub fn run() {
             open_with,
             git_changes,
             git_patch,
+            subagent_log,
             get_settings,
             set_settings,
             set_claude_path,

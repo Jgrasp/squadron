@@ -33,10 +33,10 @@
   const panel = $derived(layout.panels[agent.project] ?? null)
   const toggle = (kind: PanelKind) => setPanel(agent.project, panel === kind ? null : kind)
 
-  let subagent = $state<string | null>(null)
+  let viewing = $state<string | null>(null)
 
-  function openSubagent(sub: Subagent) {
-    subagent = sub.id
+  function openSubagent(sub: Subagent | null) {
+    viewing = sub?.id ?? null
     setPanel(agent.project, 'subagents')
   }
   const openDiff = (path: string) => ((diffFile = path), setPanel(agent.project, 'diff'))
@@ -498,7 +498,7 @@
         role="presentation"
       >
         <div class="column" bind:this={column}>
-          <Conversation {agent} {ondiff} onsubagent={openSubagent} onsubagents={() => setPanel(agent.project, 'subagents')} />
+          <Conversation {agent} {ondiff} onsubagent={openSubagent} onsubagents={() => openSubagent(null)} />
         </div>
       </div>
 
@@ -609,9 +609,10 @@
   {:else if panel === 'subagents' && agent.subagents.length}
     <SubagentsPanel
       {agent}
-      selected={subagent}
-      onopen={openSubagent}
+      {viewing}
+      onview={(id) => (viewing = id)}
       onprefill={(message) => ((text = message), composer.focus())}
+      onquote={(quote) => ((text = text.trim() ? `${text.trimEnd()} ${quote} ` : `${quote} `), composer.focus())}
       onclose={() => setPanel(agent.project, null)}
     />
   {/if}
@@ -903,7 +904,7 @@
     display: inline-flex;
     align-items: center;
     gap: 5px;
-    padding: 1px 7px;
+    padding: 0 7px;
     border-radius: 4px;
     background: var(--surface-3);
     color: var(--text-strong);
