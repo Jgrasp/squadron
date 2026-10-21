@@ -452,11 +452,7 @@
   }
 
   .cmd {
-    padding: 0 3px;
-    border-radius: 3px;
-    background: rgba(224, 138, 91, 0.16);
-    color: #a5501f;
-    font-weight: 600;
+    font-weight: 700;
   }
 
   .cmd-note {
