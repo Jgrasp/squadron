@@ -62,6 +62,35 @@ const asks: Record<string, [string, Record<string, unknown>]> = {
     ] },
   ] }],
 }
+function swarm(n = 48) {
+  const id = (i: number) => `toolu_swarm${i}`
+  const name = (i: number) => ['SyliusCoreBundle', 'SyliusPaymentBundle', 'SyliusApiBundle', 'BmcSegmentationBundle', 'BmcBatchUtilsBundle'][i % 5] + ` ${i}`
+  const lines: unknown[] = [
+    {
+      type: 'assistant',
+      message: {
+        id: 'msg_swarm',
+        model: 'claude-opus-5-5',
+        content: Array.from({ length: n }, (_, k) => ({ type: 'tool_use', id: id(k + 1), name: 'Agent', input: { description: name(k + 1), subagent_type: 'general-purpose', prompt: `List the PHP 8.5 deprecations of ${name(k + 1)}` } })),
+      },
+    },
+  ]
+  for (let i = 1; i <= n; i++)
+    lines.push({ type: 'system', subtype: 'task_started', task_id: `task${i}`, tool_use_id: id(i), description: name(i), subagent_type: 'general-purpose', prompt: `List the PHP 8.5 deprecations of ${name(i)}.\nDo not edit any file.`, task_type: 'local_agent', is_backgrounded: false })
+  for (let i = 1; i <= n; i++) {
+    lines.push({ type: 'assistant', parent_tool_use_id: id(i), message: { id: `msg_s${i}`, model: 'claude-opus-5-5', content: [{ type: 'text', text: 'I look for the casts PHP 8.5 deprecates.' }, { type: 'tool_use', id: `toolu_grep${i}`, name: 'Grep', input: { pattern: '\\((integer|boolean|double)\\)', path: 'src/' } }] } })
+    lines.push({ type: 'user', parent_tool_use_id: id(i), message: { content: [{ type: 'tool_result', tool_use_id: `toolu_grep${i}`, content: 'src/Model/Payment.php:143: return (integer) $this->amount;' }] } })
+    lines.push({ type: 'system', subtype: 'task_progress', task_id: `task${i}`, tool_use_id: id(i), description: 'Grep (integer)|(boolean) in src/', usage: { total_tokens: 7000 + i * 113, tool_uses: 1, duration_ms: 40000 + i * 900 }, last_tool_name: 'Grep' })
+  }
+  for (let i = 1; i <= Math.floor(n * 0.45); i++) {
+    const failed = i === 12 || i === 20
+    lines.push({ type: 'system', subtype: 'task_updated', task_id: `task${i}`, patch: { status: failed ? 'failed' : 'completed', end_time: Date.now() } })
+    lines.push({ type: 'system', subtype: 'task_notification', task_id: `task${i}`, tool_use_id: id(i), status: failed ? 'failed' : 'completed', summary: failed ? 'API Error: 529 Overloaded · 3 attempts' : `${name(i)}: 3 non-canonical casts, fixes proposed.`, usage: { total_tokens: 18000 + i * 211, tool_uses: 4, duration_ms: 120000 + i * 1000 } })
+  }
+  lines.push({ type: 'assistant', parent_tool_use_id: id(37), message: { id: 'msg_s37b', model: 'claude-opus-5-5', content: [{ type: 'tool_use', id: 'toolu_bash37', name: 'Bash', input: { command: 'lando php vendor/bin/phpstan analyse vendor/sylius/payment-bundle', description: 'Runs PHPStan on the bundle' } }] } })
+  return lines.map((l) => JSON.stringify(l)).join('\n')
+}
+
 const waitingReplay = new Map<string, () => void>()
 let askId = 0
 
@@ -75,7 +104,7 @@ function replay(id: string, text: string) {
     return
   }
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
-  const stream = text.includes('subagents') ? subagents : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -99,7 +128,7 @@ function replay(id: string, text: string) {
       emit('permission-request', { id: ask, agent: id, tool_name: 'Bash', input: call.input, tool_use_id: call.id })
       return
     }
-    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') ? 150 : 60))
+    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') ? 150 : text.includes('swarm') ? 8 : 60))
   }
   next()
 }

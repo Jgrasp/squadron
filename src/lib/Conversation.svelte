@@ -9,10 +9,18 @@
   import PermissionCard from './PermissionCard.svelte'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
-  import { INTERNAL, type Agent, type Block, type ToolCall } from './stream'
+  import { INTERNAL, type Agent, type Block, type Subagent, type ToolCall } from './stream'
+  import SubagentsCard from './SubagentsCard.svelte'
   import ToolRow from './ToolRow.svelte'
 
-  let { agent, ondiff }: { agent: Agent; ondiff: (call: ToolCall) => void } = $props()
+  let {
+    agent,
+    ondiff,
+    onsubagent,
+    onsubagents,
+  }: { agent: Agent; ondiff: (call: ToolCall) => void; onsubagent?: (sub: Subagent) => void; onsubagents?: () => void } = $props()
+
+  const SPAWN = ['Agent', 'Task']
 
   const names = $derived(namesOf(agent))
 
@@ -35,7 +43,10 @@
     return `${calls.length} action${calls.length > 1 ? 's' : ''} · ${parts.join(', ')}`
   }
 
-  type Segment = { type: 'work'; ms: number | undefined; thinking: boolean; calls: ToolCall[] } | Extract<Block, { type: 'text' }>
+  type Segment =
+    | { type: 'work'; ms: number | undefined; thinking: boolean; calls: ToolCall[] }
+    | { type: 'spawn'; calls: ToolCall[] }
+    | Extract<Block, { type: 'text' }>
 
   function segments(blocks: Block[]) {
     const out: Segment[] = []
@@ -44,17 +55,41 @@
         if (block.text) out.push(block)
         continue
       }
-      let work = out.at(-1)
-      if (work?.type !== 'work') {
-        work = { type: 'work', ms: 0, thinking: false, calls: [] }
-        out.push(work)
-      }
       if (block.type === 'thinking') {
+        const work = workOf(out)
         work.thinking = true
         work.ms = block.ms === undefined || work.ms === undefined ? undefined : work.ms + block.ms
-      } else work.calls.push(...block.calls.filter((c) => !INTERNAL.includes(c.name)))
+        continue
+      }
+      for (const call of block.calls.filter((c) => !INTERNAL.includes(c.name))) {
+        if (!SPAWN.includes(call.name) || !agent.subagents.some((s) => s.id === call.id)) workOf(out).calls.push(call)
+        else {
+          const last = out.at(-1)
+          if (last?.type === 'spawn') last.calls.push(call)
+          else out.push({ type: 'spawn', calls: [call] })
+        }
+      }
     }
     return out
+  }
+
+  function groups(blocks: Block[]) {
+    const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' }>)[] = []
+    for (const segment of segments(blocks)) {
+      const last = out.at(-1)
+      if (segment.type === 'spawn') out.push(segment)
+      else if (last?.type === 'box') last.segments.push(segment)
+      else out.push({ type: 'box', segments: [segment] })
+    }
+    return out
+  }
+
+  function workOf(out: Segment[]) {
+    const last = out.at(-1)
+    if (last?.type === 'work') return last
+    const work: Segment = { type: 'work', ms: 0, thinking: false, calls: [] }
+    out.push(work)
+    return work
   }
 
   const lastAgent = $derived(agent.entries.findLastIndex((e) => e.kind === 'agent'))
@@ -70,11 +105,15 @@
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
   {:else if entry.kind === 'agent'}
+    {#each groups(entry.blocks) as group, g (g)}
+      {#if group.type === 'spawn'}
+        <SubagentsCard {agent} ids={group.calls.map((c) => c.id)} onopen={onsubagent} onpanel={onsubagents} />
+      {:else}
     <div class="agent">
-      {#each segments(entry.blocks) as segment, s (s)}
+      {#each group.segments as segment, s (s)}
         {#if segment.type === 'text'}
           <Markdown text={segment.text} streaming={working && i === agent.entries.length - 1 && segment === entry.blocks.at(-1)} />
-        {:else}
+        {:else if segment.type === 'work'}
           {#if segment.thinking}
             <div class="thought">
               {segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
@@ -93,6 +132,8 @@
         {/if}
       {/each}
     </div>
+      {/if}
+    {/each}
   {:else if entry.kind === 'turn'}
     <span class="turn">
       <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>

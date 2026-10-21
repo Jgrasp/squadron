@@ -6,11 +6,13 @@
   import DiffView from './DiffView.svelte'
   import { projects } from './projects.svelte'
   import { ruleFor, ruleLabel } from './rules'
-  import { argument, relative, type Agent, type Ask } from './stream'
+  import { argument, relative, subagentOf, type Agent, type Ask } from './stream'
 
   let { agent, ask }: { agent: Agent; ask: Ask } = $props()
 
   const edit = $derived(EDITS.includes(ask.tool_name))
+  const sub = $derived(subagentOf(agent, ask.tool_use_id))
+  const others = $derived(agent.subagents.filter((s) => s.status === 'running' && s !== sub).length)
   const mcp = $derived(ask.tool_name.startsWith('mcp__'))
   const project = $derived(projects.list.find((p) => p.path === agent.project))
   const title = $derived(
@@ -26,7 +28,13 @@
     if (edit)
       return `${agent.name} will edit the project files without asking until its session ends. Bash commands will still ask.`
     const rule = ruleFor(ask.tool_name, ask.input)
-    if (ask.tool_name === 'Bash') return { code: ruleLabel(rule), text: `in ${project?.name}, for all its agents.` }
+    if (ask.tool_name === 'Bash')
+      return {
+        code: ruleLabel(rule),
+        text: others
+          ? `in ${project?.name}, for all its agents, including the ${others} other running subagent${others > 1 ? 's' : ''}. They may ask the same.`
+          : `in ${project?.name}, for all its agents.`,
+      }
     if (rule.startsWith('WebFetch(domain:'))
       return `${project?.name} agents will read ${rule.slice(16, -1)} without asking.`
     return `${project?.name} agents will call ${toolLabel(ask.tool_name)} without asking.`
@@ -81,6 +89,7 @@
     </span>
     <span class="what">
       <strong>{title}</strong>
+      {#if sub}<span class="by">Requested by subagent #{sub.num} · {sub.name}</span>{/if}
       <span class="mono">{edit ? `${ask.tool_name} · ${relative(agent, ask.input.file_path)}` : ask.tool_name === 'Bash' ? `Bash · ${detail}` : toolLabel(ask.tool_name)}</span>
     </span>
     {#if edit && patch}
@@ -161,6 +170,11 @@
     display: flex;
     flex-direction: column;
     gap: 2px;
+  }
+
+  .by {
+    font-size: 12.5px;
+    color: var(--wait-text-2);
   }
 
   .what strong {

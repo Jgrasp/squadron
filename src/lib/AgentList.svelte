@@ -6,6 +6,7 @@
   import { hint } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import type { Agent } from './stream'
+  import { asking, count, LOOKS, summary } from './subagents'
 
   let {
     project,
@@ -90,6 +91,18 @@
       <span class="bar" aria-hidden="true"><span style:width="{(done / agent.tasks.length) * 100}%"></span></span>
       <span class="count">{done}/{agent.tasks.length} tasks</span>
     </span>
+  {/if}
+  {#if agent.subagents.length}
+    {@const waiting = asking(agent)}
+    {@const counts = count(agent.subagents, waiting)}
+    {#if counts.running || counts.waiting}
+      <span class="subagents">
+        <span class="segments" aria-hidden="true">
+          {#each LOOKS as look (look)}{#if counts[look]}<span class={look} style:flex={counts[look]}></span>{/if}{/each}
+        </span>
+        <span class="count">{summary(agent.subagents, waiting)}</span>
+      </span>
+    {/if}
   {/if}
 {/snippet}
 
@@ -573,6 +586,41 @@
 
   .error .detail {
     color: var(--err-muted);
+  }
+
+  .subagents {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 2px 0 0 18px;
+  }
+
+  .segments {
+    display: flex;
+    height: 6px;
+    border-radius: 2px;
+    overflow: hidden;
+    background: var(--surface-3);
+  }
+
+  .segments .running {
+    background: var(--sub-running);
+  }
+
+  .segments .waiting {
+    background: var(--sub-waiting);
+  }
+
+  .segments .error {
+    background: var(--sub-error);
+  }
+
+  .segments .done {
+    background: var(--ok-line);
+  }
+
+  .segments .stopped {
+    background: var(--sub-stopped);
   }
 
   .progress {

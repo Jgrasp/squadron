@@ -7,6 +7,7 @@ import { matches, ruleFor, ruleLabel } from './rules'
 import {
   apply,
   argument,
+  subagentOf,
   INTERNAL,
   READ_ONLY,
   exited,
@@ -202,8 +203,9 @@ export function waitingDetail(agent: Agent) {
   if (ask.tool_name === 'AskUserQuestion') return String(ask.input.questions?.[0]?.question ?? '')
   if (ask.tool_name === 'ExitPlanMode')
     return (String(ask.input.plan ?? '').split('\n').find((l) => l.trim()) ?? '').replace(/^#+\s*/, '')
-  if (ask.tool_name.startsWith('mcp__')) return toolLabel(ask.tool_name)
-  return argument(agent, { name: ask.tool_name, input: ask.input }) || toolLabel(ask.tool_name)
+  const sub = subagentOf(agent, ask.tool_use_id)
+  const what = ask.tool_name.startsWith('mcp__') ? toolLabel(ask.tool_name) : argument(agent, { name: ask.tool_name, input: ask.input }) || toolLabel(ask.tool_name)
+  return sub ? `subagent #${sub.num} · ${what}` : what
 }
 
 function decide(id: string, decision: Record<string, unknown>) {

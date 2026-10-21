@@ -67,6 +67,12 @@
   --del-bg: rgba(245, 158, 140, 0.1);
   --del-line: #a7756c;
 
+  --sub-running: #9ad6cb;
+  --sub-waiting: #e08a5b;
+  --sub-error: #f59e8c;
+  --sub-done: #5f7049;
+  --sub-stopped: #4a3f39;
+
   --sans: 'DM Sans', 'Segoe UI', sans-serif;
   --mono: 'DM Mono', monospace;
 
