@@ -2,13 +2,23 @@
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { ofProject, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { cost } from './format'
+  import { ui, type SettingsTab } from './actions.svelte'
+  import { labelOf, shown } from './layout-slots.svelte'
   import { hint, settings } from './settings.svelte'
   import { projects } from './projects.svelte'
 
-  let {
-    onadd,
-    onsettings,
-  }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude' | 'editors' | 'preferences' | 'shortcuts') => void } = $props()
+  let { onadd }: { onadd: () => void } = $props()
+
+  const DETAILS: Record<string, string> = {
+    defaults: 'Model, effort and mode of new agents',
+    rules: 'What each project always allows',
+    claude: 'Executable',
+    editors: 'Apps that open the project',
+    preferences: 'Working tab effect',
+    shortcuts: 'Keys for panels, agents and Kanban',
+    layout: 'Order and visibility of buttons and menus',
+    customize: 'Drag the buttons where you want them',
+  }
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
@@ -83,26 +93,11 @@
             <span class="triangle big" aria-hidden="true"></span>
             <span><strong>Squadron</strong><small>Version 0.1.0 · Linux</small></span>
           </div>
-          <span class="section">Agents</span>
-          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('defaults'))}>
-            <span><strong>Agent defaults</strong><small>Model, effort and mode of new agents</small></span>
-          </button>
-          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('rules'))}>
-            <span><strong>Permission rules</strong><small>What each project always allows</small></span>
-          </button>
-          <span class="section">Application</span>
-          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('claude'))}>
-            <span><strong>Claude Code</strong><small>Executable</small></span>
-          </button>
-          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('editors'))}>
-            <span><strong>Editors</strong><small>Apps that open the project</small></span>
-          </button>
-          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('preferences'))}>
-            <span><strong>Preferences</strong><small>Working tab effect</small></span>
-          </button>
-          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('shortcuts'))}>
-            <span><strong>Shortcuts</strong><small>Keys for panels, agents and Kanban</small></span>
-          </button>
+          {#each shown('menu.squadron') as id (id)}
+            <button role="menuitem" class="item" onclick={() => ((menuOpen = false), id === 'customize' ? (ui.customizing = true) : (ui.settings = id as SettingsTab))}>
+              <span><strong>{labelOf('menu.squadron', id)}</strong><small>{DETAILS[id]}</small></span>
+            </button>
+          {/each}
           <span class="rule" aria-hidden="true"></span>
           <button role="menuitem" onclick={() => appWindow.close()}>
             <span>Quit</span><kbd>{hint('quit')}</kbd>

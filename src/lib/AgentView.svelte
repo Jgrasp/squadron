@@ -9,6 +9,8 @@
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { toggleBoard } from './projects.svelte'
+  import { ui } from './actions.svelte'
+  import { all, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import { hint } from './settings.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
@@ -58,6 +60,13 @@
   })
 
   let comments = $state<Comment[]>([])
+
+  const MENU: Record<string, { detail: string; run: () => void }> = {
+    reload: { detail: 'Restarts the session, keeps the conversation', run: () => reload(agent.id) },
+    rename: { detail: 'Give the agent a clearer name', run: () => startRename() },
+    fork: { detail: 'New agent, same context', run: () => fork(agent.id) },
+    archive: { detail: 'Stops the agent and removes it from the list', run: () => archive(agent.id) },
+  }
 
   function excerpt(selection: string) {
     const block = `\`\`\`\n${selection.trimEnd()}\n\`\`\``
@@ -206,30 +215,50 @@
         {/if}
         <span>{meta(agent)} · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span></span>
       </div>
-      <div class="tools" class:compact={panel} role="group" aria-label="Open in a tool">
-        <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6" /></svg>
-          {#if !panel}Editor{/if}
-        </button>
-        <button class="btn btn-ghost" aria-label="Terminal" aria-pressed={panel === 'terminal'} title="A shell in the project folder ({hint('terminal')})" onclick={() => toggle('terminal')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-6-6-6M12 19h8" /></svg>
-          {#if !panel}Terminal{/if}
-        </button>
-        <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes ({hint('diff')})" onclick={() => toggle('diff')}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
-            ><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" /></svg
-          >
-          {#if !panel}
-            Diff
-            {#if totals.add || totals.del}
-              <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
-            {/if}
+      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={'agent.tools'}>
+    {#snippet editorTool()}
+      <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6" /></svg>
+        {#if !panel}Editor{/if}
+      </button>
+    {/snippet}
+    {#snippet terminalTool()}
+      <button class="btn btn-ghost" aria-label="Terminal" aria-pressed={panel === 'terminal'} title="A shell in the project folder ({hint('terminal')})" onclick={() => toggle('terminal')}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-6-6-6M12 19h8" /></svg>
+        {#if !panel}Terminal{/if}
+      </button>
+    {/snippet}
+    {#snippet diffTool()}
+      <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes ({hint('diff')})" onclick={() => toggle('diff')}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
+          ><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" /></svg
+        >
+        {#if !panel}
+          Diff
+          {#if totals.add || totals.del}
+            <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
           {/if}
-        </button>
-        <button class="btn btn-ghost" aria-label="Kanban" title="Kanban ({hint('kanban')})" onclick={toggleBoard}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
-          {#if !panel}Kanban{/if}
-        </button>
+        {/if}
+      </button>
+    {/snippet}
+    {#snippet kanbanTool()}
+      <button class="btn btn-ghost" aria-label="Kanban" title="Kanban ({hint('kanban')})" onclick={toggleBoard}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
+        {#if !panel}Kanban{/if}
+      </button>
+    {/snippet}
+      {#each ui.customizing ? all('agent.tools') : shown('agent.tools') as id (id)}
+          <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
+            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : kanbanTool)()}
+            {#if ui.customizing}
+              <button class="eye" data-keep aria-label="{hidden('agent.tools', id) ? 'Show' : 'Hide'} {labelOf('agent.tools', id)}" onclick={() => toggleItem('agent.tools', id)}>
+                <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true">
+                  {#if hidden('agent.tools', id)}<path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.1 6.1A17 17 0 0 0 2 12s4 7 10 7a9.6 9.6 0 0 0 4-.9" />{:else}<path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />{/if}
+                </svg>
+              </button>
+            {/if}
+          </span>
+        {/each}
       </div>
     </div>
 
@@ -315,24 +344,12 @@
           </button>
           {#if menuOpen}
             <div class="menu" role="menu" aria-label="Agent actions">
-              <button type="button" role="menuitem" onclick={() => ((menuOpen = false), reload(agent.id))}>
-                <strong>Reload</strong><span>Restarts the session, keeps the conversation</span>
-              </button>
-              <button type="button" role="menuitem" onclick={() => ((menuOpen = false), startRename())}>
-                <strong>Rename</strong><span>Give the agent a clearer name</span>
-              </button>
-              <button
-                type="button"
-                role="menuitem"
-                disabled={!agent.sessionId}
-                onclick={() => ((menuOpen = false), fork(agent.id))}
-              >
-                <strong>Fork</strong><span>New agent, same context</span>
-              </button>
-              <span class="rule" aria-hidden="true"></span>
-              <button type="button" role="menuitem" onclick={() => ((menuOpen = false), archive(agent.id))}>
-                <strong>Archive</strong><span>Stops the agent and removes it from the list</span>
-              </button>
+              {#each shown('agent.menu') as id (id)}
+                {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
+                <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onclick={() => ((menuOpen = false), MENU[id].run())}>
+                  <strong>{labelOf('agent.menu', id)}</strong><span>{MENU[id].detail}</span>
+                </button>
+              {/each}
             </div>
           {/if}
         </div>
@@ -374,6 +391,50 @@
 
   .tools.compact {
     gap: 2px;
+  }
+
+  .item {
+    position: relative;
+    display: flex;
+  }
+
+  .customizing {
+    padding: 3px;
+    border-radius: 6px;
+    outline: 1px dashed var(--accent);
+    outline-offset: 2px;
+  }
+
+  .customizing .item {
+    cursor: grab;
+  }
+
+  .customizing .item > :global(:not(.eye)) {
+    pointer-events: none;
+  }
+
+  .customizing .item:global(.dragging) {
+    opacity: 0.6;
+    cursor: grabbing;
+  }
+
+  .item.off > :global(:not(.eye)) {
+    opacity: 0.35;
+  }
+
+  .eye {
+    position: absolute;
+    top: -8px;
+    right: -6px;
+    z-index: 1;
+    width: 18px;
+    height: 18px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
   }
 
   .tools.compact .btn-ghost {

@@ -7,16 +7,18 @@
   import EmptyProjects from './lib/EmptyProjects.svelte'
   import Header from './lib/Header.svelte'
   import ProjectView from './lib/ProjectView.svelte'
-  import Settings, { type Tab } from './lib/Settings.svelte'
+  import Settings from './lib/Settings.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
-  import { agents, create, find, jumpToWaiting, loadToday, restore, saveAll, show, waitingDetail } from './lib/agents.svelte'
+  import { agents, create, find, loadToday, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
+  import { run, ui } from './lib/actions.svelte'
+  import Customize from './lib/Customize.svelte'
+  import { loadLayout } from './lib/layout-slots.svelte'
   import Board from './lib/Board.svelte'
   import { mirror, place, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
-  import { current, load, popOut, projects, setCards, toggleBoard } from './lib/projects.svelte'
+  import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   let adding: string | null = $state(null)
-  let settingsTab = $state<Tab | null>(null)
   const project = $derived(current())
   const mirrored = $derived(
     agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? a.action : a.attention)),
@@ -59,6 +61,7 @@
   )
 
   loadSettings()
+  loadLayout()
   loadToday()
   load().then(restore)
 
@@ -91,25 +94,24 @@
     if (/^https?:\/\//.test(href)) openUrl(href)
   }
 
+  const SCOPED = ['newAgent', 'interrupt', 'editor', 'terminal', 'diff', 'sidebar']
+
   function shortcuts(event: KeyboardEvent) {
+    if (ui.customizing && event.key === 'Escape') return (ui.customizing = false)
     if ((event.target as HTMLElement).closest?.('.xterm, .cm-editor')) return
     const action = shortcut(event)
-    if (action === 'quit') getCurrentWindow().close()
-    else if (document.querySelector('dialog[open]')) return
-    else if (action === 'jump') {
-      event.preventDefault()
-      if (!jumpToWaiting()) projects.overview = true
-    } else if (action === 'kanban') {
-      event.preventDefault()
-      toggleBoard()
-    }
+    if (!action || (action !== 'quit' && document.querySelector('dialog[open]'))) return
+    const inside = !projects.overview && !projects.board ? project : undefined
+    if (SCOPED.includes(action) && !inside) return
+    if (action !== 'interrupt') event.preventDefault()
+    run(action, { project: inside, agent: inside && selected(inside.path) })
   }
 </script>
 
 <svelte:window onkeydown={shortcuts} onclick={links} />
 
 <div class="app">
-  <Header onadd={() => (adding = '')} onsettings={(tab) => (settingsTab = tab)} />
+  <Header onadd={() => (adding = '')} />
   {#if projects.overview}
     <Overview />
   {:else if projects.list.length === 0}
@@ -125,8 +127,12 @@
   {/if}
 </div>
 
-{#if settingsTab !== null}
-  <Settings bind:tab={settingsTab} onclose={() => (settingsTab = null)} />
+{#if ui.settings}
+  <Settings onclose={() => (ui.settings = null)} />
+{/if}
+
+{#if ui.customizing}
+  <Customize />
 {/if}
 
 {#if adding !== null}

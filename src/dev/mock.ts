@@ -273,6 +273,11 @@ mockIPC(
         emit('term-out', { id, data })
         return
       }
+      case 'get_layout':
+        return JSON.parse(localStorage.getItem('layout') ?? '{}')
+      case 'set_layout':
+        localStorage.setItem('layout', JSON.stringify((args as { layout: unknown }).layout))
+        return
       case 'detect_editors':
         return [
           { name: 'Zed', command: '/home/quentin/.local/zed.app/bin/zed {project} {file}' },

@@ -193,8 +193,8 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 
 ## Ordre proposé
 
-1. **Socle** : registre des emplacements et des actions. Les boutons, menus et raccourcis existants y passent. Taille S.
-2. **Sujet 1** : `layout.json` et mode Customize. Taille S à M.
+1. **Socle** : registre des emplacements et des actions. Les boutons, menus et raccourcis existants y passent. Taille S. *Fait.*
+2. **Sujet 1** : `layout.json`, mode Customize et Settings › Layout. Taille S à M. *Fait : outils de l'agent, menu ⋯ de l'agent, menu Squadron.*
 3. **Sujet 2A** : mods déclaratifs, Settings › Mods, rechargement à chaud. Taille M.
 4. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M.
 5. **Sujet 2B** : panneaux web isolés avec leur API. Taille M à L.

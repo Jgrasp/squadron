@@ -559,6 +559,31 @@ fn day_cost(usage: State<Usage>, day: String) -> f64 {
 
 struct AgentFiles(PathBuf);
 
+struct LayoutFile(PathBuf);
+
+#[tauri::command]
+fn get_layout(file: State<LayoutFile>) -> serde_json::Value {
+    std::fs::read_to_string(&file.0)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+#[tauri::command]
+fn set_layout(file: State<LayoutFile>, layout: serde_json::Value) -> Result<(), String> {
+    if !layout.is_object() {
+        return Err("The layout must be an object.".into());
+    }
+    let tmp = file.0.with_extension("json.tmp");
+    std::fs::write(
+        &tmp,
+        serde_json::to_vec_pretty(&layout).map_err(|e| e.to_string())?,
+    )
+    .and_then(|_| std::fs::rename(&tmp, &file.0))
+    .map_err(|e| e.to_string())
+}
+
 impl AgentFiles {
     fn path(&self, id: &str) -> Result<PathBuf, String> {
         if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
@@ -670,6 +695,8 @@ pub fn run() {
             save_agent,
             delete_agent_file,
             load_agents,
+            get_layout,
+            set_layout,
             add_cost,
             day_cost,
             send_message,
@@ -697,6 +724,7 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            app.manage(LayoutFile(config.join("layout.json")));
             let file = config.join("usage.json");
             let days = std::fs::read_to_string(&file)
                 .ok()

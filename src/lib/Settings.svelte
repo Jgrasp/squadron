@@ -5,13 +5,18 @@
   import OptionsFields from './OptionsFields.svelte'
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
+  import { ui, type SettingsTab } from './actions.svelte'
+  import { all, hidden, labelOf, place, reset, toggle } from './layout-slots.svelte'
   import { detect } from './OpenWith.svelte'
+  import { SLOTS, type Slot } from './slots'
   import { saveSettings, settings, type App, type TabEffect } from './settings.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
-  export type Tab = 'defaults' | 'rules' | 'claude' | 'editors' | 'preferences' | 'shortcuts'
+  type Tab = SettingsTab
 
-  let { tab = $bindable(), onclose }: { tab: Tab; onclose: () => void } = $props()
+  let { onclose }: { onclose: () => void } = $props()
+
+  const tab = $derived(ui.settings ?? 'defaults')
 
   const tabs: [Tab, string][] = [
     ['defaults', 'Agent defaults'],
@@ -20,6 +25,7 @@
     ['editors', 'Editors'],
     ['preferences', 'Preferences'],
     ['shortcuts', 'Shortcuts'],
+    ['layout', 'Layout'],
   ]
   const effects: [TabEffect, string, string][] = [
     ['snake', 'Snake', 'A light trail runs around the tab, one lap every 2.4 s'],
@@ -91,10 +97,10 @@
 
 <svelte:window onkeydowncapture={record} />
 
-<Dialog title="Settings" {onclose} width={700}>
+<Dialog title="Settings" {onclose} width={800}>
   <div class="tabs" role="tablist" aria-label="Settings sections">
     {#each tabs as [id, label] (id)}
-      <button role="tab" aria-selected={tab === id} onclick={() => (tab = id)}>{label}</button>
+      <button role="tab" aria-selected={tab === id} onclick={() => (ui.settings = id)}>{label}</button>
     {/each}
   </div>
 
@@ -144,6 +150,29 @@
           Add the apps found
         </button>
       </div>
+    {:else if tab === 'layout'}
+      <div class="intro row-intro">
+        <p class="intro">Order and visibility of the buttons and menu entries. Hidden items are still reachable by their shortcut.</p>
+        <button class="btn btn-secondary" onclick={() => ((ui.settings = null), (ui.customizing = true))}>Customize in place</button>
+      </div>
+      {#each Object.entries(SLOTS) as [slot, def] (slot)}
+        <section>
+          <h2>{def.title} <span class="hint-text">{def.hint}</span></h2>
+          <ul class="items">
+            {#each all(slot as Slot) as id, i (id)}
+              <li class:off={hidden(slot as Slot, id)}>
+                <span class="what">{labelOf(slot as Slot, id)}</span>
+                <button class="move" aria-label="Move {labelOf(slot as Slot, id)} up" disabled={i === 0} onclick={() => place(slot as Slot, id, i - 1)}>↑</button>
+                <button class="move" aria-label="Move {labelOf(slot as Slot, id)} down" disabled={i === all(slot as Slot).length - 1} onclick={() => place(slot as Slot, id, i + 1)}>↓</button>
+                <button class="remove" disabled={def.locked?.includes(id)} onclick={() => toggle(slot as Slot, id)}>
+                  {hidden(slot as Slot, id) ? 'Show' : 'Hide'}
+                </button>
+              </li>
+            {/each}
+          </ul>
+          <button class="link" onclick={() => reset(slot as Slot)}>Back to the default</button>
+        </section>
+      {/each}
     {:else if tab === 'shortcuts'}
       <p class="intro">Click a shortcut, then press the new keys. They do not fire while you type in the terminal or the editor.</p>
       <ul class="keys">
@@ -191,7 +220,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if tab !== 'rules'}
+  {#if tab !== 'rules' && tab !== 'layout'}
     <footer>
       {#if saved}<span class="good">Saved</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>Close</button>
@@ -211,6 +240,7 @@
   .tabs button {
     height: 36px;
     padding: 0 12px;
+    white-space: nowrap;
     border-bottom: 2px solid transparent;
     color: var(--text-muted);
   }
@@ -346,6 +376,56 @@
 
   .keys {
     gap: 2px;
+  }
+
+  h2 .hint-text {
+    font: 400 12.5px var(--sans);
+  }
+
+  .row-intro {
+    display: flex;
+    align-items: center;
+    gap: 16px;
+  }
+
+  .row-intro .btn {
+    flex: none;
+    height: 34px;
+  }
+
+  .items {
+    gap: 2px;
+  }
+
+  .items li {
+    padding: 4px 6px 4px 12px;
+  }
+
+  .items li.off .what {
+    color: var(--text-faint);
+    text-decoration: line-through;
+  }
+
+  .move {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    color: var(--text-2);
+  }
+
+  .move:not(:disabled):hover {
+    background: var(--surface-3);
+  }
+
+  .move:disabled,
+  .remove:disabled {
+    opacity: 0.3;
+  }
+
+  .link {
+    align-self: flex-start;
+    font-size: 12.5px;
+    color: var(--accent-link);
   }
 
   .keys li {

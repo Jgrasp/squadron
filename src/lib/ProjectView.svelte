@@ -2,7 +2,8 @@
   import { ask, open } from '@tauri-apps/plugin-dialog'
   import AgentList from './AgentList.svelte'
   import AgentView from './AgentView.svelte'
-  import { archiveProject, create, interrupt, ofProject, selected } from './agents.svelte'
+  import { ui } from './actions.svelte'
+  import { archiveProject, create, ofProject, selected } from './agents.svelte'
   import {
     dragSidebar,
     FOLDED_SIDEBAR,
@@ -11,16 +12,13 @@
     MIN_SIDEBAR,
     resizeSidebar,
     setCollapsed,
-    setPanel,
-    toggleSidebar,
   } from './layout.svelte'
-  import { hint, shortcut } from './settings.svelte'
+  import { hint } from './settings.svelte'
   import NewAgent from './NewAgent.svelte'
   import { load, move, remove, toggleBoard, type Project } from './projects.svelte'
 
   let { project }: { project: Project } = $props()
   let error = $state('')
-  let creating = $state(false)
 
   const agent = $derived(selected(project.path))
 
@@ -69,29 +67,11 @@
     }
   }
 
-  function keys(event: KeyboardEvent) {
-    if ((event.target as HTMLElement).closest?.('.xterm, .cm-editor')) return
-    if (document.querySelector('dialog[open]')) return
-    const action = shortcut(event)
-    if (action === 'sidebar') {
-      event.preventDefault()
-      toggleSidebar()
-    } else if (action === 'newAgent' && project.exists) {
-      event.preventDefault()
-      creating = true
-    } else if (action === 'interrupt' && agent) {
-      interrupt(agent.id)
-    } else if ((action === 'editor' || action === 'terminal' || action === 'diff') && agent) {
-      event.preventDefault()
-      setPanel(project.path, layout.panels[project.path] === action ? null : action)
-    }
-  }
+
 </script>
 
-<svelte:window onkeydown={keys} />
-
 <div class="body">
-  <AgentList {project} current={agent} onnew={() => (creating = true)} onretire={retire} />
+  <AgentList {project} current={agent} onnew={() => (ui.creating = true)} onretire={retire} />
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div
     class="resizer"
@@ -141,7 +121,7 @@
         <h1>Start the first {project.name} agent</h1>
         <p>Give it a name, pick the model, the effort and the permission mode, then write its first instruction.</p>
         <div class="row">
-          <button class="btn btn-primary big" onclick={() => (creating = true)}>New agent</button>
+          <button class="btn btn-primary big" onclick={() => (ui.creating = true)}>New agent</button>
           <kbd>{hint('newAgent')}</kbd>
           <button class="btn btn-secondary big" onclick={toggleBoard}>Kanban</button>
           <kbd>{hint('kanban')}</kbd>
@@ -151,8 +131,8 @@
   {/if}
 </div>
 
-{#if creating}
-  <NewAgent {project} start={(name, options, text) => create(project.path, name, options, text)} onclose={() => (creating = false)} />
+{#if ui.creating}
+  <NewAgent {project} start={(name, options, text) => create(project.path, name, options, text)} onclose={() => (ui.creating = false)} />
 {/if}
 
 <style>
