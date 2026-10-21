@@ -67,10 +67,9 @@ Ce modèle unique couvre les trois sujets :
 ## Sujet 1 — Remanier l'interface
 
 - **`layout.json`** dans le dossier de configuration : pour chaque emplacement, l'ordre des éléments et ceux qui sont masqués. C'est un fichier, pas le stockage local de la fenêtre, pour que l'IA puisse le lire et l'écrire et qu'il se copie d'une machine à l'autre.
-- **Mode « Customize »**, lancé depuis le menu Squadron :
-  - les emplacements s'entourent de pointillés ;
-  - on glisse-dépose les éléments, on les masque (œil) et on revient au défaut ;
-  - `Échap` fait sortir du mode.
+- **Deux façons de le modifier**, qui écrivent le même fichier :
+  - le **mode « Customize »**, lancé depuis le menu Squadron : les emplacements s'entourent de pointillés, on glisse-dépose les éléments, on les masque (œil) et on revient au défaut ; `Échap` fait sortir du mode ;
+  - l'**onglet Settings › Layout** : chaque emplacement avec ses éléments, à monter, descendre ou masquer, et un retour au défaut.
 - **Premier périmètre** : boutons d'outils de l'agent, menu Squadron, actions de la zone de saisie, boutons des cartes Kanban.
 - **Plus tard** : déplacer un élément d'un emplacement à un autre (Terminal dans le menu, par exemple), quand les deux emplacements acceptent le même type d'élément.
 
@@ -148,10 +147,17 @@ Il expose trois familles d'outils.
   - projets, agents (état, coût, ce qu'ils attendent) ;
   - conversation d'un agent (derniers messages), son diff ;
   - cartes Kanban, réglages, layout et mods.
-- **Agir** :
-  - créer un agent, lui écrire, l'interrompre, l'archiver ;
+- **Préparer et lancer**, comme l'utilisateur l'aurait fait lui-même :
+  - créer un agent et lui envoyer son premier message ;
   - créer, déplacer ou lancer une carte ;
   - ouvrir un panneau, afficher une notification.
+
+  L'IA n'agit jamais à la place de l'utilisateur sur les agents existants :
+  - elle ne répond pas aux permissions, aux questions ni aux plans ;
+  - elle n'écrit pas à un autre agent ;
+  - elle n'en interrompt ni n'en archive aucun.
+
+  Les demandes d'un agent qu'elle a lancé arrivent à l'utilisateur, comme pour tout agent. Sa conversation indique « Launched by X ».
 - **Construire** :
   - documentation des emplacements, des actions et du manifeste ;
   - écrire un mod, le vérifier, le recharger ;
@@ -159,17 +165,15 @@ Il expose trois familles d'outils.
 
 ### Qui s'y connecte
 
-- **Les agents lancés par Squadron**, sur option, par exemple un agent « Admin ». Le serveur est ajouté à leur `--mcp-config`. L'en-tête `x-squadron-agent` identifie l'agent qui agit.
-- **Les clients externes** (Claude Code dans un terminal, Claude Desktop), sur option. Ils utilisent un port fixe et un jeton, et Settings donne la commande `claude mcp add …` à copier.
+Uniquement les agents lancés par Squadron, sur option (par exemple un agent « Admin »). Le serveur est ajouté à leur `--mcp-config`, et l'en-tête `x-squadron-agent` identifie l'agent qui agit. Il n'y a pas d'accès pour les clients externes.
 
 ### Garde-fous
 
-- **Trois niveaux** : lecture, action, administration. Par défaut, un agent interne ne lit et n'agit que sur son propre projet.
+- **Périmètre** : par défaut, un agent ne lit et ne lance que dans son propre projet. Le pilotage de tous les projets est une option.
 - **Confirmation dans l'interface**, avec la même carte que les permissions, pour :
-  - archiver un agent ;
-  - créer un agent en mode `auto` ou `acceptEdits` ;
-  - activer un mod qui lance des commandes ;
-  - répondre aux permissions d'un autre agent (l'autopilote).
+  - lancer un agent dans un mode qui saute des permissions (`auto`, `acceptEdits`) ;
+  - activer un mod qui lance des commandes.
+- **Pas d'autopilote** : aucun outil ne valide quoi que ce soit à la place de l'utilisateur.
 - **Journal « Activity »** : tout ce que l'IA a fait, et par qui.
 - **Plafonds** : nombre d'agents créés, coût du jour.
 
@@ -184,7 +188,7 @@ Le dossier des mods peut s'ajouter comme un projet Squadron. Un agent l'édite a
 ### Technique et risques
 
 - **Technique** : l'état des agents vit dans la fenêtre (Svelte). Le serveur MCP (Rust) relaie chaque appel à la fenêtre et attend sa réponse, comme pour les permissions. Rust gère directement les cartes, les réglages, le layout et les mods, qui sont des fichiers.
-- **Risque principal : l'injection de prompt.** Un agent qui lit une page piégée pourrait utiliser le pilotage. C'est pour cela que tout ce qui élargit les droits demande une confirmation.
+- **Risque principal : l'injection de prompt.** Un agent qui lit une page piégée pourrait utiliser le pilotage. Le risque reste borné : il ne peut que lancer des agents dont les demandes passent par l'utilisateur, et tout ce qui élargit les droits demande une confirmation.
 
 Taille : M pour la lecture et l'action, S pour les outils de mods.
 
@@ -193,21 +197,15 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 1. **Socle** : registre des emplacements et des actions. Les boutons, menus et raccourcis existants y passent. Taille S.
 2. **Sujet 1** : `layout.json` et mode Customize. Taille S à M.
 3. **Sujet 2A** : mods déclaratifs, Settings › Mods, rechargement à chaud. Taille M.
-4. **Sujet 3** : serveur MCP de pilotage (lecture, action, outils de mods), garde-fous, Activity. Taille M.
+4. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M.
 5. **Sujet 2B** : panneaux web isolés avec leur API. Taille M à L.
 
 Le pilotage passe avant les panneaux web : l'IA sait déjà écrire des mods déclaratifs, et l'API d'actions est éprouvée avant d'être ouverte au code des mods.
 
-## Décisions à prendre
+## Décisions
 
-1. **Code dans les mods** :
-   - déclaratif plus panneaux web isolés (recommandé) ;
-   - déclaratif seulement ;
-   - JavaScript libre dans l'application (déconseillé).
-2. **Mods de projet partagés par git** : oui avec une confiance par projet, ou non (mods personnels seulement).
-3. **Pilotage** : agents internes seulement, ou aussi clients externes (Claude Code en terminal, Claude Desktop).
-4. **Autonomie de l'IA** :
-   - confirmations comme proposé ;
-   - plus large, avec l'autopilote qui répond aux permissions ;
-   - plus strict, en lecture seule par défaut.
-5. **Personnalisation** : mode Customize directement dans l'interface (recommandé), ou un onglet Settings.
+1. **Code dans les mods** : du déclaratif, plus des panneaux web isolés. Pas de JavaScript libre dans l'application.
+2. **Mods de projet partagés par git** : à préciser.
+3. **Pilotage** : uniquement par les agents de Squadron.
+4. **Autonomie de l'IA** : elle prépare et lance des agents et des cartes, comme l'utilisateur l'aurait fait. Elle ne valide jamais rien et n'agit jamais à la place de l'utilisateur sur les agents. Pas d'autopilote.
+5. **Personnalisation** : les deux, le mode Customize dans l'interface et l'onglet Settings › Layout.
