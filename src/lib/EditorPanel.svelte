@@ -141,7 +141,7 @@
 
 <SidePanel kind="editor" title="Editor" {onclose}>
   {#snippet sub()}
-    {changes ? `Project files · colors show what changed since ${agent.name} started` : 'Project files · colors show what the agents changed'}
+    {changes ? 'Project files · colors show what is not committed yet' : 'Project files · colors show what the agents changed'}
   {/snippet}
   {#snippet actions()}
     <OpenWith {project} path={active?.path ?? ''} />
@@ -215,8 +215,8 @@
           <span>L{cursor.line}, C{cursor.col}</span>
           <span class="grow">{notice}</span>
           {#if active.base !== undefined}
-            <span class="legend" title="Lines added or changed since {agent.name} started"><span class="added"></span>added</span>
-            <span class="legend" title="Lines removed since {agent.name} started"><span class="removed"></span>removed</span>
+            <span class="legend" title="Lines added or changed since the last commit"><span class="added"></span>added</span>
+            <span class="legend" title="Lines removed since the last commit"><span class="removed"></span>removed</span>
           {/if}
           <span>Ctrl S to save</span>
         </div>

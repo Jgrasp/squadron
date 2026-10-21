@@ -55,7 +55,7 @@
     void edits
     void panelOpen
     const run = ++refreshes
-    invoke<Changes>('git_changes', { project: agent.project, base: agent.base })
+    invoke<Changes>('git_changes', { project: agent.project })
       .then((result) => {
         if (run === refreshes) changes = result
       })

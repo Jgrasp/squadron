@@ -264,8 +264,6 @@ mockIPC(
       case 'plugin:window|set_focus':
         if (label === 'main') popup?.focus()
         return
-      case 'git_snapshot':
-        return a.project.includes('fileas') ? null : 'a'.repeat(40)
       case 'git_changes':
         if (a.project.includes('fileas')) throw 'not a git repository'
         return {

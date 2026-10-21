@@ -85,7 +85,6 @@ export type Agent = {
   summary: string
   attention: string
   autoName: boolean
-  base: string | null
   commands: string[]
   skills: string[]
   remote: { state: string; url: string } | null
@@ -118,7 +117,6 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     summary: '',
     attention: '',
     autoName: false,
-    base: null,
     commands: [],
     skills: [],
     remote: null,

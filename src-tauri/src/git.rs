@@ -49,21 +49,9 @@ pub fn snapshot(dir: &Path) -> Result<String, String> {
     Ok(tree?.trim().to_string())
 }
 
-fn resolve(dir: &Path, base: Option<&str>) -> String {
-    base.filter(|b| is_rev(b))
-        .into_iter()
-        .chain(["HEAD"])
-        .find(|rev| {
-            run(git(dir).args([
-                "rev-parse",
-                "--verify",
-                "--quiet",
-                &format!("{rev}^{{tree}}"),
-            ]))
-            .is_ok()
-        })
-        .unwrap_or(EMPTY_TREE)
-        .to_string()
+fn head(dir: &Path) -> String {
+    let found = run(git(dir).args(["rev-parse", "--verify", "--quiet", "HEAD^{tree}"])).is_ok();
+    if found { "HEAD" } else { EMPTY_TREE }.to_string()
 }
 
 fn diff(dir: &Path, args: &[&str]) -> Result<String, String> {
@@ -78,8 +66,8 @@ fn diff(dir: &Path, args: &[&str]) -> Result<String, String> {
         .args(args))
 }
 
-pub fn changes(dir: &Path, base: Option<&str>) -> Result<Changes, String> {
-    let from = resolve(dir, base);
+pub fn changes(dir: &Path) -> Result<Changes, String> {
+    let from = head(dir);
     let now = snapshot(dir)?;
     let names = diff(dir, &["--name-status", "-z", &from, &now])?;
     let stats = diff(dir, &["--numstat", "-z", &from, &now])?;
@@ -128,7 +116,7 @@ mod tests {
     use std::fs;
 
     #[test]
-    fn diffs_everything_changed_since_the_snapshot() {
+    fn diffs_everything_not_committed() {
         let dir = std::env::temp_dir().join(format!("squadron-git-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(dir.join("src")).unwrap();
@@ -141,18 +129,11 @@ mod tests {
         fs::write(dir.join(".gitignore"), "cache/\n").unwrap();
         sh(&["add", "-A"]);
         sh(&["-c", "commit.gpgsign=false", "commit", "-qnm", "init"]);
-        fs::write(dir.join("draft.txt"), "before\n").unwrap();
-
         let base = snapshot(&dir).unwrap();
         assert!(is_rev(&base));
-        assert!(sh(&["status", "--porcelain"]).contains("?? draft.txt"));
 
-        fs::write(dir.join("src/a.php"), "one\n2\nthree\n").unwrap();
-        fs::remove_file(dir.join("gone.txt")).unwrap();
-        fs::write(dir.join("new.md"), "hi\n").unwrap();
-        fs::create_dir(dir.join("cache")).unwrap();
-        fs::write(dir.join("cache/x"), "ignored\n").unwrap();
-        sh(&["add", "src/a.php"]);
+        fs::write(dir.join("committed.txt"), "done\n").unwrap();
+        sh(&["add", "committed.txt"]);
         sh(&[
             "-c",
             "commit.gpgsign=false",
@@ -160,8 +141,14 @@ mod tests {
             "-qnm",
             "agent commit",
         ]);
+        fs::write(dir.join("src/a.php"), "one\n2\nthree\n").unwrap();
+        sh(&["add", "src/a.php"]);
+        fs::remove_file(dir.join("gone.txt")).unwrap();
+        fs::write(dir.join("new.md"), "hi\n").unwrap();
+        fs::create_dir(dir.join("cache")).unwrap();
+        fs::write(dir.join("cache/x"), "ignored\n").unwrap();
 
-        let found = changes(&dir, Some(&base)).unwrap();
+        let found = changes(&dir).unwrap();
         let summary: Vec<_> = found
             .files
             .iter()
@@ -188,11 +175,9 @@ mod tests {
         );
         assert_eq!(show(&dir, &base, "new.md").unwrap(), None);
 
-        let sub = changes(&dir.join("src"), Some(&base)).unwrap();
+        let sub = changes(&dir.join("src")).unwrap();
         assert_eq!(sub.files.len(), 1);
         assert_eq!(sub.files[0].path, "a.php");
-
-        assert_eq!(changes(&dir, None).unwrap().files.len(), 3);
         assert!(patch(&dir, "--output=/tmp/x", &found.now, "a").is_err());
         assert!(snapshot(&std::env::temp_dir().join("squadron-not-a-repo")).is_err());
     }

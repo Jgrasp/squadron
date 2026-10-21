@@ -65,7 +65,8 @@
   })
 
   const shown = $derived(view?.path === selected?.path ? view : null)
-  const name = (path: string) => path.split('/').pop()
+  const base = (path: string) => path.split('/').pop()!
+  const name = (path: string) => (files.filter((f) => base(f.path) === base(path)).length > 1 ? path.split('/').slice(-2).join('/') : base(path))
 
   let commenting = $state<(Line & { path: string }) | null>(null)
   let note = $state('')
@@ -109,7 +110,7 @@
 <SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title="Diff" {onclose}>
   {#snippet sub()}
     {#if changes}
-      {files.length} file{files.length > 1 ? 's' : ''} changed in the folder · {mine} edited by {agent.name}
+      {files.length} uncommitted file{files.length > 1 ? 's' : ''} · {mine} edited by {agent.name}
     {:else}
       Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
     {/if}
@@ -169,11 +170,7 @@
 
     <div class="foot">
       <span>
-        {changes
-          ? agent.base
-            ? `Everything that changed in the folder since ${agent.name} started`
-            : 'Uncommitted changes of the folder'
-          : 'Diff since the agent first touched the file'}
+        {changes ? 'What is not committed yet, compared to the last commit' : 'Diff since the agent first touched the file'}
       </span>
       <OpenWith project={agent.project} path={selected.path} up />
     </div>
@@ -238,6 +235,8 @@
     display: flex;
     flex-wrap: wrap;
     gap: 4px;
+    max-height: 112px;
+    overflow-y: auto;
     padding: 10px 16px;
     border-bottom: 1px solid var(--border);
   }

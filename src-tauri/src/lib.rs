@@ -462,16 +462,8 @@ fn term_close(terminals: State<Terminals>, id: u32) {
 }
 
 #[tauri::command]
-async fn git_snapshot(project: PathBuf) -> Option<String> {
-    tauri::async_runtime::spawn_blocking(move || git::snapshot(&project).ok())
-        .await
-        .ok()
-        .flatten()
-}
-
-#[tauri::command]
-async fn git_changes(project: PathBuf, base: Option<String>) -> Result<git::Changes, String> {
-    tauri::async_runtime::spawn_blocking(move || git::changes(&project, base.as_deref()))
+async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
+    tauri::async_runtime::spawn_blocking(move || git::changes(&project))
         .await
         .map_err(|e| e.to_string())?
 }
@@ -718,7 +710,6 @@ pub fn run() {
             open_in_editor,
             detect_editors,
             open_with,
-            git_snapshot,
             git_changes,
             git_patch,
             get_settings,
