@@ -33,3 +33,14 @@ export const modeLabel: Record<Options['mode'], string> = {
 
 export const meta = (agent: Agent) =>
   `${modelLabel(agent.options.model)} · effort ${agent.options.effort} · ${modeLabel[agent.options.mode]}`
+
+export function short(name: string) {
+  const words = name.split(/\s+/).filter(Boolean)
+  const id = words.find((w) => /\d/.test(w))
+  if (id) return (id.includes('-') && /^[A-Za-z]+-/.test(id) ? id.split('-')[0] : id).slice(0, 4)
+  return words
+    .slice(0, 3)
+    .map((w) => w[0])
+    .join('')
+    .toUpperCase()
+}

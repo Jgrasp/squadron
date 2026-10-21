@@ -6,7 +6,10 @@
   import { changedFiles, type Changes } from './diff'
   import DiffPanel from './DiffPanel.svelte'
   import { cost, meta, time, tokens } from './format'
+  import EditorPanel from './EditorPanel.svelte'
+  import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { toggleBoard } from './projects.svelte'
+  import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import { calls, prompt, relative, type Agent, type Comment, type ToolCall } from './stream'
 
@@ -17,7 +20,10 @@
   let scroller: HTMLElement
   let column: HTMLElement
   let stuck = $state(true)
-  let diffFile = $state<string | null>(null)
+  let diffFile = $state('')
+  const panel = $derived(layout.panels[agent.project] ?? null)
+  const toggle = (kind: PanelKind) => setPanel(agent.project, panel === kind ? null : kind)
+  const openDiff = (path: string) => ((diffFile = path), setPanel(agent.project, 'diff'))
   let marks = $state<{ offset: number; text: string; at: number }[]>([])
   let active = $state(-1)
   let below = $state(0)
@@ -30,7 +36,7 @@
 
   const edited = $derived(changedFiles(calls(agent)))
   const edits = $derived(edited.reduce((n, f) => n + f.calls.length, 0))
-  const panelOpen = $derived(diffFile !== null)
+  const panelOpen = $derived(panel)
   let changes = $state<Changes | null>(null)
   let refreshes = 0
   const files = $derived(changes ? changes.files.map((f) => ({ add: f.add ?? 0, del: f.del ?? 0 })) : edited)
@@ -51,6 +57,11 @@
   })
 
   let comments = $state<Comment[]>([])
+
+  function excerpt(selection: string) {
+    const block = `\`\`\`\n${selection.trimEnd()}\n\`\`\``
+    text = text.trim() ? `${text.trimEnd()}\n\n${block}` : block
+  }
   let target = $state<Comment | null>(null)
   const sent = $derived(agent.entries.flatMap((e) => (e.kind === 'user' ? [e.text] : [])))
 
@@ -160,7 +171,7 @@
   }
 
   function ondiff(call: ToolCall) {
-    diffFile = relative(agent, call.result?.data?.filePath ?? call.input.file_path ?? '')
+    openDiff(relative(agent, call.result?.data?.filePath ?? call.input.file_path ?? ''))
   }
 </script>
 
@@ -185,24 +196,31 @@
         {/if}
         <span>{meta(agent)} · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span></span>
       </div>
-      <button
-        class="btn btn-ghost"
-        aria-pressed={diffFile !== null}
-        title="See the agent’s changes"
-        onclick={() => (diffFile = diffFile === null ? '' : null)}
-      >
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
-          ><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" /></svg
-        >
-        Diff
-        {#if totals.add || totals.del}
-          <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
-        {/if}
-      </button>
-      <button class="btn btn-ghost" title="Kanban (Ctrl K)" onclick={toggleBoard}>
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
-        Kanban
-      </button>
+      <div class="tools" class:compact={panel} role="group" aria-label="Open in a tool">
+        <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files" onclick={() => toggle('editor')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6" /></svg>
+          {#if !panel}Editor{/if}
+        </button>
+        <button class="btn btn-ghost" aria-label="Terminal" aria-pressed={panel === 'terminal'} title="A shell in the project folder" onclick={() => toggle('terminal')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-6-6-6M12 19h8" /></svg>
+          {#if !panel}Terminal{/if}
+        </button>
+        <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes" onclick={() => toggle('diff')}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
+            ><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" /></svg
+          >
+          {#if !panel}
+            Diff
+            {#if totals.add || totals.del}
+              <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
+            {/if}
+          {/if}
+        </button>
+        <button class="btn btn-ghost" aria-label="Kanban" title="Kanban (Ctrl K)" onclick={toggleBoard}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
+          {#if !panel}Kanban{/if}
+        </button>
+      </div>
     </div>
 
     <div class="middle">
@@ -258,7 +276,7 @@
       {#if comments.length}
         <div class="attached" aria-label="Comments on the diff, sent with your message">
           {#each comments as comment, i (i)}
-            <CommentChip {comment} onopen={() => ((target = comment), (diffFile = comment.path))} onremove={() => comments.splice(i, 1)} />
+            <CommentChip {comment} onopen={() => ((target = comment), openDiff(comment.path))} onremove={() => comments.splice(i, 1)} />
           {/each}
         </div>
       {/if}
@@ -315,8 +333,12 @@
     </form>
   </section>
 
-  {#if diffFile !== null}
-    <DiffPanel {agent} {changes} bind:file={diffFile} bind:comments bind:target onclose={() => (diffFile = null)} />
+  {#if panel === 'diff'}
+    <DiffPanel {agent} {changes} bind:file={diffFile} bind:comments bind:target onclose={() => setPanel(agent.project, null)} />
+  {:else if panel === 'editor'}
+    <EditorPanel {agent} {changes} onclose={() => setPanel(agent.project, null)} />
+  {:else if panel === 'terminal'}
+    <TerminalPanel {agent} onsend={excerpt} onclose={() => setPanel(agent.project, null)} />
   {/if}
 </main>
 
@@ -335,8 +357,25 @@
     flex-direction: column;
   }
 
-  .top .btn-ghost[aria-pressed='true'] {
-    background: var(--surface-4);
+  .tools {
+    display: flex;
+    gap: 4px;
+  }
+
+  .tools.compact {
+    gap: 2px;
+  }
+
+  .tools.compact .btn-ghost {
+    width: 32px;
+    padding: 0;
+    box-shadow: none;
+    color: var(--text-muted);
+  }
+
+  .top .tools .btn-ghost[aria-pressed='true'] {
+    background: var(--surface-5);
+    box-shadow: inset 0 0 0 1px var(--text-faint);
     color: var(--text-strong);
   }
 

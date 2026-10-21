@@ -174,4 +174,4 @@ Anneau de l'agent qui travaille : rotation 1,4s linéaire. Curseur de streaming 
 Vrais `button`, `a`, `input` et `label`. `aria-label` sur chaque bouton icône. Focus clavier visible : anneau 2px `--accent-soft`. Les cartes d'attente sont des `section` étiquetées, les erreurs des `role="alert"`.
 
 ## Hors V1
-Présents dans la maquette, non implémentés : Overview, panneaux Terminal, Éditeur et Kanban, boutons Éditeur/Terminal/Kanban de l'en-tête d'agent, Forker, progression « N/M tâches », menu Squadron au-delà de « Claude Code » et « Quitter », « Dossier proche » (C24), « Réordonner les onglets » (C25).
+Présents dans la maquette, non implémentés : Overview, Forker, progression « N/M tâches », menu Squadron au-delà de « Claude Code » et « Quitter », « Dossier proche » (C24), « Réordonner les onglets » (C25).

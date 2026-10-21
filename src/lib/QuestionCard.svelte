@@ -31,7 +31,7 @@
   }
 
   function keys(event: KeyboardEvent) {
-    if (!simple || (event.target as HTMLElement).closest('input, textarea')) return
+    if (!simple || (event.target as HTMLElement).closest('input, textarea, [contenteditable]')) return
     const option = questions[0].options[Number(event.key) - 1]
     if (option) choose(questions[0], option.label)
   }

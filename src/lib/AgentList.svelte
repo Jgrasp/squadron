@@ -1,6 +1,6 @@
 <script lang="ts">
   import { agents, clock, ofProject, rename, waiting, waitingDetail } from './agents.svelte'
-  import { ago, cost } from './format'
+  import { ago, cost, short } from './format'
   import { layout, toggleSidebar } from './layout.svelte'
   import { home, type Project } from './projects.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -31,17 +31,6 @@
   function hover(agent: Agent, event: Event) {
     const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
     hovered = { agent, top: rect.top - 6, left: rect.right + 12 }
-  }
-
-  function short(name: string) {
-    const words = name.split(/\s+/).filter(Boolean)
-    const id = words.find((w) => /\d/.test(w))
-    if (id) return (id.includes('-') && /^[A-Za-z]+-/.test(id) ? id.split('-')[0] : id).slice(0, 4)
-    return words
-      .slice(0, 3)
-      .map((w) => w[0])
-      .join('')
-      .toUpperCase()
   }
 
   const list = $derived(ofProject(project.path))

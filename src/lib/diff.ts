@@ -1,3 +1,4 @@
+import { diffLines } from 'diff'
 import type { ToolCall } from './stream'
 
 export const EDITS = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit']
@@ -100,4 +101,18 @@ export function changedFiles(calls: ToolCall[]): FileChanges[] {
     file.del += c.del
   }
   return [...files.values()]
+}
+
+export function lineMarks(base: string, now: string) {
+  const added = new Set<number>()
+  const removed = new Set<number>()
+  let line = 1
+  for (const part of diffLines(base, now)) {
+    if (part.removed) removed.add(line)
+    else {
+      if (part.added) for (let i = 0; i < part.count; i++) added.add(line + i)
+      line += part.count
+    }
+  }
+  return { added, removed }
 }

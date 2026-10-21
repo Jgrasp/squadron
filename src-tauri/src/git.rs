@@ -108,6 +108,13 @@ pub fn changes(dir: &Path, base: Option<&str>) -> Result<Changes, String> {
     Ok(Changes { from, now, files })
 }
 
+pub fn show(dir: &Path, rev: &str, path: &str) -> Result<Option<String>, String> {
+    if !is_rev(rev) {
+        return Err("Unknown revision.".into());
+    }
+    Ok(run(git(dir).args(["show", &format!("{rev}:./{path}")])).ok())
+}
+
 pub fn patch(dir: &Path, from: &str, now: &str, path: &str) -> Result<String, String> {
     if !is_rev(from) || !is_rev(now) {
         return Err("Unknown revision.".into());
@@ -170,6 +177,16 @@ mod tests {
         );
         let text = patch(&dir, &found.from, &found.now, "src/a.php").unwrap();
         assert!(text.contains("-two\n+2\n+three"));
+
+        assert_eq!(
+            show(&dir, &base, "src/a.php").unwrap().as_deref(),
+            Some("one\ntwo\n")
+        );
+        assert_eq!(
+            show(&dir.join("src"), &base, "a.php").unwrap().as_deref(),
+            Some("one\ntwo\n")
+        );
+        assert_eq!(show(&dir, &base, "new.md").unwrap(), None);
 
         let sub = changes(&dir.join("src"), Some(&base)).unwrap();
         assert_eq!(sub.files.len(), 1);

@@ -3,6 +3,7 @@ pub mod claude;
 pub mod git;
 pub mod permissions;
 pub mod projects;
+pub mod terminal;
 
 use agents::Agents;
 use permissions::Gate;
@@ -11,6 +12,7 @@ use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
+use terminal::Terminals;
 
 struct Projects {
     file: PathBuf,
@@ -319,11 +321,99 @@ fn claude_version(path: String) -> Result<String, String> {
 #[tauri::command]
 fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    if std::fs::metadata(&file).is_ok_and(|m| m.len() > 5_000_000) {
+        return Err("File too large to show.".into());
+    }
     match std::fs::read_to_string(file) {
         Ok(text) => Ok(Some(text)),
         Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Err("Not a text file.".into()),
         Err(e) => Err(e.to_string()),
     }
+}
+
+#[tauri::command]
+fn write_project_file(project: PathBuf, path: PathBuf, text: String) -> Result<(), String> {
+    let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    std::fs::write(file, text).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+struct Entry {
+    name: String,
+    dir: bool,
+}
+
+#[tauri::command]
+fn list_dir(project: PathBuf, path: PathBuf) -> Result<Vec<Entry>, String> {
+    let dir = projects::inside(&project, &path).ok_or("Folder outside the project.")?;
+    let mut entries: Vec<Entry> = std::fs::read_dir(dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(Result::ok)
+        .filter(|e| e.file_name() != ".git")
+        .map(|e| Entry {
+            name: e.file_name().to_string_lossy().into_owned(),
+            dir: e.path().is_dir(),
+        })
+        .collect();
+    entries.sort_by(|a, b| {
+        b.dir
+            .cmp(&a.dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Ok(entries)
+}
+
+#[tauri::command]
+async fn git_file(project: PathBuf, rev: String, path: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::show(&project, &rev, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn term_open(
+    app: AppHandle,
+    terminals: State<Terminals>,
+    project: PathBuf,
+    cols: u16,
+    rows: u16,
+) -> Result<serde_json::Value, String> {
+    let shell = std::env::var("SHELL").ok();
+    let shell = shell
+        .as_deref()
+        .and_then(|s| Path::new(s).file_name()?.to_str())
+        .unwrap_or("shell")
+        .to_string();
+    let out = app.clone();
+    let id = terminals.open(
+        &project,
+        None,
+        cols,
+        rows,
+        move |id, data| {
+            let _ = out.emit("term-out", serde_json::json!({ "id": id, "data": data }));
+        },
+        move |id| {
+            let _ = app.emit("term-exit", id);
+        },
+    )?;
+    Ok(serde_json::json!({ "id": id, "shell": shell }))
+}
+
+#[tauri::command]
+fn term_write(terminals: State<Terminals>, id: u32, data: String) -> Result<(), String> {
+    terminals.write(id, &data)
+}
+
+#[tauri::command]
+fn term_resize(terminals: State<Terminals>, id: u32, cols: u16, rows: u16) -> Result<(), String> {
+    terminals.resize(id, cols, rows)
+}
+
+#[tauri::command]
+fn term_close(terminals: State<Terminals>, id: u32) {
+    terminals.close(id)
 }
 
 #[tauri::command]
@@ -517,6 +607,7 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .manage(Agents::default())
+        .manage(Terminals::default())
         .invoke_handler(tauri::generate_handler![
             list_projects,
             inspect_folder,
@@ -527,6 +618,13 @@ pub fn run() {
             answer_permission,
             cancel_permissions,
             read_project_file,
+            write_project_file,
+            list_dir,
+            git_file,
+            term_open,
+            term_write,
+            term_resize,
+            term_close,
             open_in_editor,
             git_snapshot,
             git_changes,
@@ -600,6 +698,7 @@ pub fn run() {
         .run(|app, event| {
             if let RunEvent::Exit = event {
                 app.state::<Agents>().stop_all();
+                app.state::<Terminals>().close_all();
             }
         });
 }

@@ -92,6 +92,7 @@
   }
 
   function shortcuts(event: KeyboardEvent) {
+    if ((event.target as HTMLElement).closest?.('.xterm, .cm-editor')) return
     if (event.ctrlKey && event.key === 'q') getCurrentWindow().close()
     else if (event.ctrlKey && event.key === 'j' && !document.querySelector('dialog[open]')) {
       event.preventDefault()

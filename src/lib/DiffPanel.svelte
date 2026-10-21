@@ -3,7 +3,8 @@
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, type Changes, type Hunk } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
-  import { layout, MIN_DIFF, resizeDiff, setSplit, toggleDiffFull } from './layout.svelte'
+  import { layout, setSplit } from './layout.svelte'
+  import SidePanel from './SidePanel.svelte'
   import { calls, relative, type Agent, type Comment } from './stream'
 
   let {
@@ -63,28 +64,6 @@
   })
 
   const shown = $derived(view?.path === selected?.path ? view : null)
-  const width = $derived(layout.diffWidths[layout.split ? 'split' : 'unified'])
-
-  let panel: HTMLElement
-  const widest = () => (panel.parentElement?.clientWidth ?? window.innerWidth) - 360
-
-  function drag(event: PointerEvent) {
-    const handle = event.currentTarget as HTMLElement
-    const right = panel.getBoundingClientRect().right
-    handle.setPointerCapture(event.pointerId)
-    const move = (e: PointerEvent) => (e.buttons ? resizeDiff(right - e.clientX, widest()) : up())
-    const up = () => {
-      handle.removeEventListener('pointermove', move)
-      handle.removeEventListener('pointerup', up)
-    }
-    handle.addEventListener('pointermove', move)
-    handle.addEventListener('pointerup', up)
-  }
-
-  function nudge(event: KeyboardEvent) {
-    if (event.key === 'ArrowLeft') resizeDiff(panel.offsetWidth + 16, widest())
-    else if (event.key === 'ArrowRight') resizeDiff(panel.offsetWidth - 16, widest())
-  }
   const name = (path: string) => path.split('/').pop()
 
   let commenting = $state<(Line & { path: string }) | null>(null)
@@ -126,56 +105,20 @@
   }
 </script>
 
-<section class="panel" class:full={layout.diffFull} style:width={layout.diffFull ? null : `${width}px`} aria-label="Diff" bind:this={panel}>
-  {#if !layout.diffFull}
-    <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-    <div
-      class="resizer"
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize the diff panel"
-      aria-valuenow={width}
-      aria-valuemin={MIN_DIFF}
-      tabindex="0"
-      title="Drag to resize, double-click for full screen"
-      onpointerdown={drag}
-      onkeydown={nudge}
-      ondblclick={toggleDiffFull}
-    ></div>
-  {/if}
-  <div class="top">
-    <div class="title">
-      <h2>Diff</h2>
-      <span>
-        {#if changes}
-          {files.length} file{files.length > 1 ? 's' : ''} changed in the folder · {mine} edited by {agent.name}
-        {:else}
-          Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
-        {/if}
-      </span>
-    </div>
+<SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title="Diff" {onclose}>
+  {#snippet sub()}
+    {#if changes}
+      {files.length} file{files.length > 1 ? 's' : ''} changed in the folder · {mine} edited by {agent.name}
+    {:else}
+      Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
+    {/if}
+  {/snippet}
+  {#snippet actions()}
     <div class="modes" role="group" aria-label="Diff layout">
       <button aria-pressed={!layout.split} onclick={() => setSplit(false)}>Unified</button>
       <button aria-pressed={layout.split} onclick={() => setSplit(true)}>Split</button>
     </div>
-    <button
-      class="icon"
-      aria-label={layout.diffFull ? 'Exit full screen' : 'Full screen'}
-      aria-pressed={layout.diffFull}
-      title={layout.diffFull ? 'Exit full screen' : 'Full screen'}
-      onclick={toggleDiffFull}
-    >
-      <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-        {#if layout.diffFull}
-          <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-        {:else}
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-        {/if}
-      </svg>
-    </button>
-    <button class="icon" aria-label="Close panel" onclick={onclose}>×</button>
-  </div>
-
+  {/snippet}
   {#if files.length}
     <div class="tabs" role="tablist" aria-label="Changed files">
       {#each files as f (f.path)}
@@ -238,7 +181,7 @@
   {:else}
     <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent.name} has not changed any file yet.`}</p>
   {/if}
-</section>
+</SidePanel>
 
 {#snippet editor()}
   <form class="inline" onsubmit={comment} use:reveal>
@@ -270,69 +213,6 @@
 {/snippet}
 
 <style>
-  .panel {
-    position: relative;
-    min-width: 420px;
-    flex: 0 1 auto;
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid var(--border);
-    background: var(--bg-sidebar);
-  }
-
-  .top {
-    height: 60px;
-    flex: none;
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 0 12px 0 18px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .title {
-    flex: 1;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  h2 {
-    margin: 0;
-    font-size: 14px;
-    font-weight: 700;
-  }
-
-  .title span {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .panel.full {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
-    min-width: 0;
-    border-left: none;
-  }
-
-  .resizer {
-    position: absolute;
-    top: 0;
-    bottom: 0;
-    left: -4px;
-    z-index: 2;
-    width: 6px;
-    cursor: col-resize;
-  }
-
-  .resizer:hover,
-  .resizer:focus-visible,
-  .resizer:active {
-    background: var(--border-strong);
-    outline: none;
-  }
-
   .modes {
     display: flex;
     padding: 2px;
@@ -352,32 +232,6 @@
     background: var(--surface-4);
     color: var(--text-strong);
     font-weight: 600;
-  }
-
-  .icon {
-    width: 32px;
-    height: 32px;
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    background: var(--surface-2);
-    color: var(--text-2);
-  }
-
-  .icon:hover,
-  .icon[aria-pressed='true'] {
-    background: var(--surface-4);
-    color: var(--text-strong);
-  }
-
-  .icon svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 
   .tabs {

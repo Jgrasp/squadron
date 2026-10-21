@@ -68,6 +68,7 @@
   }
 
   function keys(event: KeyboardEvent) {
+    if ((event.target as HTMLElement).closest?.('.xterm, .cm-editor')) return
     if (document.querySelector('dialog[open]')) return
     if (event.ctrlKey && event.key === 'b') {
       event.preventDefault()

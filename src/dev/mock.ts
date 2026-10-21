@@ -93,6 +93,10 @@ function replay(id: string, text: string) {
 }
 
 const projectOf = new Map<string, string>()
+const files = new Map<string, string>()
+let terminal = 0
+let line = ''
+const prompt = '\x1b[38;2;154;214;203mquentin\x1b[0m \x1b[2m~/agence/bmc\x1b[0m \x1b[38;2;201;166;255mfeat/T15-segmentation*\x1b[0m\r\n\x1b[38;2;224;138;91m❯\x1b[0m '
 
 if (location.search.includes('stress'))
   setTimeout(async () => {
@@ -184,7 +188,8 @@ mockIPC(
         projectOf.set(a.id, a.project)
         return
       case 'read_project_file':
-        if (a.path.endsWith('.php')) return 'final class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'
+        if (files.has(a.path)) return files.get(a.path)
+        if (a.path.endsWith('.php')) return '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'
         return a.path.endsWith('resume.txt') ? '2\n' : null
       case 'open_in_editor':
         return
@@ -236,6 +241,36 @@ mockIPC(
         return a.path.endsWith('Test.php')
           ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
           : `diff --git a/${a.path} b/${a.path}\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
+      case 'list_dir': {
+        const tree: Record<string, [string, boolean][]> = {
+          '': [['config', true], ['src', true], ['tests', true], ['vendor', true], ['composer.json', false], ['composer.lock', false], ['resume.txt', false]],
+          src: [['Segmentation', true]],
+          'src/Segmentation': [['ChannelSegmentResolver.php', false], ['SegmentRepository.php', false]],
+          config: [['services.yaml', false]],
+          tests: [['ResolverTest.php', false]],
+        }
+        return (tree[a.path] ?? []).map(([name, dir]) => ({ name, dir }))
+      }
+      case 'write_project_file':
+        files.set(a.path, a.text)
+        return
+      case 'git_file':
+        return a.path.endsWith('.php') ? '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n' : null
+      case 'term_open': {
+        const id = ++terminal
+        setTimeout(() => emit('term-out', { id, data: prompt }), 50)
+        return { id, shell: 'zsh' }
+      }
+      case 'term_write': {
+        const id = Number(a.id)
+        const data = a.data === '\r' ? `\r\n${line ? `ran: ${line}\r\n` : ''}${prompt}` : a.data === '\x7f' ? '\b \b' : a.data
+        line = a.data === '\r' ? '' : a.data === '\x7f' ? line.slice(0, -1) : line + a.data
+        emit('term-out', { id, data })
+        return
+      }
+      case 'term_resize':
+      case 'term_close':
+        return
       case 'plugin:dialog|open':
         return '/home/quentin/agence/mercure'
       case 'plugin:dialog|ask':

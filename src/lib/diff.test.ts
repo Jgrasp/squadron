@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changedFiles, counts, pairs, rows, type Cell } from './diff'
+import { changedFiles, counts, lineMarks, pairs, rows, type Cell } from './diff'
 import type { ToolCall } from './stream'
 
 const edit = (id: string, path: string, data: Record<string, unknown>): ToolCall => ({
@@ -48,5 +48,14 @@ describe('diff', () => {
       'same4d|same3d',
       '-|add4e',
     ])
+  })
+
+  it('marks added lines and where lines were removed', () => {
+    const marks = lineMarks('a\nb\nc\nd\n', 'a\nB\nc\nnew\n')
+    expect([...marks.added]).toEqual([2, 4])
+    expect([...marks.removed]).toEqual([2, 4])
+    const gone = lineMarks('a\nb\n', 'a\n')
+    expect([...gone.added]).toEqual([])
+    expect([...gone.removed]).toEqual([2])
   })
 })
