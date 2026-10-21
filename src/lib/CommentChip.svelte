@@ -100,14 +100,14 @@
   }
 
   .light svg {
-    stroke: #9a5530;
+    stroke: var(--accent-ink);
   }
 
   .light .ref {
-    color: var(--ink);
+    color: var(--accent-ink);
   }
 
   .light .note {
-    color: #5c514b;
+    color: rgba(36, 18, 10, 0.72);
   }
 </style>

@@ -199,8 +199,8 @@
     max-width: 540px;
     padding: 12px 16px;
     border-radius: 6px 6px 2px 6px;
-    background: var(--text);
-    color: var(--ink);
+    background: var(--accent);
+    color: var(--accent-ink);
     line-height: 1.5;
     overflow-wrap: anywhere;
   }
