@@ -510,22 +510,25 @@
                   <div class="section" class:current={suggestions[pick]?.group === section.name} role="presentation">{section.name}</div>
                 {/if}
                 {#each section.items as { item, i } (item.value)}
-                  <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(item)}>
-                    <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
-                    {#if item.hint}<span class="hint">{item.hint}</span>{/if}
-                    <span class="what">{item.detail ?? ''}</span>
+                  <button
+                    type="button"
+                    role="option"
+                    aria-selected={i === pick}
+                    onmousemove={() => (pick = i)}
+                    onmousedown={(e) => e.preventDefault()}
+                    onclick={() => complete(item)}
+                  >
+                    <span class="line">
+                      <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
+                      {#if item.hint}<span class="hint">{item.hint}</span>{/if}
+                      {#if i === pick && item.usage}<code class="syntax">{item.usage}</code>{/if}
+                    </span>
+                    {#if i === pick && item.detail}<span class="about">{item.detail}</span>{/if}
                   </button>
                 {/each}
               </div>
             {/each}
           </div>
-          {#if !stage?.command && suggestions[pick]}
-            {@const item = suggestions[pick]}
-            <div class="detail" role="presentation" style:--lines={item.usage ? 2 : 3}>
-              {#if item.usage}<code>{item.label} {item.usage}</code>{/if}
-              <p>{item.detail}</p>
-            </div>
-          {/if}
           <div class="keys-help" role="presentation">
             {#if suggestions.length}<kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Tab</kbd> or <kbd>Enter</kbd> to choose · {/if}{#if text === chosen && text.endsWith(' ')}<kbd>⌫</kbd> to go back · {/if}<kbd>Esc</kbd> to close
           </div>
@@ -916,14 +919,41 @@
 
   .commands button {
     display: flex;
-    align-items: center;
-    gap: 14px;
+    flex-direction: column;
+    justify-content: center;
+    gap: 3px;
     width: 100%;
     min-width: 0;
-    height: 34px;
-    padding: 0 10px;
+    min-height: 34px;
+    padding: 7px 10px;
     border-radius: 4px;
     text-align: left;
+  }
+
+  .line {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    min-width: 0;
+  }
+
+  .syntax {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--accent-soft);
+  }
+
+  .about {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    font-size: 12.5px;
+    line-height: 18px;
+    color: var(--text-muted);
   }
 
   .commands button[aria-selected='true'] {
@@ -977,37 +1007,6 @@
     text-overflow: ellipsis;
     font-size: 12.5px;
     color: var(--text-muted);
-  }
-
-  .detail {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    height: 76px;
-    padding: 10px 16px;
-    border-top: 1px solid var(--border);
-    overflow: hidden;
-  }
-
-  .detail code {
-    flex: none;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    font-size: 12px;
-    color: var(--accent-soft);
-  }
-
-  .detail p {
-    display: -webkit-box;
-    margin: 0;
-    overflow: hidden;
-    -webkit-line-clamp: var(--lines);
-    line-clamp: var(--lines);
-    -webkit-box-orient: vertical;
-    font-size: 12.5px;
-    line-height: 18px;
-    color: var(--text-2);
   }
 
   .keys-help {
