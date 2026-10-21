@@ -269,6 +269,7 @@ mod tests {
             |stderr| println!("EXIT {stderr}"),
         )
         .unwrap();
+        session.control(json!({"subtype": "initialize"})).unwrap();
         session
             .send("In Squadron, put the Editor button at the far right of the agent tools.")
             .unwrap();

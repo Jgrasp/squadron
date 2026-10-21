@@ -1,6 +1,8 @@
 <script lang="ts">
   import { clock } from './agents.svelte'
+  import { namesOf } from './catalogs.svelte'
   import CommentChip from './CommentChip.svelte'
+  import { highlight } from './commands'
   import ErrorCard from './ErrorCard.svelte'
   import { cost, duration, time, tokens } from './format'
   import Markdown from './Markdown.svelte'
@@ -11,6 +13,8 @@
   import ToolRow from './ToolRow.svelte'
 
   let { agent, ondiff }: { agent: Agent; ondiff: (call: ToolCall) => void } = $props()
+
+  const names = $derived(namesOf(agent))
 
   const kinds: [string[], string, string][] = [
     [['Read', 'Grep', 'Glob', 'LS'], 'read', 'reads'],
@@ -63,7 +67,7 @@
       {#if entry.comments}
         <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
       {/if}
-      {#if entry.text}<div class="said">{entry.text}</div>{/if}
+      {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
   {:else if entry.kind === 'agent'}
     <div class="agent">
@@ -104,6 +108,12 @@
     <div class="separator" role="separator">
       <span></span>
       Conversation compacted · {tokens(entry.before)} → {tokens(entry.after)} tokens · {time(entry.at)}
+      <span></span>
+    </div>
+  {:else if entry.kind === 'note'}
+    <div class="separator" role="separator">
+      <span></span>
+      <code class="cmd-note">{entry.command}</code> · {entry.text} · {time(entry.at)}
       <span></span>
     </div>
   {:else if entry.kind === 'cleared'}
@@ -439,5 +449,18 @@
     flex: 1;
     height: 1px;
     background: var(--border-strong);
+  }
+
+  .cmd {
+    padding: 0 3px;
+    border-radius: 3px;
+    background: rgba(224, 138, 91, 0.16);
+    color: #a5501f;
+    font-weight: 600;
+  }
+
+  .cmd-note {
+    font-size: 12px;
+    color: var(--accent-soft);
   }
 </style>

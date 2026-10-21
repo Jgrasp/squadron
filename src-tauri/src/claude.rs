@@ -415,9 +415,13 @@ mod live_options {
                         .send(format!("init {} {}", d["model"], d["permissionMode"]))
                         .unwrap(),
                     Event::Result { .. } => tx.send("result".into()).unwrap(),
-                    _ if d["type"] == "control_response" => tx
-                        .send(format!("control {}", d["response"]["subtype"]))
-                        .unwrap(),
+                    _ if d["type"] == "control_response" => {
+                        let commands = d["response"]["response"]["commands"]
+                            .as_array()
+                            .map_or(0, Vec::len);
+                        tx.send(format!("control {} {commands}", d["response"]["subtype"]))
+                            .unwrap()
+                    }
                     _ => {}
                 }
             },
@@ -431,18 +435,24 @@ mod live_options {
                 return line;
             }
         };
+        session.control(json!({"subtype": "initialize"})).unwrap();
         session.send("Reply with just: one").unwrap();
+        let catalog = next(&rx, "control");
+        assert!(
+            catalog.starts_with("control \"success\"") && !catalog.ends_with(" 0"),
+            "{catalog}"
+        );
         assert!(next(&rx, "init").contains("default"));
         next(&rx, "result");
         assert!(!session.busy());
         session
             .control(json!({"subtype": "set_permission_mode", "mode": "acceptEdits"}))
             .unwrap();
-        assert_eq!(next(&rx, "control"), "control \"success\"");
+        assert_eq!(next(&rx, "control"), "control \"success\" 0");
         session
             .control(json!({"subtype": "set_model", "model": "haiku"}))
             .unwrap();
-        assert_eq!(next(&rx, "control"), "control \"success\"");
+        assert_eq!(next(&rx, "control"), "control \"success\" 0");
         session.send("Reply with just: two").unwrap();
         assert!(session.busy());
         let init = next(&rx, "init");

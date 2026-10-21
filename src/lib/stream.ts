@@ -57,6 +57,7 @@ export type Entry =
   | { kind: 'launched'; at: number; by: string }
   | { kind: 'compacted'; at: number; before: number; after: number }
   | { kind: 'cleared'; at: number }
+  | { kind: 'note'; at: number; command: string; text: string }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
   | { kind: 'decision'; at: number; tone: 'ok' | 'bad'; title: string; detail: string; note?: string }
 
@@ -124,7 +125,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
   }
 }
 
-export const known = { commands: [] as string[], skills: [] as string[] }
+export const known = { commands: [] as string[], skills: [] as string[], terminal: [] as string[] }
 
 export function relative(agent: Agent, path: unknown) {
   const text = String(path ?? '')
@@ -214,6 +215,7 @@ export function apply(agent: Agent, d: Json) {
         agent.skills = d.skills ?? []
         known.commands = agent.commands
         known.skills = agent.skills
+        known.terminal = d.terminal_slash_commands ?? []
       }
       if (d.subtype === 'bridge_state') agent.remote = { state: String(d.state), url: agent.remote?.url ?? '' }
       if (d.subtype === 'status' && d.status === 'compacting') agent.action = 'Compacting the conversation…'

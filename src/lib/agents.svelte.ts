@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
 import { addRule, projects } from './projects.svelte'
 import { matches, ruleFor, ruleLabel } from './rules'
@@ -92,6 +93,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
   if (d.type === 'result' || d.subtype === 'init') persist(agent)
+  if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
 })
 
 const timers = new Map<string, number>()
@@ -360,6 +362,13 @@ export async function reload(id: string) {
   } catch (e) {
     fail(agent, String(e))
   }
+}
+
+export function note(id: string, command: string, text: string) {
+  const agent = find(id)
+  if (!agent) return
+  agent.entries.push({ kind: 'note', at: Date.now(), command, text })
+  persist(agent)
 }
 
 export async function setOptions(id: string, options: Options) {

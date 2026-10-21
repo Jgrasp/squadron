@@ -266,6 +266,8 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
         ErrorKind::NotFound => NOT_FOUND.to_string(),
         _ => format!("Claude Code could not start: {e}"),
     })?;
+    let mut session = session;
+    let _ = session.control(serde_json::json!({"subtype": "initialize"}));
     agent.session = Some(session);
     Ok(())
 }

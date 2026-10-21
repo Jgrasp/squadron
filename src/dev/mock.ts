@@ -95,6 +95,33 @@ function replay(id: string, text: string) {
 }
 
 const projectOf = new Map<string, string>()
+const catalog = {
+  type: 'control_response',
+  response: {
+    subtype: 'success',
+    response: {
+      commands: [
+        { name: 'compact', description: 'Free up context by summarizing the conversation so far', argumentHint: '<optional custom summarization instructions>', builtin: true },
+        { name: 'clear', description: 'Start a new session with empty context', argumentHint: '[name]', aliases: ['reset', 'new'], builtin: true },
+        { name: 'context', description: 'Visualize current context usage', builtin: true },
+        { name: 'model', description: 'Set the AI model for Claude Code', argumentHint: '<model>', builtin: true },
+        { name: 'effort', description: 'Set effort level for model usage', argumentHint: '<low|medium|high|xhigh|max|auto|ultracode [on|off]>', builtin: true },
+        { name: 'fast', description: 'Toggle fast mode', argumentHint: '[on|off]', builtin: true },
+        { name: 'mcp', description: 'Manage MCP servers', argumentHint: '[reconnect|enable|disable [<server>|all]]', builtin: true },
+        { name: 'output-style', description: 'List output styles or switch to one', argumentHint: '[style]', builtin: true },
+        { name: 'ponytail:ponytail', description: '(ponytail) Lazy senior dev mode', argumentHint: '[lite|full|ultra]' },
+        { name: 'code-review', description: 'Review the current diff', argumentHint: '[target]' },
+      ],
+      models: [
+        { value: 'default', displayName: 'Default (recommended)', description: 'Opus 5.5 · Best for everyday, complex tasks' },
+        { value: 'opus', displayName: 'Opus 5.5', description: 'Best for everyday, complex tasks' },
+        { value: 'sonnet', displayName: 'Sonnet 5.5', description: 'Fast and capable' },
+        { value: 'haiku', displayName: 'Haiku 5.5', description: 'Fastest for quick answers' },
+      ],
+      available_output_styles: ['default', 'Explanatory', 'Learning'],
+    },
+  },
+}
 const replies = new Map<string, (result: string) => void>()
 ;(window as unknown as { __pilot: unknown }).__pilot = (agent: string, tool: string, args = {}) =>
   new Promise((resolve) => {
@@ -153,6 +180,7 @@ mockIPC(
         return views()
       case 'create_agent':
         projectOf.set(a.id, a.project)
+        emit('agent-line', { id: a.id, line: JSON.stringify(catalog) })
         return replay(a.id, a.text)
       case 'send_message':
         return replay(a.id, a.text)

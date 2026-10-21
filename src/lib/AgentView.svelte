@@ -2,11 +2,11 @@
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import { archive, fork, interrupt, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
+  import { archive, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes } from './diff'
   import DiffPanel from './DiffPanel.svelte'
-  import { cost, meta, time, tokens } from './format'
+  import { cost, meta, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard } from './projects.svelte'
@@ -17,6 +17,8 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
+  import { catalogOf, commandsOf } from './catalogs.svelte'
+  import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, type Agent, type Comment, type Options, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
@@ -87,49 +89,74 @@
     ),
   )
 
-  const BUILTIN: Record<string, string> = {
-    compact: 'Summarize the conversation to free context',
-    clear: 'Start over with an empty conversation',
-    context: 'Show what fills the context window',
-    model: 'Show the model, or change it',
-    effort: 'Show the effort, or change it',
-    init: 'Write a CLAUDE.md for this project',
-    mcp: 'MCP servers of the session',
-    agents: 'Subagents of the session',
-    'output-style': 'Show or change the output style',
-    config: 'Claude Code settings',
-    fast: 'Toggle fast mode',
-  }
+  type Item = { value: string; label: string; hint?: string; detail?: string; tag?: string; text: string }
+
   let dismissed = $state('')
   let pick = $state(0)
   let composer: HTMLTextAreaElement
-  const typed = $derived(/^\/\S*$/.test(text) ? text.slice(1).toLowerCase() : null)
-  const suggestions = $derived.by(() => {
-    if (typed === null || text === dismissed) return []
-    const list = agent.commands.length ? agent.commands : known.commands
-    return list
-      .filter((c) => c.toLowerCase().includes(typed))
-      .sort(
-        (a, b) =>
-          Number(!a.toLowerCase().startsWith(typed)) - Number(!b.toLowerCase().startsWith(typed)) ||
-          Number(!(a in BUILTIN)) - Number(!(b in BUILTIN)) ||
-          a.localeCompare(b),
-      )
-      .slice(0, 60)
+  const commandList = $derived(commandsOf(agent))
+  const stage = $derived.by(() => {
+    if (text === dismissed) return null
+    const m = /^\/(\S*)(?:(\s+)(\S*))?$/.exec(text)
+    if (!m) return null
+    if (m[2] === undefined) return { query: m[1].toLowerCase() }
+    const command = findCommand(commandList, m[1])
+    return command ? { command, query: (m[3] ?? '').toLowerCase() } : null
   })
-  const kindOf = (c: string) =>
-    BUILTIN[c] ?? ((agent.skills.length ? agent.skills : known.skills).includes(c) ? 'Skill' : c.includes(':') ? `${c.split(':')[0]} command` : 'Command')
+  const tagOf = (c: Command) =>
+    c.squadron ? 'Squadron' : c.builtin ? 'Claude Code' : (agent.skills.length ? agent.skills : known.skills).includes(c.name) ? 'Skill' : c.name.includes(':') ? 'Plugin' : 'Command'
+  const suggestions = $derived.by((): Item[] => {
+    if (!stage) return []
+    if (!stage.command) {
+      const q = stage.query
+      return commandList
+        .filter((c) => c.name.toLowerCase().includes(q) || c.aliases?.some((a) => a.startsWith(q)))
+        .sort((a, b) => Number(!a.name.startsWith(q)) - Number(!b.name.startsWith(q)) || Number(!a.builtin) - Number(!b.builtin) || a.name.localeCompare(b.name))
+        .slice(0, 80)
+        .map((c) => ({ value: c.name, label: `/${c.name}`, hint: c.argumentHint || undefined, detail: c.description, tag: tagOf(c), text: `/${c.name} ` }))
+    }
+    const command = stage.command
+    return options(command, catalogOf(agent))
+      .filter((o) => `${o.value} ${o.label ?? ''}`.toLowerCase().includes(stage.query))
+      .map((o) => ({ value: o.value, label: o.label ?? o.value, detail: o.detail, hint: o.label ? o.value : undefined, text: `/${command.name} ${o.value}` }))
+  })
+  const guide = $derived(stage?.command && !suggestions.length && !stage.query ? stage.command : null)
 
   $effect(() => {
-    void typed
+    void stage?.command
+    void stage?.query
     pick = 0
   })
 
-  function complete(command: string) {
-    text = `/${command} `
+  function complete(item: Item) {
+    text = item.text
     dismissed = ''
     composer.focus()
   }
+
+  function local(message: string) {
+    const call = parse(message)
+    if (!call) return false
+    const command = findCommand(commandList, call.name)
+    if (command?.name === 'remote-control') {
+      const on = call.args ? call.args === 'on' : !agent.remote
+      remote(agent.id, on)
+      note(agent.id, message, on ? 'Remote control turned on' : 'Remote control turned off')
+      return true
+    }
+    if (command?.name === 'model' && ['opus', 'sonnet', 'haiku'].includes(call.args)) {
+      setOptions(agent.id, { ...agent.options, model: call.args as Options['model'] })
+      note(agent.id, message, `Model set to ${modelLabel(call.args as Options['model'])}`)
+      return true
+    }
+    if (command?.name === 'effort' && ['low', 'medium', 'high', 'xhigh', 'max'].includes(call.args)) {
+      setOptions(agent.id, { ...agent.options, effort: call.args as Options['effort'] })
+      note(agent.id, message, `Effort set to ${call.args}, from the next message`)
+      return true
+    }
+    return false
+  }
+
 
   function excerpt(selection: string) {
     const block = `\`\`\`\n${selection.trimEnd()}\n\`\`\``
@@ -215,9 +242,10 @@
     const attached = $state.snapshot(comments)
     if (!message && !attached.length) return
     text = ''
-    comments = []
     recall = -1
     stuck = true
+    if (!attached.length && !agent.asks.length && local(message)) return
+    comments = []
     if (!reply(agent, prompt(message, attached))) send(agent.id, message, attached)
   }
 
@@ -235,17 +263,17 @@
         tick().then(() => document.querySelector('.commands [aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
         return
       }
-      if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && `/${suggestions[pick]}` !== text.trim())) {
+      if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && suggestions[pick].text.trim() !== text.trim())) {
         event.preventDefault()
         complete(suggestions[pick])
         return
       }
-      if (event.key === 'Escape') {
-        event.preventDefault()
-        event.stopPropagation()
-        dismissed = text
-        return
-      }
+    }
+    if ((suggestions.length || guide) && event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      dismissed = text
+      return
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       submit(event)
@@ -437,12 +465,21 @@
           {/each}
         </div>
       {/if}
-      {#if suggestions.length}
-        <div class="commands" role="listbox" aria-label="Commands">
-          {#each suggestions as command, i (command)}
-            <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(command)}>
-              <span class="slash">/{command}</span>
-              <span class="what">{kindOf(command)}</span>
+      {#if suggestions.length || guide}
+        <div class="commands" role="listbox" aria-label={stage?.command ? `Arguments of /${stage.command.name}` : 'Commands'}>
+          {#if stage?.command}
+            <div class="usage" role="presentation">
+              <span class="slash">/{stage.command.name}</span>
+              {#if stage.command.argumentHint}<span class="hint">{stage.command.argumentHint}</span>{/if}
+              <span class="what">{stage.command.description}</span>
+            </div>
+          {/if}
+          {#each suggestions as item, i (item.value)}
+            <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(item)}>
+              <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
+              {#if item.hint}<span class="hint">{item.hint}</span>{/if}
+              <span class="what">{item.detail ?? ''}</span>
+              {#if item.tag}<span class="tag">{item.tag}</span>{/if}
             </button>
           {/each}
         </div>
@@ -822,7 +859,36 @@
     color: var(--text-strong);
   }
 
+  .option {
+    flex: none;
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  .usage {
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 10px 8px;
+    border-bottom: 1px solid var(--border);
+    margin-bottom: 4px;
+  }
+
+  .hint {
+    flex: none;
+    font: 12px var(--mono);
+    color: var(--text-dim);
+  }
+
+  .tag {
+    flex: none;
+    margin-left: auto;
+    font-size: 11.5px;
+    color: var(--text-faint);
+  }
+
   .what {
+    min-width: 0;
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
