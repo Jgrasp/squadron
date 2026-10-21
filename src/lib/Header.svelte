@@ -2,13 +2,13 @@
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { ofProject, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { cost } from './format'
-  import { settings } from './settings.svelte'
+  import { hint, settings } from './settings.svelte'
   import { projects } from './projects.svelte'
 
   let {
     onadd,
     onsettings,
-  }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude' | 'preferences') => void } = $props()
+  }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude' | 'preferences' | 'shortcuts') => void } = $props()
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
@@ -97,9 +97,12 @@
           <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('preferences'))}>
             <span><strong>Preferences</strong><small>Working tab effect</small></span>
           </button>
+          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('shortcuts'))}>
+            <span><strong>Shortcuts</strong><small>Keys for panels, agents and Kanban</small></span>
+          </button>
           <span class="rule" aria-hidden="true"></span>
           <button role="menuitem" onclick={() => appWindow.close()}>
-            <span>Quit</span><kbd>Ctrl Q</kbd>
+            <span>Quit</span><kbd>{hint('quit')}</kbd>
           </button>
         </div>
       {/if}
@@ -110,7 +113,7 @@
     <button
       class="tab overview"
       aria-current={projects.overview ? 'page' : undefined}
-      title="Overview (Ctrl J jumps to the next agent waiting for you)"
+      title="Overview ({hint('jump')} jumps to the next agent waiting for you)"
       onclick={() => (projects.overview = true)}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"

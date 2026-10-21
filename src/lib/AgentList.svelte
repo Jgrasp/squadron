@@ -3,6 +3,7 @@
   import { ago, cost, short } from './format'
   import { layout, toggleSidebar } from './layout.svelte'
   import { home, type Project } from './projects.svelte'
+  import { hint } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import type { Agent } from './stream'
 
@@ -95,7 +96,7 @@
 {#if layout.collapsed}
   <aside class="folded" aria-label="Project agents, collapsed" style:--project={project.color}>
     <span class="square" title={project.name}></span>
-    <button class="add" aria-label="New agent" title="New agent (Ctrl N)" disabled={!project.exists} onclick={onnew}>+</button>
+    <button class="add" aria-label="New agent" title="New agent ({hint('newAgent')})" disabled={!project.exists} onclick={onnew}>+</button>
     <span class="sep" aria-hidden="true"></span>
     <div class="tiles">
       {#each list as agent (agent.id)}
@@ -118,7 +119,7 @@
         </button>
       {/each}
     </div>
-    <button class="toggle" aria-label="Expand the agent list" title="Expand the list (Ctrl B)" onclick={toggleSidebar}>
+    <button class="toggle" aria-label="Expand the agent list" title="Expand the list ({hint('sidebar')})" onclick={toggleSidebar}>
       <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
     </button>
     {#if hovered}
@@ -146,8 +147,8 @@
       </div>
     </div>
     <div class="actions">
-      <button class="new" disabled={!project.exists} onclick={onnew} title="New agent (Ctrl N)">+ Agent</button>
-      <button class="fold" aria-label="Collapse the agent list" title="Collapse the list (Ctrl B)" onclick={toggleSidebar}>
+      <button class="new" disabled={!project.exists} onclick={onnew} title="New agent ({hint('newAgent')})">+ Agent</button>
+      <button class="fold" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
     </div>

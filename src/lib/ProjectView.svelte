@@ -11,8 +11,10 @@
     MIN_SIDEBAR,
     resizeSidebar,
     setCollapsed,
+    setPanel,
     toggleSidebar,
   } from './layout.svelte'
+  import { hint, shortcut } from './settings.svelte'
   import NewAgent from './NewAgent.svelte'
   import { load, move, remove, toggleBoard, type Project } from './projects.svelte'
 
@@ -70,14 +72,18 @@
   function keys(event: KeyboardEvent) {
     if ((event.target as HTMLElement).closest?.('.xterm, .cm-editor')) return
     if (document.querySelector('dialog[open]')) return
-    if (event.ctrlKey && event.key === 'b') {
+    const action = shortcut(event)
+    if (action === 'sidebar') {
       event.preventDefault()
       toggleSidebar()
-    } else if (event.ctrlKey && event.key === 'n' && project.exists) {
+    } else if (action === 'newAgent' && project.exists) {
       event.preventDefault()
       creating = true
-    } else if (event.key === 'Escape' && agent) {
+    } else if (action === 'interrupt' && agent) {
       interrupt(agent.id)
+    } else if ((action === 'editor' || action === 'terminal' || action === 'diff') && agent) {
+      event.preventDefault()
+      setPanel(project.path, layout.panels[project.path] === action ? null : action)
     }
   }
 </script>
@@ -136,9 +142,9 @@
         <p>Give it a name, pick the model, the effort and the permission mode, then write its first instruction.</p>
         <div class="row">
           <button class="btn btn-primary big" onclick={() => (creating = true)}>New agent</button>
-          <kbd>Ctrl N</kbd>
+          <kbd>{hint('newAgent')}</kbd>
           <button class="btn btn-secondary big" onclick={toggleBoard}>Kanban</button>
-          <kbd>Ctrl K</kbd>
+          <kbd>{hint('kanban')}</kbd>
         </div>
       </div>
     </main>

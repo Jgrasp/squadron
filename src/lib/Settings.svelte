@@ -6,8 +6,9 @@
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
   import { saveSettings, settings, type TabEffect } from './settings.svelte'
+  import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
-  export type Tab = 'defaults' | 'rules' | 'claude' | 'preferences'
+  export type Tab = 'defaults' | 'rules' | 'claude' | 'preferences' | 'shortcuts'
 
   let { tab = $bindable(), onclose }: { tab: Tab; onclose: () => void } = $props()
 
@@ -16,6 +17,7 @@
     ['rules', 'Permission rules'],
     ['claude', 'Claude Code'],
     ['preferences', 'Preferences'],
+    ['shortcuts', 'Shortcuts'],
   ]
   const effects: [TabEffect, string, string][] = [
     ['snake', 'Snake', 'A light trail runs around the tab, one lap every 2.4 s'],
@@ -25,6 +27,26 @@
   let defaults = $state({ ...settings.defaults })
   let claude = $state(settings.claude)
   let effect = $state<TabEffect>(settings.tab_effect)
+  let keys = $state<Record<string, string>>({ ...settings.keys })
+  let recording = $state<Action | null>(null)
+  let conflict = $state('')
+
+  function record(event: KeyboardEvent) {
+    if (!recording) return
+    event.preventDefault()
+    event.stopPropagation()
+    const value = combo(event)
+    if (!value) return
+    const other = ACTIONS.find(([id]) => id !== recording && binding(keys, id) === value)
+    if (other) conflict = `${label(value)} is already used by “${other[1]}”.`
+    else if (!usable(value)) conflict = `${label(value)} would fire while you type. Add Ctrl or Alt, or use a function key.`
+    else {
+      if (value === ACTIONS.find(([id]) => id === recording)![2]) delete keys[recording]
+      else keys[recording] = value
+      recording = null
+      conflict = ''
+    }
+  }
   let version = $state('')
   let error = $state('')
   let saved = $state(false)
@@ -34,7 +56,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys) })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -57,6 +79,8 @@
     if (typeof chosen === 'string') claude = chosen
   }
 </script>
+
+<svelte:window onkeydowncapture={record} />
 
 <Dialog title="Settings" {onclose} width={640}>
   <div class="tabs" role="tablist" aria-label="Settings sections">
@@ -87,6 +111,27 @@
       {:else}
         <p class="empty">No rules yet. Choosing Always on a permission card adds one here.</p>
       {/each}
+    {:else if tab === 'shortcuts'}
+      <p class="intro">Click a shortcut, then press the new keys. They do not fire while you type in the terminal or the editor.</p>
+      <ul class="keys">
+        {#each ACTIONS as [id, name] (id)}
+          <li>
+            <span class="what">{name}</span>
+            {#if recording === id}
+              <span class="listening" role="status">Press the new keys…</span>
+              <button class="remove" onclick={() => ((recording = null), (conflict = ''))}>Cancel</button>
+            {:else}
+              <button class="combo" class:custom={!!keys[id]} title="Change" onclick={() => ((recording = id), (conflict = ''))}>
+                <kbd>{label(binding(keys, id))}</kbd>
+              </button>
+              {#if keys[id]}
+                <button class="remove" onclick={() => delete keys[id]}>Default</button>
+              {/if}
+            {/if}
+          </li>
+        {/each}
+      </ul>
+      {#if conflict}<p class="bad" role="alert">{conflict}</p>{/if}
     {:else if tab === 'preferences'}
       <p class="intro">How a project tab shows that one of its agents is working. The animation stops when the system asks for reduced motion.</p>
       <div class="effects" role="group" aria-label="Working tab effect">
@@ -248,6 +293,51 @@
   .bad {
     margin: 0;
     color: var(--err-text);
+  }
+
+  .keys {
+    gap: 2px;
+  }
+
+  .keys li {
+    padding: 6px 6px 6px 12px;
+  }
+
+  .what {
+    flex: 1;
+  }
+
+  .combo {
+    min-width: 96px;
+    height: 30px;
+    padding: 0 12px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-2);
+    font: 12.5px var(--mono);
+  }
+
+  .combo:hover {
+    background: var(--surface-3);
+    color: var(--text-strong);
+  }
+
+  .combo.custom {
+    box-shadow: inset 0 0 0 1px var(--accent);
+    color: var(--accent-soft);
+  }
+
+  .listening {
+    min-width: 96px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    padding: 0 12px;
+    border-radius: 4px;
+    background: var(--wait-bg);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--wait-text-2);
+    font-size: 12.5px;
   }
 
   .effects {

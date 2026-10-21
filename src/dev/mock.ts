@@ -41,6 +41,7 @@ const views = () => projects.map((p, i) => folder(p.name, p.path, p.rules, p.car
 const timers = new Map<string, number>()
 let claudePath = 'claude'
 let tabEffect = 'pulse'
+let keyMap: Record<string, string> = {}
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -194,10 +195,11 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, keys: keyMap }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
+        keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))

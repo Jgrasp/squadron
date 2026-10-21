@@ -9,6 +9,7 @@
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { toggleBoard } from './projects.svelte'
+  import { hint } from './settings.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import { calls, prompt, relative, type Agent, type Comment, type ToolCall } from './stream'
@@ -88,11 +89,17 @@
     const els = [...column.querySelectorAll<HTMLElement>('[data-user]')]
     marks = els.map((el, i) => ({ offset: el.offsetTop, text: prompt(users[i]?.text ?? '', users[i]?.comments), at: users[i]?.at ?? 0 }))
     const view = scroller.scrollTop + scroller.clientHeight / 3
-    active = marks.findLastIndex((m) => m.offset <= view)
+    active = picked >= 0 ? picked : marks.findLastIndex((m) => m.offset <= view)
     below = marks.filter((m) => m.offset > scroller.scrollTop + scroller.clientHeight).length
   }
 
   let touched = 0
+  let picked = -1
+
+  function touch() {
+    touched = Date.now()
+    picked = -1
+  }
 
   function scrolled() {
     if (scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 40) stuck = true
@@ -112,6 +119,7 @@
   function jump(i: number) {
     stuck = false
     touched = Date.now()
+    picked = active = i
     scroller.scrollTo({ top: Math.max(0, marks[i].offset - 18), behavior: 'smooth' })
   }
 
@@ -124,6 +132,7 @@
 
   function bottom() {
     stuck = true
+    picked = -1
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
   }
 
@@ -197,15 +206,15 @@
         <span>{meta(agent)} · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span></span>
       </div>
       <div class="tools" class:compact={panel} role="group" aria-label="Open in a tool">
-        <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files" onclick={() => toggle('editor')}>
+        <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 6l-6 6 6 6M16 6l6 6-6 6" /></svg>
           {#if !panel}Editor{/if}
         </button>
-        <button class="btn btn-ghost" aria-label="Terminal" aria-pressed={panel === 'terminal'} title="A shell in the project folder" onclick={() => toggle('terminal')}>
+        <button class="btn btn-ghost" aria-label="Terminal" aria-pressed={panel === 'terminal'} title="A shell in the project folder ({hint('terminal')})" onclick={() => toggle('terminal')}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 17l6-6-6-6M12 19h8" /></svg>
           {#if !panel}Terminal{/if}
         </button>
-        <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes" onclick={() => toggle('diff')}>
+        <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes ({hint('diff')})" onclick={() => toggle('diff')}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
             ><circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" /></svg
           >
@@ -216,7 +225,7 @@
             {/if}
           {/if}
         </button>
-        <button class="btn btn-ghost" aria-label="Kanban" title="Kanban (Ctrl K)" onclick={toggleBoard}>
+        <button class="btn btn-ghost" aria-label="Kanban" title="Kanban ({hint('kanban')})" onclick={toggleBoard}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" /></svg>
           {#if !panel}Kanban{/if}
         </button>
@@ -254,9 +263,9 @@
         class="scroller"
         bind:this={scroller}
         onscroll={scrolled}
-        onwheel={() => (touched = Date.now())}
-        onpointerdown={() => (touched = Date.now())}
-        onkeydown={() => (touched = Date.now())}
+        onwheel={touch}
+        onpointerdown={touch}
+        onkeydown={touch}
         role="presentation"
       >
         <div class="column" bind:this={column}>
@@ -284,7 +293,7 @@
         <label for="composer" class="sr-only">Message to the agent</label>
         <textarea id="composer" rows="1" bind:value={text} {placeholder} onkeydown={keys}></textarea>
         {#if busy}
-          <button type="button" class="btn-icon" aria-label="Interrupt" title="Interrupt (Esc)" onclick={() => interrupt(agent.id)}>
+          <button type="button" class="btn-icon" aria-label="Interrupt" title="Interrupt ({hint('interrupt')})" onclick={() => interrupt(agent.id)}>
             <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
           </button>
         {/if}

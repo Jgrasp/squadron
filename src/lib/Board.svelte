@@ -3,6 +3,7 @@
   import Dialog from './Dialog.svelte'
   import NewAgent from './NewAgent.svelte'
   import { home, projects, type Project } from './projects.svelte'
+  import { hint } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
 
   let {
@@ -132,7 +133,7 @@
     <div>
       <div class="heading">
         {#if onclose}
-          <button class="back" aria-label="Back to the conversation" title="Back to the conversation (Ctrl K)" onclick={onclose}>
+          <button class="back" aria-label="Back to the conversation" title="Back to the conversation ({hint('kanban')})" onclick={onclose}>
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
           </button>
         {/if}

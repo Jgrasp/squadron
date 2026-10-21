@@ -8,7 +8,7 @@
   import Header from './lib/Header.svelte'
   import ProjectView from './lib/ProjectView.svelte'
   import Settings, { type Tab } from './lib/Settings.svelte'
-  import { loadSettings } from './lib/settings.svelte'
+  import { loadSettings, shortcut } from './lib/settings.svelte'
   import { agents, create, find, jumpToWaiting, loadToday, restore, saveAll, show, waitingDetail } from './lib/agents.svelte'
   import Board from './lib/Board.svelte'
   import { mirror, place, type Actions } from './lib/board'
@@ -93,11 +93,13 @@
 
   function shortcuts(event: KeyboardEvent) {
     if ((event.target as HTMLElement).closest?.('.xterm, .cm-editor')) return
-    if (event.ctrlKey && event.key === 'q') getCurrentWindow().close()
-    else if (event.ctrlKey && event.key === 'j' && !document.querySelector('dialog[open]')) {
+    const action = shortcut(event)
+    if (action === 'quit') getCurrentWindow().close()
+    else if (document.querySelector('dialog[open]')) return
+    else if (action === 'jump') {
       event.preventDefault()
       if (!jumpToWaiting()) projects.overview = true
-    } else if (event.ctrlKey && event.key === 'k' && !document.querySelector('dialog[open]')) {
+    } else if (action === 'kanban') {
       event.preventDefault()
       toggleBoard()
     }
