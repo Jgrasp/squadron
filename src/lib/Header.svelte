@@ -3,22 +3,12 @@
   import { ofProject, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
-  import { labelOf, shown } from './layout-slots.svelte'
+  import { detailOf, labelOf, shown } from './layout-slots.svelte'
   import { hint, settings } from './settings.svelte'
   import { projects } from './projects.svelte'
 
   let { onadd }: { onadd: () => void } = $props()
 
-  const DETAILS: Record<string, string> = {
-    defaults: 'Model, effort and mode of new agents',
-    rules: 'What each project always allows',
-    claude: 'Executable',
-    editors: 'Apps that open the project',
-    preferences: 'Working tab effect',
-    shortcuts: 'Keys for panels, agents and Kanban',
-    layout: 'Order and visibility of buttons and menus',
-    customize: 'Drag the buttons where you want them',
-  }
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
@@ -95,7 +85,7 @@
           </div>
           {#each shown('menu.squadron') as id (id)}
             <button role="menuitem" class="item" onclick={() => ((menuOpen = false), id === 'customize' ? (ui.customizing = true) : (ui.settings = id as SettingsTab))}>
-              <span><strong>{labelOf('menu.squadron', id)}</strong><small>{DETAILS[id]}</small></span>
+              <span><strong>{labelOf('menu.squadron', id)}</strong><small>{detailOf('menu.squadron', id)}</small></span>
             </button>
           {/each}
           <span class="rule" aria-hidden="true"></span>

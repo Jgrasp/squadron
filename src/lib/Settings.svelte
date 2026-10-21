@@ -6,8 +6,9 @@
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
   import { ui, type SettingsTab } from './actions.svelte'
-  import { all, hidden, labelOf, place, reset, toggle } from './layout-slots.svelte'
+  import { reset } from './layout-slots.svelte'
   import { detect } from './OpenWith.svelte'
+  import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
   import { saveSettings, settings, type App, type TabEffect } from './settings.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
@@ -152,24 +153,15 @@
       </div>
     {:else if tab === 'layout'}
       <div class="intro row-intro">
-        <p class="intro">Order and visibility of the buttons and menu entries. Hidden items are still reachable by their shortcut.</p>
+        <p class="intro">
+          Drag an item to move it, click its eye to hide it, or focus it and use Alt and the arrows. Hidden items still answer to their shortcut.
+        </p>
         <button class="btn btn-secondary" onclick={() => ((ui.settings = null), (ui.customizing = true))}>Customize in place</button>
       </div>
       {#each Object.entries(SLOTS) as [slot, def] (slot)}
         <section>
           <h2>{def.title} <span class="hint-text">{def.hint}</span></h2>
-          <ul class="items">
-            {#each all(slot as Slot) as id, i (id)}
-              <li class:off={hidden(slot as Slot, id)}>
-                <span class="what">{labelOf(slot as Slot, id)}</span>
-                <button class="move" aria-label="Move {labelOf(slot as Slot, id)} up" disabled={i === 0} onclick={() => place(slot as Slot, id, i - 1)}>↑</button>
-                <button class="move" aria-label="Move {labelOf(slot as Slot, id)} down" disabled={i === all(slot as Slot).length - 1} onclick={() => place(slot as Slot, id, i + 1)}>↓</button>
-                <button class="remove" disabled={def.locked?.includes(id)} onclick={() => toggle(slot as Slot, id)}>
-                  {hidden(slot as Slot, id) ? 'Show' : 'Hide'}
-                </button>
-              </li>
-            {/each}
-          </ul>
+          <SlotPreview slot={slot as Slot} />
           <button class="link" onclick={() => reset(slot as Slot)}>Back to the default</button>
         </section>
       {/each}
@@ -393,31 +385,11 @@
     height: 34px;
   }
 
-  .items {
-    gap: 2px;
-  }
 
-  .items li {
-    padding: 4px 6px 4px 12px;
-  }
 
-  .items li.off .what {
-    color: var(--text-faint);
-    text-decoration: line-through;
-  }
 
-  .move {
-    width: 28px;
-    height: 28px;
-    border-radius: 4px;
-    color: var(--text-2);
-  }
 
-  .move:not(:disabled):hover {
-    background: var(--surface-3);
-  }
 
-  .move:disabled,
   .remove:disabled {
     opacity: 0.3;
   }

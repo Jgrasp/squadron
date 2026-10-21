@@ -42,34 +42,58 @@ export function reset(slot?: Slot) {
   save()
 }
 
-export function sortable(node: HTMLElement, slot: Slot) {
+export const detailOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)?.[2] ?? ''
+
+export function sortable(node: HTMLElement, options: { slot: Slot; enabled: boolean }) {
+  let opts = options
   function down(event: PointerEvent) {
-    const item = (event.target as HTMLElement).closest<HTMLElement>('[data-item]')
-    if (!node.classList.contains('customizing') || event.button !== 0 || !item || (event.target as HTMLElement).closest('[data-keep]')) return
+    const target = event.target as HTMLElement
+    const item = target.closest<HTMLElement>('[data-item]')
+    if (!opts.enabled || event.button !== 0 || !item || !node.contains(item) || target.closest('[data-keep]')) return
     event.preventDefault()
-    const id = item.dataset.item!
+    const items = [...node.querySelectorAll<HTMLElement>('[data-item]')]
+    const from = items.indexOf(item)
+    const row = getComputedStyle(node).flexDirection.startsWith('row')
+    const rects = items.map((el) => el.getBoundingClientRect())
+    const lead = (r: DOMRect) => (row ? r.left : r.top)
+    const size = (r: DOMRect) => (row ? r.width : r.height)
+    const gap = rects.length > 1 ? lead(rects[1]) - lead(rects[0]) - size(rects[0]) : 0
+    const offset = size(rects[from]) + gap
+    const axis = (px: number) => (px ? `translate${row ? 'X' : 'Y'}(${px}px)` : '')
+    const start = row ? event.clientX : event.clientY
+    let to = from
     item.setPointerCapture(event.pointerId)
     item.classList.add('dragging')
-    const row = getComputedStyle(node).flexDirection.startsWith('row')
+    for (const el of items) el.style.transition = el === item ? 'none' : 'transform 160ms ease'
     const move = (e: PointerEvent) => {
       if (!e.buttons) return up()
-      const others = [...node.querySelectorAll<HTMLElement>('[data-item]')].filter((el) => el !== item)
-      const index = others.filter((el) => {
-        const r = el.getBoundingClientRect()
-        return row ? e.clientX > r.left + r.width / 2 : e.clientY > r.top + r.height / 2
-      }).length
-      if (index !== all(slot).indexOf(id)) place(slot, id, index)
+      const delta = (row ? e.clientX : e.clientY) - start
+      item.style.transform = axis(delta)
+      const center = lead(rects[from]) + size(rects[from]) / 2 + delta
+      to = rects.filter((r, k) => k !== from && center > lead(r) + size(r) / 2).length
+      items.forEach((el, k) => {
+        if (el !== item) el.style.transform = axis(from < to && k > from && k <= to ? -offset : to < from && k >= to && k < from ? offset : 0)
+      })
     }
     const up = () => {
-      item.classList.remove('dragging')
       item.removeEventListener('pointermove', move)
       item.removeEventListener('pointerup', up)
       item.removeEventListener('pointercancel', up)
+      item.classList.remove('dragging')
+      for (const el of items) {
+        el.style.transition = 'none'
+        el.style.transform = ''
+      }
+      if (to !== from) place(opts.slot, item.dataset.item!, to)
+      requestAnimationFrame(() => items.forEach((el) => (el.style.transition = '')))
     }
     item.addEventListener('pointermove', move)
     item.addEventListener('pointerup', up)
     item.addEventListener('pointercancel', up)
   }
   node.addEventListener('pointerdown', down)
-  return { destroy: () => node.removeEventListener('pointerdown', down) }
+  return {
+    update: (next: { slot: Slot; enabled: boolean }) => (opts = next),
+    destroy: () => node.removeEventListener('pointerdown', down),
+  }
 }
