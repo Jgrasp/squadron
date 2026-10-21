@@ -3,14 +3,14 @@ export const MAX_SIDEBAR = 560
 
 export const MIN_PANEL = 420
 
-export type PanelKind = 'diff' | 'editor' | 'terminal'
+export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents'
 
 const read = (key: string) => JSON.parse(localStorage.getItem(key) ?? '{}')
 
 let stored = 304
 let folded = false
 let split = false
-let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680 }
+let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
 try {

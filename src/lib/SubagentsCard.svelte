@@ -186,7 +186,7 @@
   }
 
   .done {
-    background: var(--sub-done);
+    background: var(--sub-done-cell);
   }
 
   .stopped {

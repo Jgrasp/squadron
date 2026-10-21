@@ -70,7 +70,8 @@
   --sub-running: #9ad6cb;
   --sub-waiting: #e08a5b;
   --sub-error: #f59e8c;
-  --sub-done: #5f7049;
+  --sub-done: #8ba36b;
+  --sub-done-cell: #5f7049;
   --sub-stopped: #4a3f39;
 
   --sans: 'DM Sans', 'Segoe UI', sans-serif;

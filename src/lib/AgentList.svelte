@@ -616,7 +616,7 @@
   }
 
   .segments .done {
-    background: var(--ok-line);
+    background: var(--sub-done);
   }
 
   .segments .stopped {

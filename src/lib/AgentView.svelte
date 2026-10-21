@@ -14,12 +14,13 @@
   import { all, detailOf, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
   import { hint } from './settings.svelte'
+  import SubagentsPanel from './SubagentsPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
-  import { calls, known, prompt, relative, type Agent, type Comment, type Options, type ToolCall } from './stream'
+  import { calls, known, prompt, relative, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
@@ -31,6 +32,13 @@
   let diffFile = $state('')
   const panel = $derived(layout.panels[agent.project] ?? null)
   const toggle = (kind: PanelKind) => setPanel(agent.project, panel === kind ? null : kind)
+
+  let subagent = $state<string | null>(null)
+
+  function openSubagent(sub: Subagent) {
+    subagent = sub.id
+    setPanel(agent.project, 'subagents')
+  }
   const openDiff = (path: string) => ((diffFile = path), setPanel(agent.project, 'diff'))
   let marks = $state<{ offset: number; text: string; at: number }[]>([])
   let active = $state(-1)
@@ -85,7 +93,11 @@
   const branch = $derived(projects.list.find((p) => p.path === agent.project)?.branch)
   const info = $derived(
     shown('agent.info').filter(
-      (id) => (id !== 'remote' || agent.remote) && (id !== 'branch' || branch) && (id !== 'tasks' || agent.tasks.length),
+      (id) =>
+        (id !== 'remote' || agent.remote) &&
+        (id !== 'subagents' || agent.subagents.length) &&
+        (id !== 'branch' || branch) &&
+        (id !== 'tasks' || agent.tasks.length),
     ),
   )
 
@@ -375,6 +387,18 @@
                 >
                   <Icon name="remote" size={12} />Remote
                 </button>
+              {:else if id === 'subagents'}
+                {@const running = agent.subagents.filter((s) => s.status === 'running').length}
+                {@const used = agent.subagents.reduce((t, s) => t + s.tokens, 0)}
+                <button
+                  class="subagents"
+                  class:effect-snake={running > 0}
+                  aria-pressed={panel === 'subagents'}
+                  title="{running ? `${running} working · ` : ''}{tokens(used)} tokens in subagents · {panel === 'subagents' ? 'close' : 'open'} the panel"
+                  onclick={() => toggle('subagents')}
+                >
+                  <Icon name="subagents" size={12} />{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}<span aria-hidden="true">›</span>
+                </button>
               {:else if id === 'cost'}
                 <span class="mono">{cost(agent.cost)}</span>
               {:else if id === 'context'}
@@ -474,7 +498,7 @@
         role="presentation"
       >
         <div class="column" bind:this={column}>
-          <Conversation {agent} {ondiff} />
+          <Conversation {agent} {ondiff} onsubagent={openSubagent} onsubagents={() => setPanel(agent.project, 'subagents')} />
         </div>
       </div>
 
@@ -582,6 +606,14 @@
     <EditorPanel {agent} {changes} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'terminal'}
     <TerminalPanel {agent} onsend={excerpt} onclose={() => setPanel(agent.project, null)} />
+  {:else if panel === 'subagents' && agent.subagents.length}
+    <SubagentsPanel
+      {agent}
+      selected={subagent}
+      onopen={openSubagent}
+      onprefill={(message) => ((text = message), composer.focus())}
+      onclose={() => setPanel(agent.project, null)}
+    />
   {/if}
 </main>
 
@@ -865,6 +897,27 @@
 
   .remote:hover {
     background: var(--surface-3);
+  }
+
+  .subagents {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-strong);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .subagents[aria-pressed='true'],
+  .subagents:hover {
+    background: var(--surface-5);
+  }
+
+  .subagents span {
+    color: var(--text-muted);
   }
 
   .composer {

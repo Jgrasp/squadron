@@ -9,6 +9,7 @@ export const SLOTS: Record<Slot, { title: string; hint: string; items: [string, 
     items: [
       ['options', 'Model, effort and mode'],
       ['remote', 'Remote control', 'Shown while the conversation can be followed from claude.ai'],
+      ['subagents', 'Subagents', 'Shown once the agent has launched subagents'],
       ['cost', 'Cost'],
       ['context', 'Context tokens'],
       ['branch', 'Git branch'],
