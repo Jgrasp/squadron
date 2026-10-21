@@ -1,5 +1,6 @@
 pub mod agents;
 pub mod claude;
+pub mod editors;
 pub mod git;
 pub mod permissions;
 pub mod projects;
@@ -193,6 +194,7 @@ struct Config {
     defaults: claude::Options,
     tab_effect: String,
     keys: std::collections::BTreeMap<String, String>,
+    editors: Vec<editors::App>,
 }
 
 impl Default for Config {
@@ -206,6 +208,7 @@ impl Default for Config {
             },
             tab_effect: "pulse".into(),
             keys: Default::default(),
+            editors: Vec::new(),
         }
     }
 }
@@ -232,6 +235,9 @@ impl Settings {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
         }
         config.keys.retain(|_, value| !value.trim().is_empty());
+        config
+            .editors
+            .retain(|e| !e.name.trim().is_empty() && !e.command.trim().is_empty());
         config.claude = config.claude.trim().to_string();
         if config.claude.is_empty() {
             config.claude = "claude".into();
@@ -447,6 +453,23 @@ async fn git_patch(
 }
 
 #[tauri::command]
+async fn detect_editors() -> Vec<editors::App> {
+    tauri::async_runtime::spawn_blocking(editors::detect)
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn open_with(command: String, project: PathBuf, path: PathBuf) -> Result<(), String> {
+    let file = if path.as_os_str().is_empty() {
+        None
+    } else {
+        Some(projects::inside(&project, &path).ok_or("File outside the project.")?)
+    };
+    editors::open(&command, &project, file.as_deref())
+}
+
+#[tauri::command]
 fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| e.to_string())
@@ -629,6 +652,8 @@ pub fn run() {
             term_resize,
             term_close,
             open_in_editor,
+            detect_editors,
+            open_with,
             git_snapshot,
             git_changes,
             git_patch,

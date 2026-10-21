@@ -6,9 +6,9 @@
   import CodeEditor, { forget, languageOf } from './CodeEditor.svelte'
   import { changedFiles, type Changes } from './diff'
   import { remember, workspace, type OpenFile } from './editor.svelte'
-  import FileTree from './FileTree.svelte'
-  import { short } from './format'
+  import FileTree, { type Change } from './FileTree.svelte'
   import { projects } from './projects.svelte'
+  import OpenWith from './OpenWith.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, type Agent } from './stream'
 
@@ -29,11 +29,30 @@
     for (const a of ofProject(project))
       for (const f of changedFiles(calls(a))) {
         const path = relative(a, f.path)
-        map.set(path, [...new Set([...(map.get(path) ?? []), short(a.name)])])
+        map.set(path, [...new Set([...(map.get(path) ?? []), a.name])])
       }
     return map
   })
-  const folders = $derived(new Set([...touched.keys()].flatMap((p) => p.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/')))))
+  const status = $derived.by(() => {
+    const map = new Map<string, Change>()
+    if (changes) for (const f of changes.files) map.set(f.path, f.status === 'A' ? 'added' : f.status === 'D' ? 'deleted' : 'modified')
+    else
+      for (const a of ofProject(project))
+        for (const f of changedFiles(calls(a))) map.set(relative(a, f.path), f.baseline === null ? 'added' : 'modified')
+    return map
+  })
+  const folders = $derived.by(() => {
+    const map = new Map<string, Set<Change>>()
+    for (const [path, change] of status) {
+      const parts = path.split('/')
+      for (let i = 1; i < parts.length; i++) {
+        const dir = parts.slice(0, i).join('/')
+        if (!map.has(dir)) map.set(dir, new Set())
+        map.get(dir)!.add(change)
+      }
+    }
+    return map
+  })
   const active = $derived(ws.files.find((f) => f.path === ws.active))
   const kind = $derived(active ? (languageOf(active.path.split('/').pop()!)?.name ?? 'Plain text') : '')
   const authors = $derived(active ? (touched.get(active.path) ?? []) : [])
@@ -121,11 +140,11 @@
 </script>
 
 <SidePanel kind="editor" title="Editor" {onclose}>
-  {#snippet sub()}Project files · files changed by agents are marked{/snippet}
+  {#snippet sub()}
+    {changes ? `Project files · colors show what changed since ${agent.name} started` : 'Project files · colors show what the agents changed'}
+  {/snippet}
   {#snippet actions()}
-    <button class="btn btn-secondary external" onclick={() => invoke('open_in_editor', { project, path: active?.path ?? '' })}>
-      Open in external editor
-    </button>
+    <OpenWith {project} path={active?.path ?? ''} />
   {/snippet}
   <div class="body" style:--project={root?.color}>
     <nav aria-label="Project files">
@@ -136,8 +155,9 @@
           version={changes?.now ?? ''}
           expanded={ws.expanded}
           active={ws.active}
-          marks={touched}
+          {status}
           {folders}
+          authors={touched}
           onopen={open}
           ontoggle={toggle}
         />
@@ -162,7 +182,10 @@
       {#if active && authors.length}
         <div class="notice">
           <span class="dot" aria-hidden="true"></span>
-          <span>{authors.join(', ')} changed this file. You can edit it: the agent reads the current version.</span>
+          <span>
+            Changed by {authors.join(', ')}. Your edits are saved to the file on disk: the agent works from your version the next time it
+            reads it.
+          </span>
         </div>
       {/if}
 
@@ -203,12 +226,6 @@
 </SidePanel>
 
 <style>
-  .external {
-    height: 32px;
-    padding: 0 12px;
-    font-size: 13px;
-  }
-
   .body {
     flex: 1;
     min-height: 0;

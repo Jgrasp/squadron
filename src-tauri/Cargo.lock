@@ -3550,6 +3550,7 @@ dependencies = [
  "schemars 1.2.3",
  "serde",
  "serde_json",
+ "shell-words",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

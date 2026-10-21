@@ -4,6 +4,7 @@
   import { changedFiles, type Changes, type Hunk } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
   import { layout, setSplit } from './layout.svelte'
+  import OpenWith from './OpenWith.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, type Agent, type Comment } from './stream'
 
@@ -174,9 +175,7 @@
             : 'Uncommitted changes of the folder'
           : 'Diff since the agent first touched the file'}
       </span>
-      <button class="btn btn-secondary" onclick={() => invoke('open_in_editor', { project: agent.project, path: selected.path })}>
-        Open in editor
-      </button>
+      <OpenWith project={agent.project} path={selected.path} up />
     </div>
   {:else}
     <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent.name} has not changed any file yet.`}</p>

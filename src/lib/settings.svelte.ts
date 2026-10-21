@@ -4,13 +4,16 @@ import type { Options } from './stream'
 
 export type TabEffect = 'pulse' | 'snake'
 
-export type Config = { claude: string; defaults: Options; tab_effect: TabEffect; keys: Record<string, string> }
+export type App = { name: string; command: string }
+
+export type Config = { claude: string; defaults: Options; tab_effect: TabEffect; keys: Record<string, string>; editors: App[] }
 
 export const settings = $state<Config>({
   claude: 'claude',
   defaults: { model: 'opus', effort: 'high', mode: 'default' },
   tab_effect: 'pulse',
   keys: {},
+  editors: [],
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

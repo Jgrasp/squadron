@@ -42,6 +42,7 @@ const timers = new Map<string, number>()
 let claudePath = 'claude'
 let tabEffect = 'pulse'
 let keyMap: Record<string, string> = {}
+let editorApps: unknown[] = []
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -195,11 +196,12 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, keys: keyMap }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, keys: keyMap, editors: editorApps }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
+        editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
@@ -237,6 +239,7 @@ mockIPC(
             { path: 'resume.txt', status: 'M', add: 1, del: 1 },
             { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 6, del: 2 },
             { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
+            { path: 'src/Legacy/OldResolver.php', status: 'D', add: 0, del: 12 },
           ],
         }
       case 'git_patch':
@@ -270,6 +273,13 @@ mockIPC(
         emit('term-out', { id, data })
         return
       }
+      case 'detect_editors':
+        return [
+          { name: 'Zed', command: '/home/quentin/.local/zed.app/bin/zed {project} {file}' },
+          { name: 'PhpStorm', command: '/opt/phpstorm/bin/phpstorm.sh {project}' },
+        ]
+      case 'open_with':
+        return
       case 'term_resize':
       case 'term_close':
         return

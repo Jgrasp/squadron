@@ -5,10 +5,11 @@
   import OptionsFields from './OptionsFields.svelte'
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
-  import { saveSettings, settings, type TabEffect } from './settings.svelte'
+  import { detect } from './OpenWith.svelte'
+  import { saveSettings, settings, type App, type TabEffect } from './settings.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
-  export type Tab = 'defaults' | 'rules' | 'claude' | 'preferences' | 'shortcuts'
+  export type Tab = 'defaults' | 'rules' | 'claude' | 'editors' | 'preferences' | 'shortcuts'
 
   let { tab = $bindable(), onclose }: { tab: Tab; onclose: () => void } = $props()
 
@@ -16,6 +17,7 @@
     ['defaults', 'Agent defaults'],
     ['rules', 'Permission rules'],
     ['claude', 'Claude Code'],
+    ['editors', 'Editors'],
     ['preferences', 'Preferences'],
     ['shortcuts', 'Shortcuts'],
   ]
@@ -28,6 +30,13 @@
   let claude = $state(settings.claude)
   let effect = $state<TabEffect>(settings.tab_effect)
   let keys = $state<Record<string, string>>({ ...settings.keys })
+  let editors = $state<App[]>(settings.editors.map((e) => ({ ...e })))
+  let found = $state<App[]>([])
+  detect().then((list) => (found = list))
+
+  function addFound() {
+    for (const app of found) if (!editors.some((e) => e.name === app.name)) editors.push({ ...app })
+  }
   let recording = $state<Action | null>(null)
   let conflict = $state('')
 
@@ -56,7 +65,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys) })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors) })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -82,7 +91,7 @@
 
 <svelte:window onkeydowncapture={record} />
 
-<Dialog title="Settings" {onclose} width={640}>
+<Dialog title="Settings" {onclose} width={700}>
   <div class="tabs" role="tablist" aria-label="Settings sections">
     {#each tabs as [id, label] (id)}
       <button role="tab" aria-selected={tab === id} onclick={() => (tab = id)}>{label}</button>
@@ -111,6 +120,30 @@
       {:else}
         <p class="empty">No rules yet. Choosing Always on a permission card adds one here.</p>
       {/each}
+    {:else if tab === 'editors'}
+      <p class="intro">
+        Apps behind “Open in …” in the editor and diff panels. In a command, <code>{'{project}'}</code> and <code>{'{file}'}</code> become their
+        paths. The last app you used becomes the default.
+      </p>
+      {#each editors as app, i (i)}
+        <div class="app">
+          <input class="field" bind:value={app.name} placeholder="Name" aria-label="Name" />
+          <input class="field mono" bind:value={app.command} placeholder={'zed {project} {file}'} aria-label="Command" spellcheck="false" />
+          <button class="remove" onclick={() => editors.splice(i, 1)}>Remove</button>
+        </div>
+      {:else}
+        <p class="empty">
+          {found.length
+            ? `None set: Squadron offers the editors found on this computer (${found.map((a) => a.name).join(', ')}).`
+            : 'None set and none found: “Open in external editor” uses the system default app.'}
+        </p>
+      {/each}
+      <div class="row">
+        <button class="btn btn-secondary" onclick={() => editors.push({ name: '', command: '' })}>Add an app</button>
+        <button class="btn btn-secondary" disabled={!found.some((f) => !editors.some((e) => e.name === f.name))} onclick={addFound}>
+          Add the apps found
+        </button>
+      </div>
     {:else if tab === 'shortcuts'}
       <p class="intro">Click a shortcut, then press the new keys. They do not fire while you type in the terminal or the editor.</p>
       <ul class="keys">
@@ -293,6 +326,22 @@
   .bad {
     margin: 0;
     color: var(--err-text);
+  }
+
+  .app {
+    display: grid;
+    grid-template-columns: 150px 1fr auto;
+    gap: 8px;
+    align-items: center;
+  }
+
+  .app .field {
+    height: 36px;
+  }
+
+  .intro code {
+    font-size: 12px;
+    color: var(--text-2);
   }
 
   .keys {

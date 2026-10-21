@@ -8,7 +8,7 @@
   let {
     onadd,
     onsettings,
-  }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude' | 'preferences' | 'shortcuts') => void } = $props()
+  }: { onadd: () => void; onsettings: (tab: 'defaults' | 'rules' | 'claude' | 'editors' | 'preferences' | 'shortcuts') => void } = $props()
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
@@ -93,6 +93,9 @@
           <span class="section">Application</span>
           <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('claude'))}>
             <span><strong>Claude Code</strong><small>Executable</small></span>
+          </button>
+          <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('editors'))}>
+            <span><strong>Editors</strong><small>Apps that open the project</small></span>
           </button>
           <button role="menuitem" class="item" onclick={() => ((menuOpen = false), onsettings('preferences'))}>
             <span><strong>Preferences</strong><small>Working tab effect</small></span>
