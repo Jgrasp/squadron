@@ -89,10 +89,13 @@
     ),
   )
 
-  type Item = { value: string; label: string; hint?: string; detail?: string; tag?: string; text: string }
+  type Item = { value: string; label: string; hint?: string; detail?: string; group?: string; text: string }
+
+  const GROUPS = ['Commands', 'Skills', 'Claude Code', 'Squadron']
 
   let dismissed = $state('')
   let pick = $state(0)
+  let chosen = $state('')
   let composer: HTMLTextAreaElement
   const commandList = $derived(commandsOf(agent))
   const stage = $derived.by(() => {
@@ -103,8 +106,12 @@
     const command = findCommand(commandList, m[1])
     return command ? { command, query: (m[3] ?? '').toLowerCase() } : null
   })
-  const tagOf = (c: Command) =>
-    c.squadron ? 'Squadron' : c.builtin ? 'Claude Code' : (agent.skills.length ? agent.skills : known.skills).includes(c.name) ? 'Skill' : c.name.includes(':') ? 'Plugin' : 'Command'
+  function groupOf(c: Command) {
+    if (c.squadron) return 'Squadron'
+    if (c.builtin) return 'Claude Code'
+    const skills = agent.skills.length ? agent.skills : known.skills
+    return skills.some((s) => s === c.name || s.endsWith(`:${c.name}`)) ? 'Skills' : 'Commands'
+  }
   const suggestions = $derived.by((): Item[] => {
     if (!stage) return []
     if (!stage.command) {
@@ -112,25 +119,41 @@
       return commandList
         .filter((c) => !c.name.startsWith('_') && !c.description.startsWith('(removed)'))
         .filter((c) => c.name.toLowerCase().includes(q) || c.aliases?.some((a) => a.startsWith(q)))
-        .sort((a, b) => Number(!a.name.startsWith(q)) - Number(!b.name.startsWith(q)) || Number(!a.builtin) - Number(!b.builtin) || a.name.localeCompare(b.name))
-        .slice(0, 80)
-        .map((c) => ({ value: c.name, label: `/${c.name}`, detail: c.description, tag: tagOf(c), text: `/${c.name} ` }))
+        .map((c) => ({ value: c.name, label: `/${c.name}`, detail: c.description, group: groupOf(c), text: `/${c.name} ` }))
+        .sort(
+          (a, b) =>
+            GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group) ||
+            Number(!a.value.startsWith(q)) - Number(!b.value.startsWith(q)) ||
+            a.value.localeCompare(b.value),
+        )
     }
     const command = stage.command
     return options(command, catalogOf(agent))
       .filter((o) => `${o.value} ${o.label ?? ''}`.toLowerCase().includes(stage.query))
       .map((o) => ({ value: o.value, label: o.label ?? o.value, detail: o.detail, hint: o.label ? o.value : undefined, text: `/${command.name} ${o.value} ` }))
   })
+  const sections = $derived(
+    suggestions.reduce<{ name?: string; items: { item: Item; i: number }[] }[]>((list, item, i) => {
+      if (!list.length || list.at(-1)!.name !== item.group) list.push({ name: item.group, items: [] })
+      list.at(-1)!.items.push({ item, i })
+      return list
+    }, []),
+  )
   const guide = $derived(stage?.command && !suggestions.length && !stage.query ? stage.command : null)
 
   $effect(() => {
+    const query = stage?.query ?? ''
     void stage?.command
-    void stage?.query
-    pick = 0
+    pick = query ? Math.max(0, untrack(() => suggestions).findIndex((s) => s.value.toLowerCase().startsWith(query))) : 0
+    reveal()
   })
 
+  function reveal() {
+    tick().then(() => document.querySelector('.choices [aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
+  }
+
   function complete(item: Item) {
-    text = item.text
+    text = chosen = item.text
     dismissed = ''
     composer.focus()
   }
@@ -261,7 +284,7 @@
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()
         pick = (pick + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length
-        tick().then(() => document.querySelector('.choices [aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
+        reveal()
         return
       }
       if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && suggestions[pick].text.trim() !== text.trim())) {
@@ -269,6 +292,11 @@
         complete(suggestions[pick])
         return
       }
+    }
+    if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && area.selectionStart === text.length) {
+      event.preventDefault()
+      text = chosen = text.replace(/[^\s/]+ $/, '')
+      return
     }
     if ((suggestions.length || guide) && event.key === 'Escape') {
       event.preventDefault()
@@ -476,17 +504,23 @@
             </div>
           {/if}
           <div class="choices">
-            {#each suggestions as item, i (item.value)}
-              <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(item)}>
-                <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
-                {#if item.hint}<span class="hint">{item.hint}</span>{/if}
-                <span class="what">{item.detail ?? ''}</span>
-                {#if item.tag}<span class="tag">{item.tag}</span>{/if}
-              </button>
+            {#each sections as section (section.name ?? '')}
+              <div class="group" role="group" aria-label={section.name}>
+                {#if section.name}
+                  <div class="section" class:current={suggestions[pick]?.group === section.name} role="presentation">{section.name}</div>
+                {/if}
+                {#each section.items as { item, i } (item.value)}
+                  <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(item)}>
+                    <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
+                    {#if item.hint}<span class="hint">{item.hint}</span>{/if}
+                    <span class="what">{item.detail ?? ''}</span>
+                  </button>
+                {/each}
+              </div>
             {/each}
           </div>
           <div class="keys-help" role="presentation">
-            {#if suggestions.length}<kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Tab</kbd> or <kbd>Enter</kbd> to choose · {/if}<kbd>Esc</kbd> to close
+            {#if suggestions.length}<kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Tab</kbd> or <kbd>Enter</kbd> to choose · {/if}{#if text === chosen && text.endsWith(' ')}<kbd>⌫</kbd> to go back · {/if}<kbd>Esc</kbd> to close
           </div>
         </div>
       {/if}
@@ -845,20 +879,41 @@
   }
 
   .choices {
-    max-height: 300px;
+    max-height: 360px;
     overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-    padding: 6px;
+    padding: 0 6px 6px;
+    scroll-padding-top: 30px;
+  }
+
+  .group + .group {
+    margin-top: 4px;
+  }
+
+  .section {
+    position: sticky;
+    top: 0;
+    z-index: 1;
+    margin: 0 -6px;
+    padding: 10px 16px 6px;
+    background: var(--menu);
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .section.current {
+    color: var(--accent-soft);
   }
 
   .commands button {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
+    width: 100%;
     min-width: 0;
-    height: 32px;
+    height: 34px;
     padding: 0 10px;
     border-radius: 4px;
     text-align: left;
@@ -907,14 +962,6 @@
     color: var(--text-dim);
   }
 
-  .tag {
-    flex: none;
-    margin-left: auto;
-    white-space: nowrap;
-    font-size: 11.5px;
-    color: var(--text-faint);
-  }
-
   .what {
     flex: 1;
     min-width: 0;
@@ -928,6 +975,7 @@
   .keys-help {
     padding: 7px 16px;
     border-top: 1px solid var(--border);
+    background: var(--surface-2);
     font-size: 11.5px;
     color: var(--text-dim);
   }

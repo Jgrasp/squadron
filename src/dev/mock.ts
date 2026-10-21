@@ -111,6 +111,8 @@ const catalog = {
         { name: 'output-style', description: 'List output styles or switch to one', argumentHint: '[style]', builtin: true },
         { name: 'ponytail:ponytail', description: '(ponytail) Lazy senior dev mode', argumentHint: '[lite|full|ultra]' },
         { name: 'code-review', description: 'Review the current diff', argumentHint: '[target]' },
+        { name: 'codegraph:setup', description: '(codegraph) Install and configure CodeGraph on a project' },
+        { name: 'greet', description: 'Greet the user in a given tone', argumentHint: '<warm|formal|pirate>' },
       ],
       models: [
         { value: 'default', displayName: 'Default (recommended)', description: 'Opus 5.5 · Best for everyday, complex tasks' },
