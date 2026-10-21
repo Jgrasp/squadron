@@ -89,7 +89,7 @@
     ),
   )
 
-  type Item = { value: string; label: string; hint?: string; detail?: string; group?: string; text: string }
+  type Item = { value: string; label: string; hint?: string; detail?: string; usage?: string; group?: string; text: string }
 
   const GROUPS = ['Commands', 'Skills', 'Claude Code', 'Squadron']
 
@@ -119,7 +119,7 @@
       return commandList
         .filter((c) => !c.name.startsWith('_') && !c.description.startsWith('(removed)'))
         .filter((c) => c.name.toLowerCase().includes(q) || c.aliases?.some((a) => a.startsWith(q)))
-        .map((c) => ({ value: c.name, label: `/${c.name}`, detail: c.description, group: groupOf(c), text: `/${c.name} ` }))
+        .map((c) => ({ value: c.name, label: `/${c.name}`, detail: c.description, usage: c.argumentHint, group: groupOf(c), text: `/${c.name} ` }))
         .sort(
           (a, b) =>
             GROUPS.indexOf(a.group) - GROUPS.indexOf(b.group) ||
@@ -519,6 +519,13 @@
               </div>
             {/each}
           </div>
+          {#if !stage?.command && suggestions[pick]}
+            {@const item = suggestions[pick]}
+            <div class="detail" role="presentation" style:--lines={item.usage ? 2 : 3}>
+              {#if item.usage}<code>{item.label} {item.usage}</code>{/if}
+              <p>{item.detail}</p>
+            </div>
+          {/if}
           <div class="keys-help" role="presentation">
             {#if suggestions.length}<kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Tab</kbd> or <kbd>Enter</kbd> to choose · {/if}{#if text === chosen && text.endsWith(' ')}<kbd>⌫</kbd> to go back · {/if}<kbd>Esc</kbd> to close
           </div>
@@ -970,6 +977,37 @@
     text-overflow: ellipsis;
     font-size: 12.5px;
     color: var(--text-muted);
+  }
+
+  .detail {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    height: 76px;
+    padding: 10px 16px;
+    border-top: 1px solid var(--border);
+    overflow: hidden;
+  }
+
+  .detail code {
+    flex: none;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12px;
+    color: var(--accent-soft);
+  }
+
+  .detail p {
+    display: -webkit-box;
+    margin: 0;
+    overflow: hidden;
+    -webkit-line-clamp: var(--lines);
+    line-clamp: var(--lines);
+    -webkit-box-orient: vertical;
+    font-size: 12.5px;
+    line-height: 18px;
+    color: var(--text-2);
   }
 
   .keys-help {
