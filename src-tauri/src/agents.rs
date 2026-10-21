@@ -17,6 +17,7 @@ struct Agent {
     run: Arc<AtomicU32>,
     mcp: Option<String>,
     fork: bool,
+    stale: bool,
 }
 
 #[derive(Default)]
@@ -83,6 +84,7 @@ impl Agents {
                 run: Default::default(),
                 mcp,
                 fork,
+                stale: false,
             });
         Ok(())
     }
@@ -96,6 +98,29 @@ impl Agents {
         let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Unknown agent.")?;
         send(app, program, id, agent, text)
+    }
+
+    pub fn set_options(&self, id: &str, options: Options) -> Result<(), String> {
+        options.check()?;
+        let mut list = self.list.lock().unwrap();
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        if let Some(session) = agent.session.as_mut().filter(|s| s.alive()) {
+            if options.mode != agent.options.mode {
+                session
+                    .control(
+                        serde_json::json!({"subtype": "set_permission_mode", "mode": options.mode}),
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+            if options.model != agent.options.model {
+                session
+                    .control(serde_json::json!({"subtype": "set_model", "model": options.model}))
+                    .map_err(|e| e.to_string())?;
+            }
+            agent.stale |= options.effort != agent.options.effort;
+        }
+        agent.options = options;
+        Ok(())
     }
 
     pub fn interrupt(&self, id: &str) -> Result<(), String> {
@@ -146,6 +171,12 @@ fn send(
     agent: &mut Agent,
     text: &str,
 ) -> Result<(), String> {
+    if agent.stale && !agent.session.as_ref().is_some_and(Session::busy) {
+        if let Some(session) = agent.session.take() {
+            let _ = session.stop();
+        }
+        agent.stale = false;
+    }
     if !agent.session.as_ref().is_some_and(Session::alive) {
         spawn(app, program, id, agent)?;
     }

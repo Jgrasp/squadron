@@ -280,6 +280,8 @@ mockIPC(
         emit('term-out', { id, data })
         return
       }
+      case 'set_agent_options':
+        return
       case 'pilot_reply':
         replies.get(a.id)?.(a.result)
         replies.delete(a.id)

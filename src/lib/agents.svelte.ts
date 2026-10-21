@@ -362,6 +362,14 @@ export async function reload(id: string) {
   }
 }
 
+export async function setOptions(id: string, options: Options) {
+  const agent = find(id)
+  if (!agent) return
+  agent.options = options
+  persist(agent)
+  await invoke('set_agent_options', { id, options }).catch((e) => fail(agent, String(e)))
+}
+
 export function rename(id: string, name: string) {
   const agent = find(id)
   if (!agent || !name.trim()) return

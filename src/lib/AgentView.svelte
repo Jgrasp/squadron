@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { tick } from 'svelte'
-  import { archive, fork, interrupt, reload, rename, reply, send } from './agents.svelte'
+  import { tick, untrack } from 'svelte'
+  import { archive, fork, interrupt, reload, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -15,7 +15,8 @@
   import { hint } from './settings.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
-  import { calls, prompt, relative, type Agent, type Comment, type ToolCall } from './stream'
+  import OptionsFields from './OptionsFields.svelte'
+  import { calls, prompt, relative, type Agent, type Comment, type Options, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
@@ -61,6 +62,14 @@
   })
 
   let comments = $state<Comment[]>([])
+  let tuning = $state<Options | null>(null)
+
+  $effect(() => {
+    const next = tuning && $state.snapshot(tuning)
+    if (!next) return
+    const now = untrack(() => agent.options)
+    if (next.model !== now.model || next.effort !== now.effort || next.mode !== now.mode) setOptions(agent.id, next)
+  })
 
   const MENU: Record<string, () => void> = {
     reload: () => reload(agent.id),
@@ -195,7 +204,13 @@
   }
 </script>
 
-<svelte:window onclick={(e) => !(e.target as HTMLElement).closest('[data-agent-menu]') && (menuOpen = false)} />
+<svelte:window
+  onclick={(e) => {
+    const target = e.target as HTMLElement
+    if (!target.closest('[data-agent-menu]')) menuOpen = false
+    if (!target.closest('[data-options]')) tuning = null
+  }}
+/>
 
 <main>
   <section class="conversation" aria-label="Conversation">
@@ -214,7 +229,19 @@
         {:else}
           <h1><button class="name" title="Rename" onclick={startRename}>{agent.name}</button></h1>
         {/if}
-        <span>{meta(agent)} · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span></span>
+        <span class="meta" data-options>
+          <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title="Change the model, the effort or the permission mode" onclick={() => (tuning = tuning ? null : { ...agent.options })}>
+            {meta(agent)}
+            <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+          </button>
+          · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span>
+          {#if tuning}
+            <div class="tuning" role="dialog" aria-label="Agent options">
+              <OptionsFields bind:options={tuning} />
+              <p>Model and permission mode change at once, even mid-turn. The effort applies from your next message.</p>
+            </div>
+          {/if}
+        </span>
       </div>
       <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={{ slot: 'agent.tools', enabled: ui.customizing }}>
     {#snippet editorTool()}
@@ -607,6 +634,61 @@
 
   .title > span {
     font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .meta {
+    position: relative;
+  }
+
+  .settings {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: -2px -4px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .settings:hover,
+  .settings[aria-expanded='true'] {
+    background: var(--surface-3);
+    color: var(--text-strong);
+  }
+
+  .settings svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .tuning {
+    position: absolute;
+    top: 26px;
+    left: -4px;
+    z-index: 30;
+    width: 560px;
+    max-width: calc(100vw - 40px);
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    padding: 16px;
+    border-radius: 6px;
+    background: var(--bg-main);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+    font-size: 13.5px;
+    color: var(--text);
+  }
+
+  .tuning p {
+    margin: 0;
+    font-size: 12.5px;
     color: var(--text-dim);
   }
 

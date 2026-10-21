@@ -274,6 +274,15 @@ fn set_settings(
 }
 
 #[tauri::command]
+fn set_agent_options(
+    agents: State<Agents>,
+    id: String,
+    options: claude::Options,
+) -> Result<(), String> {
+    agents.set_options(&id, options)
+}
+
+#[tauri::command]
 fn pilot_reply(pilot: State<Pilot>, id: String, result: String) -> Result<(), String> {
     pilot.reply(&id, result)
 }
@@ -684,6 +693,7 @@ pub fn run() {
             add_rule,
             answer_permission,
             pilot_reply,
+            set_agent_options,
             cancel_permissions,
             read_project_file,
             write_project_file,

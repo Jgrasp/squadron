@@ -111,6 +111,7 @@ pub struct Session {
     pid: libc::pid_t,
     stdin: ChildStdin,
     alive: Arc<AtomicBool>,
+    busy: Arc<AtomicBool>,
 }
 
 impl Session {
@@ -134,6 +135,8 @@ impl Session {
         });
         let alive = Arc::new(AtomicBool::new(true));
         let flag = alive.clone();
+        let busy = Arc::new(AtomicBool::new(false));
+        let turn = busy.clone();
         let pid = child.id() as libc::pid_t;
         thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
@@ -149,6 +152,9 @@ impl Session {
                                 "Claude Code {v} is untested, pinned version: {TESTED_VERSION}"
                             );
                         }
+                        if let Event::Result { .. } = event {
+                            turn.store(false, Ordering::SeqCst);
+                        }
                         on_event(&line, event);
                     }
                     Err(e) => log::warn!("unreadable line in the claude stream: {e}"),
@@ -158,16 +164,38 @@ impl Session {
             flag.store(false, Ordering::SeqCst);
             on_exit(errors.join().unwrap_or_default());
         });
-        Ok(Self { pid, stdin, alive })
+        Ok(Self {
+            pid,
+            stdin,
+            alive,
+            busy,
+        })
     }
 
     pub fn alive(&self) -> bool {
         self.alive.load(Ordering::SeqCst)
     }
 
+    pub fn busy(&self) -> bool {
+        self.busy.load(Ordering::SeqCst)
+    }
+
     pub fn send(&mut self, text: &str) -> io::Result<()> {
         let message = json!({"type": "user", "message": {"role": "user", "content": text}});
         writeln!(self.stdin, "{message}")?;
+        self.stdin.flush()?;
+        self.busy.store(true, Ordering::SeqCst);
+        Ok(())
+    }
+
+    /// Changes the permission mode or the model of the running session; the effort has no such request.
+    pub fn control(&mut self, request: Value) -> io::Result<()> {
+        let id = format!("squadron-{}", self.pid);
+        writeln!(
+            self.stdin,
+            "{}",
+            json!({"type": "control_request", "request_id": id, "request": request})
+        )?;
         self.stdin.flush()
     }
 
@@ -358,5 +386,71 @@ mod tests {
         println!("forked {forked} -> {answer}");
         assert_ne!(forked, id);
         assert!(answer.contains("PELICAN"));
+    }
+}
+
+#[cfg(test)]
+mod live_options {
+    use super::*;
+    use std::time::Duration;
+
+    #[test]
+    #[ignore = "runs the real claude"]
+    fn real_claude_changes_mode_and_model_mid_session() {
+        let dir = std::env::temp_dir().join("squadron-live-options");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let options = Options {
+            model: "sonnet".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+        };
+        let (tx, rx) = std::sync::mpsc::channel();
+        let mut session = Session::start(
+            command("claude", &dir, &options, None, false, None),
+            move |line, event| {
+                let d: Value = serde_json::from_str(line).unwrap();
+                match event {
+                    Event::System { subtype, .. } if subtype == "init" => tx
+                        .send(format!("init {} {}", d["model"], d["permissionMode"]))
+                        .unwrap(),
+                    Event::Result { .. } => tx.send("result".into()).unwrap(),
+                    _ if d["type"] == "control_response" => tx
+                        .send(format!("control {}", d["response"]["subtype"]))
+                        .unwrap(),
+                    _ => {}
+                }
+            },
+            |_| {},
+        )
+        .unwrap();
+        let next = |rx: &std::sync::mpsc::Receiver<String>, what: &str| loop {
+            let line = rx.recv_timeout(Duration::from_secs(120)).unwrap();
+            println!("{line}");
+            if line.starts_with(what) {
+                return line;
+            }
+        };
+        session.send("Reply with just: one").unwrap();
+        assert!(next(&rx, "init").contains("default"));
+        next(&rx, "result");
+        assert!(!session.busy());
+        session
+            .control(json!({"subtype": "set_permission_mode", "mode": "acceptEdits"}))
+            .unwrap();
+        assert_eq!(next(&rx, "control"), "control \"success\"");
+        session
+            .control(json!({"subtype": "set_model", "model": "haiku"}))
+            .unwrap();
+        assert_eq!(next(&rx, "control"), "control \"success\"");
+        session.send("Reply with just: two").unwrap();
+        assert!(session.busy());
+        let init = next(&rx, "init");
+        assert!(
+            init.contains("acceptEdits") && init.contains("haiku"),
+            "{init}"
+        );
+        next(&rx, "result");
+        session.stop().unwrap();
     }
 }
