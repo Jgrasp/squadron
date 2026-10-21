@@ -89,7 +89,8 @@
     const els = [...column.querySelectorAll<HTMLElement>('[data-user]')]
     marks = els.map((el, i) => ({ offset: el.offsetTop, text: prompt(users[i]?.text ?? '', users[i]?.comments), at: users[i]?.at ?? 0 }))
     const view = scroller.scrollTop + scroller.clientHeight / 3
-    active = picked >= 0 ? picked : marks.findLastIndex((m) => m.offset <= view)
+    const end = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4
+    active = picked >= 0 ? picked : end ? marks.length - 1 : scroller.scrollTop < 4 ? 0 : marks.findLastIndex((m) => m.offset <= view)
     below = marks.filter((m) => m.offset > scroller.scrollTop + scroller.clientHeight).length
   }
 
