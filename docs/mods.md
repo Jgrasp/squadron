@@ -40,8 +40,7 @@ On s'en inspire sans en dépendre : ces mécanismes changent d'une version à l'
 - des panneaux isolés qui déclarent leurs capacités ;
 - des commandes de validation et de test ;
 - le rechargement à chaud ;
-- la distribution par git ;
-- l'activation par utilisateur ou par projet.
+- l'activation et la désactivation de chaque mod.
 
 **Ce qu'on fait autrement** :
 
@@ -125,8 +124,8 @@ Chaque capacité est déclarée dans le manifeste et acceptée à l'activation d
 
 ### Où vivent les mods
 
-- **Mods personnels** : `~/.config/dev.squadron.desktop/mods/<id>/`.
-- **Mods de projet** : `<projet>/.squadron/mods/<id>/`, partagés avec l'équipe par git. Ils demandent une confiance explicite par projet : un dépôt cloné ne doit pas pouvoir lancer des commandes tout seul.
+- **Mods personnels seulement** : `~/.config/dev.squadron.desktop/mods/<id>/`. Pas de mods rangés dans les dépôts des projets.
+- **Plus tard, pas prévu pour l'instant** : installer un mod depuis GitHub.
 - **Rechargement à chaud** : Squadron surveille ces dossiers. Une erreur de manifeste s'affiche dans Settings › Mods sans casser l'application.
 
 ### Sécurité
@@ -205,7 +204,7 @@ Le pilotage passe avant les panneaux web : l'IA sait déjà écrire des mods dé
 ## Décisions
 
 1. **Code dans les mods** : du déclaratif, plus des panneaux web isolés. Pas de JavaScript libre dans l'application.
-2. **Mods de projet partagés par git** : à préciser.
+2. **Mods** : personnels seulement, dans le dossier de config. L'installation depuis GitHub viendra plus tard, elle n'est pas prévue pour l'instant.
 3. **Pilotage** : uniquement par les agents de Squadron.
 4. **Autonomie de l'IA** : elle prépare et lance des agents et des cartes, comme l'utilisateur l'aurait fait. Elle ne valide jamais rien et n'agit jamais à la place de l'utilisateur sur les agents. Pas d'autopilote.
 5. **Personnalisation** : les deux, le mode Customize dans l'interface et l'onglet Settings › Layout.
