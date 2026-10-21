@@ -5,7 +5,8 @@ import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
 import tasks from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
-import { apply, exited, newAgent, prompt, userMessage, type Agent, type Entry } from './stream'
+import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
+import { apply, calls, exited, newAgent, prompt, subagentOf, userMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -143,5 +144,41 @@ describe('stream', () => {
     apply(agent, { type: 'control_response', response: { subtype: 'success', response: { session_url: 'https://claude.ai/code/session_1' } } })
     apply(agent, { type: 'system', subtype: 'bridge_state', state: 'connected' })
     expect(agent.remote).toEqual({ state: 'connected', url: 'https://claude.ai/code/session_1' })
+  })
+
+  it('keeps subagents apart from the conversation', () => {
+    const agent = fresh()
+    const lines = subagents.trim().split('\n')
+    const asked = lines.findIndex((l) => l.includes('"parent_tool_use_id":"toolu_') && l.includes('"name":"Bash"'))
+    for (const line of lines.slice(0, asked + 1)) apply(agent, JSON.parse(line))
+    const [first, second] = agent.subagents
+    expect(agent.subagents.map((s) => [s.num, s.type, s.status])).toEqual([
+      [1, 'general-purpose', 'running'],
+      [2, 'general-purpose', 'running'],
+    ])
+    expect(first.prompt).toContain('first.txt')
+    const bash = first.log.flatMap((b) => (b.type === 'tools' ? b.calls : []))[0]
+    expect(bash.name).toBe('Bash')
+    expect(subagentOf(agent, bash.id)).toBe(first)
+    expect(subagentOf(agent, 'toolu_unknown')).toBeUndefined()
+
+    for (const line of lines.slice(asked + 1)) apply(agent, JSON.parse(line))
+    const main = agent.entries.flatMap((e) => (e.kind === 'agent' ? e.blocks.flatMap((b) => (b.type === 'tools' ? b.calls : [])) : []))
+    expect(main.map((c) => c.name).filter((n) => n !== 'ToolSearch')).toEqual(['Agent', 'Agent'])
+    expect(agent.subagents.map((s) => s.status)).toEqual(['done', 'done'])
+    expect(first.result).toBeTruthy()
+    expect(first.tokens).toBeGreaterThan(0)
+    expect(first.model).toContain('haiku')
+    expect(second.log.some((b) => b.type === 'tools' && b.calls[0].result)).toBe(true)
+    expect(calls(agent).map((c) => c.id)).toContain(bash.id)
+    expect(agent.status).toBe('done')
+  })
+
+  it('stops running subagents when the process exits', () => {
+    const agent = fresh()
+    const lines = subagents.trim().split('\n')
+    for (const line of lines.slice(0, lines.findIndex((l) => l.includes('task_started')) + 1)) apply(agent, JSON.parse(line))
+    exited(agent, '')
+    expect(agent.subagents[0].status).toBe('stopped')
   })
 })

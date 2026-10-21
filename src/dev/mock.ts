@@ -5,6 +5,7 @@ import nologin from '../../src-tauri/tests/fixtures/nologin.jsonl?raw'
 import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
 import taskList from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
+import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 
 type Project = { name: string; path: string; rules: string[]; cards?: unknown[] }
 
@@ -74,7 +75,7 @@ function replay(id: string, text: string) {
     return
   }
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
-  const stream = text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('subagents') ? subagents : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -88,8 +89,17 @@ function replay(id: string, text: string) {
       return
     }
     if (i >= lines.length) return timers.delete(id)
-    emit('agent-line', { id, line: lines[i++].replaceAll('/project', projectOf.get(id) ?? '/project') })
-    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') ? 150 : 60))
+    const line = lines[i++]
+    emit('agent-line', { id, line: line.replaceAll('/project', projectOf.get(id) ?? '/project') })
+    const sub = JSON.parse(line)
+    const call = sub.type === 'assistant' && sub.parent_tool_use_id && sub.message.content.find((c: { name?: string }) => c.name === 'Bash')
+    if (call) {
+      const ask = String(askId++)
+      waitingReplay.set(ask, next)
+      emit('permission-request', { id: ask, agent: id, tool_name: 'Bash', input: call.input, tool_use_id: call.id })
+      return
+    }
+    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') ? 150 : 60))
   }
   next()
 }

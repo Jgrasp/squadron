@@ -205,10 +205,10 @@ mod tests {
     }
 
     async fn run(mode: &str, prompts: &[&str]) {
-        run_with_delay(mode, prompts, 0).await
+        run_with_delay(mode, mode, prompts, 0).await
     }
 
-    async fn run_with_delay(mode: &str, prompts: &[&str], delay: u64) {
+    async fn run_with_delay(name: &str, mode: &str, prompts: &[&str], delay: u64) {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel::<Ask>();
         let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
         let port = gate.clone().serve().await.unwrap();
@@ -216,8 +216,9 @@ mod tests {
         tokio::spawn(async move {
             while let Some(ask) = asks_rx.recv().await {
                 println!(
-                    "ASK {} {} extra={}",
+                    "ASK {} {:?} {} extra={}",
                     ask.tool_name,
+                    ask.tool_use_id,
                     ask.input,
                     Value::Object(ask.extra.clone())
                 );
@@ -225,7 +226,7 @@ mod tests {
                 answering.answer(&ask.id, answer_for(&ask)).unwrap();
             }
         });
-        let dir = std::env::temp_dir().join(format!("squadron-gate-{mode}"));
+        let dir = std::env::temp_dir().join(format!("squadron-gate-{name}"));
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let options = Options {
@@ -236,9 +237,13 @@ mod tests {
         let config = mcp_config(port, "token", "agent-1", false);
         let cmd = claude::command("claude", &dir, &options, None, false, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
+        let record =
+            std::sync::Mutex::new(std::fs::File::create(dir.join("stream.jsonl")).unwrap());
         let mut session = Session::start(
             cmd,
             move |line, event| {
+                use std::io::Write;
+                writeln!(record.lock().unwrap(), "{line}").unwrap();
                 if let Event::Result { .. } = event {
                     tx.send(line.to_string()).unwrap();
                 } else if line.contains("\"type\":\"assistant\"") && line.contains("\"text\"") {
@@ -283,9 +288,25 @@ mod tests {
     #[ignore = "runs the real claude"]
     async fn real_claude_waits_for_a_slow_answer() {
         run_with_delay(
+            "slow",
             "default",
             &["Use the AskUserQuestion tool to ask whether I prefer blue or red, then repeat my answer in one word."],
             100,
+        )
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_subagent_asks() {
+        run_with_delay(
+            "subagents",
+            "default",
+            &[
+                "Use the Agent tool to launch two general-purpose subagents in parallel. The first runs the bash command `date > first.txt`, the second runs `date > second.txt`, both in the current folder, then each reports back in one line. Do not run the commands yourself.",
+                "Wait until both subagents have finished and read their results, then reply DONE.",
+            ],
+            0,
         )
         .await;
     }

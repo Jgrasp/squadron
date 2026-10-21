@@ -14,7 +14,7 @@ export type ToolCall = {
 }
 
 export type Block =
-  | { type: 'thinking'; ms?: number }
+  | { type: 'thinking'; ms?: number; text?: string }
   | { type: 'text'; text: string; key: string }
   | { type: 'tools'; calls: ToolCall[] }
 
@@ -32,6 +32,26 @@ export type Task = {
   subject: string
   activeForm?: string
   status: 'pending' | 'in_progress' | 'completed'
+}
+
+export type Subagent = {
+  id: string
+  task: string
+  num: number
+  name: string
+  type: string
+  prompt: string
+  status: 'running' | 'done' | 'error' | 'stopped'
+  last: string
+  tokens: number
+  tools: number
+  ms: number
+  started: number
+  ended?: number
+  result?: string
+  model?: string
+  background: boolean
+  log: Block[]
 }
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
@@ -88,6 +108,7 @@ export type Agent = {
   commands: string[]
   skills: string[]
   remote: { state: string; url: string } | null
+  subagents: Subagent[]
 }
 
 type Json = Record<string, any>
@@ -120,6 +141,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     commands: [],
     skills: [],
     remote: null,
+    subagents: [],
   }
 }
 
@@ -174,10 +196,51 @@ function agentEntry(agent: Agent) {
   return entry
 }
 
+const callsIn = (blocks: Block[]) => blocks.flatMap((b) => (b.type === 'tools' ? b.calls : []))
+
 export function calls(agent: Agent) {
-  return agent.entries.flatMap((e) =>
-    e.kind === 'agent' ? e.blocks.flatMap((b) => (b.type === 'tools' ? b.calls : [])) : [],
-  )
+  return [...agent.entries.flatMap((e) => (e.kind === 'agent' ? callsIn(e.blocks) : [])), ...agent.subagents.flatMap((s) => callsIn(s.log))]
+}
+
+export function subagentOf(agent: Agent, toolUseId: string | null) {
+  return toolUseId ? agent.subagents.find((s) => callsIn(s.log).some((c) => c.id === toolUseId)) : undefined
+}
+
+const SETTLED: Record<string, Subagent['status']> = { completed: 'done', failed: 'error', killed: 'stopped', stopped: 'stopped' }
+
+function subagentEvent(agent: Agent, d: Json) {
+  if (d.subtype === 'task_started' && d.task_type === 'local_agent' && !agent.subagents.some((s) => s.id === d.tool_use_id))
+    agent.subagents.push({
+      id: d.tool_use_id,
+      task: d.task_id,
+      num: agent.subagents.length + 1,
+      name: String(d.description ?? ''),
+      type: String(d.subagent_type ?? ''),
+      prompt: String(d.prompt ?? ''),
+      status: 'running',
+      last: 'Starting…',
+      tokens: 0,
+      tools: 0,
+      ms: 0,
+      started: Date.now(),
+      background: !!d.is_backgrounded,
+      log: [],
+    })
+  const sub = agent.subagents.find((s) => s.task === d.task_id)
+  if (!sub) return
+  const u = d.usage
+  if (u) {
+    sub.tokens = u.total_tokens ?? sub.tokens
+    sub.tools = u.tool_uses ?? sub.tools
+    sub.ms = u.duration_ms ?? sub.ms
+  }
+  if (d.subtype === 'task_progress' && d.description) sub.last = String(d.description)
+  const status = SETTLED[d.subtype === 'task_updated' ? d.patch?.status : d.subtype === 'task_notification' ? d.status : '']
+  if (status) {
+    sub.status = status
+    sub.ended ??= d.patch?.end_time ?? Date.now()
+  }
+  if (d.subtype === 'task_notification' && d.summary) sub.result = String(d.summary)
 }
 
 function textOf(content: unknown): string {
@@ -222,6 +285,7 @@ export function apply(agent: Agent, d: Json) {
         agent.entries.push({ kind: 'compacted', at: Date.now(), before: meta.pre_tokens ?? 0, after: meta.post_tokens ?? 0 })
         if (meta.post_tokens) agent.tokens = meta.post_tokens
       }
+      if (String(d.subtype).startsWith('task_')) subagentEvent(agent, d)
       if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
       if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
         agent.attention = String(d.needs_action || d.status_detail || 'Waiting for you')
@@ -234,10 +298,11 @@ export function apply(agent: Agent, d: Json) {
     case 'conversation_reset':
       agent.entries.push({ kind: 'cleared', at: Date.now() })
       agent.tasks = []
+      agent.subagents = []
       agent.tokens = 0
       return
     case 'stream_event':
-      return stream(agent, d)
+      return d.parent_tool_use_id ? undefined : stream(agent, d)
     case 'assistant':
       return assistant(agent, d)
     case 'user':
@@ -283,26 +348,30 @@ function stream(agent: Agent, d: Json) {
 }
 
 function assistant(agent: Agent, d: Json) {
+  const sub = d.parent_tool_use_id && agent.subagents.find((s) => s.id === d.parent_tool_use_id)
+  if (d.parent_tool_use_id && !sub) return
+  if (sub) sub.model = d.message.model ?? sub.model
+  const blocks = (): Block[] => (sub ? sub.log : agentEntry(agent).blocks)
   for (const c of d.message.content as Json[]) {
     if (c.type === 'thinking') {
-      const entry = agentEntry(agent)
-      const block = entry.blocks.findLast((b) => b.type === 'thinking' && b.ms === undefined)
+      const block = blocks().findLast((b) => b.type === 'thinking' && b.ms === undefined)
       if (block?.type === 'thinking') block.ms = d.thinking_duration_ms ?? 0
-      else entry.blocks.push({ type: 'thinking', ms: d.thinking_duration_ms ?? 0 })
+      else blocks().push({ type: 'thinking', ms: d.thinking_duration_ms ?? 0, ...(sub && c.thinking ? { text: c.thinking } : {}) })
     } else if (c.type === 'tool_use') {
       const call = calls(agent).find((x) => x.id === c.id)
       if (call) call.input = c.input
       else {
-        const entry = agentEntry(agent)
-        const last = entry.blocks.at(-1)
+        const last = blocks().at(-1)
         const added: ToolCall = { id: c.id, name: c.name, input: c.input }
         if (last?.type === 'tools') last.calls.push(added)
-        else entry.blocks.push({ type: 'tools', calls: [added] })
+        else blocks().push({ type: 'tools', calls: [added] })
       }
-      if (INTERNAL.includes(c.name)) track(agent, c)
-      else agent.action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
-    } else if (c.type === 'text' && !agentEntry(agent).blocks.some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`))) {
-      agentEntry(agent).blocks.push({ type: 'text', text: c.text, key: `${d.message.id}:full` })
+      const action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
+      if (sub) sub.last = action
+      else if (INTERNAL.includes(c.name)) track(agent, c)
+      else agent.action = action
+    } else if (c.type === 'text' && (sub || !blocks().some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`)))) {
+      blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}` })
     }
   }
 }
@@ -382,6 +451,7 @@ export function exited(agent: Agent, stderr: string) {
   agent.alive = false
   agent.remote = null
   agent.asks = []
+  for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   if (agent.interrupting) {
     agent.interrupting = false
     agent.status = 'interrupted'

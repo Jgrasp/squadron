@@ -107,7 +107,8 @@ function save(agent: Agent) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
   const { live, alive, processCost, interrupting, asks, remote, ...kept } = $state.snapshot(agent)
-  return invoke('save_agent', { id: agent.id, data: JSON.stringify(kept) })
+  const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
+  return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents }) })
 }
 
 export function saveAll() {
@@ -135,6 +136,7 @@ export async function restore() {
       agent.status = 'interrupted'
       agent.action = 'Stopped when Squadron closed'
     }
+    for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
     agents.list.push(agent)
     await invoke('restore_agent', {
       id: agent.id,
@@ -400,6 +402,7 @@ export async function fork(id: string) {
   const snapshot = $state.snapshot(source)
   copy.entries = [...snapshot.entries, { kind: 'forked', at: Date.now(), from: source.name }]
   copy.tasks = snapshot.tasks
+  copy.subagents = snapshot.subagents
   copy.sessionId = source.sessionId
   copy.forkOf = source.name
   copy.status = 'done'
