@@ -110,15 +110,16 @@
     if (!stage.command) {
       const q = stage.query
       return commandList
+        .filter((c) => !c.name.startsWith('_') && !c.description.startsWith('(removed)'))
         .filter((c) => c.name.toLowerCase().includes(q) || c.aliases?.some((a) => a.startsWith(q)))
         .sort((a, b) => Number(!a.name.startsWith(q)) - Number(!b.name.startsWith(q)) || Number(!a.builtin) - Number(!b.builtin) || a.name.localeCompare(b.name))
         .slice(0, 80)
-        .map((c) => ({ value: c.name, label: `/${c.name}`, hint: c.argumentHint || undefined, detail: c.description, tag: tagOf(c), text: `/${c.name} ` }))
+        .map((c) => ({ value: c.name, label: `/${c.name}`, detail: c.description, tag: tagOf(c), text: `/${c.name} ` }))
     }
     const command = stage.command
     return options(command, catalogOf(agent))
       .filter((o) => `${o.value} ${o.label ?? ''}`.toLowerCase().includes(stage.query))
-      .map((o) => ({ value: o.value, label: o.label ?? o.value, detail: o.detail, hint: o.label ? o.value : undefined, text: `/${command.name} ${o.value}` }))
+      .map((o) => ({ value: o.value, label: o.label ?? o.value, detail: o.detail, hint: o.label ? o.value : undefined, text: `/${command.name} ${o.value} ` }))
   })
   const guide = $derived(stage?.command && !suggestions.length && !stage.query ? stage.command : null)
 
@@ -260,7 +261,7 @@
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()
         pick = (pick + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length
-        tick().then(() => document.querySelector('.commands [aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
+        tick().then(() => document.querySelector('.choices [aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
         return
       }
       if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && suggestions[pick].text.trim() !== text.trim())) {
@@ -470,18 +471,23 @@
           {#if stage?.command}
             <div class="usage" role="presentation">
               <span class="slash">/{stage.command.name}</span>
-              {#if stage.command.argumentHint}<span class="hint">{stage.command.argumentHint}</span>{/if}
               <span class="what">{stage.command.description}</span>
+              {#if stage.command.argumentHint}<code class="usage-hint">{stage.command.argumentHint}</code>{/if}
             </div>
           {/if}
-          {#each suggestions as item, i (item.value)}
-            <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(item)}>
-              <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
-              {#if item.hint}<span class="hint">{item.hint}</span>{/if}
-              <span class="what">{item.detail ?? ''}</span>
-              {#if item.tag}<span class="tag">{item.tag}</span>{/if}
-            </button>
-          {/each}
+          <div class="choices">
+            {#each suggestions as item, i (item.value)}
+              <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(item)}>
+                <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
+                {#if item.hint}<span class="hint">{item.hint}</span>{/if}
+                <span class="what">{item.detail ?? ''}</span>
+                {#if item.tag}<span class="tag">{item.tag}</span>{/if}
+              </button>
+            {/each}
+          </div>
+          <div class="keys-help" role="presentation">
+            {#if suggestions.length}<kbd>↑</kbd><kbd>↓</kbd> to move · <kbd>Tab</kbd> or <kbd>Enter</kbd> to choose · {/if}<kbd>Esc</kbd> to close
+          </div>
         </div>
       {/if}
       <div class="bar">
@@ -828,24 +834,32 @@
     z-index: 20;
     width: min(740px, calc(100% - 40px));
     transform: translateX(-50%);
-    max-height: 320px;
-    overflow-y: auto;
     display: flex;
     flex-direction: column;
-    gap: 2px;
-    padding: 6px;
     border-radius: 6px;
     background: var(--menu);
     box-shadow:
       0 0 0 1px var(--border-strong),
       0 14px 36px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+
+  .choices {
+    max-height: 300px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+    padding: 6px;
   }
 
   .commands button {
     display: flex;
-    align-items: baseline;
+    align-items: center;
     gap: 12px;
-    padding: 7px 10px;
+    min-width: 0;
+    height: 32px;
+    padding: 0 10px;
     border-radius: 4px;
     text-align: left;
   }
@@ -855,27 +869,40 @@
   }
 
   .slash {
+    flex: none;
+    white-space: nowrap;
     font: 13px var(--mono);
     color: var(--text-strong);
   }
 
   .option {
     flex: none;
+    white-space: nowrap;
     font-weight: 600;
     color: var(--text-strong);
   }
 
   .usage {
-    display: flex;
+    display: grid;
+    grid-template-columns: auto 1fr;
     align-items: baseline;
-    gap: 10px;
-    padding: 6px 10px 8px;
+    gap: 4px 12px;
+    padding: 10px 16px;
     border-bottom: 1px solid var(--border);
-    margin-bottom: 4px;
+    background: var(--surface-2);
+  }
+
+  .usage-hint {
+    grid-column: 1 / -1;
+    overflow-wrap: anywhere;
+    font-size: 12px;
+    line-height: 1.5;
+    color: var(--accent-soft);
   }
 
   .hint {
     flex: none;
+    white-space: nowrap;
     font: 12px var(--mono);
     color: var(--text-dim);
   }
@@ -883,11 +910,13 @@
   .tag {
     flex: none;
     margin-left: auto;
+    white-space: nowrap;
     font-size: 11.5px;
     color: var(--text-faint);
   }
 
   .what {
+    flex: 1;
     min-width: 0;
     overflow: hidden;
     white-space: nowrap;
@@ -895,6 +924,22 @@
     font-size: 12.5px;
     color: var(--text-muted);
   }
+
+  .keys-help {
+    padding: 7px 16px;
+    border-top: 1px solid var(--border);
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  .keys-help kbd {
+    padding: 0 4px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    font: 11px var(--mono);
+    color: var(--text-2);
+  }
+
 
   .settings {
     display: inline-flex;
