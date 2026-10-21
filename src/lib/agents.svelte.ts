@@ -7,6 +7,7 @@ import {
   apply,
   argument,
   INTERNAL,
+  READ_ONLY,
   exited,
   fail,
   newAgent,
@@ -159,6 +160,7 @@ listen<Ask>('permission-request', ({ payload: ask }) => {
   const rules = projects.list.find((p) => p.path === agent.project)?.rules ?? []
   if (
     INTERNAL.includes(ask.tool_name) ||
+    READ_ONLY.includes(ask.tool_name) ||
     (agent.allowEdits && EDITS.includes(ask.tool_name)) ||
     rules.some((r) => matches(r, ask.tool_name, ask.input))
   )
@@ -285,7 +287,7 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-export async function create(project: string, name: string, options: Options, text: string) {
+export async function create(project: string, name: string, options: Options, text: string, from?: { by: string }) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback, options))
   const agent = agents.list.at(-1)!
@@ -300,7 +302,8 @@ export async function create(project: string, name: string, options: Options, te
       })
       .catch(() => {})
   }
-  agents.current[project] = agent.id
+  if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
+  else agents.current[project] = agent.id
   userMessage(agent, text)
   agent.base = await invoke<string | null>('git_snapshot', { project })
   persist(agent)

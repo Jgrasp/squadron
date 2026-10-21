@@ -95,6 +95,13 @@ function replay(id: string, text: string) {
 }
 
 const projectOf = new Map<string, string>()
+const replies = new Map<string, (result: string) => void>()
+;(window as unknown as { __pilot: unknown }).__pilot = (agent: string, tool: string, args = {}) =>
+  new Promise((resolve) => {
+    const id = crypto.randomUUID()
+    replies.set(id, resolve)
+    emit('pilot-request', { id, agent, tool, args })
+  })
 const files = new Map<string, string>()
 let terminal = 0
 let line = ''
@@ -196,7 +203,7 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, keys: keyMap, editors: editorApps }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
@@ -273,6 +280,10 @@ mockIPC(
         emit('term-out', { id, data })
         return
       }
+      case 'pilot_reply':
+        replies.get(a.id)?.(a.result)
+        replies.delete(a.id)
+        return
       case 'get_layout':
         return JSON.parse(localStorage.getItem('layout') ?? '{}')
       case 'set_layout':
@@ -292,6 +303,8 @@ mockIPC(
         return '/home/quentin/agence/mercure'
       case 'plugin:dialog|ask':
         return true
+      case 'plugin:dialog|message':
+        return (args as { buttons?: { OkCancelCustom?: string[] } }).buttons?.OkCancelCustom?.[0] ?? 'Ok'
     }
   },
   { shouldMockEvents: true },

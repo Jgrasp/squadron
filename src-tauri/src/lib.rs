@@ -3,11 +3,13 @@ pub mod claude;
 pub mod editors;
 pub mod git;
 pub mod permissions;
+pub mod pilot;
 pub mod projects;
 pub mod terminal;
 
 use agents::Agents;
 use permissions::Gate;
+use pilot::Pilot;
 use projects::{Card, Folder, Project};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
@@ -195,6 +197,8 @@ struct Config {
     tab_effect: String,
     keys: std::collections::BTreeMap<String, String>,
     editors: Vec<editors::App>,
+    pilot: bool,
+    pilot_all: bool,
 }
 
 impl Default for Config {
@@ -209,6 +213,8 @@ impl Default for Config {
             tab_effect: "pulse".into(),
             keys: Default::default(),
             editors: Vec::new(),
+            pilot: true,
+            pilot_all: false,
         }
     }
 }
@@ -258,8 +264,18 @@ fn get_settings(settings: State<Settings>) -> Config {
 }
 
 #[tauri::command]
-fn set_settings(settings: State<Settings>, config: Config) -> Result<(), String> {
+fn set_settings(
+    settings: State<Settings>,
+    agents: State<Agents>,
+    config: Config,
+) -> Result<(), String> {
+    agents.set_pilot(config.pilot);
     settings.save(config)
+}
+
+#[tauri::command]
+fn pilot_reply(pilot: State<Pilot>, id: String, result: String) -> Result<(), String> {
+    pilot.reply(&id, result)
 }
 
 #[tauri::command]
@@ -667,6 +683,7 @@ pub fn run() {
             move_project,
             add_rule,
             answer_permission,
+            pilot_reply,
             cancel_permissions,
             read_project_file,
             write_project_file,
@@ -739,9 +756,19 @@ pub fn run() {
             let gate = Gate::new(token.clone(), move |ask| {
                 let _ = handle.emit("permission-request", ask);
             });
-            let port = tauri::async_runtime::block_on(gate.clone().serve())?;
-            app.state::<Agents>().endpoint(port, token);
+            let handle = app.handle().clone();
+            let pilot = Pilot::new(token.clone(), move |call| {
+                let _ = handle.emit_to("main", "pilot-request", call);
+            });
+            let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
+                gate.clone(),
+                pilot.clone(),
+            ))?;
+            let agents = app.state::<Agents>();
+            agents.endpoint(port, token);
+            agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
+            app.manage(pilot);
             Ok(())
         })
         .on_window_event(|window, event| {

@@ -13,6 +13,7 @@
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
+  import './lib/pilot.svelte'
   import Board from './lib/Board.svelte'
   import { mirror, place, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'

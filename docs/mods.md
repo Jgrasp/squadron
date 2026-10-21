@@ -196,7 +196,7 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 1. **Socle** : registre des emplacements et des actions. Les boutons, menus et raccourcis existants y passent. Taille S. *Fait.*
 2. **Sujet 1** : `layout.json`, mode Customize et Settings › Layout. Taille S à M. *Fait : outils de l'agent, menu ⋯ de l'agent, menu Squadron.*
 3. **Sujet 2A** : mods déclaratifs, Settings › Mods, rechargement à chaud. Taille M.
-4. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M.
+4. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M. *Fait avant l'étape 3, après qu'un agent a modifié le code de Squadron pour déplacer un bouton : outils `overview`, `read_agent`, `start_agent`, `create_card`, `move_card`, `get_layout`, `set_layout`. Restent les outils de mods et le journal Activity.*
 5. **Sujet 2B** : panneaux web isolés avec leur API. Taille M à L.
 
 Le pilotage passe avant les panneaux web : l'IA sait déjà écrire des mods déclaratifs, et l'API d'actions est éprouvée avant d'être ouverte au code des mods.

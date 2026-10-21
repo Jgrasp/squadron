@@ -1,0 +1,148 @@
+import { invoke } from '@tauri-apps/api/core'
+import { listen } from '@tauri-apps/api/event'
+import { ask } from '@tauri-apps/plugin-dialog'
+import { create, find, ofProject } from './agents.svelte'
+import { moveCard, type Card, type Column } from './board'
+import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
+import { projects, setCards, type Project } from './projects.svelte'
+import { settings } from './settings.svelte'
+import { SLOTS, type Slot } from './slots'
+import type { Agent, Options } from './stream'
+
+type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
+
+const MODELS = ['opus', 'sonnet', 'haiku']
+const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
+const MODES = ['default', 'plan', 'acceptEdits', 'auto']
+const COLUMNS: Column[] = ['todo', 'progress', 'review', 'done']
+
+function pick<T extends string>(value: unknown, allowed: string[], fallback: T, what: string): T {
+  if (value === null || value === undefined || value === '') return fallback
+  if (!allowed.includes(String(value))) throw new Error(`Unknown ${what} “${value}”. Use one of: ${allowed.join(', ')}.`)
+  return value as T
+}
+
+function projectFor(caller: Agent, wanted: unknown): Project {
+  const own = projects.list.find((p) => p.path === caller.project)!
+  if (!wanted) return own
+  const found = projects.list.find((p) => p.path === wanted || p.name.toLowerCase() === String(wanted).toLowerCase())
+  if (!found) throw new Error(`No project “${wanted}”. Projects: ${projects.list.map((p) => p.name).join(', ')}.`)
+  if (found !== own && !settings.pilot_all)
+    throw new Error(`You can only act on your own project (${own.name}). The user can allow every project in Settings › Preferences.`)
+  return found
+}
+
+function text(agent: Agent, last: number) {
+  return agent.entries
+    .flatMap((e) =>
+      e.kind === 'user'
+        ? [`User: ${e.text}`]
+        : e.kind === 'agent'
+          ? e.blocks.flatMap((b) => (b.type === 'text' && b.text.trim() ? [`${agent.name}: ${b.text.trim()}`] : []))
+          : [],
+    )
+    .slice(-last)
+}
+
+const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknown> = {
+  overview: () =>
+    projects.list.map((p) => ({
+      project: p.name,
+      path: p.path,
+      agents: ofProject(p.path).map((a) => ({
+        id: a.id,
+        name: a.name,
+        status: a.status,
+        waiting_for_user: a.attention || undefined,
+        doing: a.status === 'working' ? a.action : undefined,
+        cost_usd: Math.round(a.cost * 100) / 100,
+        tasks: a.tasks.length ? `${a.tasks.filter((t) => t.status === 'completed').length}/${a.tasks.length}` : undefined,
+      })),
+      cards: p.cards.map((c) => ({ id: c.id, key: c.key || undefined, title: c.title, column: c.column, agent: c.agent ?? undefined })),
+    })),
+
+  read_agent: (_, args) => {
+    const agent = find(String(args.agent))
+    if (!agent) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    return { name: agent.name, status: agent.status, waiting_for_user: agent.attention || undefined, messages: text(agent, Number(args.last) || 10) }
+  },
+
+  start_agent: async (caller, args) => {
+    if (!String(args.prompt ?? '').trim()) throw new Error('The prompt is empty.')
+    const project = projectFor(caller, args.project)
+    if (!project.exists) throw new Error(`The folder of ${project.name} cannot be found.`)
+    const options: Options = {
+      model: pick(args.model, MODELS, settings.defaults.model, 'model'),
+      effort: pick(args.effort, EFFORTS, settings.defaults.effort, 'effort'),
+      mode: pick(args.mode, MODES, settings.defaults.mode, 'mode'),
+    }
+    const name = String(args.name ?? '').trim()
+    if (
+      (options.mode === 'acceptEdits' || options.mode === 'auto') &&
+      !(await ask(`${caller.name} wants to start ${name ? `“${name}”` : 'an agent'} in ${project.name} in ${options.mode} mode, which skips some permission requests.`, {
+        title: 'Start an agent',
+        kind: 'warning',
+        okLabel: 'Start it',
+        cancelLabel: 'Refuse',
+      }))
+    )
+      return `The user refused to start this agent in ${options.mode} mode.`
+    const card = args.card ? project.cards.find((c) => c.id === args.card) : undefined
+    if (args.card && !card) throw new Error(`No card ${args.card} in ${project.name}.`)
+    const id = await create(project.path, name, options, String(args.prompt).trim(), { by: caller.name })
+    if (card) await setCards(project.path, project.cards.map((c) => (c.id === card.id ? { ...c, agent: id, column: 'progress' } : c)))
+    return `Started agent ${id} in ${project.name}. Its permission requests and questions go to the user.`
+  },
+
+  create_card: async (caller, args) => {
+    if (!String(args.title ?? '').trim()) throw new Error('The title is empty.')
+    const project = projectFor(caller, args.project)
+    const card: Card = {
+      id: crypto.randomUUID(),
+      key: String(args.key ?? '').trim(),
+      title: String(args.title).trim(),
+      prompt: String(args.prompt ?? '').trim(),
+      column: 'todo',
+      agent: null,
+    }
+    await setCards(project.path, [...project.cards, card])
+    return `Card ${card.id} added to the To do column of ${project.name}.`
+  },
+
+  move_card: async (caller, args) => {
+    const column = pick<Column>(args.column, COLUMNS, 'todo', 'column')
+    const project = projects.list.find((p) => p.cards.some((c) => c.id === args.card))
+    if (!project) throw new Error(`No card with id ${args.card}. Call overview to list them.`)
+    projectFor(caller, project.path)
+    await setCards(project.path, moveCard(project.cards, String(args.card), column))
+    return `Card moved to ${column}.`
+  },
+
+  get_layout: () =>
+    (Object.keys(SLOTS) as Slot[]).map((slot) => ({
+      slot,
+      title: SLOTS[slot].title,
+      where: SLOTS[slot].hint,
+      items: all(slot).map((id) => ({ id, label: labelOf(slot, id), hidden: hidden(slot, id) || undefined })),
+      cannot_hide: SLOTS[slot].locked,
+    })),
+
+  set_layout: (_, args) => {
+    if (!(args.slot in SLOTS)) throw new Error(`Unknown slot “${args.slot}”. Slots: ${Object.keys(SLOTS).join(', ')}.`)
+    arrangeSlot(args.slot as Slot, args.order, args.hidden)
+    return `Layout of ${args.slot} updated: ${all(args.slot as Slot).join(', ')}.`
+  },
+}
+
+listen<Call>('pilot-request', async ({ payload: call }) => {
+  let result: unknown
+  try {
+    const caller = find(call.agent)
+    if (!caller) throw new Error('Only agents started by Squadron can drive it.')
+    if (!tools[call.tool]) throw new Error(`Unknown tool ${call.tool}.`)
+    result = await tools[call.tool](caller, call.args ?? {})
+  } catch (e) {
+    result = `Error: ${e instanceof Error ? e.message : e}`
+  }
+  await invoke('pilot_reply', { id: call.id, result: typeof result === 'string' ? result : JSON.stringify(result, null, 2) })
+})

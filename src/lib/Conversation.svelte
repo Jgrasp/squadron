@@ -100,6 +100,12 @@
       <strong>Interrupted by you · {time(entry.at)}</strong>
       <span>The reply stops here. Nothing was undone in the files.</span>
     </div>
+  {:else if entry.kind === 'launched'}
+    <div class="separator" role="separator">
+      <span></span>
+      Launched by {entry.by} · {time(entry.at)}
+      <span></span>
+    </div>
   {:else if entry.kind === 'forked'}
     <div class="separator" role="separator">
       <span></span>

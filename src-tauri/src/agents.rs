@@ -3,7 +3,7 @@ use serde::Serialize;
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::path::PathBuf;
-use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use tauri::{AppHandle, Emitter};
 
@@ -23,6 +23,7 @@ struct Agent {
 pub struct Agents {
     list: Mutex<HashMap<String, Agent>>,
     endpoint: Mutex<Option<(u16, String)>>,
+    pilot: AtomicBool,
 }
 
 #[derive(Clone, Serialize)]
@@ -42,10 +43,19 @@ impl Agents {
         *self.endpoint.lock().unwrap() = Some((port, token));
     }
 
+    pub fn set_pilot(&self, on: bool) {
+        self.pilot.store(on, Ordering::Relaxed);
+    }
+
     fn mcp(&self, id: &str) -> Option<String> {
         let endpoint = self.endpoint.lock().unwrap();
         let (port, token) = endpoint.as_ref()?;
-        Some(crate::permissions::mcp_config(*port, token, id))
+        Some(crate::permissions::mcp_config(
+            *port,
+            token,
+            id,
+            self.pilot.load(Ordering::Relaxed),
+        ))
     }
 
     pub fn register(
@@ -97,8 +107,10 @@ impl Agents {
     }
 
     pub fn reload(&self, app: &AppHandle, program: &str, id: &str) -> Result<(), String> {
+        let mcp = self.mcp(id);
         let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        agent.mcp = mcp;
         if let Some(session) = agent.session.take() {
             let _ = session.stop();
         }

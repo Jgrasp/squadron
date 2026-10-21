@@ -118,20 +118,7 @@ impl Gate {
     }
 
     pub async fn serve(self) -> std::io::Result<u16> {
-        let service: StreamableHttpService<Gate, LocalSessionManager> = StreamableHttpService::new(
-            move || Ok(self.clone()),
-            Default::default(),
-            StreamableHttpServerConfig::default(),
-        );
-        let router = axum::Router::new().nest_service("/mcp", service);
-        let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
-        let port = listener.local_addr()?.port();
-        tokio::spawn(async move {
-            if let Err(e) = axum::serve(listener, router).await {
-                log::error!("permission server stopped: {e}");
-            }
-        });
-        Ok(port)
+        listen(axum::Router::new().nest_service("/mcp", service(self))).await
     }
 }
 
@@ -142,18 +129,54 @@ impl ServerHandler for Gate {
     }
 }
 
+fn service<S: ServerHandler + Clone + Send + Sync + 'static>(
+    server: S,
+) -> StreamableHttpService<S, LocalSessionManager> {
+    StreamableHttpService::new(
+        move || Ok(server.clone()),
+        Default::default(),
+        StreamableHttpServerConfig::default(),
+    )
+}
+
+async fn listen(router: axum::Router) -> std::io::Result<u16> {
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await?;
+    let port = listener.local_addr()?.port();
+    tokio::spawn(async move {
+        if let Err(e) = axum::serve(listener, router).await {
+            log::error!("MCP server stopped: {e}");
+        }
+    });
+    Ok(port)
+}
+
+pub async fn serve_with_pilot(gate: Gate, pilot: crate::pilot::Pilot) -> std::io::Result<u16> {
+    listen(
+        axum::Router::new()
+            .nest_service("/mcp", service(gate))
+            .nest_service("/pilot", service(pilot)),
+    )
+    .await
+}
+
 fn deny(message: &str) -> Value {
     json!({"behavior": "deny", "message": message})
 }
 
-pub fn mcp_config(port: u16, token: &str, agent: &str) -> String {
-    json!({"mcpServers": {"squadron": {
-        "type": "http",
-        "url": format!("http://127.0.0.1:{port}/mcp"),
-        "headers": {"X-Squadron-Token": token, "X-Squadron-Agent": agent},
-        "timeout": i32::MAX,
-    }}})
-    .to_string()
+pub fn mcp_config(port: u16, token: &str, agent: &str, pilot: bool) -> String {
+    let server = |path: &str| {
+        json!({
+            "type": "http",
+            "url": format!("http://127.0.0.1:{port}/{path}"),
+            "headers": {"X-Squadron-Token": token, "X-Squadron-Agent": agent},
+            "timeout": i32::MAX,
+        })
+    };
+    let mut servers = json!({"squadron": server("mcp")});
+    if pilot {
+        servers["squadron-pilot"] = server("pilot");
+    }
+    json!({ "mcpServers": servers }).to_string()
 }
 
 #[cfg(test)]
@@ -210,7 +233,7 @@ mod tests {
             effort: "low".into(),
             mode: mode.into(),
         };
-        let config = mcp_config(port, "token", "agent-1");
+        let config = mcp_config(port, "token", "agent-1", false);
         let cmd = claude::command("claude", &dir, &options, None, false, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(

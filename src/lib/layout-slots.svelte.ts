@@ -37,6 +37,19 @@ export function toggle(slot: Slot, id: string) {
   save()
 }
 
+export function arrangeSlot(slot: Slot, order?: string[] | null, hide?: string[] | null) {
+  const known = SLOTS[slot].items.map(([id]) => id)
+  const unknown = [...(order ?? []), ...(hide ?? [])].filter((id) => !known.includes(id))
+  if (unknown.length) throw new Error(`Unknown items in ${slot}: ${unknown.join(', ')}. Items: ${known.join(', ')}.`)
+  const locked = (hide ?? []).filter((id) => SLOTS[slot].locked?.includes(id))
+  if (locked.length) throw new Error(`${locked.join(', ')} cannot be hidden.`)
+  arrangement[slot] = {
+    order: order ? arrange(known, order) : arrangement[slot]?.order,
+    hidden: hide ?? arrangement[slot]?.hidden,
+  }
+  save()
+}
+
 export function reset(slot?: Slot) {
   for (const key of slot ? [slot] : Object.keys(arrangement)) delete arrangement[key]
   save()

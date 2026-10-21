@@ -36,6 +36,8 @@
   let defaults = $state({ ...settings.defaults })
   let claude = $state(settings.claude)
   let effect = $state<TabEffect>(settings.tab_effect)
+  let pilot = $state(settings.pilot)
+  let pilotAll = $state(settings.pilot_all)
   let keys = $state<Record<string, string>>({ ...settings.keys })
   let editors = $state<App[]>(settings.editors.map((e) => ({ ...e })))
   let found = $state<App[]>([])
@@ -72,7 +74,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors) })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -199,6 +201,22 @@
           </button>
         {/each}
       </div>
+      <h2>Agents and Squadron</h2>
+      <label class="check">
+        <input type="checkbox" bind:checked={pilot} />
+        <span>
+          <strong>Agents can drive Squadron</strong>
+          <small>They see the projects and agents, start new agents, add and move cards, and change the layout. They never answer or approve anything in your place. Read only actions run freely; the others ask you first, like any tool.</small>
+        </span>
+      </label>
+      <label class="check" class:disabled={!pilot}>
+        <input type="checkbox" bind:checked={pilotAll} disabled={!pilot} />
+        <span>
+          <strong>On every project</strong>
+          <small>Otherwise an agent only starts agents and edits cards in its own project.</small>
+        </span>
+      </label>
+      <p class="intro">Applies to agents started or reloaded after saving.</p>
     {:else}
       <p class="intro">Squadron starts every agent with this executable.</p>
       <label for="claude-path">Executable</label>
@@ -372,6 +390,39 @@
 
   h2 .hint-text {
     font: 400 12.5px var(--sans);
+  }
+
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  .check input {
+    margin-top: 3px;
+    accent-color: var(--accent);
+  }
+
+  .check span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .check strong {
+    font-weight: 600;
+  }
+
+  .check small {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+
+  .check.disabled {
+    opacity: 0.5;
   }
 
   .row-intro {

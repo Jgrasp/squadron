@@ -36,6 +36,8 @@ export type Task = {
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout'].map((tool) => `mcp__squadron-pilot__${tool}`)
+
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string }
 
 export function prompt(text: string, comments: Comment[] = []) {
@@ -52,6 +54,7 @@ export type Entry =
   | ({ kind: 'interrupted'; at: number } & Usage)
   | { kind: 'reloaded'; at: number }
   | { kind: 'forked'; at: number; from: string }
+  | { kind: 'launched'; at: number; by: string }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
   | { kind: 'decision'; at: number; tone: 'ok' | 'bad'; title: string; detail: string; note?: string }
 
