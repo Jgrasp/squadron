@@ -282,6 +282,15 @@ mockIPC(
       }
       case 'set_agent_options':
         return
+      case 'remote_control':
+        if ((args as { enabled: boolean }).enabled)
+          for (const line of [
+            { type: 'system', subtype: 'bridge_state', state: 'ready' },
+            { type: 'control_response', response: { subtype: 'success', response: { session_url: 'https://claude.ai/code/session_demo' } } },
+            { type: 'system', subtype: 'bridge_state', state: 'connected' },
+          ])
+            emit('agent-line', { id: a.id, line: JSON.stringify(line) })
+        return
       case 'pilot_reply':
         replies.get(a.id)?.(a.result)
         replies.delete(a.id)

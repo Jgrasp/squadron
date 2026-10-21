@@ -55,6 +55,8 @@ export type Entry =
   | { kind: 'reloaded'; at: number }
   | { kind: 'forked'; at: number; from: string }
   | { kind: 'launched'; at: number; by: string }
+  | { kind: 'compacted'; at: number; before: number; after: number }
+  | { kind: 'cleared'; at: number }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
   | { kind: 'decision'; at: number; tone: 'ok' | 'bad'; title: string; detail: string; note?: string }
 
@@ -83,6 +85,9 @@ export type Agent = {
   attention: string
   autoName: boolean
   base: string | null
+  commands: string[]
+  skills: string[]
+  remote: { state: string; url: string } | null
 }
 
 type Json = Record<string, any>
@@ -113,8 +118,13 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     attention: '',
     autoName: false,
     base: null,
+    commands: [],
+    skills: [],
+    remote: null,
   }
 }
+
+export const known = { commands: [] as string[], skills: [] as string[] }
 
 export function relative(agent: Agent, path: unknown) {
   const text = String(path ?? '')
@@ -199,11 +209,32 @@ export function apply(agent: Agent, d: Json) {
         if (d.session_id !== agent.sessionId) agent.forkOf = null
         agent.sessionId = d.session_id
       }
+      if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
+        agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))
+        agent.skills = d.skills ?? []
+        known.commands = agent.commands
+        known.skills = agent.skills
+      }
+      if (d.subtype === 'bridge_state') agent.remote = { state: String(d.state), url: agent.remote?.url ?? '' }
+      if (d.subtype === 'status' && d.status === 'compacting') agent.action = 'Compacting the conversation…'
+      if (d.subtype === 'compact_boundary') {
+        const meta = d.compact_metadata ?? {}
+        agent.entries.push({ kind: 'compacted', at: Date.now(), before: meta.pre_tokens ?? 0, after: meta.post_tokens ?? 0 })
+        if (meta.post_tokens) agent.tokens = meta.post_tokens
+      }
       if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
       if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
         agent.attention = String(d.needs_action || d.status_detail || 'Waiting for you')
       if (d.subtype === 'status' && d.status === 'requesting' && agent.status !== 'waiting')
         agent.status = 'working'
+      return
+    case 'control_response':
+      if (d.response?.response?.session_url) agent.remote = { state: agent.remote?.state ?? 'ready', url: d.response.response.session_url }
+      return
+    case 'conversation_reset':
+      agent.entries.push({ kind: 'cleared', at: Date.now() })
+      agent.tasks = []
+      agent.tokens = 0
       return
     case 'stream_event':
       return stream(agent, d)
@@ -327,9 +358,10 @@ function result(agent: Agent, d: Json) {
     const message = String(d.result ?? ((d.errors ?? []).join('\n') || d.subtype))
     fail(agent, message || 'The session stopped.')
   } else {
-    agent.turns += 1
     agent.status = 'done'
     agent.action = ''
+    if (d.num_turns === 0 && !cost) return
+    agent.turns += 1
     agent.entries.push({ kind: 'turn', index: agent.turns, ...used })
   }
 }
@@ -348,6 +380,7 @@ export function fail(agent: Agent, message: string) {
 
 export function exited(agent: Agent, stderr: string) {
   agent.alive = false
+  agent.remote = null
   agent.asks = []
   if (agent.interrupting) {
     agent.interrupting = false

@@ -100,6 +100,18 @@
       <strong>Interrupted by you · {time(entry.at)}</strong>
       <span>The reply stops here. Nothing was undone in the files.</span>
     </div>
+  {:else if entry.kind === 'compacted'}
+    <div class="separator" role="separator">
+      <span></span>
+      Conversation compacted · {tokens(entry.before)} → {tokens(entry.after)} tokens · {time(entry.at)}
+      <span></span>
+    </div>
+  {:else if entry.kind === 'cleared'}
+    <div class="separator" role="separator">
+      <span></span>
+      Conversation cleared · Claude starts over from here · {time(entry.at)}
+      <span></span>
+    </div>
   {:else if entry.kind === 'launched'}
     <div class="separator" role="separator">
       <span></span>

@@ -1,8 +1,21 @@
-export type Slot = 'agent.tools' | 'agent.menu' | 'menu.squadron'
+export type Slot = 'agent.info' | 'agent.tools' | 'agent.menu' | 'menu.squadron'
 
 export type Arrangement = { order?: string[]; hidden?: string[] }
 
-export const SLOTS: Record<Slot, { title: string; hint: string; items: [string, string, string?][]; locked?: string[] }> = {
+export const SLOTS: Record<Slot, { title: string; hint: string; items: [string, string, string?][]; locked?: string[]; hidden?: string[] }> = {
+  'agent.info': {
+    title: 'Agent header',
+    hint: 'The line under the name of an agent',
+    items: [
+      ['options', 'Model, effort and mode'],
+      ['remote', 'Remote control', 'Shown while the conversation can be followed from claude.ai'],
+      ['cost', 'Cost'],
+      ['context', 'Context tokens'],
+      ['branch', 'Git branch'],
+      ['tasks', 'Task progress'],
+    ],
+    hidden: ['branch', 'tasks'],
+  },
   'agent.tools': {
     title: 'Agent tools',
     hint: 'Buttons at the top right of an agent',
@@ -20,6 +33,7 @@ export const SLOTS: Record<Slot, { title: string; hint: string; items: [string, 
       ['reload', 'Reload', 'Restarts the session, keeps the conversation'],
       ['rename', 'Rename', 'Give the agent a clearer name'],
       ['fork', 'Fork', 'New agent, same context'],
+      ['remote', 'Remote control', 'Follow and answer this conversation from claude.ai or the Claude app'],
       ['archive', 'Archive', 'Stops the agent and removes it from the list'],
     ],
   },

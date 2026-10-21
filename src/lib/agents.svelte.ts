@@ -104,7 +104,7 @@ export function persist(agent: Agent) {
 function save(agent: Agent) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
-  const { live, alive, processCost, interrupting, asks, ...kept } = $state.snapshot(agent)
+  const { live, alive, processCost, interrupting, asks, remote, ...kept } = $state.snapshot(agent)
   return invoke('save_agent', { id: agent.id, data: JSON.stringify(kept) })
 }
 
@@ -128,7 +128,7 @@ export async function restore() {
       invoke('delete_agent_file', { id: data.id })
       continue
     }
-    const agent: Agent = { ...newAgent(data.id, data.project, data.name, data.options), ...data, asks: [], alive: false }
+    const agent: Agent = { ...newAgent(data.id, data.project, data.name, data.options), ...data, asks: [], alive: false, remote: null }
     if (agent.status === 'working' || agent.status === 'waiting') {
       agent.status = 'interrupted'
       agent.action = 'Stopped when Squadron closed'
@@ -368,6 +368,13 @@ export async function setOptions(id: string, options: Options) {
   agent.options = options
   persist(agent)
   await invoke('set_agent_options', { id, options }).catch((e) => fail(agent, String(e)))
+}
+
+export async function remote(id: string, enabled: boolean) {
+  const agent = find(id)
+  if (!agent) return
+  if (!enabled) agent.remote = null
+  await invoke('remote_control', { id, enabled }).catch((e) => fail(agent, String(e)))
 }
 
 export function rename(id: string, name: string) {

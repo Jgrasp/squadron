@@ -19,7 +19,7 @@ export const all = (slot: Slot) =>
     arrangement[slot]?.order,
   )
 
-export const hidden = (slot: Slot, id: string) => !!arrangement[slot]?.hidden?.includes(id)
+export const hidden = (slot: Slot, id: string) => (arrangement[slot]?.hidden ?? SLOTS[slot].hidden ?? []).includes(id)
 
 export const shown = (slot: Slot) => all(slot).filter((id) => !hidden(slot, id))
 
@@ -32,7 +32,7 @@ export function place(slot: Slot, id: string, index: number) {
 
 export function toggle(slot: Slot, id: string) {
   if (SLOTS[slot].locked?.includes(id)) return
-  const list = arrangement[slot]?.hidden ?? []
+  const list = arrangement[slot]?.hidden ?? SLOTS[slot].hidden ?? []
   arrangement[slot] = { ...arrangement[slot], hidden: list.includes(id) ? list.filter((h) => h !== id) : [...list, id] }
   save()
 }

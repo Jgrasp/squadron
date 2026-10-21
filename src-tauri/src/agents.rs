@@ -123,6 +123,29 @@ impl Agents {
         Ok(())
     }
 
+    pub fn remote(
+        &self,
+        app: &AppHandle,
+        program: &str,
+        id: &str,
+        enabled: bool,
+    ) -> Result<(), String> {
+        let mut list = self.list.lock().unwrap();
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        if !agent.session.as_ref().is_some_and(Session::alive) {
+            if !enabled {
+                return Ok(());
+            }
+            spawn(app, program, id, agent)?;
+        }
+        agent
+            .session
+            .as_mut()
+            .unwrap()
+            .control(serde_json::json!({"subtype": "remote_control", "enabled": enabled}))
+            .map_err(|e| e.to_string())
+    }
+
     pub fn interrupt(&self, id: &str) -> Result<(), String> {
         let list = self.list.lock().unwrap();
         match list.get(id).and_then(|a| a.session.as_ref()) {

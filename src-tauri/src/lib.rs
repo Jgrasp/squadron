@@ -274,6 +274,17 @@ fn set_settings(
 }
 
 #[tauri::command]
+fn remote_control(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    agents.remote(&app, &settings.claude(), &id, enabled)
+}
+
+#[tauri::command]
 fn set_agent_options(
     agents: State<Agents>,
     id: String,
@@ -694,6 +705,7 @@ pub fn run() {
             answer_permission,
             pilot_reply,
             set_agent_options,
+            remote_control,
             cancel_permissions,
             read_project_file,
             write_project_file,

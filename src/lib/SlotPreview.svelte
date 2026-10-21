@@ -6,7 +6,7 @@
 
   let { slot }: { slot: Slot } = $props()
 
-  const bar = $derived(slot === 'agent.tools')
+  const bar = $derived(slot === 'agent.tools' || slot === 'agent.info')
   let box: HTMLElement
 
   async function keys(event: KeyboardEvent, id: string, index: number) {
@@ -60,7 +60,8 @@
   }
 
   .bar {
-    gap: 6px;
+    flex-wrap: wrap;
+    gap: 10px 6px;
     background: var(--bg-main);
   }
 
@@ -90,6 +91,7 @@
     box-shadow: inset 0 0 0 1px var(--border-strong);
     color: var(--text-2);
     font-weight: 500;
+    white-space: nowrap;
   }
 
   .menu .entry {

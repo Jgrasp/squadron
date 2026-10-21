@@ -1,14 +1,15 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
-  import { archive, fork, interrupt, reload, rename, reply, send, setOptions } from './agents.svelte'
+  import { openUrl } from '@tauri-apps/plugin-opener'
+  import { archive, fork, interrupt, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes } from './diff'
   import DiffPanel from './DiffPanel.svelte'
   import { cost, meta, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
-  import { toggleBoard } from './projects.svelte'
+  import { projects, toggleBoard } from './projects.svelte'
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
@@ -16,7 +17,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import { calls, prompt, relative, type Agent, type Comment, type Options, type ToolCall } from './stream'
+  import { calls, known, prompt, relative, type Agent, type Comment, type Options, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
@@ -75,7 +76,59 @@
     reload: () => reload(agent.id),
     rename: () => startRename(),
     fork: () => fork(agent.id),
+    remote: () => remote(agent.id, !agent.remote),
     archive: () => archive(agent.id),
+  }
+
+  const branch = $derived(projects.list.find((p) => p.path === agent.project)?.branch)
+  const info = $derived(
+    shown('agent.info').filter(
+      (id) => (id !== 'remote' || agent.remote) && (id !== 'branch' || branch) && (id !== 'tasks' || agent.tasks.length),
+    ),
+  )
+
+  const BUILTIN: Record<string, string> = {
+    compact: 'Summarize the conversation to free context',
+    clear: 'Start over with an empty conversation',
+    context: 'Show what fills the context window',
+    model: 'Show the model, or change it',
+    effort: 'Show the effort, or change it',
+    init: 'Write a CLAUDE.md for this project',
+    mcp: 'MCP servers of the session',
+    agents: 'Subagents of the session',
+    'output-style': 'Show or change the output style',
+    config: 'Claude Code settings',
+    fast: 'Toggle fast mode',
+  }
+  let dismissed = $state('')
+  let pick = $state(0)
+  let composer: HTMLTextAreaElement
+  const typed = $derived(/^\/\S*$/.test(text) ? text.slice(1).toLowerCase() : null)
+  const suggestions = $derived.by(() => {
+    if (typed === null || text === dismissed) return []
+    const list = agent.commands.length ? agent.commands : known.commands
+    return list
+      .filter((c) => c.toLowerCase().includes(typed))
+      .sort(
+        (a, b) =>
+          Number(!a.toLowerCase().startsWith(typed)) - Number(!b.toLowerCase().startsWith(typed)) ||
+          Number(!(a in BUILTIN)) - Number(!(b in BUILTIN)) ||
+          a.localeCompare(b),
+      )
+      .slice(0, 60)
+  })
+  const kindOf = (c: string) =>
+    BUILTIN[c] ?? ((agent.skills.length ? agent.skills : known.skills).includes(c) ? 'Skill' : c.includes(':') ? `${c.split(':')[0]} command` : 'Command')
+
+  $effect(() => {
+    void typed
+    pick = 0
+  })
+
+  function complete(command: string) {
+    text = `/${command} `
+    dismissed = ''
+    composer.focus()
   }
 
   function excerpt(selection: string) {
@@ -175,6 +228,25 @@
 
   function keys(event: KeyboardEvent) {
     const area = event.currentTarget as HTMLTextAreaElement
+    if (suggestions.length) {
+      if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+        event.preventDefault()
+        pick = (pick + (event.key === 'ArrowDown' ? 1 : -1) + suggestions.length) % suggestions.length
+        tick().then(() => document.querySelector('.commands [aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
+        return
+      }
+      if (event.key === 'Tab' || (event.key === 'Enter' && !event.shiftKey && `/${suggestions[pick]}` !== text.trim())) {
+        event.preventDefault()
+        complete(suggestions[pick])
+        return
+      }
+      if (event.key === 'Escape') {
+        event.preventDefault()
+        event.stopPropagation()
+        dismissed = text
+        return
+      }
+    }
     if (event.key === 'Enter' && !event.shiftKey) {
       submit(event)
     } else if (event.key === 'ArrowUp' && !text.slice(0, area.selectionStart).includes('\n') && recall < sent.length - 1) {
@@ -230,11 +302,33 @@
           <h1><button class="name" title="Rename" onclick={startRename}>{agent.name}</button></h1>
         {/if}
         <span class="meta" data-options>
-          <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title="Change the model, the effort or the permission mode" onclick={() => (tuning = tuning ? null : { ...agent.options })}>
-            {meta(agent)}
-            <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-          </button>
-          · <span class="mono">{cost(agent.cost)} · {tokens(agent.tokens)} context tokens</span>
+          {#each info as id (id)}
+            <span class="info">
+              {#if id === 'options'}
+                <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title="Change the model, the effort or the permission mode" onclick={() => (tuning = tuning ? null : { ...agent.options })}>
+                  {meta(agent)}
+                  <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+              {:else if id === 'remote'}
+                <button
+                  class="remote"
+                  class:connected={agent.remote?.state === 'connected'}
+                  title="Remote control is on ({agent.remote?.state}). Open this conversation in claude.ai"
+                  onclick={() => agent.remote?.url && openUrl(agent.remote.url)}
+                >
+                  <Icon name="remote" size={12} />Remote
+                </button>
+              {:else if id === 'cost'}
+                <span class="mono">{cost(agent.cost)}</span>
+              {:else if id === 'context'}
+                <span class="mono">{tokens(agent.tokens)} context tokens</span>
+              {:else if id === 'branch'}
+                <span class="mono" title="Git branch of the project"><Icon name="branch" size={11} /> {branch}</span>
+              {:else if id === 'tasks'}
+                <span>{agent.tasks.filter((t) => t.status === 'completed').length}/{agent.tasks.length} tasks</span>
+              {/if}
+            </span>
+          {/each}
           {#if tuning}
             <div class="tuning" role="dialog" aria-label="Agent options">
               <OptionsFields bind:options={tuning} />
@@ -343,9 +437,19 @@
           {/each}
         </div>
       {/if}
+      {#if suggestions.length}
+        <div class="commands" role="listbox" aria-label="Commands">
+          {#each suggestions as command, i (command)}
+            <button type="button" role="option" aria-selected={i === pick} onmousedown={(e) => e.preventDefault()} onclick={() => complete(command)}>
+              <span class="slash">/{command}</span>
+              <span class="what">{kindOf(command)}</span>
+            </button>
+          {/each}
+        </div>
+      {/if}
       <div class="bar">
         <label for="composer" class="sr-only">Message to the agent</label>
-        <textarea id="composer" rows="1" bind:value={text} {placeholder} onkeydown={keys}></textarea>
+        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={keys}></textarea>
         {#if busy}
           <button type="button" class="btn-icon" aria-label="Interrupt" title="Interrupt ({hint('interrupt')})" onclick={() => interrupt(agent.id)}>
             <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
@@ -371,7 +475,8 @@
               {#each shown('agent.menu') as id (id)}
                 {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
                 <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onclick={() => ((menuOpen = false), MENU[id]())}>
-                  <strong>{labelOf('agent.menu', id)}</strong><span>{detailOf('agent.menu', id)}</span>
+                  <strong>{id === 'remote' && agent.remote ? 'Turn off remote control' : labelOf('agent.menu', id)}</strong>
+                  <span>{id === 'remote' && agent.remote ? 'The conversation goes back to this computer only' : detailOf('agent.menu', id)}</span>
                 </button>
               {/each}
             </div>
@@ -639,6 +744,90 @@
 
   .meta {
     position: relative;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    min-width: 0;
+  }
+
+  .info {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+  }
+
+  .info + .info::before {
+    content: '·';
+    margin: 0 6px;
+  }
+
+  .remote {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    margin: -2px -4px;
+    padding: 2px 4px;
+    border-radius: 3px;
+    color: var(--accent-soft);
+    font-size: 12px;
+  }
+
+  .remote:not(.connected) {
+    opacity: 0.7;
+  }
+
+  .remote:hover {
+    background: var(--surface-3);
+  }
+
+  .composer {
+    position: relative;
+  }
+
+  .commands {
+    position: absolute;
+    bottom: calc(100% - 6px);
+    left: 50%;
+    z-index: 20;
+    width: min(740px, calc(100% - 40px));
+    transform: translateX(-50%);
+    max-height: 320px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .commands button {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    padding: 7px 10px;
+    border-radius: 4px;
+    text-align: left;
+  }
+
+  .commands button[aria-selected='true'] {
+    background: var(--menu-hover);
+  }
+
+  .slash {
+    font: 13px var(--mono);
+    color: var(--text-strong);
+  }
+
+  .what {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12.5px;
+    color: var(--text-muted);
   }
 
   .settings {
