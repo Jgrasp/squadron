@@ -66,6 +66,15 @@
   let effect = $state<TabEffect>(settings.tab_effect)
   let pilot = $state(settings.pilot)
   let pilotAll = $state(settings.pilot_all)
+  let archiveAfter = $state(settings.archive_after_days)
+  const AGES: [number, string][] = [
+    [0, 'Never'],
+    [1, 'After a day'],
+    [3, 'After 3 days'],
+    [7, 'After a week'],
+    [14, 'After two weeks'],
+    [30, 'After a month'],
+  ]
   let keys = $state<Record<string, string>>({ ...settings.keys })
   let editors = $state<App[]>(settings.editors.map((e) => ({ ...e })))
   let found = $state<App[]>([])
@@ -102,7 +111,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -242,6 +251,11 @@
         {/each}
       </div>
       <h2>Agents and Squadron</h2>
+      <label for="archive-after">Archive idle agents</label>
+      <select id="archive-after" class="field" bind:value={archiveAfter}>
+        {#each AGES as [days, text] (days)}<option value={days}>{text}</option>{/each}
+      </select>
+      <p class="intro">An agent that is done, interrupted or stopped on an error for that long goes to the archived agents. Working agents and agents waiting for you stay.</p>
       <label class="check">
         <input type="checkbox" bind:checked={pilot} />
         <span>

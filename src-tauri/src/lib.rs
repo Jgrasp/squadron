@@ -243,6 +243,7 @@ struct Config {
     editors: Vec<editors::App>,
     pilot: bool,
     pilot_all: bool,
+    archive_after_days: u32,
 }
 
 impl Default for Config {
@@ -259,6 +260,7 @@ impl Default for Config {
             editors: Vec::new(),
             pilot: true,
             pilot_all: false,
+            archive_after_days: 0,
         }
     }
 }

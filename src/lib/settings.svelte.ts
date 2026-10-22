@@ -6,7 +6,16 @@ export type TabEffect = 'pulse' | 'snake'
 
 export type App = { name: string; command: string }
 
-export type Config = { claude: string; defaults: Options; tab_effect: TabEffect; keys: Record<string, string>; editors: App[]; pilot: boolean; pilot_all: boolean }
+export type Config = {
+  claude: string
+  defaults: Options
+  tab_effect: TabEffect
+  keys: Record<string, string>
+  editors: App[]
+  pilot: boolean
+  pilot_all: boolean
+  archive_after_days: number
+}
 
 export const settings = $state<Config>({
   claude: 'claude',
@@ -16,6 +25,7 @@ export const settings = $state<Config>({
   editors: [],
   pilot: true,
   pilot_all: false,
+  archive_after_days: 0,
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

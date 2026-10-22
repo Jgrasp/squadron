@@ -9,7 +9,7 @@
   import ProjectView from './lib/ProjectView.svelte'
   import Settings from './lib/Settings.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
-  import { agents, create, find, loadToday, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
+  import { agents, archiveIdle, create, find, loadToday, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
@@ -71,7 +71,10 @@
   loadToday()
   load()
     .then(() => restore())
-    .then(() => setInterval(rescan, 15_000))
+    .then(() => {
+      archiveIdle()
+      setInterval(() => (rescan(), archiveIdle()), 15_000)
+    })
 
   $effect(() => {
     const appWindow = getCurrentWindow()

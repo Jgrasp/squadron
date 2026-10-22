@@ -5,6 +5,8 @@
   import { layout, toggleSidebar } from './layout.svelte'
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
+  import ArchivedAgents from './ArchivedAgents.svelte'
+  import Dialog from './Dialog.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import type { Agent } from './stream'
   import { asking, count, LOOKS, summary } from './subagents'
@@ -59,7 +61,39 @@
     hovered = { agent, top: rect.top - 6, left: rect.right + 12 }
   }
 
-  const list = $derived(ofProject(project.path))
+  type Sort = { by: 'updated' | 'created' | 'name'; desc: boolean }
+  const SORTS: [Sort['by'], string][] = [
+    ['updated', 'Last activity'],
+    ['created', 'Creation date'],
+    ['name', 'Name'],
+  ]
+
+  function savedSort(): Sort {
+    try {
+      return { by: 'created', desc: false, ...JSON.parse(localStorage.getItem('squadron.agentSort') ?? '{}') }
+    } catch {
+      return { by: 'created', desc: false }
+    }
+  }
+
+  let sort = $state<Sort>(savedSort())
+  let sorting = $state(false)
+  let showArchived = $state(false)
+
+  function sortBy(next: Partial<Sort>) {
+    sort = { ...sort, ...next }
+    try {
+      localStorage.setItem('squadron.agentSort', JSON.stringify(sort))
+    } catch {}
+  }
+
+  const created = (a: Agent) => a.entries.find((e) => 'at' in e)?.at ?? 0
+  const key: Record<Sort['by'], (a: Agent, b: Agent) => number> = {
+    updated: (a, b) => a.since - b.since,
+    created: (a, b) => created(a) - created(b),
+    name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
+  }
+  const list = $derived([...ofProject(project.path)].sort((a, b) => key[sort.by](a, b) * (sort.desc ? -1 : 1)))
   const pending = $derived(waiting(project.path))
   const total = $derived(list.reduce((sum, a) => sum + a.cost, 0))
 
@@ -131,8 +165,8 @@
 {/snippet}
 
 <svelte:window
-  onclick={(e) => !(e.target as HTMLElement).closest('[data-menu]') && (menu = null)}
-  onkeydown={(e) => e.key === 'Escape' && (menu = null)}
+  onclick={(e) => !(e.target as HTMLElement).closest('[data-menu]') && ((menu = null), (sorting = false))}
+  onkeydown={(e) => e.key === 'Escape' && ((menu = null), (sorting = false))}
 />
 
 {#if menu}
@@ -142,6 +176,12 @@
     <button role="menuitem" onclick={() => act(archive)}>Archive conversation</button>
     <button role="menuitem" class="danger" onclick={() => erase(agent)}>Delete…</button>
   </div>
+{/if}
+
+{#if showArchived}
+  <Dialog title="Archived agents · {project.name}" width={620} onclose={() => (showArchived = false)}>
+    <div class="archived"><ArchivedAgents project={project.path} onrestore={() => (showArchived = false)} /></div>
+  </Dialog>
 {/if}
 
 {#if layout.collapsed}
@@ -200,6 +240,24 @@
     </div>
     <div class="actions">
       <button class="new" disabled={!project.exists} onclick={onnew} title="New agent ({hint('newAgent')})">+ Agent</button>
+      <span class="anchor" data-menu>
+        <button class="fold" aria-label="Sort the agents" aria-haspopup="menu" aria-expanded={sorting} title="Sort the agents" onclick={() => (sorting = !sorting)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
+        </button>
+        {#if sorting}
+          <div class="menu sort" role="menu" aria-label="Sort the agents">
+            {#each SORTS as [by, label] (by)}
+              <button role="menuitemradio" aria-checked={sort.by === by} onclick={() => sortBy({ by })}>{label}</button>
+            {/each}
+            <span class="sep" aria-hidden="true"></span>
+            <button role="menuitemradio" aria-checked={!sort.desc} onclick={() => sortBy({ desc: false })}>{sort.by === 'name' ? 'A to Z' : 'Oldest first'}</button>
+            <button role="menuitemradio" aria-checked={sort.desc} onclick={() => sortBy({ desc: true })}>{sort.by === 'name' ? 'Z to A' : 'Newest first'}</button>
+          </div>
+        {/if}
+      </span>
+      <button class="fold" aria-label="Archived agents" title="Archived agents of {project.name}" onclick={() => (showArchived = true)}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" /></svg>
+      </button>
       <button class="fold" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
@@ -276,6 +334,39 @@
 
   .menu button:disabled {
     color: var(--text-faint);
+  }
+
+  .anchor {
+    position: relative;
+  }
+
+  .menu.sort {
+    position: absolute;
+    top: 36px;
+    right: 0;
+  }
+
+  .menu [aria-checked='true'] {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  .menu [aria-checked='true']::after {
+    content: '✓';
+    float: right;
+    color: var(--accent);
+  }
+
+  .sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border);
+  }
+
+  .archived {
+    max-height: 60vh;
+    overflow: auto;
+    padding: 4px 22px 22px;
   }
 
   .menu .danger {

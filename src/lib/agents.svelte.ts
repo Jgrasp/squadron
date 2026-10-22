@@ -5,6 +5,7 @@ import { EDITS } from './diff'
 import { addRule, editProject, projects, type Project } from './projects.svelte'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { matches, ruleFor, ruleLabel } from './rules'
+import { settings } from './settings.svelte'
 import {
   apply,
   argument,
@@ -156,6 +157,16 @@ function save(agent: Agent, extra: Record<string, unknown> = {}) {
 
 export function saveAll() {
   return Promise.all(agents.list.map((a) => save(a)))
+}
+
+export function archiveIdle() {
+  const days = settings.archive_after_days
+  if (!days) return
+  const limit = Date.now() - days * 86_400_000
+  const shown = projects.overview ? undefined : agents.current[projects.current]
+  for (const agent of [...agents.list])
+    if (['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && agent.since < limit && agent.id !== shown)
+      archive(agent.id)
 }
 
 let scanning = false

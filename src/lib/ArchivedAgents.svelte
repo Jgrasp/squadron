@@ -5,10 +5,12 @@
   import { cost } from './format'
   import { home, projects } from './projects.svelte'
 
+  let { project, onrestore }: { project?: string; onrestore?: () => void } = $props()
+
   let list = $state<Archived[] | null>(null)
   let error = $state('')
 
-  const refresh = async () => (list = await archived())
+  const refresh = async () => (list = (await archived()).filter((a) => !project || a.project === project))
   refresh()
 
   const projectOf = (a: Archived) => projects.list.find((p) => p.path === a.project)
@@ -23,6 +25,7 @@
       projects.board = false
       projects.current = a.project
       ui.settings = null
+      onrestore?.()
     } catch (e) {
       error = String(e)
     }
