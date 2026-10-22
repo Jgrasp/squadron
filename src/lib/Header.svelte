@@ -18,6 +18,8 @@
   let menuOpen = $state(false)
   let moreOpen = $state(false)
   let search = $state('')
+  let context = $state<{ path: string; x: number; y: number } | null>(null)
+  const target = $derived(projects.list.find((p) => p.path === context?.path))
 
   const fit = $derived.by(() => {
     const available = headerWidth - 2 * 200 - 34 - 64 - 130
@@ -56,13 +58,14 @@
     if (!(event.target as HTMLElement).closest('[data-menu]')) {
       menuOpen = false
       moreOpen = false
+      context = null
     }
   }
 </script>
 
 <svelte:window
   onclick={closeMenus}
-  onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false))}
+  onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false), (context = null))}
 />
 
 <header data-tauri-drag-region bind:clientWidth={headerWidth}>
@@ -120,6 +123,7 @@
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         style:--project={project.color}
         onclick={() => ((projects.overview = false), (projects.current = project.path))}
+        oncontextmenu={(e) => (e.preventDefault(), (context = { path: project.path, x: e.clientX, y: e.clientY }))}
       >
         <span class="dot" aria-hidden="true"></span>
         {project.name}
@@ -192,6 +196,16 @@
     <button class="win" aria-label="Maximize" onclick={() => appWindow.toggleMaximize()}>□</button>
     <button class="win" aria-label="Close" onclick={() => appWindow.close()}>×</button>
   </div>
+
+  {#if context && target}
+    <div class="menu context" role="menu" aria-label="{target.name} actions" data-menu style:left="{context.x}px" style:top="{context.y}px">
+      <button role="menuitem" onclick={() => (editProject(target.path, { pinned: !target.pinned }), (context = null))}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
+        {target.pinned ? 'Unpin from the tab bar' : 'Pin to the tab bar'}
+      </button>
+      <button role="menuitem" onclick={() => ((context = null), (ui.settings = 'projects'))}>Project settings…</button>
+    </div>
+  {/if}
 
   <div class="measure" aria-hidden="true">
     {#each tabs as project, i (project.path)}
@@ -285,6 +299,18 @@
     box-shadow:
       0 0 0 1px var(--border-strong),
       0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .menu.context {
+    position: fixed;
+    width: 220px;
+  }
+
+  .menu.context svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linejoin: round;
   }
 
   .menu.right {
