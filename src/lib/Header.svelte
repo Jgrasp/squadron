@@ -9,6 +9,8 @@
 
   let { onadd }: { onadd: () => void } = $props()
 
+  const failed = (path: string) => ofProject(path).filter((a) => a.status === 'error').length
+
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
@@ -120,7 +122,12 @@
       >
         <span class="dot" aria-hidden="true"></span>
         {project.name}
-        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}
+        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
+            class="badge error"
+            role="img"
+            aria-label="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error"
+            title="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error">!</span
+          >{/if}
         {#if !project.exists}
           <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label="Folder not found"
             ><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg
@@ -140,6 +147,7 @@
           {#if hidden.some((p) => waiting(p.path))}
             <span class="badge">{hidden.reduce((n, p) => n + waiting(p.path), 0)}</span>
           {/if}
+          {#if hidden.some((p) => failed(p.path))}<span class="badge error" role="img" aria-label="Agents in error">!</span>{/if}
           <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
             ><path d="M6 9l6 6 6-6" /></svg
           >
@@ -155,7 +163,12 @@
             {#each found as project (project.path)}
               <button role="menuitem" style:--project={project.color} onclick={() => choose(project.path)}>
                 <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
-                {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}
+                {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
+            class="badge error"
+            role="img"
+            aria-label="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error"
+            title="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error">!</span
+          >{/if}
               </button>
             {/each}
           </div>
@@ -457,6 +470,13 @@
     color: var(--accent-ink);
     font-size: 11.5px;
     font-weight: 700;
+  }
+
+  .badge.error {
+    padding: 0 5px;
+    background: var(--err);
+    color: var(--err-ink);
+    font-weight: 800;
   }
 
   .menu .badge {
