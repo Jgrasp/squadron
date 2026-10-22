@@ -128,6 +128,7 @@ export type Agent = {
   remote: { state: string; url: string; since?: number; last?: number } | null
   subagents: Subagent[]
   goal: Goal | null
+  worktree: { path: string; branch: string } | null
 }
 
 type Json = Record<string, any>
@@ -163,6 +164,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     remote: null,
     subagents: [],
     goal: null,
+    worktree: null,
   }
 }
 
@@ -292,6 +294,8 @@ export function apply(agent: Agent, d: Json) {
         if (d.session_id !== agent.sessionId) agent.forkOf = agent.forkAt = null
         agent.sessionId = d.session_id
       }
+      if (d.subtype === 'init' && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/') && agent.worktree?.path !== d.cwd)
+        agent.worktree = { path: d.cwd, branch: '' }
       if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
         agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))
         agent.skills = d.skills ?? []
@@ -489,6 +493,10 @@ function toolResults(agent: Agent, d: Json) {
     const created = agent.tasks.find((t) => t.toolUseId === c.tool_use_id && !t.id)
     if (created && d.tool_use_result?.task?.id) created.id = String(d.tool_use_result.task.id)
     const call = calls(agent).find((x) => x.id === c.tool_use_id)
+    const result = d.tool_use_result
+    if (!d.parent_tool_use_id && call?.name === 'EnterWorktree' && result?.worktreePath)
+      agent.worktree = { path: String(result.worktreePath), branch: String(result.worktreeBranch ?? '') }
+    if (!d.parent_tool_use_id && call?.name === 'ExitWorktree' && !c.is_error) agent.worktree = null
     if (call)
       call.result = {
         text: textOf(c.content),

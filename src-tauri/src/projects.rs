@@ -185,7 +185,7 @@ pub fn inside(project: &Path, file: &Path) -> Option<PathBuf> {
     resolved.starts_with(&root).then_some(resolved)
 }
 
-fn branch(dir: &Path) -> Option<String> {
+pub fn branch(dir: &Path) -> Option<String> {
     let dot_git = dir.join(".git");
     let git_dir = if dot_git.is_file() {
         let link = fs::read_to_string(&dot_git).ok()?;

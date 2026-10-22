@@ -783,6 +783,14 @@ fn interrupt_agent(agents: State<Agents>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn git_branch(path: PathBuf) -> Result<Option<String>, String> {
+    if !path.is_absolute() || !path.join(".git").exists() {
+        return Err("Not a git checkout.".into());
+    }
+    Ok(projects::branch(&path))
+}
+
+#[tauri::command]
 fn stop_turn(agents: State<Agents>, id: String) -> Result<(), String> {
     agents.stop_turn(&id)
 }
@@ -813,6 +821,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             system_load,
             stop_turn,
+            git_branch,
             list_projects,
             inspect_folder,
             add_project,

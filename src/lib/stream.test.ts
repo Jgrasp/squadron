@@ -9,6 +9,8 @@ import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
+import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?raw'
+import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
 import { apply, calls, exited, newAgent, prompt, replayLog, subagentOf, userMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
@@ -22,6 +24,23 @@ function fresh() {
 }
 
 const kinds = (entries: Entry[]) => entries.map((e) => e.kind)
+
+describe('worktree', () => {
+  it('follows an agent that enters a worktree with EnterWorktree', () => {
+    const agent = fresh()
+    replay(agent, worktreeEnter)
+    expect(agent.worktree).toEqual({ path: '/project/.claude/worktrees/demo', branch: 'worktree-demo' })
+  })
+
+  it('reads the worktree of a session started with --worktree, until ExitWorktree', () => {
+    const agent = fresh()
+    const lines = worktreeFlag.trim().split('\n')
+    replay(agent, lines[0])
+    expect(agent.worktree).toEqual({ path: '/project/.claude/worktrees/demo2', branch: '' })
+    replay(agent, lines.slice(1).join('\n'))
+    expect(agent.worktree).toBeNull()
+  })
+})
 
 describe('goal', () => {
   const decisions = (agent: Agent) => agent.entries.flatMap((e) => (e.kind === 'decision' ? [e.title] : []))

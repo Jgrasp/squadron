@@ -76,7 +76,15 @@ impl Agent {
             mode: self.mode.clone(),
         };
         let config = mcp_config(self.port, "token", "agent-1", false);
-        let mut cmd = command("claude", &self.dir, &options, resume, false, Some(&config));
+        let mut cmd = command(
+            "claude",
+            &self.dir,
+            &options,
+            resume,
+            false,
+            None,
+            Some(&config),
+        );
         cmd.envs(self.env.iter().copied());
         let (lines, exit) = (self.tx.clone(), self.tx.clone());
         let mut record = std::fs::OpenOptions::new()

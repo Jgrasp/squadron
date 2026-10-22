@@ -13,7 +13,8 @@ use tokio::sync::oneshot;
 pub const INSTRUCTIONS: &str = "You run inside Squadron, the desktop app where the user drives several Claude Code agents. \
 These tools act on Squadron itself: its projects and agents, the Kanban cards, and the layout of its buttons and menus. \
 When the user asks to change Squadron (move or hide a button, add a card, start an agent), use these tools and never edit Squadron's source code. \
-You can prepare and start new agents as the user would, but you never answer, approve or steer an existing agent in the user's place.";
+You can prepare and start new agents as the user would, but you never answer, approve or steer an existing agent in the user's place. \
+When you start working in a git worktree that you entered yourself (a script, git worktree add, cd), call set_worktree so Squadron shows its branch.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -61,6 +62,12 @@ struct CreateCard {
     done_when: Option<String>,
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+struct SetWorktree {
+    /// The absolute path of the git worktree you now work in, or an empty string when you are back in the project's main checkout.
+    path: String,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -186,6 +193,16 @@ impl Pilot {
         self.forward(&parts, "move_card", json!(args)).await
     }
 
+    /// Tells Squadron which git worktree you work in, when you entered it yourself (a script, git worktree add, cd): Squadron then shows its branch for you. Not needed when Claude Code created it (--worktree, EnterWorktree).
+    #[tool]
+    async fn set_worktree(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<SetWorktree>,
+    ) -> String {
+        self.forward(&parts, "set_worktree", json!(args)).await
+    }
+
     /// Returns Squadron's layout: each slot (a bar of buttons or a menu), its items and which are hidden.
     #[tool]
     async fn get_layout(&self, Extension(parts): Extension<http::request::Parts>) -> String {
@@ -296,6 +313,52 @@ mod tests {
             set.args["order"].as_array().unwrap().last().unwrap(),
             "editor"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_declares_the_worktree_a_script_made() {
+        let main = std::env::temp_dir().join("squadron-wt-main");
+        let _ = std::fs::remove_dir_all(&main);
+        let _ = std::fs::remove_dir_all("/tmp/squadron-wt");
+        std::fs::create_dir_all(&main).unwrap();
+        let git = |args: &[&str]| {
+            let ok = std::process::Command::new("git")
+                .args(["-c", "user.name=t", "-c", "user.email=t@t"])
+                .args(args)
+                .current_dir(&main)
+                .status()
+                .unwrap()
+                .success();
+            assert!(ok, "git {args:?}");
+        };
+        git(&["init", "-q"]);
+        git(&["commit", "-q", "--allow-empty", "-m", "init"]);
+        git(&[
+            "worktree",
+            "add",
+            "-q",
+            "/tmp/squadron-wt/BAT-809-T70",
+            "-b",
+            "ia/BAT-809-T70",
+        ]);
+        let calls = drive(
+            "sonnet",
+            "I just ran `make worktree TICKET=BAT-809 TACHE=T70`: it created a git worktree at /tmp/squadron-wt/BAT-809-T70 on the branch ia/BAT-809-T70. From now on you work there. Get ready, nothing else to do yet.",
+            |call| match call.tool.as_str() {
+                "set_worktree" if call.args["path"].as_str().unwrap_or_default().is_empty() => {
+                    "Squadron shows the branch of the main checkout again.".to_string()
+                }
+                "set_worktree" => "Squadron now shows that you work in the worktree.".to_string(),
+                _ => "[]".to_string(),
+            },
+        )
+        .await;
+        let set = calls
+            .iter()
+            .find(|c| c.tool == "set_worktree")
+            .expect("set_worktree called");
+        assert_eq!(set.args["path"], "/tmp/squadron-wt/BAT-809-T70");
     }
 
     #[tokio::test(flavor = "multi_thread")]

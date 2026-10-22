@@ -102,7 +102,9 @@
     archive: () => archive(agent.id),
   }
 
-  const branch = $derived(projects.list.find((p) => p.path === agent.project)?.branch)
+  const branch = $derived(
+    agent.worktree ? agent.worktree.branch || agent.worktree.path.split('/').at(-1) : projects.list.find((p) => p.path === agent.project)?.branch,
+  )
   const info = $derived(
     shown('agent.info').filter(
       (id) =>
@@ -112,7 +114,7 @@
         (id !== 'turns' || agent.turns),
     ),
   )
-  const CHIPS = ['remote', 'subagents']
+  const CHIPS = ['remote', 'branch', 'subagents']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
@@ -400,8 +402,6 @@
                 <span class="mono">{tokens(agent.tokens)} context tokens</span>
               {:else if id === 'turns'}
                 <span class="mono">{agent.turns} turn{agent.turns > 1 ? 's' : ''}</span>
-              {:else if id === 'branch'}
-                <span class="mono" title="Git branch of the project"><Icon name="branch" size={11} /> {branch}</span>
               {:else if id === 'tasks'}
                 <span>{agent.tasks.filter((t) => t.status === 'completed').length}/{agent.tasks.length} tasks</span>
               {/if}
@@ -506,6 +506,15 @@
                     {/if}
                   </div>
                 {/if}
+              </span>
+            {:else if id === 'branch'}
+              <span
+                class="chip branch"
+                class:worktree={!!agent.worktree}
+                title={agent.worktree ? `Works in the worktree ${agent.worktree.path}` : 'Branch of the project checkout'}
+              >
+                <Icon name="branch" size={15} /><span class="mono">{branch}</span>
+                {#if agent.worktree}<span class="tag">worktree</span>{/if}
               </span>
             {:else}
               <button
@@ -998,6 +1007,37 @@
 
   .chip.on {
     --project: var(--remote-dot);
+  }
+
+  .chip.branch {
+    gap: 8px;
+    cursor: default;
+  }
+
+  .chip.branch:hover {
+    background: var(--menu);
+  }
+
+  .chip.worktree,
+  .chip.worktree:hover {
+    background: var(--ok-bg);
+    box-shadow: inset 0 0 0 1px var(--ok-line);
+    color: var(--ok-text);
+  }
+
+  .chip.worktree :global(svg) {
+    stroke: var(--ok);
+  }
+
+  .tag {
+    padding: 2px 6px;
+    border-radius: 3px;
+    background: var(--ok);
+    color: var(--ink);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .chip svg {

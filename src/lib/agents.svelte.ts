@@ -123,6 +123,12 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
     agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'bad', title: 'Goal stopped', detail: `after ${GOAL_RELAUNCHES} relaunches · ${agent.goal.reason}` })
     invoke('send_message', { id: agent.id, text: '/goal clear' })
   }
+  if (d.subtype === 'init' && agent.worktree && !agent.worktree.branch) {
+    const worktree = agent.worktree
+    invoke<string | null>('git_branch', { path: worktree.path })
+      .then((branch) => (worktree.branch = branch ?? ''))
+      .catch(() => {})
+  }
   if (d.type === 'result' || d.subtype === 'init') persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)

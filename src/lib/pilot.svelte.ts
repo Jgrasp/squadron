@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { create, find, ofProject } from './agents.svelte'
+import { create, find, ofProject, persist } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
@@ -125,6 +125,21 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     projectFor(caller, project.path)
     await setCards(project.path, moveCard(project.cards, String(args.card), column))
     return `Card moved to ${column}.`
+  },
+
+  set_worktree: async (caller, args) => {
+    const path = String(args.path ?? '').trim().replace(/\/+$/, '')
+    if (!path || path === caller.project) {
+      caller.worktree = null
+      persist(caller)
+      return 'Squadron shows the branch of the main checkout again.'
+    }
+    const branch = await invoke<string | null>('git_branch', { path }).catch(() => {
+      throw new Error(`${path} is not a git checkout.`)
+    })
+    caller.worktree = { path, branch: branch ?? '' }
+    persist(caller)
+    return `Squadron now shows that you work in the worktree ${path}${branch ? ` on ${branch}` : ''}.`
   },
 
   get_layout: () =>
