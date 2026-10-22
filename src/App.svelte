@@ -13,6 +13,7 @@
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
+  import { setPanel } from './lib/layout.svelte'
   import './lib/pilot.svelte'
   import Board from './lib/Board.svelte'
   import { mirror, place, type Actions } from './lib/board'
@@ -36,6 +37,13 @@
       const agent = find(id)
       if (!agent) return
       show(agent)
+      getCurrentWindow().setFocus()
+    },
+    diff(id) {
+      const agent = find(id)
+      if (!agent) return
+      show(agent)
+      setPanel(agent.project, 'diff')
       getCurrentWindow().setFocus()
     },
   }

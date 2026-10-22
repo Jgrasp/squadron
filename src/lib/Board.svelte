@@ -213,9 +213,16 @@
                     <span class="mono">{agent.done}/{agent.total}</span>
                   </span>
                 {/if}
-                <button class="link" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
-                  {agent.attention ? 'Answer' : 'Open agent'}
-                </button>
+                <span class="buttons">
+                  <button class="link" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
+                    {agent.attention ? 'Answer' : 'Open agent'}
+                  </button>
+                  {#if column === 'review' && (agent.add || agent.del)}
+                    <button class="link diff" onclick={() => actions.diff(agent.id)}>
+                      See the diff <span class="add">+{agent.add}</span>{#if agent.del}<span class="del">−{agent.del}</span>{/if}
+                    </button>
+                  {/if}
+                </span>
               {:else if column !== 'done'}
                 <button class="link" disabled={!project.exists} onclick={() => (starting = card)}>Start an agent</button>
               {/if}
@@ -627,6 +634,28 @@
 
   .link:disabled {
     opacity: 0.4;
+  }
+
+  .buttons {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .link.diff {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .diff .add {
+    font-family: var(--mono);
+    color: var(--ok);
+  }
+
+  .diff .del {
+    font-family: var(--mono);
+    color: var(--err);
   }
 
   .link.answer {
