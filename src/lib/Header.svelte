@@ -1,5 +1,6 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
+  import { flip } from 'svelte/animate'
   import { ofProject, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
@@ -123,6 +124,7 @@
     <span class="divider" aria-hidden="true"></span>
     {#each visible as project (project.path)}
       <button
+        animate:flip={{ duration: 260 }}
         class="tab {ofProject(project.path).some((a) => a.status === 'working') ? `effect-${settings.tab_effect}` : ''}"
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         style:--project={project.color}
