@@ -1,7 +1,6 @@
 <script lang="ts">
   import Dialog from './Dialog.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import WorktreeField from './WorktreeField.svelte'
   import type { Project } from './projects.svelte'
   import { untrack } from 'svelte'
   import { settings } from './settings.svelte'
@@ -72,8 +71,6 @@
           onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
         ></textarea>
       </div>
-
-      {#if project.git}<WorktreeField bind:name={worktree} suggestion={name || text.split(/\s+/).slice(0, 4).join(' ')} />{/if}
     </div>
 
     <footer>

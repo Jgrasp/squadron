@@ -96,7 +96,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       }))
     )
       return `The user refused to start this agent in ${options.mode} mode.`
-    const id = await create(project.path, name, options, text, { by: caller.name }, goal, String(args.worktree ?? '').trim() || null)
+    const id = await create(project.path, name, options, text, { by: caller.name }, goal)
     if (card) await setCards(project.path, project.cards.map((c) => (c.id === card.id ? { ...c, agent: id, column: 'progress' } : c)))
     const until = goal ? ` It works until this goal is met: ${goal}${options.mode === 'plan' ? ' (once the user approves its plan)' : ''}.` : ''
     return `Started agent ${id} in ${project.name}.${until} Its permission requests and questions go to the user.`

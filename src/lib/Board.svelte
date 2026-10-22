@@ -2,7 +2,6 @@
   import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import WorktreeField from './WorktreeField.svelte'
   import { home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -299,10 +298,7 @@
           </div>
           <details class="agent">
             <summary><span class="chevron" aria-hidden="true">›</span>Agent settings</summary>
-            <div class="options">
-              <OptionsFields bind:options={editing.options} />
-              {#if project.git}<WorktreeField bind:name={editing.worktree} suggestion={editing.card.title} />{/if}
-            </div>
+            <div class="options"><OptionsFields bind:options={editing.options} /></div>
           </details>
         {/if}
       </div>
