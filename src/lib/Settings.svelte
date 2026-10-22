@@ -23,18 +23,39 @@
 
   const tab = $derived(ui.settings ?? 'defaults')
 
-  const tabs: [Tab, string][] = [
-    ['projects', 'Projects'],
-    ['archived', 'Archived agents'],
-    ['defaults', 'Agent defaults'],
-    ['rules', 'Permission rules'],
-    ['claude', 'Claude Code'],
-    ['editors', 'Editors'],
-    ['preferences', 'Preferences'],
-    ['shortcuts', 'Shortcuts'],
-    ['layout', 'Layout'],
-    ['about', 'About'],
+  const groups: [string, [Tab, string][]][] = [
+    [
+      'Projects',
+      [
+        ['projects', 'Projects'],
+        ['archived', 'Archived agents'],
+      ],
+    ],
+    [
+      'Agents',
+      [
+        ['defaults', 'Agent defaults'],
+        ['rules', 'Permission rules'],
+      ],
+    ],
+    [
+      'Tools',
+      [
+        ['claude', 'Claude Code'],
+        ['editors', 'Editors'],
+      ],
+    ],
+    [
+      'Interface',
+      [
+        ['preferences', 'Preferences'],
+        ['shortcuts', 'Shortcuts'],
+        ['layout', 'Layout'],
+      ],
+    ],
+    ['Squadron', [['about', 'About']]],
   ]
+  const current = $derived(groups.flatMap(([, items]) => items).find(([id]) => id === tab)?.[1] ?? '')
   const effects: [TabEffect, string, string][] = [
     ['snake', 'Snake', 'A light trail runs around the tab, one lap every 2.4 s'],
     ['pulse', 'Pulse', 'The tab background breathes, one cycle every 2 s'],
@@ -107,13 +128,19 @@
 
 <svelte:window onkeydowncapture={record} />
 
-<Dialog title="Settings" {onclose} width={800}>
-  <div class="tabs" role="tablist" aria-label="Settings sections">
-    {#each tabs as [id, label] (id)}
-      <button role="tab" aria-selected={tab === id} onclick={() => (ui.settings = id)}>{label}</button>
+<Dialog title="Settings" {onclose} full>
+  <div class="frame">
+  <div class="side" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
+    {#each groups as [title, items] (title)}
+      <span class="group">{title}</span>
+      {#each items as [id, label] (id)}
+        <button role="tab" aria-selected={tab === id} onclick={() => (ui.settings = id)}>{label}</button>
+      {/each}
     {/each}
   </div>
 
+  <div class="content">
+  <h2 class="heading">{current}</h2>
   <div class="body">
     {#if tab === 'projects'}
       <ProjectSettings />
@@ -255,39 +282,88 @@
       <button class="btn btn-primary" onclick={save}>Save</button>
     </footer>
   {/if}
+  </div>
+  </div>
 </Dialog>
 
 <style>
-  .tabs {
+  .frame {
+    flex: 1;
+    min-height: 0;
     display: flex;
-    flex-wrap: wrap;
-    gap: 4px;
-    padding: 10px 22px 0;
-    border-bottom: 1px solid var(--border);
+    border-top: 1px solid var(--border);
+    margin-top: 14px;
   }
 
-  .tabs button {
-    height: 36px;
-    padding: 0 12px;
-    white-space: nowrap;
-    border-bottom: 2px solid transparent;
+  .side {
+    flex: none;
+    width: 230px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 14px 12px;
+    overflow-y: auto;
+    border-right: 1px solid var(--border);
+    background: var(--bg-sidebar);
+  }
+
+  .group {
+    padding: 14px 10px 6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .group:first-child {
+    padding-top: 2px;
+  }
+
+  .side button {
+    height: 34px;
+    padding: 0 10px;
+    border-radius: 4px;
+    text-align: left;
     color: var(--text-muted);
   }
 
-  .tabs button[aria-selected='true'] {
-    border-color: var(--accent);
+  .side button:hover {
+    background: var(--surface-2);
+    color: var(--text);
+  }
+
+  .side button[aria-selected='true'] {
+    background: var(--surface-4);
     color: var(--text-strong);
     font-weight: 600;
   }
 
+  .content {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .heading {
+    margin: 0;
+    padding: 20px 32px 4px;
+    font-size: 16px;
+  }
+
   .body {
+    flex: 1;
+    min-height: 0;
     display: flex;
     flex-direction: column;
     gap: 16px;
-    min-height: 280px;
-    max-height: 60vh;
     overflow-y: auto;
-    padding: 18px 22px 20px;
+    padding: 14px 32px 24px;
+  }
+
+  .body > :global(*) {
+    max-width: 860px;
   }
 
   .intro,

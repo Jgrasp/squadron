@@ -23,6 +23,8 @@
     <path d="M12 3v18M16 7.5A4 4 0 0 0 12 5c-2.2 0-4 1.2-4 3s1.8 2.6 4 3 4 1.2 4 3-1.8 3-4 3a4 4 0 0 1-4-2.5" />
   {:else if name === 'context'}
     <path d="M4 18a8 8 0 1 1 16 0M12 18l4-5" />
+  {:else if name === 'turns'}
+    <path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4" />
   {:else if name === 'tasks'}
     <path d="M10 6h10M10 12h10M10 18h10M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
   {:else if name === 'eye'}

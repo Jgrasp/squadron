@@ -3,11 +3,12 @@
 
   let {
     title,
-    width,
+    width = 0,
+    full = false,
     onclose,
     badge,
     children,
-  }: { title: string; width: number; onclose: () => void; badge?: Snippet; children: Snippet } =
+  }: { title: string; width?: number; full?: boolean; onclose: () => void; badge?: Snippet; children: Snippet } =
     $props()
 
   let dialog: HTMLDialogElement
@@ -19,7 +20,8 @@
 
 <dialog
   bind:this={dialog}
-  style:width="{width}px"
+  class:full
+  style:width={full ? null : `${width}px`}
   aria-labelledby="dialog-title"
   oncancel={(e) => {
     e.preventDefault()
@@ -47,6 +49,14 @@
     box-shadow:
       0 0 0 1px var(--border-strong),
       0 30px 80px rgba(0, 0, 0, 0.6);
+  }
+
+  dialog.full[open] {
+    width: calc(100vw - 48px);
+    height: calc(100vh - 48px);
+    max-height: none;
+    display: flex;
+    flex-direction: column;
   }
 
   dialog::backdrop {
