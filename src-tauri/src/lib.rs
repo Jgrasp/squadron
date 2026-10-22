@@ -771,6 +771,24 @@ fn list_archived(files: State<AgentFiles>) -> Vec<String> {
 }
 
 #[tauri::command]
+fn agent_ids(files: State<AgentFiles>) -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir(&files.0) else {
+        return Vec::new();
+    };
+    dir.filter_map(Result::ok)
+        .filter_map(|e| {
+            let path = e.path();
+            (path.extension()? == "json").then(|| path.file_stem()?.to_str().map(String::from))?
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn load_agent(files: State<AgentFiles>, id: String) -> Option<String> {
+    std::fs::read_to_string(files.path(&id).ok()?).ok()
+}
+
+#[tauri::command]
 fn load_agents(files: State<AgentFiles>) -> Vec<String> {
     let Ok(dir) = std::fs::read_dir(&files.0) else {
         return Vec::new();
@@ -838,6 +856,8 @@ pub fn run() {
             stop_turn,
             git_branch,
             set_workdir,
+            agent_ids,
+            load_agent,
             list_projects,
             inspect_folder,
             add_project,

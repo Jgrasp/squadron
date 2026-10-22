@@ -317,6 +317,10 @@ mockIPC(
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
       }
+      case 'agent_ids':
+        return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => k.slice(6))
+      case 'load_agent':
+        return localStorage.getItem(`agent:${a.id}`)
       case 'load_agents':
         return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
       case 'add_cost': {

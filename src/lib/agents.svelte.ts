@@ -159,14 +159,29 @@ export function saveAll() {
 }
 
 let scanning = false
+const elsewhere = new Set<string>()
 
 export async function rescan() {
   if (scanning) return
   scanning = true
-  await restore(false).finally(() => (scanning = false))
+  try {
+    const known = new Set(projects.list.map((p) => p.path))
+    for (const id of await invoke<string[]>('agent_ids')) {
+      if (find(id) || elsewhere.has(id)) continue
+      const text = await invoke<string | null>('load_agent', { id })
+      let data: Agent | null = null
+      try {
+        data = text ? JSON.parse(text) : null
+      } catch {}
+      if (data && known.has(data.project) && !find(data.id)) await adopt(data)
+      else elsewhere.add(id)
+    }
+  } finally {
+    scanning = false
+  }
 }
 
-export async function restore(cleanup = true) {
+export async function restore() {
   const known = new Set([...projects.list, ...projects.archived].map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
@@ -178,9 +193,8 @@ export async function restore(cleanup = true) {
   saved.sort((a, b) => (a.entries[0]?.kind === 'user' ? a.entries[0].at : 0) - (b.entries[0]?.kind === 'user' ? b.entries[0].at : 0))
   for (const data of saved) {
     if (find(data.id)) continue
-    if (!known.has(data.project)) {
-      if (cleanup) invoke('delete_agent_file', { id: data.id })
-    } else await adopt(data)
+    if (!known.has(data.project)) invoke('delete_agent_file', { id: data.id })
+    else await adopt(data)
   }
 }
 
