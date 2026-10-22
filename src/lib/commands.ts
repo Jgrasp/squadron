@@ -1,6 +1,23 @@
 export type Command = { name: string; description: string; argumentHint?: string; aliases?: string[]; builtin?: boolean }
 
-export type Model = { value: string; displayName?: string; description?: string }
+export type Model = { value: string; displayName?: string; description?: string; supportedEffortLevels?: string[] }
+
+const ALIASES = ['opus', 'sonnet', 'haiku']
+
+export function families(models: Model[]) {
+  const aliases = models.map((m) => m.value).filter((v) => v !== 'default' && !v.startsWith('claude-'))
+  return aliases.length ? aliases : ALIASES
+}
+
+export function familyOf(value: string, models: Model[]) {
+  const name = (models.find((m) => m.value === value)?.displayName ?? value).toLowerCase()
+  return families(models).find((f) => name.startsWith(f)) ?? value
+}
+
+export const versionsOf = (family: string, models: Model[]) => models.filter((m) => m.value !== 'default' && familyOf(m.value, models) === family)
+
+export const modelName = (value: string, models: Model[]) =>
+  models.find((m) => m.value === value)?.displayName ?? value[0].toUpperCase() + value.slice(1)
 
 export type Catalog = { commands: Command[]; models: Model[]; styles: string[] }
 

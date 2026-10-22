@@ -10,7 +10,6 @@ use std::thread;
 
 pub const TESTED_VERSION: &str = "2.1.304";
 
-const MODELS: [&str; 3] = ["opus", "sonnet", "haiku"];
 const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 const MODES: [&str; 4] = ["default", "acceptEdits", "plan", "auto"];
 
@@ -55,7 +54,10 @@ pub struct Options {
 
 impl Options {
     pub fn check(&self) -> Result<(), String> {
-        if !MODELS.contains(&self.model.as_str()) {
+        let model_id = |c: char| c.is_ascii_alphanumeric() || "-.[]".contains(c);
+        if !self.model.starts_with(|c: char| c.is_ascii_alphanumeric())
+            || !self.model.chars().all(model_id)
+        {
             return Err(format!("Unknown model: {}", self.model));
         }
         if !EFFORTS.contains(&self.effort.as_str()) {
@@ -349,9 +351,19 @@ mod tests {
         assert!(ok.check().is_ok());
         let flag = Options {
             model: "--dangerously-skip-permissions".into(),
-            ..ok
+            ..ok.clone()
         };
         assert!(flag.check().is_err());
+        let pinned = Options {
+            model: "claude-opus-4-7".into(),
+            ..ok.clone()
+        };
+        assert!(pinned.check().is_ok());
+        let spaced = Options {
+            model: "opus --verbose".into(),
+            ..ok
+        };
+        assert!(spaced.check().is_err());
     }
 
     fn real_turn(dir: &Path, resume: Option<&str>, fork: bool, prompt: &str) -> (String, String) {

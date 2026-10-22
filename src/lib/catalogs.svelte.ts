@@ -27,6 +27,7 @@ export function remember(project: string, response: Record<string, any>) {
       localStorage.setItem('squadron.account', JSON.stringify(response.account))
     } catch {}
   }
+  delete catalogs[project]
   catalogs[project] = {
     commands: response.commands ?? [],
     models: response.models ?? [],
@@ -36,6 +37,8 @@ export function remember(project: string, response: Record<string, any>) {
     localStorage.setItem(KEY, JSON.stringify($state.snapshot(catalogs)))
   } catch {}
 }
+
+export const models = () => Object.values(catalogs).reverse().find((c) => c.models?.length)?.models ?? []
 
 export function catalogOf(agent: Agent): Catalog | undefined {
   return catalogs[agent.project] ?? Object.values(catalogs)[0]

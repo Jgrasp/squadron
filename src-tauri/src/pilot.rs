@@ -39,7 +39,7 @@ struct StartAgent {
     name: Option<String>,
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
-    /// opus, sonnet or haiku. The user's default when left empty.
+    /// opus, fable, sonnet, haiku, or a pinned version such as claude-opus-4-7. The user's default when left empty.
     model: Option<String>,
     /// low, medium, high, xhigh or max. The user's default when left empty.
     effort: Option<String>,

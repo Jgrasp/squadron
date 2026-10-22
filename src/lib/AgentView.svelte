@@ -189,9 +189,9 @@
       note(agent.id, message, on ? 'Remote control turned on' : 'Remote control turned off')
       return true
     }
-    if (command?.name === 'model' && ['opus', 'sonnet', 'haiku'].includes(call.args)) {
-      setOptions(agent.id, { ...agent.options, model: call.args as Options['model'] })
-      note(agent.id, message, `Model set to ${modelLabel(call.args as Options['model'])}`)
+    if (command?.name === 'model' && (catalogOf(agent)?.models ?? []).some((m) => m.value === call.args && m.value !== 'default')) {
+      setOptions(agent.id, { ...agent.options, model: call.args })
+      note(agent.id, message, `Model set to ${modelLabel(call.args)}`)
       return true
     }
     if (command?.name === 'effort' && ['low', 'medium', 'high', 'xhigh', 'max'].includes(call.args)) {

@@ -1,3 +1,5 @@
+import { models } from './catalogs.svelte'
+import { modelName } from './commands'
 import type { Agent, Options } from './stream'
 
 const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 })
@@ -22,7 +24,7 @@ export function ago(at: number, now: number) {
 export const time = (at: number) =>
   new Date(at).toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' })
 
-export const modelLabel = (model: Options['model']) => model[0].toUpperCase() + model.slice(1)
+export const modelLabel = (model: string) => modelName(model, models())
 
 export const modeLabel: Record<Options['mode'], string> = {
   default: 'ask for everything',

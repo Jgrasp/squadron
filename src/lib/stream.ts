@@ -1,5 +1,5 @@
 export type Options = {
-  model: 'opus' | 'sonnet' | 'haiku'
+  model: string
   effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   mode: 'default' | 'acceptEdits' | 'plan' | 'auto'
 }

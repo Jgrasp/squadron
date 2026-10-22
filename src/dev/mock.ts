@@ -157,8 +157,13 @@ const catalog = {
       models: [
         { value: 'default', displayName: 'Default (recommended)', description: 'Opus 5.5 · Best for everyday, complex tasks' },
         { value: 'opus', displayName: 'Opus 5.5', description: 'Best for everyday, complex tasks' },
+        { value: 'fable', displayName: 'Fable 5.1', description: 'Most capable for your hardest and longest-running tasks' },
         { value: 'sonnet', displayName: 'Sonnet 5.5', description: 'Fast and capable' },
         { value: 'haiku', displayName: 'Haiku 5.5', description: 'Fastest for quick answers' },
+        { value: 'claude-haiku-4-5-20251001', displayName: 'Haiku 4.5', description: 'Fastest for quick answers' },
+        { value: 'claude-opus-5', displayName: 'Opus 5', description: 'Best for everyday, complex tasks' },
+        { value: 'claude-opus-4-7', displayName: 'Opus 4.7', description: 'Best for everyday, complex tasks' },
+        { value: 'claude-opus-4-6', displayName: 'Opus 4.6', description: 'Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'max'] },
       ],
       available_output_styles: ['default', 'Explanatory', 'Learning'],
     },

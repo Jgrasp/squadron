@@ -1,3 +1,5 @@
+import { models } from './catalogs.svelte'
+import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
@@ -11,7 +13,6 @@ import type { Agent, Options } from './stream'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
-const MODELS = ['opus', 'sonnet', 'haiku']
 const EFFORTS = ['low', 'medium', 'high', 'xhigh', 'max']
 const MODES = ['default', 'plan', 'acceptEdits', 'auto']
 const COLUMNS: Column[] = ['todo', 'progress', 'review', 'done']
@@ -72,7 +73,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const project = projectFor(caller, args.project)
     if (!project.exists) throw new Error(`The folder of ${project.name} cannot be found.`)
     const options: Options = {
-      model: pick(args.model, MODELS, settings.defaults.model, 'model'),
+      model: pick(args.model, [...families(models()), ...models().map((m) => m.value)].filter((v) => v !== 'default'), settings.defaults.model, 'model'),
       effort: pick(args.effort, EFFORTS, settings.defaults.effort, 'effort'),
       mode: pick(args.mode, MODES, settings.defaults.mode, 'mode'),
     }

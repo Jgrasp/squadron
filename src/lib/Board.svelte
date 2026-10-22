@@ -25,7 +25,7 @@
 
   const LABELS = { working: 'Working', waiting: 'Waiting for you', done: 'Done', interrupted: 'Interrupted', error: 'Error' }
 
-  let editing = $state<{ card: Card; fresh: boolean; start: boolean; options: Options } | null>(null)
+  let editing = $state<{ card: Card; fresh: boolean; options: Options } | null>(null)
   let drag = $state<{ id: string; x: number; y: number; over: Column | null; before: string | null } | null>(null)
   let focusId = ''
   let picking = $state(false)
@@ -49,19 +49,19 @@
   const defaults = () => ({ ...$state.snapshot(settings.defaults) })
 
   function create(column: Column = 'todo') {
-    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', column, agent: null }, fresh: true, start: false, options: defaults() }
+    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', column, agent: null }, fresh: true, options: defaults() }
   }
 
-  function edit(card: Card, start = false) {
-    editing = { card: $state.snapshot(card), fresh: false, start, options: defaults() }
+  function edit(card: Card) {
+    editing = { card: $state.snapshot(card), fresh: false, options: defaults() }
   }
 
   function submit(event: Event, start = false) {
     event.preventDefault()
     if (!editing?.card.title.trim()) return
-    const card = { ...editing.card, key: editing.card.key.trim(), title: editing.card.title.trim(), prompt: editing.card.prompt.trim() }
+    const card = { ...editing.card, title: editing.card.title.trim(), prompt: editing.card.prompt.trim() }
     save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
-    if (start) actions.start(project.path, card.id, [card.key, card.title].filter(Boolean).join(' · '), $state.snapshot(editing.options), card.prompt || card.title)
+    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), card.prompt || card.title)
     editing = null
   }
 
@@ -207,7 +207,6 @@
               onkeydown={(e) => keys(e, card, column)}
               use:refocus={card.id}
             >
-              {#if card.key}<span class="key">{card.key}</span>{/if}
               <strong>{card.title}</strong>
               {#if !agent && card.prompt}<span class="note">{card.prompt}</span>{/if}
               {#if agent}
@@ -230,7 +229,7 @@
                   {/if}
                 </span>
               {:else if column !== 'done'}
-                <button class="link" disabled={!project.exists} onclick={() => edit(card, true)}>
+                <button class="link" disabled={!project.exists} onclick={() => edit(card)}>
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>Start an agent
                 </button>
               {/if}
@@ -252,33 +251,27 @@
 {#if editing}
   {@const linked = cards.some((c) => c.id === editing?.card.id && c.agent)}
   <Dialog title={editing.fresh ? 'New task' : 'Task'} width={640} onclose={() => (editing = null)}>
-    <form onsubmit={(e) => submit(e, !!editing?.start)}>
+    <form onsubmit={(e) => submit(e)}>
       <div class="fields">
-        <div class="row">
-          <div class="group key-field">
-            <label for="card-key">Key</label>
-            <input id="card-key" class="field mono" bind:value={editing.card.key} placeholder="T16" />
-          </div>
-          <div class="group">
-            <label for="card-title">Title</label>
-            <!-- svelte-ignore a11y_autofocus -->
-            <input id="card-title" class="field" bind:value={editing.card.title} autofocus />
-          </div>
+        <div class="group">
+          <label for="card-title">Title</label>
+          <!-- svelte-ignore a11y_autofocus -->
+          <input id="card-title" class="field" bind:value={editing.card.title} autofocus />
         </div>
         <div class="group">
           <label for="card-prompt">Description</label>
           <textarea
             id="card-prompt"
             class="field"
-            rows="5"
+            rows="4"
             bind:value={editing.card.prompt}
-            placeholder="What needs to be done. An agent started from this task gets it as its first message."
-            onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e, !!editing?.start)}
+            placeholder="What needs to be done. The agent gets it as its first message."
+            onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
           ></textarea>
         </div>
         {#if !linked}
-          <details class="agent" open={editing.start}>
-            <summary><span class="chevron" aria-hidden="true">›</span>Agent for this task</summary>
+          <details class="agent">
+            <summary><span class="chevron" aria-hidden="true">›</span>Agent settings</summary>
             <div class="options"><OptionsFields bind:options={editing.options} /></div>
           </details>
         {/if}
@@ -292,12 +285,12 @@
         {#if linked}
           <button class="btn btn-primary" disabled={!editing.card.title.trim()}>Save</button>
         {:else}
-          <button type="button" class="btn {editing.start ? 'btn-secondary' : 'btn-primary'}" disabled={!editing.card.title.trim()} onclick={(e) => submit(e)}
+          <button type="button" class="btn btn-secondary" disabled={!editing.card.title.trim()} onclick={(e) => submit(e)}
             >{editing.fresh ? 'Create task' : 'Save'}</button
           >
           <button
             type="button"
-            class="btn {editing.start ? 'btn-primary' : 'btn-secondary'}"
+            class="btn btn-primary"
             disabled={!editing.card.title.trim() || !project.exists}
             onclick={(e) => submit(e, true)}>{editing.fresh ? 'Create and start agent' : 'Save and start agent'}</button
           >
@@ -583,11 +576,6 @@
     box-shadow: 0 -5px 0 -3px var(--accent);
   }
 
-  .key {
-    font: 500 11.5px var(--mono);
-    color: var(--accent-soft);
-  }
-
   strong {
     font-weight: 600;
     line-height: 1.35;
@@ -799,20 +787,11 @@
     padding: 10px 22px 20px;
   }
 
-  .row {
-    display: flex;
-    gap: 12px;
-  }
-
   .group {
     flex: 1;
     display: flex;
     flex-direction: column;
     gap: 8px;
-  }
-
-  .key-field {
-    flex: 0 0 120px;
   }
 
   label {
@@ -824,11 +803,6 @@
     padding: 12px 14px;
     resize: none;
     line-height: 1.5;
-  }
-
-  .field.mono {
-    font: 13px var(--mono);
-    color: var(--text);
   }
 
   footer {

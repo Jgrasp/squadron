@@ -1,9 +1,14 @@
 <script lang="ts">
+  import { models } from './catalogs.svelte'
+  import { families, familyOf, modelName, versionsOf } from './commands'
   import type { Options } from './stream'
 
   let { options = $bindable() }: { options: Options } = $props()
 
-  const models: Options['model'][] = ['opus', 'sonnet', 'haiku']
+  const catalog = $derived(models())
+  const family = $derived(familyOf(options.model, catalog))
+  const versions = $derived(versionsOf(family, catalog))
+  const levels = $derived(catalog.find((m) => m.value === options.model)?.supportedEffortLevels)
   const efforts: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
   const modes: { value: Options['mode']; title: string; hint: string }[] = [
     { value: 'default', title: 'Ask for everything', hint: 'Every tool waits for your approval' },
@@ -17,18 +22,30 @@
   <div class="group">
     <span id="model" class="label">Model</span>
     <div class="segments" role="group" aria-labelledby="model">
-      {#each models as model (model)}
-        <button type="button" aria-pressed={options.model === model} onclick={() => (options.model = model)}>
+      {#each families(catalog) as model (model)}
+        <button type="button" aria-pressed={family === model} onclick={() => (options.model = model)}>
           {model[0].toUpperCase() + model.slice(1)}
         </button>
       {/each}
     </div>
+    {#if versions.length > 1}
+      <select class="field version" aria-label="Version" bind:value={options.model}>
+        {#each versions as version, i (version.value)}
+          <option value={version.value}>{i === 0 ? `Latest · ${modelName(version.value, catalog)}` : version.displayName}</option>
+        {/each}
+      </select>
+    {/if}
   </div>
   <div class="group">
     <span id="effort" class="label">Effort</span>
     <div class="segments small" role="group" aria-labelledby="effort">
       {#each efforts as effort (effort)}
-        <button type="button" aria-pressed={options.effort === effort} onclick={() => (options.effort = effort)}>
+        <button
+          type="button"
+          aria-pressed={options.effort === effort}
+          disabled={!!levels && !levels.includes(effort)}
+          onclick={() => (options.effort = effort)}
+        >
           {effort}
         </button>
       {/each}
@@ -78,6 +95,15 @@
     height: 34px;
     border-radius: 3px;
     color: var(--text-2);
+  }
+
+  .segments button:disabled {
+    color: var(--text-faint);
+    cursor: default;
+  }
+
+  .version {
+    height: 40px;
   }
 
   .segments.small button {
