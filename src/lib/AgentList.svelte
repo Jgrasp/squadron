@@ -5,8 +5,7 @@
   import { layout, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
-  import ArchivedAgents from './ArchivedAgents.svelte'
-  import Dialog from './Dialog.svelte'
+  import ArchivePanel from './ArchivePanel.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import type { Agent } from './stream'
   import { asking, count, LOOKS, summary } from './subagents'
@@ -180,9 +179,7 @@
 {/if}
 
 {#if showArchived}
-  <Dialog title="Archived agents · {project.name}" width={620} onclose={() => (showArchived = false)}>
-    <div class="archived"><ArchivedAgents project={project.path} onrestore={() => (showArchived = false)} /></div>
-  </Dialog>
+  <ArchivePanel {project} onclose={() => (showArchived = false)} />
 {/if}
 
 {#if layout.collapsed}
@@ -419,11 +416,6 @@
     stroke-linejoin: round;
   }
 
-  .archived {
-    max-height: 60vh;
-    overflow: auto;
-    padding: 4px 22px 22px;
-  }
 
   .menu .danger {
     color: var(--err-text);
