@@ -7,6 +7,8 @@ import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
+import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
+import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
 import { apply, calls, exited, newAgent, prompt, replayLog, subagentOf, userMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
@@ -20,6 +22,43 @@ function fresh() {
 }
 
 const kinds = (entries: Entry[]) => entries.map((e) => e.kind)
+
+describe('goal', () => {
+  const decisions = (agent: Agent) => agent.entries.flatMap((e) => (e.kind === 'decision' ? [e.title] : []))
+
+  it('marks the goal met when the turn ends without a relaunch', () => {
+    const agent = fresh()
+    replay(agent, goalPlan)
+    expect(agent.goal).toMatchObject({ condition: 'running python3 count.py prints start, the numbers 1 to 5 one per line, then done', state: 'met', relaunches: 0 })
+    expect(decisions(agent)).toEqual(['Goal met'])
+  })
+
+  it('keeps the agent working while its goal waits for the end of the first turn', () => {
+    const agent = fresh()
+    agent.goal = { condition: 'tests pass', state: 'sent', relaunches: 0, reason: '' }
+    replay(agent, hello)
+    expect(agent.status).toBe('working')
+    apply(agent, { type: 'assistant', message: { id: 'g', model: '<synthetic>', content: [{ type: 'text', text: 'Goal set: tests pass' }] } })
+    expect(agent.goal).toMatchObject({ state: 'active', condition: 'tests pass' })
+    apply(agent, { type: 'result', is_error: false, num_turns: 2, total_cost_usd: 0.01, usage: {} })
+    expect(agent.status).toBe('done')
+    expect(agent.goal?.state).toBe('met')
+  })
+
+  it('counts the relaunches with their reason, and stops at the cap of Claude Code', () => {
+    const agent = fresh()
+    const lines = goalClear.trim().split('\n')
+    const capped = lines.findIndex((l) => l.includes('stop-hook-block-cap'))
+    replay(agent, lines.slice(0, capped + 1).join('\n'))
+    expect(agent.goal).toMatchObject({ state: 'stopping', relaunches: 9 })
+    expect(agent.goal?.reason).toMatch(/^\S/)
+    expect(agent.goal?.reason).not.toContain('Stop hook feedback')
+    expect(decisions(agent)).toEqual(Array(9).fill('Goal not met yet'))
+    replay(agent, lines.slice(capped + 1).join('\n'))
+    expect(agent.goal?.state).toBe('cleared')
+    expect(decisions(agent)).not.toContain('Goal met')
+  })
+})
 
 describe('stream', () => {
   it('streams a text reply and closes the turn', () => {

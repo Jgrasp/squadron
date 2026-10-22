@@ -154,6 +154,16 @@ impl Agents {
         }
     }
 
+    pub fn stop_turn(&self, id: &str) -> Result<(), String> {
+        let mut list = self.list.lock().unwrap();
+        match list.get_mut(id).and_then(|a| a.session.as_mut()) {
+            Some(session) => session
+                .control(serde_json::json!({"subtype": "interrupt"}))
+                .map_err(|e| e.to_string()),
+            None => Ok(()),
+        }
+    }
+
     pub fn reload(&self, app: &AppHandle, program: &str, id: &str) -> Result<(), String> {
         let mcp = self.mcp(id);
         let mut list = self.list.lock().unwrap();

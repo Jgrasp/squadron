@@ -5,7 +5,7 @@
   import { home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
-  import type { Options } from './stream'
+  import { GOAL_RELAUNCHES, type Goal, type Options } from './stream'
 
   let {
     project,
@@ -30,6 +30,17 @@
   let focusId = ''
   let picking = $state(false)
 
+  const GOALS: Record<Goal['state'], string> = {
+    planned: 'armed once you approve the plan',
+    sent: 'armed',
+    active: 'working on it',
+    met: 'met',
+    stopping: 'stopping',
+    partial: `stopped after ${GOAL_RELAUNCHES} relaunches`,
+    cleared: 'cleared',
+  }
+  const goalLine = (g: Goal) => (g.state === 'active' && g.relaunches ? `relaunch ${g.relaunches} of ${GOAL_RELAUNCHES}` : GOALS[g.state])
+
   const agentOf = (card: Card) => agents.find((a) => a.id === card.agent)
   const look = (a: Mirror) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status)
   const label = (a: Mirror) => (a.status === 'waiting' && a.attention.split(' · ')[0]) || LABELS[look(a)]
@@ -49,7 +60,7 @@
   const defaults = () => ({ ...$state.snapshot(settings.defaults) })
 
   function create(column: Column = 'todo') {
-    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', column, agent: null }, fresh: true, options: defaults() }
+    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', goal: '', column, agent: null }, fresh: true, options: defaults() }
   }
 
   function edit(card: Card) {
@@ -59,9 +70,9 @@
   function submit(event: Event, start = false) {
     event.preventDefault()
     if (!editing?.card.title.trim()) return
-    const card = { ...editing.card, title: editing.card.title.trim(), prompt: editing.card.prompt.trim() }
+    const card = { ...editing.card, title: editing.card.title.trim(), prompt: editing.card.prompt.trim(), goal: editing.card.goal?.trim() ?? '' }
     save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
-    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), card.prompt || card.title)
+    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), card.prompt || card.title, card.goal)
     editing = null
   }
 
@@ -209,9 +220,14 @@
             >
               <strong>{card.title}</strong>
               {#if !agent && card.prompt}<span class="note">{card.prompt}</span>{/if}
+              {#if !agent && card.goal}<span class="goal" title={card.goal}>Done when: {card.goal}</span>{/if}
               {#if agent}
                 <span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span>
                 {#if agent.detail}<span class="detail">{agent.detail}</span>{/if}
+                {#if agent.goal}
+                  <span class="goal {agent.goal.state}" title={agent.goal.condition}>Goal · {goalLine(agent.goal)}</span>
+                  {#if agent.goal.reason && agent.goal.state !== 'met'}<span class="note">{agent.goal.reason}</span>{/if}
+                {/if}
                 {#if agent.total}
                   <span class="progress">
                     <span class="bar" aria-hidden="true"><span style:width="{(agent.done / agent.total) * 100}%"></span></span>
@@ -270,6 +286,16 @@
           ></textarea>
         </div>
         {#if !linked}
+          <div class="group">
+            <label for="card-goal">Done when</label>
+            <textarea
+              id="card-goal"
+              class="field"
+              rows="2"
+              bind:value={editing.card.goal}
+              placeholder="Optional. The agent keeps working until this is true, then the task goes to review. Ask for visible proof: tests run, output shown."
+            ></textarea>
+          </div>
           <details class="agent">
             <summary><span class="chevron" aria-hidden="true">›</span>Agent settings</summary>
             <div class="options"><OptionsFields bind:options={editing.options} /></div>
@@ -592,6 +618,20 @@
     line-height: 1.45;
     color: var(--text-dim);
     overflow-wrap: anywhere;
+  }
+
+  .goal {
+    font-size: 12px;
+    color: var(--text-muted);
+    overflow-wrap: anywhere;
+  }
+
+  .goal.met {
+    color: var(--done-text);
+  }
+
+  .goal.partial {
+    color: var(--err-text);
   }
 
   .state {

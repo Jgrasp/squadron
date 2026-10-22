@@ -63,6 +63,8 @@ pub struct Card {
     pub title: String,
     #[serde(default)]
     pub prompt: String,
+    #[serde(default)]
+    pub goal: String,
     pub column: Column,
     #[serde(default)]
     pub agent: Option<String>,
@@ -305,6 +307,7 @@ mod tests {
                 key: "T16".into(),
                 title: "Segment export".into(),
                 prompt: String::new(),
+                goal: "the export tests pass".into(),
                 column: Column::Review,
                 agent: Some("a1".into()),
                 auto: Some(Column::Review),

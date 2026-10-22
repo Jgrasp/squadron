@@ -773,6 +773,11 @@ fn interrupt_agent(agents: State<Agents>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn stop_turn(agents: State<Agents>, id: String) -> Result<(), String> {
+    agents.stop_turn(&id)
+}
+
+#[tauri::command]
 fn reload_agent(
     app: AppHandle,
     agents: State<Agents>,
@@ -797,6 +802,7 @@ pub fn run() {
         .manage(system::Cpu::default())
         .invoke_handler(tauri::generate_handler![
             system_load,
+            stop_turn,
             list_projects,
             inspect_folder,
             add_project,

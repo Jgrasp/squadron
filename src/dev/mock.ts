@@ -95,7 +95,28 @@ function swarm(n = 48) {
 const waitingReplay = new Map<string, () => void>()
 let askId = 0
 
+const goalLines = new Map<string, string[]>()
+
+function goal(id: string, condition: string) {
+  const say = (text: string) => JSON.stringify({ type: 'assistant', message: { id: crypto.randomUUID(), model: '<synthetic>', content: [{ type: 'text', text }] } })
+  const done = JSON.stringify({ type: 'result', is_error: false, num_turns: condition === 'clear' ? 0 : 3, total_cost_usd: 0, usage: {}, duration_ms: 4000 })
+  const feedback = (n: number) =>
+    JSON.stringify({ type: 'user', isSynthetic: true, message: { role: 'user', content: [{ type: 'text', text: `Stop hook feedback:\n[${condition}]: No test output in the transcript yet (check ${n}).` }] } })
+  const relaunches = condition.includes('never') ? 9 : 1
+  const lines = condition === 'clear' ? [say('Goal cleared: the goal'), done] : [say(`Goal set: ${condition}`), ...Array.from({ length: relaunches }, (_, n) => feedback(n + 1)), done]
+  goalLines.set(id, lines)
+  const next = () => {
+    const line = goalLines.get(id)?.shift()
+    if (!line) return timers.delete(id)
+    emit('agent-line', { id, line })
+    timers.set(id, window.setTimeout(next, 900))
+  }
+  const queued = () => (timers.has(id) ? window.setTimeout(queued, 200) : next())
+  queued()
+}
+
 function replay(id: string, text: string) {
+  if (text.startsWith('/goal ')) return goal(id, text.slice(6))
   const key = Object.keys(asks).find((k) => text.includes(k))
   if (key) {
     const [tool_name, input] = asks[key]
@@ -241,6 +262,9 @@ mockIPC(
         emit('agent-exit', { id: a.id, stderr: '' })
         return
       }
+      case 'stop_turn':
+        goalLines.set(a.id, (goalLines.get(a.id) ?? []).filter((l) => l.includes('"result"')))
+        return
       case 'reload_agent':
       case 'archive_agent':
         clearTimeout(timers.get(a.id))

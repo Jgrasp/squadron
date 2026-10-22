@@ -13,6 +13,7 @@ import {
   READ_ONLY,
   exited,
   fail,
+  GOAL_RELAUNCHES,
   newAgent,
   prompt,
   reloaded,
@@ -113,6 +114,15 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   apply(agent, d)
   if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
+  if (agent.goal?.state === 'active' && agent.goal.relaunches >= GOAL_RELAUNCHES) {
+    agent.goal.state = 'stopping'
+    invoke('stop_turn', { id: agent.id })
+  }
+  if (d.type === 'result' && agent.goal?.state === 'stopping') {
+    agent.goal.state = 'partial'
+    agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'bad', title: 'Goal stopped', detail: `after ${GOAL_RELAUNCHES} relaunches · ${agent.goal.reason}` })
+    invoke('send_message', { id: agent.id, text: '/goal clear' })
+  }
   if (d.type === 'result' || d.subtype === 'init') persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
@@ -168,6 +178,7 @@ async function adopt(data: Agent) {
     agent.action = 'Stopped when Squadron closed'
   }
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
+  if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
   agents.list.push(agent)
   await invoke('restore_agent', {
     id: agent.id,
@@ -331,11 +342,20 @@ export function plan(agent: Agent, ask: Ask, choice: 'edits' | 'ask' | 'continue
       { tone: 'bad', title: 'Plan to revise', detail: 'Keep planning', note: remark ? `With your feedback: “${remark}”` : undefined },
     )
   if (choice === 'edits') agent.allowEdits = true
-  return settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
+  const approved = settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
     tone: 'ok',
     title: 'Plan approved',
     detail: choice === 'edits' ? 'Started in “accept edits”' : 'Started, asking for each edit',
   })
+  arm(agent)
+  return approved
+}
+
+async function arm(agent: Agent) {
+  if (agent.goal?.state !== 'planned') return
+  agent.goal.state = 'sent'
+  persist(agent)
+  await invoke('send_message', { id: agent.id, text: `/goal ${agent.goal.condition}` }).catch((e) => fail(agent, String(e)))
 }
 
 export function reply(agent: Agent, text: string) {
@@ -350,10 +370,11 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-export async function create(project: string, name: string, options: Options, text: string, from?: { by: string }) {
+export async function create(project: string, name: string, options: Options, text: string, from?: { by: string }, goal = '') {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback, options))
   const agent = agents.list.at(-1)!
+  if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (!name) {
     agent.autoName = true
     invoke<string>('suggest_title', { text })
@@ -371,6 +392,7 @@ export async function create(project: string, name: string, options: Options, te
   persist(agent)
   try {
     await invoke('create_agent', { id: agent.id, project, options, text })
+    if (options.mode !== 'plan') await arm(agent)
   } catch (e) {
     fail(agent, String(e))
   }

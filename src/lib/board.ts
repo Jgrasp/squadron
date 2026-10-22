@@ -3,13 +3,13 @@ import { calls, type Agent, type Options } from './stream'
 
 export type Column = 'todo' | 'progress' | 'review' | 'done'
 
-export type Card = { id: string; key: string; title: string; prompt: string; column: Column; agent: string | null; auto?: Column | null }
+export type Card = { id: string; key: string; title: string; prompt: string; goal?: string; column: Column; agent: string | null; auto?: Column | null }
 
-export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention'> & { detail: string; done: number; total: number; add: number; del: number }
+export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention' | 'goal'> & { detail: string; done: number; total: number; add: number; del: number }
 
 export type Actions = {
   cards(path: string, cards: Card[]): void
-  start(path: string, card: string, name: string, options: Options, text: string): void
+  start(path: string, card: string, name: string, options: Options, text: string, goal: string): void
   show(agent: string): void
   diff(agent: string): void
 }
@@ -29,6 +29,7 @@ export function mirror(a: Agent, detail: string): Mirror {
     name: a.name,
     status: a.status,
     attention: a.attention,
+    goal: a.goal,
     detail,
     done: a.tasks.filter((t) => t.status === 'completed').length,
     total: a.tasks.length,

@@ -67,6 +67,15 @@ export function prompt(text: string, comments: Comment[] = []) {
 
 export type Usage = { cost: number; input: number; output: number; ms: number }
 
+export const GOAL_RELAUNCHES = 5
+
+export type Goal = {
+  condition: string
+  state: 'planned' | 'sent' | 'active' | 'met' | 'stopping' | 'partial' | 'cleared'
+  relaunches: number
+  reason: string
+}
+
 export type Entry =
   | { kind: 'user'; text: string; at: number; comments?: Comment[]; remote?: boolean }
   | { kind: 'agent'; blocks: Block[] }
@@ -117,6 +126,7 @@ export type Agent = {
   skills: string[]
   remote: { state: string; url: string; since?: number; last?: number } | null
   subagents: Subagent[]
+  goal: Goal | null
 }
 
 type Json = Record<string, any>
@@ -150,6 +160,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     skills: [],
     remote: null,
     subagents: [],
+    goal: null,
   }
 }
 
@@ -294,6 +305,7 @@ export function apply(agent: Agent, d: Json) {
         if (meta.post_tokens) agent.tokens = meta.post_tokens
       }
       if (String(d.subtype).startsWith('task_')) subagentEvent(agent, d)
+      if (d.subtype === 'notification' && d.key === 'stop-hook-block-cap' && agent.goal?.state === 'active') agent.goal.state = 'stopping'
       if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
       if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
         agent.attention = String(d.needs_action || d.status_detail || 'Waiting for you')
@@ -315,6 +327,7 @@ export function apply(agent: Agent, d: Json) {
     case 'assistant':
       return assistant(agent, d)
     case 'user':
+      if (d.isSynthetic && textOf(d.message?.content).startsWith('Stop hook feedback')) return relaunched(agent, textOf(d.message.content))
       return d.isReplay && !d.parent_tool_use_id ? remoteMessage(agent, d) : toolResults(agent, d)
     case 'result':
       return result(agent, d)
@@ -369,6 +382,7 @@ function assistant(agent: Agent, d: Json) {
   if (sub) sub.model = d.message.model ?? sub.model
   const blocks = (): Block[] => (sub ? sub.log : agentEntry(agent).blocks)
   const at = sub ? { at: d.timestamp ? Date.parse(d.timestamp) : Date.now() } : {}
+  if (!sub && d.message.model === '<synthetic>') goalNotice(agent, textOf(d.message.content))
   for (const c of d.message.content as Json[]) {
     if (c.type === 'thinking') {
       const block = blocks().findLast((b) => b.type === 'thinking' && b.ms === undefined)
@@ -427,6 +441,31 @@ function track(agent: Agent, c: Json) {
   }
 }
 
+function goalNotice(agent: Agent, text: string) {
+  const set = /^Goal set: ([\s\S]+)/.exec(text)
+  if (set) {
+    agent.goal = { condition: set[1].trim(), state: 'active', relaunches: 0, reason: '' }
+    agent.status = 'working'
+  }
+  else if (text.startsWith('Goal cleared') && agent.goal && agent.goal.state !== 'partial') agent.goal.state = 'cleared'
+}
+
+function relaunched(agent: Agent, text: string) {
+  const goal = agent.goal
+  if (!goal) return
+  const reason = text.replace('Stop hook feedback:', '').trim()
+  const head = `[${goal.condition}]:`
+  goal.relaunches += 1
+  goal.reason = (reason.startsWith(head) ? reason.slice(head.length) : reason).trim()
+  agent.entries.push({
+    kind: 'decision',
+    at: Date.now(),
+    tone: 'bad',
+    title: 'Goal not met yet',
+    detail: `relaunch ${goal.relaunches} of ${GOAL_RELAUNCHES} · ${goal.reason}`,
+  })
+}
+
 function remoteMessage(agent: Agent, d: Json) {
   const text = textOf(d.message?.content).trim()
   if (!text) return
@@ -473,8 +512,12 @@ function result(agent: Agent, d: Json) {
     const message = String(d.result ?? ((d.errors ?? []).join('\n') || d.subtype))
     fail(agent, message || 'The session stopped.')
   } else {
-    agent.status = 'done'
-    agent.action = ''
+    agent.status = agent.goal?.state === 'sent' ? 'working' : 'done'
+    agent.action = agent.goal?.state === 'sent' ? 'Starting the goal…' : ''
+    if (agent.goal?.state === 'active') {
+      agent.goal.state = 'met'
+      agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'ok', title: 'Goal met', detail: agent.goal.condition })
+    }
     if (d.num_turns === 0 && !cost) return
     agent.turns += 1
     agent.entries.push({ kind: 'turn', index: agent.turns, ...used })
