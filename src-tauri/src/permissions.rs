@@ -235,7 +235,7 @@ mod tests {
             mode: mode.into(),
         };
         let config = mcp_config(port, "token", "agent-1", false);
-        let cmd = claude::command("claude", &dir, &options, None, false, Some(&config));
+        let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let record =
             std::sync::Mutex::new(std::fs::File::create(dir.join("stream.jsonl")).unwrap());

@@ -1,5 +1,6 @@
 <script lang="ts">
-  import { agents, clock, ofProject, rename, waiting, waitingDetail } from './agents.svelte'
+  import { ask } from '@tauri-apps/plugin-dialog'
+  import { agents, archive, clock, fork, ofProject, remove, rename, waiting, waitingDetail } from './agents.svelte'
   import { ago, cost, short } from './format'
   import { layout, toggleSidebar } from './layout.svelte'
   import { home, type Project } from './projects.svelte'
@@ -25,6 +26,30 @@
   function finishRename(save: boolean) {
     if (save && editing) rename(editing, newName)
     editing = ''
+  }
+
+  let menu = $state<{ agent: Agent; x: number; y: number } | null>(null)
+
+  function open(agent: Agent, event: MouseEvent) {
+    event.preventDefault()
+    menu = { agent, x: event.clientX, y: event.clientY }
+  }
+
+  function act(action: (id: string) => unknown) {
+    const id = menu?.agent.id
+    menu = null
+    if (id) action(id)
+  }
+
+  async function erase(agent: Agent) {
+    menu = null
+    const sure = await ask(`Delete “${agent.name}”? Its conversation leaves Squadron for good; it cannot be restored like an archived agent.`, {
+      title: 'Delete agent',
+      kind: 'warning',
+      okLabel: 'Delete',
+      cancelLabel: 'Cancel',
+    })
+    if (sure) remove(agent.id)
   }
 
   let hovered = $state<{ agent: Agent; top: number; left: number } | null>(null)
@@ -105,6 +130,20 @@
   {/if}
 {/snippet}
 
+<svelte:window
+  onclick={(e) => !(e.target as HTMLElement).closest('[data-menu]') && (menu = null)}
+  onkeydown={(e) => e.key === 'Escape' && (menu = null)}
+/>
+
+{#if menu}
+  {@const agent = menu.agent}
+  <div class="menu" role="menu" aria-label="{agent.name} actions" data-menu style:left="{menu.x}px" style:top="{menu.y}px">
+    <button role="menuitem" disabled={!agent.sessionId} onclick={() => act(fork)}>Fork</button>
+    <button role="menuitem" onclick={() => act(archive)}>Archive conversation</button>
+    <button role="menuitem" class="danger" onclick={() => erase(agent)}>Delete…</button>
+  </div>
+{/if}
+
 {#if layout.collapsed}
   <aside class="folded" aria-label="Project agents, collapsed" style:--project={project.color}>
     <span class="square" title={project.name}></span>
@@ -118,6 +157,7 @@
           aria-current={agent.id === current?.id ? 'true' : undefined}
           aria-label="{agent.name}, {label(agent)}"
           onclick={() => (agents.current[project.path] = agent.id)}
+          oncontextmenu={(e) => open(agent, e)}
           onmouseenter={(e) => hover(agent, e)}
           onmouseleave={() => (hovered = null)}
           onfocus={(e) => hover(agent, e)}
@@ -180,6 +220,7 @@
             title="Double-click or F2 to rename"
             onclick={() => (agents.current[project.path] = agent.id)}
             ondblclick={() => startRename(agent)}
+            oncontextmenu={(e) => open(agent, e)}
             onkeydown={(e) => e.key === 'F2' && startRename(agent)}
           >
             {@render card(agent)}
@@ -207,6 +248,40 @@
 {/if}
 
 <style>
+  .menu {
+    position: fixed;
+    z-index: 20;
+    width: 210px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .menu button {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 4px;
+    text-align: left;
+  }
+
+  .menu button:hover:not(:disabled) {
+    background: var(--menu-hover);
+  }
+
+  .menu button:disabled {
+    color: var(--text-faint);
+  }
+
+  .menu .danger {
+    color: var(--err-text);
+  }
+
   aside {
     flex: none;
     display: flex;

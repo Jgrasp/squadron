@@ -253,7 +253,7 @@ mod tests {
             mode: "default".into(),
         };
         let config = mcp_config(port, "token", "agent-7", true);
-        let cmd = claude::command("claude", &dir, &options, None, false, Some(&config));
+        let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(
             cmd,

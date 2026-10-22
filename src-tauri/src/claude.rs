@@ -76,6 +76,7 @@ pub fn command(
     options: &Options,
     resume: Option<&str>,
     fork: bool,
+    at: Option<&str>,
     mcp: Option<&str>,
 ) -> Command {
     let mut cmd = Command::new(program);
@@ -103,6 +104,9 @@ pub fn command(
         cmd.args(["--resume", id]);
         if fork {
             cmd.arg("--fork-session");
+        }
+        if let Some(uuid) = at {
+            cmd.args(["--resume-session-at", uuid]);
         }
     }
     if let Some(config) = mcp {
@@ -342,6 +346,40 @@ mod tests {
     }
 
     #[test]
+    fn forks_a_session_at_a_message() {
+        let options = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+        };
+        let at = "2654721f-e7e6-4b3c-a2a7-25979e1d1873";
+        let cmd = command(
+            "claude",
+            Path::new("/tmp"),
+            &options,
+            Some("s1"),
+            true,
+            Some(at),
+            None,
+        );
+        let args: Vec<_> = cmd
+            .get_args()
+            .map(|a| a.to_string_lossy().into_owned())
+            .collect();
+        let tail = &args[args.len() - 5..];
+        assert_eq!(
+            tail,
+            [
+                "--resume",
+                "s1",
+                "--fork-session",
+                "--resume-session-at",
+                at
+            ]
+        );
+    }
+
+    #[test]
     fn rejects_unknown_options() {
         let ok = Options {
             model: "haiku".into(),
@@ -374,7 +412,7 @@ mod tests {
         };
         let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
-            command("claude", dir, &options, resume, fork, None),
+            command("claude", dir, &options, resume, fork, None, None),
             move |_, event| {
                 if let Event::Result {
                     result, session_id, ..
@@ -435,7 +473,7 @@ mod tests {
         };
         let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
-            command("claude", &dir, &options, None, false, None),
+            command("claude", &dir, &options, None, false, None, None),
             move |line, event| {
                 let done = matches!(event, Event::Result { .. });
                 tx.send((line.to_string(), done)).unwrap();
@@ -476,7 +514,7 @@ mod live_options {
         };
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(
-            command("claude", &dir, &options, None, false, None),
+            command("claude", &dir, &options, None, false, None, None),
             move |line, event| {
                 let d: Value = serde_json::from_str(line).unwrap();
                 match event {

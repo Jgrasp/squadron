@@ -1,6 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity'
-  import { clock } from './agents.svelte'
+  import { clock, forkPoint } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
   import CommentChip from './CommentChip.svelte'
   import type { Proposal } from './diff'
@@ -21,9 +21,11 @@
     onsubagent,
     onsubagents,
     onpreview,
+    onfork,
   }: {
     agent: Agent
     ondiff: (call: ToolCall) => void
+    onfork?: (index: number) => void
     onsubagent?: (sub: Subagent) => void
     onsubagents?: () => void
     onpreview?: (proposal: Proposal) => void
@@ -115,6 +117,12 @@
         <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
       {/if}
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+      {#if onfork && entry.text && forkPoint(agent, i)}
+        <button class="fork" title="New agent with the conversation before this message, and this message ready to edit" onclick={() => onfork(i)}>
+          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2" /><circle cx="18" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><path d="M6 7v10M18 7c0 6-12 4-12 10" /></svg>
+          Fork from here
+        </button>
+      {/if}
     </div>
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>Sent via remote control · {time(entry.at)}</span>{/if}
   {:else if entry.kind === 'agent'}
@@ -284,6 +292,40 @@
     color: var(--accent-ink);
     line-height: 1.5;
     overflow-wrap: anywhere;
+  }
+
+  .user {
+    position: relative;
+  }
+
+  .fork {
+    position: absolute;
+    top: 100%;
+    right: 0;
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    padding: 4px 2px 2px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+    white-space: nowrap;
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .fork svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+
+  .user:hover .fork,
+  .fork:focus-visible {
+    opacity: 1;
+  }
+
+  .fork:hover {
+    color: var(--accent-link);
   }
 
   .via {

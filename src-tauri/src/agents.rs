@@ -17,6 +17,7 @@ struct Agent {
     run: Arc<AtomicU32>,
     mcp: Option<String>,
     fork: bool,
+    at: Option<String>,
     stale: bool,
 }
 
@@ -84,8 +85,18 @@ impl Agents {
                 run: Default::default(),
                 mcp,
                 fork,
+                at: None,
                 stale: false,
             });
+        Ok(())
+    }
+
+    pub fn fork_at(&self, id: &str, at: &str) -> Result<(), String> {
+        if at.len() != 36 || !at.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
+            return Err("Invalid message id.".into());
+        }
+        let mut list = self.list.lock().unwrap();
+        list.get_mut(id).ok_or("Unknown agent.")?.at = Some(at.into());
         Ok(())
     }
 
@@ -232,9 +243,11 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
         &agent.options,
         resume.as_deref(),
         agent.fork,
+        agent.at.as_deref(),
         agent.mcp.as_deref(),
     );
     agent.fork = false;
+    agent.at = None;
     let (lines_app, exit_app) = (app.clone(), app.clone());
     let (lines_id, exit_id) = (id.to_string(), id.to_string());
     let (lines_run, exit_run) = (agent.run.clone(), agent.run.clone());
@@ -280,4 +293,43 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
     let _ = session.control(serde_json::json!({"subtype": "initialize"}));
     agent.session = Some(session);
     Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_only_a_message_uuid_as_fork_point() {
+        let agents = Agents::default();
+        let options = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+        };
+        agents
+            .register(
+                "a1",
+                PathBuf::from("/tmp"),
+                options,
+                Some("s1".into()),
+                true,
+            )
+            .unwrap();
+        assert!(
+            agents
+                .fork_at("a1", "2654721f-e7e6-4b3c-a2a7-25979e1d1873")
+                .is_ok()
+        );
+        assert!(
+            agents
+                .fork_at("a1", "--dangerously-skip-permissions-0000")
+                .is_err()
+        );
+        assert!(
+            agents
+                .fork_at("missing", "2654721f-e7e6-4b3c-a2a7-25979e1d1873")
+                .is_err()
+        );
+    }
 }

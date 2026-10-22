@@ -186,6 +186,7 @@ async function adopt(data: Agent) {
     options: agent.options,
     sessionId: agent.sessionId,
     fork: !!agent.forkOf,
+    at: agent.forkOf ? agent.forkAt : null,
   }).catch((e) => fail(find(agent.id)!, String(e)))
   if (wanted) remote(agent.id, true)
 }
@@ -476,27 +477,49 @@ export function rename(id: string, name: string) {
   persist(agent)
 }
 
-export async function fork(id: string) {
+export const drafts: Record<string, string> = {}
+
+export function forkPoint(agent: Agent, upTo: number) {
+  const before = agent.entries.slice(0, upTo).findLast((e) => e.kind === 'agent')
+  if (!before) return { at: undefined }
+  return before.kind === 'agent' && before.uuid && agent.sessionId ? { at: before.uuid } : null
+}
+
+export async function fork(id: string, upTo?: number) {
   const source = find(id)
-  if (!source?.sessionId) return
+  const point = upTo === undefined ? { at: undefined } : source && forkPoint(source, upTo)
+  if (!source || !point || (upTo === undefined && !source.sessionId)) return
   const copy = newAgent(crypto.randomUUID(), source.project, `${source.name} (fork)`, $state.snapshot(source.options))
   const snapshot = $state.snapshot(source)
-  copy.entries = [...snapshot.entries, { kind: 'forked', at: Date.now(), from: source.name }]
-  copy.tasks = snapshot.tasks
-  copy.subagents = snapshot.subagents
-  copy.sessionId = source.sessionId
-  copy.forkOf = source.name
+  const resumes = upTo === undefined || !!point.at
+  copy.entries = [...(upTo === undefined ? snapshot.entries : snapshot.entries.slice(0, upTo)), { kind: 'forked', at: Date.now(), from: source.name }]
+  copy.tasks = upTo === undefined ? snapshot.tasks : []
+  copy.subagents = upTo === undefined ? snapshot.subagents : []
+  copy.sessionId = resumes ? source.sessionId : null
+  copy.forkOf = resumes ? source.name : null
+  copy.forkAt = point.at ?? null
   copy.status = 'done'
   copy.action = `Forked from ${source.name}`
+  const message = upTo === undefined ? undefined : snapshot.entries[upTo]
+  if (message?.kind === 'user') drafts[copy.id] = message.text
   agents.list.push(copy)
   const agent = agents.list.at(-1)!
   agents.current[agent.project] = agent.id
   try {
-    await invoke('fork_agent', { id: agent.id, from: id, project: agent.project, options: agent.options })
+    if (resumes) await invoke('fork_agent', { id: agent.id, from: id, project: agent.project, options: agent.options, at: point.at })
+    else await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: null, fork: false, at: null })
   } catch (e) {
     fail(agent, String(e))
   }
   persist(agent)
+}
+
+export async function remove(id: string) {
+  clearTimeout(timers.get(id))
+  await invoke('archive_agent', { id })
+  await invoke('cancel_permissions', { agent: id })
+  await invoke('delete_agent_file', { id })
+  agents.list = agents.list.filter((a) => a.id !== id)
 }
 
 export async function archive(id: string, extra: Record<string, unknown> = {}) {

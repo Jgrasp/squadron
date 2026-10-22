@@ -590,8 +590,13 @@ fn restore_agent(
     options: claude::Options,
     session_id: Option<String>,
     fork: bool,
+    at: Option<String>,
 ) -> Result<(), String> {
-    agents.register(&id, project, options, session_id, fork)
+    agents.register(&id, project, options, session_id, fork)?;
+    match at {
+        Some(at) => agents.fork_at(&id, &at),
+        None => Ok(()),
+    }
 }
 
 #[tauri::command]
@@ -601,11 +606,16 @@ fn fork_agent(
     from: String,
     project: PathBuf,
     options: claude::Options,
+    at: Option<String>,
 ) -> Result<(), String> {
     let session = agents
         .session_id(&from)
         .ok_or("This agent has no session to fork yet.")?;
-    agents.register(&id, project, options, Some(session), true)
+    agents.register(&id, project, options, Some(session), true)?;
+    match at {
+        Some(at) => agents.fork_at(&id, &at),
+        None => Ok(()),
+    }
 }
 
 struct Usage {

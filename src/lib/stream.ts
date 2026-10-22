@@ -78,7 +78,7 @@ export type Goal = {
 
 export type Entry =
   | { kind: 'user'; text: string; at: number; comments?: Comment[]; remote?: boolean }
-  | { kind: 'agent'; blocks: Block[] }
+  | { kind: 'agent'; blocks: Block[]; uuid?: string }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
   | { kind: 'reloaded'; at: number }
@@ -118,6 +118,7 @@ export type Agent = {
   allowEdits: boolean
   sessionId: string | null
   forkOf: string | null
+  forkAt: string | null
   tasks: Task[]
   summary: string
   attention: string
@@ -152,6 +153,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     allowEdits: false,
     sessionId: null,
     forkOf: null,
+    forkAt: null,
     tasks: [],
     summary: '',
     attention: '',
@@ -287,7 +289,7 @@ export function apply(agent: Agent, d: Json) {
   switch (d.type) {
     case 'system':
       if (d.subtype === 'init' && d.session_id) {
-        if (d.session_id !== agent.sessionId) agent.forkOf = null
+        if (d.session_id !== agent.sessionId) agent.forkOf = agent.forkAt = null
         agent.sessionId = d.session_id
       }
       if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
@@ -383,6 +385,7 @@ function assistant(agent: Agent, d: Json) {
   const blocks = (): Block[] => (sub ? sub.log : agentEntry(agent).blocks)
   const at = sub ? { at: d.timestamp ? Date.parse(d.timestamp) : Date.now() } : {}
   if (!sub && d.message.model === '<synthetic>') goalNotice(agent, textOf(d.message.content))
+  if (!sub && d.uuid && d.message.model !== '<synthetic>') agentEntry(agent).uuid = d.uuid
   for (const c of d.message.content as Json[]) {
     if (c.type === 'thinking') {
       const block = blocks().findLast((b) => b.type === 'thinking' && b.ms === undefined)

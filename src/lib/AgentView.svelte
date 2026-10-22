@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import { archive, clock, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -24,7 +24,13 @@
 
   let { agent }: { agent: Agent } = $props()
 
-  let text = $state('')
+  let text = $state(
+    untrack(() => {
+      const draft = drafts[agent.id] ?? ''
+      delete drafts[agent.id]
+      return draft
+    }),
+  )
   let menuOpen = $state(false)
   let remoteOpen = $state(false)
   let scroller: HTMLElement
@@ -558,6 +564,7 @@
           <Conversation
           {agent}
           {ondiff}
+          onfork={(i) => fork(agent.id, i)}
           onsubagent={openSubagent}
           onsubagents={() => openSubagent(null)}
           onpreview={(p) => ((proposal = p), openDiff(p.path))}
