@@ -56,6 +56,7 @@ struct Inspection {
     #[serde(flatten)]
     folder: Folder,
     taken_by: Option<String>,
+    taken_archived: bool,
     near: Option<PathBuf>,
 }
 
@@ -67,6 +68,7 @@ fn list_projects(projects: State<Projects>) -> Vec<Folder> {
 #[tauri::command]
 fn inspect_folder(projects: State<Projects>, path: PathBuf) -> Inspection {
     let list = projects.list.lock().unwrap();
+    let taken = list.iter().find(|p| projects::same_folder(&p.path, &path));
     let name = path
         .file_name()
         .map(|n| n.to_string_lossy().into_owned())
@@ -77,10 +79,8 @@ fn inspect_folder(projects: State<Projects>, path: PathBuf) -> Inspection {
             path: path.clone(),
             ..Default::default()
         }),
-        taken_by: list
-            .iter()
-            .find(|p| projects::same_folder(&p.path, &path))
-            .map(|p| p.name.clone()),
+        taken_by: taken.map(|p| p.name.clone()),
+        taken_archived: taken.is_some_and(|p| p.archived),
         near: projects::near(&path),
     }
 }
@@ -178,6 +178,7 @@ fn edit_project(
     name: Option<String>,
     color: Option<String>,
     pinned: Option<bool>,
+    archived: Option<bool>,
 ) -> Result<Vec<Folder>, String> {
     projects.update(|list| {
         let project = list
@@ -195,6 +196,9 @@ fn edit_project(
         }
         if let Some(pinned) = pinned {
             project.pinned = pinned;
+        }
+        if let Some(archived) = archived {
+            project.archived = archived;
         }
         Ok(())
     })

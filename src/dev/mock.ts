@@ -8,7 +8,7 @@ import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'BMC', path: '/home/quentin/agence/bmc', rules: [] },
@@ -38,7 +38,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('fileas') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned }))
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived }))
 
 const timers = new Map<string, number>()
 let claudePath = 'claude'
@@ -207,6 +207,7 @@ mockIPC(
         return {
           ...folder(a.path.split('/').pop() ?? '', a.path),
           taken_by: projects.find((p) => p.path === a.path)?.name ?? null,
+          taken_archived: !!projects.find((p) => p.path === a.path)?.archived,
           near: a.path.includes('absent') ? a.path.replace(/-?absent.*$/, '') : null,
         }
       case 'add_project':
@@ -273,6 +274,7 @@ mockIPC(
         if (a.name !== undefined) project.name = a.name
         if (a.color !== undefined) project.color = a.color
         if (a.pinned !== undefined) project.pinned = (args as { pinned: boolean }).pinned
+        if (a.archived !== undefined) project.archived = (args as { archived: boolean }).archived
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
       }

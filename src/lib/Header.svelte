@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
-  import { ofProject, todayCost, waiting, waitingAgents } from './agents.svelte'
+  import { ofProject, shelve, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
@@ -211,6 +211,7 @@
         {target.pinned ? 'Unpin from the tab bar' : 'Pin to the tab bar'}
       </button>
       <button role="menuitem" onclick={() => ((context = null), (ui.settings = 'projects'))}>Project settings…</button>
+      <button role="menuitem" onclick={() => (shelve(target), (context = null))}>Archive project…</button>
     </div>
   {/if}
 

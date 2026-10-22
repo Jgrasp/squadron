@@ -1,6 +1,7 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog'
   import { untrack } from 'svelte'
+  import { unshelve } from './agents.svelte'
   import Dialog from './Dialog.svelte'
   import { add, home, inspect, projects, type Inspection } from './projects.svelte'
 
@@ -15,10 +16,12 @@
   const problem = $derived.by(() => {
     if (!info || !path.trim()) return ''
     if (!info.exists) return "This folder does not exist or cannot be read."
+    if (info.taken_by && info.taken_archived) return ''
     if (info.taken_by) return `This folder is already the ${info.taken_by} project.`
     return ''
   })
-  const ready = $derived(!!info?.exists && !info.taken_by && !!name.trim() && !busy)
+  const revive = $derived(!!info?.taken_by && info.taken_archived)
+  const ready = $derived(!busy && (revive || (!!info?.exists && !info.taken_by && !!name.trim())))
 
   $effect(() => {
     const target = path.trim()
@@ -43,7 +46,8 @@
     if (!ready) return
     busy = true
     try {
-      await add(path.trim(), name)
+      if (revive) await unshelve(projects.archived.find((p) => p.name === info?.taken_by)?.path ?? path.trim())
+      else await add(path.trim(), name)
       onclose()
     } catch (e) {
       error = String(e)
@@ -91,6 +95,8 @@
                 <button type="button" class="link mono" onclick={() => (path = info!.near!)}>{home(info.near)}</button>
               {/if}
             </span>
+          {:else if revive}
+            <span class="good">This folder is the archived project {info?.taken_by}. Adding it unarchives {info?.taken_by} with its agents.</span>
           {:else if info?.git}
             <span class="good">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
@@ -110,7 +116,7 @@
     </div>
     <footer>
       <button type="button" class="btn btn-secondary" onclick={onclose}>Cancel</button>
-      <button class="btn btn-primary" disabled={!ready}>Add project</button>
+      <button class="btn btn-primary" disabled={!ready}>{revive ? `Unarchive ${info?.taken_by}` : 'Add project'}</button>
     </footer>
   </form>
 </Dialog>

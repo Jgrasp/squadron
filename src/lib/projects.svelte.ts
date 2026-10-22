@@ -9,21 +9,24 @@ export type Project = {
   cards: Card[]
   color: string
   pinned: boolean
+  archived: boolean
   exists: boolean
   git: boolean
   branch: string | null
 }
 
-export type Inspection = Project & { taken_by: string | null; near: string | null }
+export type Inspection = Project & { taken_by: string | null; taken_archived: boolean; near: string | null }
 
-export const projects = $state({ list: [] as Project[], current: '', overview: false, board: false })
+export const projects = $state({ list: [] as Project[], archived: [] as Project[], current: '', overview: false, board: false })
 
 export function current(): Project | undefined {
   return projects.list.find((p) => p.path === projects.current)
 }
 
-export function set(list: Project[]) {
+export function set(all: Project[]) {
+  const list = all.filter((p) => !p.archived)
   projects.list = list
+  projects.archived = all.filter((p) => p.archived)
   if (!list.some((p) => p.path === projects.current)) projects.current = list[0]?.path ?? ''
 }
 
@@ -45,7 +48,7 @@ export async function move(path: string, to: string) {
   projects.current = to
 }
 
-export async function editProject(path: string, changes: { name?: string; color?: string; pinned?: boolean }) {
+export async function editProject(path: string, changes: { name?: string; color?: string; pinned?: boolean; archived?: boolean }) {
   set(await invoke<Project[]>('edit_project', { path, ...changes }))
 }
 

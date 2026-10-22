@@ -2,7 +2,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
-import { addRule, projects } from './projects.svelte'
+import { addRule, editProject, projects, type Project } from './projects.svelte'
+import { ask } from '@tauri-apps/plugin-dialog'
 import { matches, ruleFor, ruleLabel } from './rules'
 import {
   apply,
@@ -117,7 +118,7 @@ export function saveAll() {
 }
 
 export async function restore() {
-  const known = new Set(projects.list.map((p) => p.path))
+  const known = new Set([...projects.list, ...projects.archived].map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
       return [JSON.parse(text) as Agent]
@@ -158,7 +159,7 @@ async function adopt(data: Agent) {
   if (wanted) remote(agent.id, true)
 }
 
-export type Archived = Agent & { archived?: number }
+export type Archived = Agent & { archived?: number; withProject?: boolean }
 
 export async function archived() {
   return (await invoke<string[]>('list_archived'))
@@ -173,7 +174,7 @@ export async function archived() {
 }
 
 export async function unarchive(id: string) {
-  const { archived, ...data } = JSON.parse(await invoke<string>('restore_archived', { id })) as Archived
+  const { archived, withProject, ...data } = JSON.parse(await invoke<string>('restore_archived', { id })) as Archived
   await adopt(data)
   agents.current[data.project] = data.id
 }
@@ -456,16 +457,35 @@ export async function fork(id: string) {
   persist(agent)
 }
 
-export async function archive(id: string) {
+export async function archive(id: string, extra: Record<string, unknown> = {}) {
   clearTimeout(timers.get(id))
   const agent = find(id)
   await invoke('archive_agent', { id })
   await invoke('cancel_permissions', { agent: id })
-  if (agent) await save(agent, { archived: Date.now(), remote: null })
+  if (agent) await save(agent, { archived: Date.now(), remote: null, ...extra })
   await invoke('archive_agent_file', { id }).catch(() => invoke('delete_agent_file', { id }))
   agents.list = agents.list.filter((a) => a.id !== id)
 }
 
 export async function archiveProject(project: string) {
   await Promise.all(ofProject(project).map((a) => archive(a.id)))
+}
+
+export async function shelve(project: Project) {
+  const count = ofProject(project.path).length
+  const sure = await ask(
+    `Archive ${project.name}? ${count ? `Its ${count} agent${count > 1 ? 's' : ''} stop and stay with it. ` : ''}Unarchive it from Settings › Projects to get everything back.`,
+    { title: 'Archive project', kind: 'info', okLabel: 'Archive', cancelLabel: 'Cancel' },
+  )
+  if (!sure) return
+  await Promise.all(ofProject(project.path).map((a) => archive(a.id, { withProject: true })))
+  await editProject(project.path, { archived: true })
+}
+
+export async function unshelve(path: string) {
+  await editProject(path, { archived: false })
+  for (const a of await archived()) if (a.withProject && a.project === path) await unarchive(a.id)
+  projects.overview = false
+  projects.board = false
+  projects.current = path
 }

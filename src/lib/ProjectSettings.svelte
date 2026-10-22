@@ -1,6 +1,7 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog'
-  import { editProject, home, move, ordered, orderProjects } from './projects.svelte'
+  import { shelve, unshelve } from './agents.svelte'
+  import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
 
   const COLORS = [
     ['#F472B6', 'Pink'],
@@ -77,11 +78,27 @@
           <code>{home(project.path)}</code>
           {#if !project.exists}<span class="missing">Folder not found</span>{/if}
           <button class="link" onclick={() => relocate(project.path)}>Change the folder…</button>
+          <button class="link quiet" onclick={() => act(() => shelve(project))}>Archive…</button>
         </span>
       </span>
     </li>
   {/each}
 </ul>
+{#if projects.archived.length}
+  <h3>Archived projects</h3>
+  <ul class="projects">
+    {#each projects.archived as project (project.path)}
+      <li class="archived" style:--project={project.color}>
+        <span class="square" aria-hidden="true"></span>
+        <span class="main">
+          <strong>{project.name}</strong>
+          <code>{home(project.path)}</code>
+        </span>
+        <button class="btn btn-secondary" onclick={() => act(() => unshelve(project.path))}>Unarchive</button>
+      </li>
+    {/each}
+  </ul>
+{/if}
 {#if error}<p class="bad" role="alert">{error}</p>{/if}
 
 <style>
@@ -216,5 +233,33 @@
 
   .bad {
     color: var(--err-text);
+  }
+
+  .quiet {
+    margin-left: auto;
+    color: var(--text-dim);
+  }
+
+  h3 {
+    margin: 22px 0 10px;
+    font-size: 13px;
+  }
+
+  .archived {
+    align-items: center;
+  }
+
+  .archived .main {
+    gap: 2px;
+  }
+
+  .archived code {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .archived .btn {
+    height: 30px;
+    padding: 0 12px;
   }
 </style>

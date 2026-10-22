@@ -15,6 +15,8 @@ pub struct Project {
     pub color: String,
     #[serde(default)]
     pub pinned: bool,
+    #[serde(default)]
+    pub archived: bool,
 }
 
 pub fn reorder(list: &mut [Project], paths: &[PathBuf]) {
@@ -74,6 +76,7 @@ pub struct Folder {
     pub cards: Vec<Card>,
     pub color: String,
     pub pinned: bool,
+    pub archived: bool,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
@@ -89,6 +92,7 @@ impl Folder {
             cards: project.cards.clone(),
             color: project.color.clone(),
             pinned: project.pinned,
+            archived: project.archived,
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -304,6 +308,7 @@ mod tests {
             }],
             color: "#A78BFA".into(),
             pinned: true,
+            archived: false,
         }];
         save(&file, &projects).unwrap();
         assert!(
