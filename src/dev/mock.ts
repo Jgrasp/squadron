@@ -292,6 +292,8 @@ mockIPC(
         localStorage.setItem(key, String(total))
         return total
       }
+      case 'system_load':
+        return { cpu: 18 + Math.random() * 25, used: 13.6 * 2 ** 30, total: 31.2 * 2 ** 30 }
       case 'day_cost':
         return Number(localStorage.getItem(`cost:${a.day}`) ?? 0)
       case 'fork_agent':

@@ -5,6 +5,7 @@ pub mod git;
 pub mod permissions;
 pub mod pilot;
 pub mod projects;
+pub mod system;
 pub mod terminal;
 
 use agents::Agents;
@@ -645,6 +646,11 @@ fn add_cost(usage: State<Usage>, day: String, usd: f64) -> Result<f64, String> {
 }
 
 #[tauri::command]
+fn system_load(cpu: State<system::Cpu>) -> Option<system::Load> {
+    cpu.load()
+}
+
+#[tauri::command]
 fn day_cost(usage: State<Usage>, day: String) -> f64 {
     usage.days.lock().unwrap().get(&day).copied().unwrap_or(0.0)
 }
@@ -788,7 +794,9 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .manage(Agents::default())
         .manage(Terminals::default())
+        .manage(system::Cpu::default())
         .invoke_handler(tauri::generate_handler![
+            system_load,
             list_projects,
             inspect_folder,
             add_project,

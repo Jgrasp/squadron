@@ -18,6 +18,7 @@
   import Board from './lib/Board.svelte'
   import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
+  import StatusBar from './lib/StatusBar.svelte'
   import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
@@ -130,6 +131,7 @@
       {/if}
     {/key}
   {/if}
+  <StatusBar />
 </div>
 
 {#if ui.settings}

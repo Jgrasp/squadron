@@ -48,6 +48,25 @@ async function spend(usd: number) {
   today.usd = total
 }
 
+export type Limit = { utilization: number; resetsAt: number }
+
+export const limits: { five_hour?: Limit; seven_day?: Limit } = $state(stored('limits', {}))
+
+function stored<T>(key: string, fallback: T): T {
+  try {
+    return JSON.parse(localStorage.getItem(key) ?? '') ?? fallback
+  } catch {
+    return fallback
+  }
+}
+
+function track(windows: typeof limits) {
+  Object.assign(limits, windows)
+  try {
+    localStorage.setItem('limits', JSON.stringify(limits))
+  } catch {}
+}
+
 export function waitingAgents() {
   return agents.list.filter((a) => a.attention).sort((a, b) => a.since - b.since)
 }
@@ -95,6 +114,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
   if (d.type === 'result' || d.subtype === 'init') persist(agent)
+  if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
 })
 
