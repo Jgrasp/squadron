@@ -312,6 +312,10 @@ export function apply(agent: Agent, d: Json) {
   }
 }
 
+function act(agent: Agent, action: string) {
+  if (agent.status !== 'waiting') agent.action = action
+}
+
 function stream(agent: Agent, d: Json) {
   const e = d.event
   const key = `${d.api_message_id}:${e.index}`
@@ -329,16 +333,16 @@ function stream(agent: Agent, d: Json) {
     const entry = agentEntry(agent)
     if (block.type === 'text') {
       entry.blocks.push({ type: 'text', text: '', key })
-      agent.action = 'Writing the reply…'
+      act(agent, 'Writing the reply…')
     } else if (block.type === 'thinking') {
       entry.blocks.push({ type: 'thinking' })
-      agent.action = 'Thinking…'
+      act(agent, 'Thinking…')
     } else if (block.type === 'tool_use') {
       const call: ToolCall = { id: block.id, name: block.name, input: {} }
       const last = entry.blocks.at(-1)
       if (last?.type === 'tools') last.calls.push(call)
       else entry.blocks.push({ type: 'tools', calls: [call] })
-      agent.action = block.name
+      act(agent, block.name)
     }
   } else if (e.type === 'content_block_delta' && e.delta.type === 'text_delta') {
     const entry = agentEntry(agent)
@@ -370,7 +374,7 @@ function assistant(agent: Agent, d: Json) {
       const action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
       if (sub) sub.last = action
       else if (INTERNAL.includes(c.name)) track(agent, c)
-      else agent.action = action
+      else act(agent, action)
     } else if (c.type === 'text' && (sub || !blocks().some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`)))) {
       blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, ...at })
     }
@@ -404,7 +408,7 @@ function track(agent: Agent, c: Json) {
       if (input.status) task.status = input.status
       if (input.subject) task.subject = input.subject
       if (input.activeForm) task.activeForm = input.activeForm
-      if (task.status === 'in_progress') agent.action = task.activeForm ?? task.subject
+      if (task.status === 'in_progress') act(agent, task.activeForm ?? task.subject)
     }
   }
 }

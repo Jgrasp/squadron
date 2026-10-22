@@ -831,12 +831,12 @@
   }
 
   .top {
-    height: 60px;
+    min-height: 60px;
     flex: none;
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 0 20px;
+    padding: 10px 20px;
     border-bottom: 1px solid var(--border);
   }
 
@@ -867,6 +867,7 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
+    row-gap: 4px;
     min-width: 0;
   }
 
@@ -876,7 +877,7 @@
     gap: 4px;
   }
 
-  .info + .info::before {
+  .info:not(:last-of-type)::after {
     content: '·';
     margin: 0 6px;
   }

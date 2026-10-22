@@ -174,6 +174,14 @@ describe('stream', () => {
     expect(agent.status).toBe('done')
   })
 
+  it('keeps the waiting label while the agent keeps streaming', () => {
+    const agent = fresh()
+    agent.status = 'waiting'
+    agent.action = 'Waiting for your approval · Bash'
+    apply(agent, { type: 'assistant', message: { id: 'm', content: [{ type: 'tool_use', id: 'toolu_more', name: 'Agent', input: { description: 'More' } }] } })
+    expect(agent.action).toBe('Waiting for your approval · Bash')
+  })
+
   it('stops running subagents when the process exits', () => {
     const agent = fresh()
     const lines = subagents.trim().split('\n')
