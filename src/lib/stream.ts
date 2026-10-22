@@ -79,7 +79,15 @@ export type Entry =
   | { kind: 'cleared'; at: number }
   | { kind: 'note'; at: number; command: string; text: string }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
-  | { kind: 'decision'; at: number; tone: 'ok' | 'bad'; title: string; detail: string; note?: string }
+  | {
+      kind: 'decision'
+      at: number
+      tone: 'ok' | 'bad'
+      title: string
+      detail: string
+      note?: string
+      questions?: { question: string; options: string[]; answer: string }[]
+    }
 
 export type Agent = {
   id: string

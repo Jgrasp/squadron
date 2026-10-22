@@ -102,7 +102,8 @@
       (id) =>
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'branch' || branch) &&
-        (id !== 'tasks' || agent.tasks.length),
+        (id !== 'tasks' || agent.tasks.length) &&
+        (id !== 'turns' || agent.turns),
     ),
   )
   const CHIPS = ['remote', 'subagents']
@@ -391,6 +392,8 @@
                 <span class="mono">{cost(agent.cost)}</span>
               {:else if id === 'context'}
                 <span class="mono">{tokens(agent.tokens)} context tokens</span>
+              {:else if id === 'turns'}
+                <span class="mono">{agent.turns} turn{agent.turns > 1 ? 's' : ''}</span>
               {:else if id === 'branch'}
                 <span class="mono" title="Git branch of the project"><Icon name="branch" size={11} /> {branch}</span>
               {:else if id === 'tasks'}

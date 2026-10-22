@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { SvelteSet } from 'svelte/reactivity'
   import { clock } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
   import CommentChip from './CommentChip.svelte'
@@ -29,6 +30,8 @@
   } = $props()
 
   const SPAWN = ['Agent', 'Task']
+
+  const reviewing = new SvelteSet<number>()
 
   const names = $derived(namesOf(agent))
 
@@ -205,8 +208,29 @@
       </svg>
       <strong>{entry.title}</strong>
       <span class="detail">{entry.detail}</span>
+      {#if entry.questions?.length}
+        <button class="review" aria-expanded={reviewing.has(i)} onclick={() => (reviewing.has(i) ? reviewing.delete(i) : reviewing.add(i))}>
+          {reviewing.has(i) ? 'Hide' : `Review the question${entry.questions.length > 1 ? 's' : ''}`}
+        </button>
+      {/if}
       <span class="at">{time(entry.at)}</span>
     </div>
+    {#if entry.questions && reviewing.has(i)}
+      <ol class="asked">
+        {#each entry.questions as q (q.question)}
+          {@const picked = q.answer.split(', ')}
+          <li>
+            <strong>{q.question}</strong>
+            <ul>
+              {#each q.options as option (option)}
+                <li class:picked={picked.includes(option)}>{picked.includes(option) ? '✓' : '·'} {option}</li>
+              {/each}
+              {#if q.answer && !q.options.some((o) => picked.includes(o))}<li class="picked">✓ {q.answer}</li>{/if}
+            </ul>
+          </li>
+        {/each}
+      </ol>
+    {/if}
     {#if entry.note}<span class="note">{entry.note}</span>{/if}
   {/if}
 {/each}
@@ -457,6 +481,40 @@
 
   .at {
     color: var(--text-dim);
+  }
+
+  .review {
+    flex: none;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-link);
+  }
+
+  .review:hover {
+    color: var(--accent-soft);
+  }
+
+  .asked {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: -4px 0 0;
+    padding: 12px 14px 12px 34px;
+    border-radius: 4px;
+    background: var(--surface-1);
+    font-size: 12.5px;
+  }
+
+  .asked ul {
+    margin: 6px 0 0;
+    padding: 0;
+    list-style: none;
+    color: var(--text-dim);
+  }
+
+  .asked .picked {
+    color: var(--ok-text);
+    font-weight: 600;
   }
 
   .note {

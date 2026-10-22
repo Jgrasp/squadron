@@ -1,6 +1,7 @@
 <script lang="ts">
   import { agents, clock, ofProject, show, todayCost, waitingAgents, waitingDetail } from './agents.svelte'
   import { ago, cost, modelLabel } from './format'
+  import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import type { Agent } from './stream'
@@ -91,6 +92,14 @@
               <button class="link" onclick={() => open(group.project.path)}>Open project</button>
             </th>
           </tr>
+          {#if !group.list.length}
+            <tr class="none">
+              <td colspan="6">
+                {group.all.length ? 'No agent running' : 'No agents yet'}
+                <button class="action" disabled={!group.project.exists} onclick={() => (open(group.project.path), (ui.creating = true))}>New agent</button>
+              </td>
+            </tr>
+          {/if}
           {#each group.list as agent (agent.id)}
             {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
             <tr class="agent {look(agent)}">
@@ -325,6 +334,19 @@
 
   .action:hover {
     background: var(--surface-4);
+  }
+
+  .none td {
+    padding: 10px 14px;
+    color: var(--text-dim);
+  }
+
+  .none .action {
+    margin-left: 12px;
+  }
+
+  .action:disabled {
+    opacity: 0.4;
   }
 
   .action.answer {

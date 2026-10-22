@@ -269,6 +269,11 @@ export function answer(agent: Agent, ask: Ask, answers: Record<string, string>) 
       detail: Object.entries(answers)
         .map(([q, a]) => `${q} → ${a.replace(/\s*\((recommended|recommandé)\)/gi, '')}`)
         .join(' · '),
+      questions: (ask.input.questions ?? []).map((q: { question: string; options?: { label: string }[] }) => ({
+        question: q.question,
+        options: (q.options ?? []).map((o) => o.label),
+        answer: answers[q.question] ?? '',
+      })),
     },
   )
 }
