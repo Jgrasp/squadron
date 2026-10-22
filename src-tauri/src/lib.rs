@@ -579,8 +579,10 @@ fn create_agent(
     options: claude::Options,
     text: String,
     worktree: Option<String>,
+    dir: Option<PathBuf>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, None, false)?;
+    agents.set_dir(&id, dir)?;
     if let Some(name) = worktree {
         agents.new_worktree(&id, &name)?;
     }
@@ -588,6 +590,7 @@ fn create_agent(
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 fn restore_agent(
     agents: State<Agents>,
     id: String,
@@ -596,12 +599,19 @@ fn restore_agent(
     session_id: Option<String>,
     fork: bool,
     at: Option<String>,
+    dir: Option<PathBuf>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, session_id, fork)?;
+    agents.set_dir(&id, dir)?;
     match at {
         Some(at) => agents.fork_at(&id, &at),
         None => Ok(()),
     }
+}
+
+#[tauri::command]
+fn set_workdir(agents: State<Agents>, id: String, dir: Option<PathBuf>) -> Result<(), String> {
+    agents.set_dir(&id, dir)
 }
 
 #[tauri::command]
@@ -827,6 +837,7 @@ pub fn run() {
             system_load,
             stop_turn,
             git_branch,
+            set_workdir,
             list_projects,
             inspect_folder,
             add_project,

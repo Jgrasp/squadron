@@ -9,7 +9,7 @@
   import ProjectView from './lib/ProjectView.svelte'
   import Settings from './lib/Settings.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
-  import { agents, create, find, loadToday, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
+  import { agents, create, find, loadToday, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
@@ -29,7 +29,7 @@
   const actions: Actions = {
     cards: setCards,
     async start(path, card, name, options, text, goal, worktree) {
-      const id = await create(path, name, options, text, undefined, goal, worktree)
+      const id = await create(path, name, options, text, { goal, worktree })
       const cards = projects.list.find((p) => p.path === path)?.cards ?? []
       setCards(path, cards.map((c) => (c.id === card ? { ...c, agent: id, column: 'progress' } : c)))
     },
@@ -69,7 +69,9 @@
   loadSettings()
   loadLayout()
   loadToday()
-  load().then(restore)
+  load()
+    .then(() => restore())
+    .then(() => setInterval(rescan, 15_000))
 
   $effect(() => {
     const appWindow = getCurrentWindow()
@@ -114,7 +116,7 @@
   }
 </script>
 
-<svelte:window onkeydown={shortcuts} onclick={links} />
+<svelte:window onkeydown={shortcuts} onclick={links} onfocus={rescan} />
 
 <div class="app">
   <Header onadd={() => (ui.adding = '')} />

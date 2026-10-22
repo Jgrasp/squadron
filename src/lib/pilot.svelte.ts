@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { create, find, ofProject, persist } from './agents.svelte'
+import { branchOf, create, find, ofProject, persist } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
@@ -96,7 +96,11 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       }))
     )
       return `The user refused to start this agent in ${options.mode} mode.`
-    const id = await create(project.path, name, options, text, { by: caller.name }, goal)
+    const dir = String(args.worktree ?? '').trim().replace(/\/+$/, '')
+    if (dir) await invoke('git_branch', { path: dir }).catch(() => {
+      throw new Error(`${dir} is not a git checkout.`)
+    })
+    const id = await create(project.path, name, options, text, { from: { by: caller.name }, goal, dir: dir || undefined })
     if (card) await setCards(project.path, project.cards.map((c) => (c.id === card.id ? { ...c, agent: id, column: 'progress' } : c)))
     const until = goal ? ` It works until this goal is met: ${goal}${options.mode === 'plan' ? ' (once the user approves its plan)' : ''}.` : ''
     return `Started agent ${id} in ${project.name}.${until} Its permission requests and questions go to the user.`
@@ -128,18 +132,24 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
   },
 
   set_worktree: async (caller, args) => {
+    const target = args.agent ? find(String(args.agent)) : caller
+    if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    projectFor(caller, target.project)
+    const who = target === caller ? 'you work' : `${target.name} works`
     const path = String(args.path ?? '').trim().replace(/\/+$/, '')
-    if (!path || path === caller.project) {
-      caller.worktree = null
-      persist(caller)
-      return 'Squadron shows the branch of the main checkout again.'
+    if (!path || path === target.project) {
+      target.worktree = null
+      await invoke('set_workdir', { id: target.id, dir: null })
+      persist(target)
+      return `Squadron shows that ${who} in the main checkout again.`
     }
     const branch = await invoke<string | null>('git_branch', { path }).catch(() => {
       throw new Error(`${path} is not a git checkout.`)
     })
-    caller.worktree = { path, branch: branch ?? '' }
-    persist(caller)
-    return `Squadron now shows that you work in the worktree ${path}${branch ? ` on ${branch}` : ''}.`
+    target.worktree = { path, branch: branch ?? '' }
+    await invoke('set_workdir', { id: target.id, dir: path })
+    persist(target)
+    return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
   },
 
   get_layout: () =>

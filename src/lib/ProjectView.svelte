@@ -132,7 +132,7 @@
 </div>
 
 {#if ui.creating}
-  <NewAgent {project} start={(name, options, text, goal, worktree) => create(project.path, name, options, text, undefined, goal, worktree)} onclose={() => (ui.creating = false)} />
+  <NewAgent {project} start={(name, options, text, goal, worktree) => create(project.path, name, options, text, { goal, worktree })} onclose={() => (ui.creating = false)} />
 {/if}
 
 <style>

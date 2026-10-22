@@ -68,6 +68,14 @@ function track(windows: typeof limits) {
   } catch {}
 }
 
+export function branchOf(agent: Agent) {
+  const worktree = agent.worktree
+  if (!worktree) return
+  invoke<string | null>('git_branch', { path: worktree.path })
+    .then((branch) => (worktree.branch = branch ?? ''))
+    .catch(() => {})
+}
+
 export function waitingAgents() {
   return agents.list.filter((a) => a.attention).sort((a, b) => a.since - b.since)
 }
@@ -111,7 +119,9 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (!agent) return
   const d = JSON.parse(payload.line)
   const before = agent.cost
+  const place = agent.worktree?.path
   apply(agent, d)
+  if (agent.worktree?.path !== place) invoke('set_workdir', { id: agent.id, dir: agent.worktree?.path ?? null }).catch(() => {})
   if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
   if (agent.goal?.state === 'active' && agent.goal.relaunches >= GOAL_RELAUNCHES) {
@@ -123,12 +133,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
     agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'bad', title: 'Goal stopped', detail: `after ${GOAL_RELAUNCHES} relaunches · ${agent.goal.reason}` })
     invoke('send_message', { id: agent.id, text: '/goal clear' })
   }
-  if (d.subtype === 'init' && agent.worktree && !agent.worktree.branch) {
-    const worktree = agent.worktree
-    invoke<string | null>('git_branch', { path: worktree.path })
-      .then((branch) => (worktree.branch = branch ?? ''))
-      .catch(() => {})
-  }
+  if (d.subtype === 'init' && agent.worktree && !agent.worktree.branch) branchOf(agent)
   if (d.type === 'result' || d.subtype === 'init') persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
@@ -153,7 +158,15 @@ export function saveAll() {
   return Promise.all(agents.list.map((a) => save(a)))
 }
 
-export async function restore() {
+let scanning = false
+
+export async function rescan() {
+  if (scanning) return
+  scanning = true
+  await restore(false).finally(() => (scanning = false))
+}
+
+export async function restore(cleanup = true) {
   const known = new Set([...projects.list, ...projects.archived].map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
@@ -165,8 +178,9 @@ export async function restore() {
   saved.sort((a, b) => (a.entries[0]?.kind === 'user' ? a.entries[0].at : 0) - (b.entries[0]?.kind === 'user' ? b.entries[0].at : 0))
   for (const data of saved) {
     if (find(data.id)) continue
-    if (!known.has(data.project)) invoke('delete_agent_file', { id: data.id })
-    else await adopt(data)
+    if (!known.has(data.project)) {
+      if (cleanup) invoke('delete_agent_file', { id: data.id })
+    } else await adopt(data)
   }
 }
 
@@ -193,6 +207,7 @@ async function adopt(data: Agent) {
     sessionId: agent.sessionId,
     fork: !!agent.forkOf,
     at: agent.forkOf ? agent.forkAt : null,
+    dir: agent.worktree?.path ?? null,
   }).catch((e) => fail(find(agent.id)!, String(e)))
   if (wanted) remote(agent.id, true)
 }
@@ -235,7 +250,7 @@ listen<Ask>('permission-request', ({ payload: ask }) => {
   const rules = projects.list.find((p) => p.path === agent.project)?.rules ?? []
   if (
     INTERNAL.includes(ask.tool_name) ||
-    READ_ONLY.includes(ask.tool_name) ||
+    (READ_ONLY.includes(ask.tool_name) && !(ask.tool_name.endsWith('__set_worktree') && ask.input.agent && ask.input.agent !== agent.id)) ||
     (agent.allowEdits && EDITS.includes(ask.tool_name)) ||
     rules.some((r) => matches(r, ask.tool_name, ask.input))
   )
@@ -377,11 +392,14 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-export async function create(project: string, name: string, options: Options, text: string, from?: { by: string }, goal = '', worktree: string | null = null) {
+type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; dir?: string }
+
+export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback, options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
+  if (dir) agent.worktree = { path: dir, branch: '' }
   if (!name) {
     agent.autoName = true
     invoke<string>('suggest_title', { text })
@@ -398,7 +416,8 @@ export async function create(project: string, name: string, options: Options, te
   userMessage(agent, text)
   persist(agent)
   try {
-    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null })
+    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null })
+    if (dir) branchOf(agent)
     if (options.mode !== 'plan') await arm(agent)
   } catch (e) {
     fail(agent, String(e))
@@ -504,6 +523,7 @@ export async function fork(id: string, upTo?: number) {
   copy.sessionId = resumes ? source.sessionId : null
   copy.forkOf = resumes ? source.name : null
   copy.forkAt = point.at ?? null
+  copy.worktree = resumes ? snapshot.worktree : null
   copy.status = 'done'
   copy.action = `Forked from ${source.name}`
   const message = upTo === undefined ? undefined : snapshot.entries[upTo]
@@ -513,7 +533,8 @@ export async function fork(id: string, upTo?: number) {
   agents.current[agent.project] = agent.id
   try {
     if (resumes) await invoke('fork_agent', { id: agent.id, from: id, project: agent.project, options: agent.options, at: point.at })
-    else await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: null, fork: false, at: null })
+    else await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: null, fork: false, at: null, dir: null })
+    if (agent.worktree) await invoke('set_workdir', { id: agent.id, dir: agent.worktree.path })
   } catch (e) {
     fail(agent, String(e))
   }

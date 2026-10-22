@@ -14,7 +14,8 @@ pub const INSTRUCTIONS: &str = "You run inside Squadron, the desktop app where t
 These tools act on Squadron itself: its projects and agents, the Kanban cards, and the layout of its buttons and menus. \
 When the user asks to change Squadron (move or hide a button, add a card, start an agent), use these tools and never edit Squadron's source code. \
 You can prepare and start new agents as the user would, but you never answer, approve or steer an existing agent in the user's place. \
-When you start working in a git worktree that you entered yourself (a script, git worktree add, cd), call set_worktree so Squadron shows its branch.";
+When you start working in a git worktree that you entered yourself (a script, git worktree add, cd), call set_worktree so Squadron shows its branch. \
+To start an agent in a worktree a script made, pass its path to start_agent.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -25,6 +26,7 @@ pub struct Call {
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ReadAgent {
     /// The agent id, as listed by `overview`.
     agent: String,
@@ -33,6 +35,7 @@ struct ReadAgent {
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct StartAgent {
     /// The first message of the new agent: what it must do. Taken from the card when you start a card and leave it empty.
     prompt: Option<String>,
@@ -50,9 +53,12 @@ struct StartAgent {
     card: Option<String>,
     /// When the task is done, in the user's words (\"done when…\"): Squadron runs it as Claude Code's /goal, so the agent keeps working after each turn until it is true, then the card goes to review. Ask for visible proof, such as tests run with their output shown. In plan mode it starts once the user approves the plan. Taken from the card when left empty.
     done_when: Option<String>,
+    /// Absolute path of an existing git worktree, made by a script or git worktree add: the agent starts and keeps running there, and Squadron shows its branch.
+    worktree: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct CreateCard {
     /// What the task is about.
     title: String,
@@ -65,12 +71,16 @@ struct CreateCard {
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct SetWorktree {
-    /// The absolute path of the git worktree you now work in, or an empty string when you are back in the project's main checkout.
+    /// The absolute path of the git worktree, or an empty string when the agent is back in the project's main checkout.
     path: String,
+    /// The agent id, as listed by overview, to set the worktree of another agent. Yourself when left empty.
+    agent: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MoveCard {
     /// The card id, as listed by `overview`.
     card: String,
@@ -79,6 +89,7 @@ struct MoveCard {
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct SetLayout {
     /// The slot to change, as listed by `get_layout`.
     slot: String,
@@ -193,7 +204,7 @@ impl Pilot {
         self.forward(&parts, "move_card", json!(args)).await
     }
 
-    /// Tells Squadron which git worktree you work in, when you entered it yourself (a script, git worktree add, cd): Squadron then shows its branch for you. Not needed when Claude Code created it (--worktree, EnterWorktree).
+    /// Tells Squadron which git worktree an agent works in, yours by default, when it was entered by hand (a script, git worktree add, cd): Squadron shows its branch and runs the agent there from its next start. Not needed when Claude Code created it (--worktree, EnterWorktree).
     #[tool]
     async fn set_worktree(
         &self,
@@ -315,9 +326,7 @@ mod tests {
         );
     }
 
-    #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "runs the real claude"]
-    async fn real_claude_declares_the_worktree_a_script_made() {
+    fn script_worktree() {
         let main = std::env::temp_dir().join("squadron-wt-main");
         let _ = std::fs::remove_dir_all(&main);
         let _ = std::fs::remove_dir_all("/tmp/squadron-wt");
@@ -342,6 +351,35 @@ mod tests {
             "-b",
             "ia/BAT-809-T70",
         ]);
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_starts_an_agent_in_the_worktree_a_script_made() {
+        script_worktree();
+        let calls = drive(
+            "sonnet",
+            "`make worktree TICKET=BAT-809 TACHE=T70` just created the worktree /tmp/squadron-wt/BAT-809-T70 for task T70. Start an agent with haiku that works in it on: fix the admin menu.",
+            |call| match call.tool.as_str() {
+                "start_agent" if call.args["prompt"].is_null() => {
+                    "Error: The prompt is empty.".to_string()
+                }
+                "start_agent" => "Started agent a-9 in BMC.".to_string(),
+                _ => "[]".to_string(),
+            },
+        )
+        .await;
+        let start = calls
+            .iter()
+            .find(|c| c.tool == "start_agent" && !c.args["prompt"].is_null())
+            .expect("start_agent called");
+        assert_eq!(start.args["worktree"], "/tmp/squadron-wt/BAT-809-T70");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_declares_the_worktree_a_script_made() {
+        script_worktree();
         let calls = drive(
             "sonnet",
             "I just ran `make worktree TICKET=BAT-809 TACHE=T70`: it created a git worktree at /tmp/squadron-wt/BAT-809-T70 on the branch ia/BAT-809-T70. From now on you work there. Get ready, nothing else to do yet.",

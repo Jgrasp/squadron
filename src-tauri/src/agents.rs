@@ -19,6 +19,7 @@ struct Agent {
     fork: bool,
     at: Option<String>,
     worktree: Option<String>,
+    dir: Option<PathBuf>,
     stale: bool,
 }
 
@@ -88,8 +89,20 @@ impl Agents {
                 fork,
                 at: None,
                 worktree: None,
+                dir: None,
                 stale: false,
             });
+        Ok(())
+    }
+
+    pub fn set_dir(&self, id: &str, dir: Option<PathBuf>) -> Result<(), String> {
+        if let Some(dir) = &dir
+            && (!dir.is_absolute() || !dir.join(".git").exists())
+        {
+            return Err(format!("{} is not a git checkout.", dir.display()));
+        }
+        let mut list = self.list.lock().unwrap();
+        list.get_mut(id).ok_or("Unknown agent.")?.dir = dir;
         Ok(())
     }
 
@@ -254,9 +267,14 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
     }
     let run = agent.run.fetch_add(1, Ordering::SeqCst) + 1;
     let resume = agent.session_id.lock().unwrap().clone();
+    let dir = agent
+        .dir
+        .as_ref()
+        .filter(|d| d.is_dir())
+        .unwrap_or(&agent.project);
     let mut cmd = claude::command(
         program,
-        &agent.project,
+        dir,
         &agent.options,
         resume.as_deref(),
         agent.fork,
@@ -352,6 +370,13 @@ mod tests {
                 .is_err()
         );
         assert!(agents.new_worktree("a1", "bat-809-t70").is_ok());
+        assert!(
+            agents
+                .set_dir("a1", Some(PathBuf::from("relative/wt")))
+                .is_err()
+        );
+        assert!(agents.set_dir("a1", Some(PathBuf::from("/tmp"))).is_err());
+        assert!(agents.set_dir("a1", None).is_ok());
         assert!(agents.new_worktree("a1", "--tmux").is_err());
         assert!(agents.new_worktree("a1", "a b").is_err());
     }

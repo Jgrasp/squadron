@@ -262,6 +262,8 @@ mockIPC(
         emit('agent-exit', { id: a.id, stderr: '' })
         return
       }
+      case 'set_workdir':
+        return
       case 'git_branch':
         return `feat/${String(a.path).split('/').at(-1)}`
       case 'stop_turn':
