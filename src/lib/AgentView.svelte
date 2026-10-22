@@ -445,46 +445,45 @@
       {#if chips.length}
         <div class="context" role="group" aria-label="Session context" style:--project={projects.list.find((p) => p.path === agent.project)?.color}>
           {#each chips as id (id)}
-            {#if id === 'remote' && !agent.remote}
-              <button class="chip" title="Turn on remote control: follow and answer this conversation from claude.ai or the Claude app" onclick={() => remote(agent.id, true)}>
-                <span class="ping off" aria-hidden="true"></span>
-                Remote control
-              </button>
-            {:else if id === 'remote'}
+            {#if id === 'remote'}
               <span class="anchor" data-remote-menu>
                 <button
-                  class="chip on effect-{settings.tab_effect}"
+                  class="chip {agent.remote ? `on effect-${settings.tab_effect}` : ''}"
                   aria-haspopup="menu"
                   aria-expanded={remoteOpen}
-                  title="Remote control is on · this conversation can also be steered from claude.ai"
+                  title={agent.remote ? 'Remote control is on · this conversation can also be steered from claude.ai' : 'Remote control is off'}
                   onclick={() => (remoteOpen = !remoteOpen)}
                 >
-                  <span class="ping" class:live={agent.remote?.state === 'connected'} aria-hidden="true"></span>
+                  <span class="ping" class:off={!agent.remote} class:live={agent.remote?.state === 'connected'} aria-hidden="true"></span>
                   Remote control
                   {#if agent.remote?.state === 'connecting'}<span class="state">connecting…</span>{/if}
                   <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {#if remoteOpen}
-                  <div class="remote-menu" role="menu" aria-label="Remote control">
-                    <span class="about">
-                      <strong>Remote control on</strong>
-                      <span>This conversation can be followed and steered from claude.ai or the Claude app. Squadron stays the source: everything shows here too.</span>
-                    </span>
-                    <button
-                      role="menuitem"
-                      disabled={!agent.remote?.url}
-                      onclick={() => (agent.remote?.url && openUrl(agent.remote.url), (remoteOpen = false))}
-                    >
-                      Open in claude.ai
-                    </button>
-                    <button
-                      role="menuitem"
-                      disabled={!agent.remote?.url}
-                      onclick={() => (agent.remote?.url && navigator.clipboard.writeText(agent.remote.url), (remoteOpen = false))}
-                    >
-                      Copy the session link
-                    </button>
-                    <button role="menuitem" class="stop" onclick={() => (remote(agent.id, false), (remoteOpen = false))}>Stop remote control</button>
+                  <div class="remote-menu" class:short={!agent.remote} role="menu" aria-label="Remote control">
+                    {#if agent.remote}
+                      <span class="about">
+                        <strong>Remote control on</strong>
+                        <span>This conversation can be followed and steered from claude.ai or the Claude app. Squadron stays the source: everything shows here too.</span>
+                      </span>
+                      <button
+                        role="menuitem"
+                        disabled={!agent.remote.url}
+                        onclick={() => (agent.remote?.url && openUrl(agent.remote.url), (remoteOpen = false))}
+                      >
+                        Open in claude.ai
+                      </button>
+                      <button
+                        role="menuitem"
+                        disabled={!agent.remote.url}
+                        onclick={() => (agent.remote?.url && navigator.clipboard.writeText(agent.remote.url), (remoteOpen = false))}
+                      >
+                        Copy the session link
+                      </button>
+                      <button role="menuitem" class="stop" onclick={() => (remote(agent.id, false), (remoteOpen = false))}>Stop remote control</button>
+                    {:else}
+                      <button role="menuitem" onclick={() => (remote(agent.id, true), (remoteOpen = false))}>Turn on remote control</button>
+                    {/if}
                   </div>
                 {/if}
               </span>
@@ -1022,6 +1021,11 @@
     box-shadow:
       inset 0 0 0 1px var(--border-strong),
       0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .remote-menu.short {
+    width: 220px;
+    padding: 6px;
   }
 
   .remote-menu .about {
