@@ -6,6 +6,7 @@ import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
 import taskList from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
+import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
 type Project = { name: string; path: string; rules: string[]; cards?: unknown[] }
 
@@ -104,7 +105,7 @@ function replay(id: string, text: string) {
     return
   }
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
-  const stream = text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')

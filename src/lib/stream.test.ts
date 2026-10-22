@@ -6,6 +6,7 @@ import tasks from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
+import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 import { apply, calls, exited, newAgent, prompt, replayLog, subagentOf, userMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
@@ -172,6 +173,20 @@ describe('stream', () => {
     expect(second.log.some((b) => b.type === 'tools' && b.calls[0].result)).toBe(true)
     expect(calls(agent).map((c) => c.id)).toContain(bash.id)
     expect(agent.status).toBe('done')
+  })
+
+  it('keeps the summary of the thinking', () => {
+    const agent = fresh()
+    const lines = thinking.trim().split('\n')
+    const streamed = lines.findIndex((l) => l.includes('"content_block_stop"'))
+    for (const line of lines.slice(0, streamed)) apply(agent, JSON.parse(line))
+    const live = agent.entries.find((e) => e.kind === 'agent')
+    expect(live?.kind === 'agent' && live.blocks[0]).toEqual(expect.objectContaining({ type: 'thinking', text: expect.stringContaining('9.9') }))
+    for (const line of lines.slice(streamed)) apply(agent, JSON.parse(line))
+    const reply = agent.entries.find((e) => e.kind === 'agent')
+    const block = reply?.kind === 'agent' ? reply.blocks[0] : undefined
+    expect(block?.type === 'thinking' && block.ms).toBeGreaterThan(0)
+    expect(block?.type === 'thinking' && block.text).toMatch(/^9\.9/)
   })
 
   it('keeps the waiting label while the agent keeps streaming', () => {

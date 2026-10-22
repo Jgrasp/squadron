@@ -83,6 +83,8 @@ pub fn command(
             "stream-json",
             "--verbose",
             "--include-partial-messages",
+            "--thinking-display",
+            "summarized",
             "--model",
             &options.model,
             "--effort",

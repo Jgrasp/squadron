@@ -52,7 +52,7 @@
   }
 
   type Segment =
-    | { type: 'work'; ms: number | undefined; thinking: boolean; calls: ToolCall[] }
+    | { type: 'work'; ms: number | undefined; thinking: boolean; thought: string; calls: ToolCall[] }
     | { type: 'spawn'; calls: ToolCall[] }
     | Extract<Block, { type: 'text' }>
 
@@ -67,6 +67,7 @@
         const work = workOf(out)
         work.thinking = true
         work.ms = block.ms === undefined || work.ms === undefined ? undefined : work.ms + block.ms
+        work.thought = [work.thought, block.text?.trim()].filter(Boolean).join('\n\n')
         continue
       }
       for (const call of block.calls.filter((c) => !INTERNAL.includes(c.name))) {
@@ -95,7 +96,7 @@
   function workOf(out: Segment[]) {
     const last = out.at(-1)
     if (last?.type === 'work') return last
-    const work: Segment = { type: 'work', ms: 0, thinking: false, calls: [] }
+    const work: Segment = { type: 'work', ms: 0, thinking: false, thought: '', calls: [] }
     out.push(work)
     return work
   }
@@ -123,9 +124,15 @@
           <Markdown text={segment.text} streaming={working && i === agent.entries.length - 1 && segment === entry.blocks.at(-1)} />
         {:else if segment.type === 'work'}
           {#if segment.thinking}
-            <div class="thought">
-              {segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
-            </div>
+            {@const took = segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
+            {#if segment.thought}
+              <details class="thinking">
+                <summary><span class="chevron" aria-hidden="true">›</span>{took}<span class="gist">— {segment.thought.split(/(?<=[.!?])\s|\n/)[0]}</span></summary>
+                <p class="thought-text">{segment.thought}</p>
+              </details>
+            {:else}
+              <div class="thought">{took}</div>
+            {/if}
           {/if}
           {#if segment.calls.length}
             <details class="tools" open={i === lastAgent && working}>
@@ -287,6 +294,27 @@
     align-items: center;
     gap: 8px;
     font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .gist {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    color: var(--text-dim);
+  }
+
+  details[open] .gist {
+    display: none;
+  }
+
+  .thought-text {
+    margin: 6px 0 0 26px;
+    white-space: pre-wrap;
+    font-size: 12.5px;
+    line-height: 1.6;
     color: var(--text-muted);
   }
 

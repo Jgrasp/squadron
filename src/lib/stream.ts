@@ -344,6 +344,9 @@ function stream(agent: Agent, d: Json) {
       else entry.blocks.push({ type: 'tools', calls: [call] })
       act(agent, block.name)
     }
+  } else if (e.type === 'content_block_delta' && e.delta.type === 'thinking_delta') {
+    const block = agentEntry(agent).blocks.findLast((b) => b.type === 'thinking' && b.ms === undefined)
+    if (block?.type === 'thinking') block.text = (block.text ?? '') + e.delta.thinking
   } else if (e.type === 'content_block_delta' && e.delta.type === 'text_delta') {
     const entry = agentEntry(agent)
     const block = entry.blocks.findLast((b) => b.type === 'text' && b.key === key)
@@ -361,7 +364,9 @@ function assistant(agent: Agent, d: Json) {
     if (c.type === 'thinking') {
       const block = blocks().findLast((b) => b.type === 'thinking' && b.ms === undefined)
       if (block?.type === 'thinking') block.ms = d.thinking_duration_ms ?? 0
-      else blocks().push({ type: 'thinking', ms: d.thinking_duration_ms ?? 0, ...(sub && c.thinking ? { text: c.thinking } : {}), ...at })
+      else blocks().push({ type: 'thinking', ms: d.thinking_duration_ms ?? 0, ...(c.thinking ? { text: c.thinking } : {}), ...at })
+      const done = blocks().findLast((b) => b.type === 'thinking')
+      if (done?.type === 'thinking' && c.thinking) done.text = c.thinking
     } else if (c.type === 'tool_use') {
       const call = calls(agent).find((x) => x.id === c.id)
       if (call) call.input = c.input
