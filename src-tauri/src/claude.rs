@@ -1,10 +1,11 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
+use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{ChildStdin, Command, Stdio};
-use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::{Arc, Mutex};
 use std::thread;
 
 pub const TESTED_VERSION: &str = "2.1.304";
@@ -30,6 +31,9 @@ pub enum Event {
     },
     User {
         message: Value,
+        #[serde(default, rename = "isReplay")]
+        replay: bool,
+        uuid: Option<String>,
     },
     Result {
         subtype: String,
@@ -83,6 +87,7 @@ pub fn command(
             "stream-json",
             "--verbose",
             "--include-partial-messages",
+            "--replay-user-messages",
             "--thinking-display",
             "summarized",
             "--model",
@@ -114,6 +119,7 @@ pub struct Session {
     stdin: ChildStdin,
     alive: Arc<AtomicBool>,
     busy: Arc<AtomicBool>,
+    sent: Arc<Mutex<HashSet<String>>>,
 }
 
 impl Session {
@@ -140,6 +146,8 @@ impl Session {
         let busy = Arc::new(AtomicBool::new(false));
         let turn = busy.clone();
         let pid = child.id() as libc::pid_t;
+        let sent = Arc::new(Mutex::new(HashSet::new()));
+        let own = sent.clone();
         thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
                 match serde_json::from_str::<Event>(&line) {
@@ -157,6 +165,15 @@ impl Session {
                         if let Event::Result { .. } = event {
                             turn.store(false, Ordering::SeqCst);
                         }
+                        if let Event::User {
+                            replay: true,
+                            uuid: Some(uuid),
+                            ..
+                        } = &event
+                            && own.lock().unwrap().remove(uuid)
+                        {
+                            continue;
+                        }
                         on_event(&line, event);
                     }
                     Err(e) => log::warn!("unreadable line in the claude stream: {e}"),
@@ -171,6 +188,7 @@ impl Session {
             stdin,
             alive,
             busy,
+            sent,
         })
     }
 
@@ -183,7 +201,10 @@ impl Session {
     }
 
     pub fn send(&mut self, text: &str) -> io::Result<()> {
-        let message = json!({"type": "user", "message": {"role": "user", "content": text}});
+        let uuid = uuid::Uuid::new_v4().to_string();
+        self.sent.lock().unwrap().insert(uuid.clone());
+        let message =
+            json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": text}});
         writeln!(self.stdin, "{message}")?;
         self.stdin.flush()?;
         self.busy.store(true, Ordering::SeqCst);
@@ -388,6 +409,40 @@ mod tests {
         println!("forked {forked} -> {answer}");
         assert_ne!(forked, id);
         assert!(answer.contains("PELICAN"));
+    }
+
+    #[test]
+    #[ignore = "runs the real claude"]
+    fn real_claude_echoes_only_messages_squadron_did_not_send() {
+        let dir = std::env::temp_dir().join("squadron-echo");
+        std::fs::create_dir_all(&dir).unwrap();
+        let options = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+        };
+        let (tx, rx) = mpsc::channel();
+        let mut session = Session::start(
+            command("claude", &dir, &options, None, false, None),
+            move |line, event| {
+                let done = matches!(event, Event::Result { .. });
+                tx.send((line.to_string(), done)).unwrap();
+            },
+            |_| {},
+        )
+        .unwrap();
+        session.send("Reply only OK.").unwrap();
+        let mut lines = Vec::new();
+        loop {
+            let (line, done) = rx.recv_timeout(Duration::from_secs(120)).unwrap();
+            lines.push(line);
+            if done {
+                break;
+            }
+        }
+        session.stop().unwrap();
+        assert!(lines.iter().all(|l| !l.contains(r#""isReplay":true"#)));
+        assert!(session.sent.lock().unwrap().is_empty());
     }
 }
 

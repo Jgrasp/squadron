@@ -116,6 +116,7 @@
       {/if}
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
+    {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>Sent via remote control · {time(entry.at)}</span>{/if}
   {:else if entry.kind === 'agent'}
     {#each groups(entry.blocks) as group, g (g)}
       {#if group.type === 'spawn'}
@@ -283,6 +284,23 @@
     color: var(--accent-ink);
     line-height: 1.5;
     overflow-wrap: anywhere;
+  }
+
+  .via {
+    align-self: flex-end;
+    margin-top: -6px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  .via .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--remote-dot);
   }
 
   .said {

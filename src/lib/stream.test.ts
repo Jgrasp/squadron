@@ -144,7 +144,7 @@ describe('stream', () => {
     apply(agent, { type: 'system', subtype: 'bridge_state', state: 'ready' })
     apply(agent, { type: 'control_response', response: { subtype: 'success', response: { session_url: 'https://claude.ai/code/session_1' } } })
     apply(agent, { type: 'system', subtype: 'bridge_state', state: 'connected' })
-    expect(agent.remote).toEqual({ state: 'connected', url: 'https://claude.ai/code/session_1' })
+    expect(agent.remote).toEqual({ state: 'connected', url: 'https://claude.ai/code/session_1', since: expect.any(Number) })
   })
 
   it('keeps subagents apart from the conversation', () => {
@@ -187,6 +187,17 @@ describe('stream', () => {
     const block = reply?.kind === 'agent' ? reply.blocks[0] : undefined
     expect(block?.type === 'thinking' && block.ms).toBeGreaterThan(0)
     expect(block?.type === 'thinking' && block.text).toMatch(/^9\.9/)
+  })
+
+  it('shows messages sent from claude.ai', () => {
+    const agent = fresh()
+    agent.remote = { state: 'connected', url: 'https://claude.ai/code/session_1' }
+    apply(agent, { type: 'user', isReplay: true, parent_tool_use_id: null, timestamp: '2026-10-22T09:00:00.000Z', message: { role: 'user', content: 'Ship it' } })
+    expect(agent.entries.at(-1)).toEqual(expect.objectContaining({ kind: 'user', text: 'Ship it', remote: true, at: Date.parse('2026-10-22T09:00:00.000Z') }))
+    expect(agent.status).toBe('working')
+    expect(agent.remote.last).toBeGreaterThan(0)
+    apply(agent, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] } })
+    expect(agent.entries.filter((e) => e.kind === 'user')).toHaveLength(2)
   })
 
   it('keeps the waiting label while the agent keeps streaming', () => {

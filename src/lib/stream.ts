@@ -68,7 +68,7 @@ export function prompt(text: string, comments: Comment[] = []) {
 export type Usage = { cost: number; input: number; output: number; ms: number }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number; comments?: Comment[] }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[]; remote?: boolean }
   | { kind: 'agent'; blocks: Block[] }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
@@ -115,7 +115,7 @@ export type Agent = {
   autoName: boolean
   commands: string[]
   skills: string[]
-  remote: { state: string; url: string } | null
+  remote: { state: string; url: string; since?: number; last?: number } | null
   subagents: Subagent[]
 }
 
@@ -286,7 +286,7 @@ export function apply(agent: Agent, d: Json) {
         known.skills = agent.skills
         known.terminal = d.terminal_slash_commands ?? []
       }
-      if (d.subtype === 'bridge_state') agent.remote = { state: String(d.state), url: agent.remote?.url ?? '' }
+      if (d.subtype === 'bridge_state') agent.remote = { ...agent.remote, state: String(d.state), url: agent.remote?.url ?? '', since: agent.remote?.since ?? Date.now() }
       if (d.subtype === 'status' && d.status === 'compacting') agent.action = 'Compacting the conversation…'
       if (d.subtype === 'compact_boundary') {
         const meta = d.compact_metadata ?? {}
@@ -301,7 +301,8 @@ export function apply(agent: Agent, d: Json) {
         agent.status = 'working'
       return
     case 'control_response':
-      if (d.response?.response?.session_url) agent.remote = { state: agent.remote?.state ?? 'ready', url: d.response.response.session_url }
+      if (d.response?.response?.session_url)
+        agent.remote = { ...agent.remote, state: agent.remote?.state ?? 'ready', url: d.response.response.session_url, since: agent.remote?.since ?? Date.now() }
       return
     case 'conversation_reset':
       agent.entries.push({ kind: 'cleared', at: Date.now() })
@@ -314,7 +315,7 @@ export function apply(agent: Agent, d: Json) {
     case 'assistant':
       return assistant(agent, d)
     case 'user':
-      return toolResults(agent, d)
+      return d.isReplay && !d.parent_tool_use_id ? remoteMessage(agent, d) : toolResults(agent, d)
     case 'result':
       return result(agent, d)
   }
@@ -424,6 +425,18 @@ function track(agent: Agent, c: Json) {
       if (task.status === 'in_progress') act(agent, task.activeForm ?? task.subject)
     }
   }
+}
+
+function remoteMessage(agent: Agent, d: Json) {
+  const text = textOf(d.message?.content).trim()
+  if (!text) return
+  userMessage(agent, text)
+  const entry = agent.entries.at(-1)
+  if (entry?.kind === 'user') {
+    entry.remote = true
+    entry.at = d.timestamp ? Date.parse(d.timestamp) : entry.at
+  }
+  if (agent.remote) agent.remote.last = Date.now()
 }
 
 function toolResults(agent: Agent, d: Json) {

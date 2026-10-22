@@ -388,6 +388,12 @@ mockIPC(
             { type: 'system', subtype: 'bridge_state', state: 'connected' },
           ])
             emit('agent-line', { id: a.id, line: JSON.stringify(line) })
+        if ((args as { enabled: boolean }).enabled)
+          setTimeout(() => {
+            const message = { type: 'user', isReplay: true, parent_tool_use_id: null, timestamp: new Date().toISOString(), message: { role: 'user', content: 'Sent from my phone: what is left to do?' } }
+            emit('agent-line', { id: a.id, line: JSON.stringify(message) })
+            replay(a.id, 'ok')
+          }, 2500)
         return
       case 'pilot_reply':
         replies.get(a.id)?.(a.result)

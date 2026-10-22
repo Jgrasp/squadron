@@ -2,11 +2,11 @@
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
   import { openUrl } from '@tauri-apps/plugin-opener'
-  import { archive, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
+  import { archive, clock, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
-  import { cost, meta, modelLabel, time, tokens } from './format'
+  import { ago, cost, meta, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard } from './projects.svelte'
@@ -472,8 +472,14 @@
                     {#if agent.remote}
                       <span class="about">
                         <strong>Remote control on</strong>
-                        <span>This conversation can be followed and steered from claude.ai or the Claude app. Squadron stays the source: everything shows here too.</span>
+                        <span
+                          >{agent.remote.since ? `Since ${time(agent.remote.since)}. ` : ''}This conversation can be followed and steered from claude.ai or the Claude app.
+                          Squadron stays the source: everything shows here too.</span
+                        >
                       </span>
+                      {#if agent.remote.last}
+                        <span class="last"><span class="dot" aria-hidden="true"></span><span class="grow">Last remote message</span>{ago(agent.remote.last, clock.now)}</span>
+                      {/if}
                       <button
                         role="menuitem"
                         disabled={!agent.remote.url}
@@ -1054,6 +1060,29 @@
 
   .remote-menu strong {
     font-size: 13.5px;
+    color: var(--text);
+  }
+
+  .remote-menu .last {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: var(--bg-main);
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .remote-menu .last .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--remote-dot);
+  }
+
+  .remote-menu .last .grow {
+    flex: 1;
     color: var(--text);
   }
 
