@@ -9,7 +9,8 @@ export type Choice = { value: string; label?: string; detail?: string }
 export const UNLISTED: Command[] = [
   {
     name: 'remote-control',
-    description: 'Follow and answer this conversation from claude.ai or the Claude app',
+    description: 'Control this session from your phone or claude.ai/code',
+    aliases: ['rc'],
     argumentHint: '[on|off]',
     builtin: true,
   },
