@@ -26,6 +26,7 @@
 
   let text = $state('')
   let menuOpen = $state(false)
+  let remoteOpen = $state(false)
   let scroller: HTMLElement
   let column: HTMLElement
   let stuck = $state(true)
@@ -100,6 +101,10 @@
         (id !== 'tasks' || agent.tasks.length),
     ),
   )
+  const CHIPS = ['remote', 'subagents']
+  const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
+  const chips = $derived(info.filter((id) => CHIPS.includes(id)))
+  const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
 
   type Item = { value: string; label: string; hint?: string; detail?: string; usage?: string; group?: string; text: string }
 
@@ -349,6 +354,7 @@
   onclick={(e) => {
     const target = e.target as HTMLElement
     if (!target.closest('[data-agent-menu]')) menuOpen = false
+    if (!target.closest('[data-remote-menu]')) remoteOpen = false
     if (!target.closest('[data-options]')) tuning = null
   }}
 />
@@ -371,33 +377,12 @@
           <h1><button class="name" title="Rename" onclick={startRename}>{agent.name}</button></h1>
         {/if}
         <span class="meta" data-options>
-          {#each info as id (id)}
+          {#each inline as id (id)}
             <span class="info">
               {#if id === 'options'}
                 <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title="Change the model, the effort or the permission mode" onclick={() => (tuning = tuning ? null : { ...agent.options })}>
                   {meta(agent)}
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
-                </button>
-              {:else if id === 'remote'}
-                <button
-                  class="remote"
-                  class:connected={agent.remote?.state === 'connected'}
-                  title="Remote control is on ({agent.remote?.state}). Open this conversation in claude.ai"
-                  onclick={() => agent.remote?.url && openUrl(agent.remote.url)}
-                >
-                  <Icon name="remote" size={12} />Remote
-                </button>
-              {:else if id === 'subagents'}
-                {@const running = agent.subagents.filter((s) => s.status === 'running').length}
-                {@const used = agent.subagents.reduce((t, s) => t + s.tokens, 0)}
-                <button
-                  class="subagents"
-                  class:effect-snake={running > 0}
-                  aria-pressed={panel === 'subagents'}
-                  title="{running ? `${running} working · ` : ''}{tokens(used)} tokens in subagents · {panel === 'subagents' ? 'close' : 'open'} the panel"
-                  onclick={() => toggle('subagents')}
-                >
-                  <Icon name="subagents" size={12} />{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}<span aria-hidden="true">›</span>
                 </button>
               {:else if id === 'cost'}
                 <span class="mono">{cost(agent.cost)}</span>
@@ -459,6 +444,63 @@
           </span>
         {/each}
       </div>
+      {#if chips.length}
+        <div class="context" role="group" aria-label="Session context">
+          {#each chips as id (id)}
+            {#if id === 'remote'}
+              <span class="anchor" data-remote-menu>
+                <button
+                  class="chip remote"
+                  aria-haspopup="menu"
+                  aria-expanded={remoteOpen}
+                  title="Remote control is on · this conversation can also be steered from claude.ai"
+                  onclick={() => (remoteOpen = !remoteOpen)}
+                >
+                  <span class="ping" class:live={agent.remote?.state === 'connected'} aria-hidden="true"></span>
+                  Remote control
+                  <span class="state">{agent.remote?.state === 'connected' ? 'connected' : 'on'}</span>
+                  <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                {#if remoteOpen}
+                  <div class="remote-menu" role="menu" aria-label="Remote control">
+                    <span class="about">
+                      <strong>Remote control on</strong>
+                      <span>This conversation can be followed and steered from claude.ai or the Claude app. Squadron stays the source: everything shows here too.</span>
+                    </span>
+                    <button
+                      role="menuitem"
+                      disabled={!agent.remote?.url}
+                      onclick={() => (agent.remote?.url && openUrl(agent.remote.url), (remoteOpen = false))}
+                    >
+                      Open in claude.ai
+                    </button>
+                    <button
+                      role="menuitem"
+                      disabled={!agent.remote?.url}
+                      onclick={() => (agent.remote?.url && navigator.clipboard.writeText(agent.remote.url), (remoteOpen = false))}
+                    >
+                      Copy the session link
+                    </button>
+                    <button role="menuitem" class="stop" onclick={() => (remote(agent.id, false), (remoteOpen = false))}>Stop remote control</button>
+                  </div>
+                {/if}
+              </span>
+            {:else}
+              <button
+                class="chip subagents"
+                class:effect-snake={running > 0}
+                aria-pressed={panel === 'subagents'}
+                title="{running ? `${running} working · ` : ''}{tokens(agent.subagents.reduce((t, s) => t + s.tokens, 0))} tokens in subagents · {panel === 'subagents'
+                  ? 'close'
+                  : 'open'} the panel"
+                onclick={() => toggle('subagents')}
+              >
+                <Icon name="subagents" size={16} />{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}<span class="go" aria-hidden="true">›</span>
+              </button>
+            {/if}
+          {/each}
+        </div>
+      {/if}
     </div>
 
     <div class="middle">
@@ -834,8 +876,9 @@
     min-height: 60px;
     flex: none;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 12px;
+    gap: 10px 12px;
     padding: 10px 20px;
     border-bottom: 1px solid var(--border);
   }
@@ -882,35 +925,125 @@
     margin: 0 6px;
   }
 
-  .remote {
+  .context {
+    flex-basis: 100%;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .context .anchor {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .chip {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin: -2px -4px;
-    padding: 2px 4px;
-    border-radius: 3px;
-    color: var(--accent-soft);
-    font-size: 12px;
+    gap: 10px;
+    height: 34px;
+    padding: 0 12px 0 10px;
+    border-radius: 4px;
+    color: var(--text-strong);
+    font-size: 14px;
+    font-weight: 600;
   }
 
-  .remote:not(.connected) {
-    opacity: 0.7;
+  .chip svg {
+    fill: none;
+    stroke: var(--text-muted);
+    stroke-width: 2.2;
+    stroke-linecap: round;
   }
 
-  .remote:hover {
+  .remote {
+    padding: 0 10px 0 12px;
+    border-radius: 6px;
+    background: var(--remote-bg);
+    box-shadow: inset 0 0 0 1px var(--remote-ring);
+  }
+
+  .ping {
+    position: relative;
+    width: 8px;
+    height: 8px;
+    border-radius: 4px;
+    background: var(--remote-dot);
+  }
+
+  .ping.live::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 4px;
+    background: var(--remote-dot);
+    animation: ping 1.8s ease-out infinite;
+  }
+
+  .state {
+    font-weight: 500;
+    color: var(--remote-text);
+  }
+
+  .remote-menu {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    z-index: 20;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 14px;
+    border-radius: 8px;
+    background: var(--surface-1);
+    box-shadow:
+      inset 0 0 0 1px var(--border-strong),
+      0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .remote-menu .about {
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    margin-bottom: 4px;
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-muted);
+  }
+
+  .remote-menu strong {
+    font-size: 13.5px;
+    color: var(--text);
+  }
+
+  .remote-menu button {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 4px;
     background: var(--surface-3);
+    text-align: left;
+  }
+
+  .remote-menu button:disabled {
+    opacity: 0.5;
+  }
+
+  .remote-menu .stop {
+    background: var(--err-bg);
+    box-shadow: inset 0 0 0 1px var(--err-border);
+    color: var(--err-text);
+    font-weight: 600;
   }
 
   .subagents {
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    padding: 0 7px;
-    border-radius: 4px;
-    background: var(--surface-3);
-    color: var(--text-strong);
-    font-size: 12px;
-    font-weight: 600;
+    background: var(--menu);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .subagents.effect-snake {
+    box-shadow: none;
   }
 
   .subagents[aria-pressed='true'],
@@ -918,7 +1051,8 @@
     background: var(--surface-5);
   }
 
-  .subagents span {
+  .go {
+    font-size: 16px;
     color: var(--text-muted);
   }
 
