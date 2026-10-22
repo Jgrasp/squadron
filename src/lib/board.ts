@@ -9,7 +9,7 @@ export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attenti
 
 export type Actions = {
   cards(path: string, cards: Card[]): void
-  start(path: string, card: string, name: string, options: Options, text: string, goal: string): void
+  start(path: string, card: string, name: string, options: Options, text: string, goal: string, worktree: string | null): void
   show(agent: string): void
   diff(agent: string): void
 }

@@ -377,7 +377,7 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-export async function create(project: string, name: string, options: Options, text: string, from?: { by: string }, goal = '') {
+export async function create(project: string, name: string, options: Options, text: string, from?: { by: string }, goal = '', worktree: string | null = null) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback, options))
   const agent = agents.list.at(-1)!
@@ -398,7 +398,7 @@ export async function create(project: string, name: string, options: Options, te
   userMessage(agent, text)
   persist(agent)
   try {
-    await invoke('create_agent', { id: agent.id, project, options, text })
+    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null })
     if (options.mode !== 'plan') await arm(agent)
   } catch (e) {
     fail(agent, String(e))

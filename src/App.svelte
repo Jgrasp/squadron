@@ -28,8 +28,8 @@
 
   const actions: Actions = {
     cards: setCards,
-    async start(path, card, name, options, text, goal) {
-      const id = await create(path, name, options, text, undefined, goal)
+    async start(path, card, name, options, text, goal, worktree) {
+      const id = await create(path, name, options, text, undefined, goal, worktree)
       const cards = projects.list.find((p) => p.path === path)?.cards ?? []
       setCards(path, cards.map((c) => (c.id === card ? { ...c, agent: id, column: 'progress' } : c)))
     },

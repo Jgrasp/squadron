@@ -569,6 +569,7 @@ fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
 }
 
 #[tauri::command]
+#[allow(clippy::too_many_arguments)]
 fn create_agent(
     app: AppHandle,
     agents: State<Agents>,
@@ -577,8 +578,12 @@ fn create_agent(
     project: PathBuf,
     options: claude::Options,
     text: String,
+    worktree: Option<String>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, None, false)?;
+    if let Some(name) = worktree {
+        agents.new_worktree(&id, &name)?;
+    }
     agents.send(&app, &settings.claude(), &id, &text)
 }
 

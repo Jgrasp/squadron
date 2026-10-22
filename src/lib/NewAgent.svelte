@@ -1,6 +1,7 @@
 <script lang="ts">
   import Dialog from './Dialog.svelte'
   import OptionsFields from './OptionsFields.svelte'
+  import WorktreeField from './WorktreeField.svelte'
   import type { Project } from './projects.svelte'
   import { untrack } from 'svelte'
   import { settings } from './settings.svelte'
@@ -14,20 +15,22 @@
   }: {
     project: Project
     draft?: { name: string; text: string }
-    start: (name: string, options: Options, text: string) => void
+    start: (name: string, options: Options, text: string, goal: string, worktree: string | null) => void
     onclose: () => void
   } = $props()
 
   let name = $state(untrack(() => draft.name))
   let text = $state(untrack(() => draft.text))
   let options = $state<Options>({ ...settings.defaults })
+  let goal = $state('')
+  let worktree = $state<string | null>(null)
 
   const ready = $derived(text.trim().length > 0)
 
   function submit(event?: Event) {
     event?.preventDefault()
     if (!ready) return
-    start(name.trim(), $state.snapshot(options), text.trim())
+    start(name.trim(), $state.snapshot(options), text.trim(), goal.trim(), worktree)
     onclose()
   }
 </script>
@@ -57,6 +60,20 @@
           onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
         ></textarea>
       </div>
+
+      <div class="group">
+        <label for="done-when">Done when</label>
+        <textarea
+          id="done-when"
+          class="field"
+          rows="2"
+          bind:value={goal}
+          placeholder="Optional. The agent keeps working until this is true. Ask for visible proof: tests run, output shown."
+          onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
+        ></textarea>
+      </div>
+
+      {#if project.git}<WorktreeField bind:name={worktree} suggestion={name || text.split(/\s+/).slice(0, 4).join(' ')} />{/if}
     </div>
 
     <footer>

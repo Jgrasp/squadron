@@ -18,6 +18,7 @@ struct Agent {
     mcp: Option<String>,
     fork: bool,
     at: Option<String>,
+    worktree: Option<String>,
     stale: bool,
 }
 
@@ -86,8 +87,24 @@ impl Agents {
                 mcp,
                 fork,
                 at: None,
+                worktree: None,
                 stale: false,
             });
+        Ok(())
+    }
+
+    pub fn new_worktree(&self, id: &str, name: &str) -> Result<(), String> {
+        let valid = !name.is_empty()
+            && name.len() <= 64
+            && name.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && name
+                .chars()
+                .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c));
+        if !valid {
+            return Err("Invalid worktree name: use letters, digits, - _ and . only.".into());
+        }
+        let mut list = self.list.lock().unwrap();
+        list.get_mut(id).ok_or("Unknown agent.")?.worktree = Some(name.into());
         Ok(())
     }
 
@@ -237,7 +254,7 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
     }
     let run = agent.run.fetch_add(1, Ordering::SeqCst) + 1;
     let resume = agent.session_id.lock().unwrap().clone();
-    let cmd = claude::command(
+    let mut cmd = claude::command(
         program,
         &agent.project,
         &agent.options,
@@ -246,6 +263,9 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
         agent.at.as_deref(),
         agent.mcp.as_deref(),
     );
+    if let Some(name) = agent.worktree.take() {
+        cmd.args(["--worktree", &name]);
+    }
     agent.fork = false;
     agent.at = None;
     let (lines_app, exit_app) = (app.clone(), app.clone());
@@ -331,5 +351,8 @@ mod tests {
                 .fork_at("missing", "2654721f-e7e6-4b3c-a2a7-25979e1d1873")
                 .is_err()
         );
+        assert!(agents.new_worktree("a1", "bat-809-t70").is_ok());
+        assert!(agents.new_worktree("a1", "--tmux").is_err());
+        assert!(agents.new_worktree("a1", "a b").is_err());
     }
 }

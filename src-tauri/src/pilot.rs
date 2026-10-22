@@ -50,6 +50,8 @@ struct StartAgent {
     card: Option<String>,
     /// When the task is done, in the user's words (\"done when…\"): Squadron runs it as Claude Code's /goal, so the agent keeps working after each turn until it is true, then the card goes to review. Ask for visible proof, such as tests run with their output shown. In plan mode it starts once the user approves the plan. Taken from the card when left empty.
     done_when: Option<String>,
+    /// Name of a new git worktree Claude Code creates for the agent (.claude/worktrees/<name>, branch worktree-<name>). Letters, digits, - _ and . only. No worktree when left empty.
+    worktree: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]

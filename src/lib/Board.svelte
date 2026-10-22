@@ -2,6 +2,7 @@
   import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
   import OptionsFields from './OptionsFields.svelte'
+  import WorktreeField from './WorktreeField.svelte'
   import { home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -25,7 +26,7 @@
 
   const LABELS = { working: 'Working', waiting: 'Waiting for you', done: 'Done', interrupted: 'Interrupted', error: 'Error' }
 
-  let editing = $state<{ card: Card; fresh: boolean; options: Options } | null>(null)
+  let editing = $state<{ card: Card; fresh: boolean; options: Options; worktree: string | null } | null>(null)
   let drag = $state<{ id: string; x: number; y: number; over: Column | null; before: string | null } | null>(null)
   let focusId = ''
   let picking = $state(false)
@@ -60,11 +61,11 @@
   const defaults = () => ({ ...$state.snapshot(settings.defaults) })
 
   function create(column: Column = 'todo') {
-    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', goal: '', column, agent: null }, fresh: true, options: defaults() }
+    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', goal: '', column, agent: null }, fresh: true, options: defaults(), worktree: null }
   }
 
   function edit(card: Card) {
-    editing = { card: $state.snapshot(card), fresh: false, options: defaults() }
+    editing = { card: $state.snapshot(card), fresh: false, options: defaults(), worktree: null }
   }
 
   function submit(event: Event, start = false) {
@@ -72,7 +73,7 @@
     if (!editing?.card.title.trim()) return
     const card = { ...editing.card, title: editing.card.title.trim(), prompt: editing.card.prompt.trim(), goal: editing.card.goal?.trim() ?? '' }
     save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
-    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), card.prompt || card.title, card.goal)
+    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), card.prompt || card.title, card.goal ?? '', editing.worktree)
     editing = null
   }
 
@@ -298,7 +299,10 @@
           </div>
           <details class="agent">
             <summary><span class="chevron" aria-hidden="true">›</span>Agent settings</summary>
-            <div class="options"><OptionsFields bind:options={editing.options} /></div>
+            <div class="options">
+              <OptionsFields bind:options={editing.options} />
+              {#if project.git}<WorktreeField bind:name={editing.worktree} suggestion={editing.card.title} />{/if}
+            </div>
           </details>
         {/if}
       </div>
