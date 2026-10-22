@@ -133,6 +133,8 @@ export type Agent = {
 
 type Json = Record<string, any>
 
+export const workdir = (agent: Agent) => agent.worktree?.path ?? agent.project
+
 export function newAgent(id: string, project: string, name: string, options: Options): Agent {
   return {
     id,

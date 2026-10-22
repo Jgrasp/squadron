@@ -20,7 +20,7 @@
   import OptionsFields from './OptionsFields.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
-  import { calls, known, prompt, relative, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
+  import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
@@ -75,7 +75,7 @@
     void edits
     void panelOpen
     const run = ++refreshes
-    invoke<Changes>('git_changes', { project: agent.project })
+    invoke<Changes>('git_changes', { project: workdir(agent) })
       .then((result) => {
         if (run === refreshes) changes = result
       })

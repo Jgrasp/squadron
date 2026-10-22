@@ -116,6 +116,51 @@ mod tests {
     use std::fs;
 
     #[test]
+    fn diffs_a_linked_worktree_apart_from_the_main_checkout() {
+        let root = std::env::temp_dir().join(format!("squadron-gitwt-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let main = root.join("main");
+        let tree = root.join("main/.worktrees/T70");
+        fs::create_dir_all(&main).unwrap();
+        let sh = |dir: &Path, args: &[&str]| run(git(dir).args(args)).unwrap();
+        sh(&main, &["init", "-q"]);
+        sh(&main, &["config", "user.email", "t@t"]);
+        sh(&main, &["config", "user.name", "t"]);
+        fs::write(main.join(".gitignore"), ".worktrees/\n").unwrap();
+        fs::write(main.join("a.txt"), "one\n").unwrap();
+        sh(&main, &["add", "-A"]);
+        sh(
+            &main,
+            &["-c", "commit.gpgsign=false", "commit", "-qnm", "init"],
+        );
+        sh(
+            &main,
+            &[
+                "worktree",
+                "add",
+                "-q",
+                tree.to_str().unwrap(),
+                "-b",
+                "ia/T70",
+            ],
+        );
+        fs::write(tree.join("a.txt"), "one\ntwo\n").unwrap();
+        fs::write(tree.join("b.txt"), "new\n").unwrap();
+
+        let paths = |dir: &Path| -> Vec<String> {
+            changes(dir)
+                .unwrap()
+                .files
+                .into_iter()
+                .map(|f| f.path)
+                .collect()
+        };
+        assert_eq!(paths(&tree), ["a.txt", "b.txt"]);
+        assert!(paths(&main).is_empty());
+        assert_eq!(crate::projects::branch(&tree).as_deref(), Some("ia/T70"));
+    }
+
+    #[test]
     fn diffs_everything_not_committed() {
         let dir = std::env::temp_dir().join(format!("squadron-git-{}", std::process::id()));
         let _ = fs::remove_dir_all(&dir);

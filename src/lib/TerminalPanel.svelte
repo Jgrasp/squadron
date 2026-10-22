@@ -5,10 +5,12 @@
   import '@xterm/xterm/css/xterm.css'
   import { home } from './projects.svelte'
   import SidePanel from './SidePanel.svelte'
-  import type { Agent } from './stream'
+  import { workdir, type Agent } from './stream'
   import { attach, close, detach, ofProject, sessions, start } from './terminals.svelte'
 
   let { agent, onsend, onclose }: { agent: Agent; onsend: (text: string) => void; onclose: () => void } = $props()
+
+  const dir = $derived(workdir(agent))
 
   const THEME = {
     background: '#110e0d',
@@ -34,8 +36,8 @@
     brightWhite: '#ffffff',
   }
 
-  const list = $derived(ofProject(agent.project))
-  const current = $derived(sessions.current[agent.project])
+  const list = $derived(ofProject(dir))
+  const current = $derived(sessions.current[dir])
 
   let host: HTMLDivElement
   let term = $state<Terminal | null>(null)
@@ -90,7 +92,7 @@
       term.focus()
     } else if (!id && !starting) {
       starting = true
-      start(agent.project, term.cols, term.rows).finally(() => (starting = false))
+      start(dir, term.cols, term.rows).finally(() => (starting = false))
     }
   })
 
@@ -101,18 +103,18 @@
 </script>
 
 <SidePanel kind="terminal" title="Terminal" {onclose}>
-  {#snippet sub()}Your shell, in <span class="mono">{home(agent.project)}</span>{/snippet}
+  {#snippet sub()}Your shell, in <span class="mono">{home(dir)}</span>{/snippet}
   {#snippet actions()}
     <div class="sessions" role="tablist" aria-label="Sessions">
       {#each list as session (session.id)}
         <span class="session" class:ended={session.ended}>
-          <button role="tab" aria-selected={session.id === current} title={session.title} onclick={() => (sessions.current[agent.project] = session.id)}>
+          <button role="tab" aria-selected={session.id === current} title={session.title} onclick={() => (sessions.current[dir] = session.id)}>
             {session.title}
           </button>
           <button class="quit" aria-label="Close {session.title}" title="Close this session" onclick={() => quit(session.id)}>×</button>
         </span>
       {/each}
-      <button class="new" aria-label="New session" title="New session" onclick={() => term && start(agent.project, term.cols, term.rows)}>+</button>
+      <button class="new" aria-label="New session" title="New session" onclick={() => term && start(dir, term.cols, term.rows)}>+</button>
     </div>
   {/snippet}
   <div class="screen"><div class="host" bind:this={host}></div></div>

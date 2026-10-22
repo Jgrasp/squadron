@@ -6,7 +6,7 @@
   import { layout, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import SidePanel from './SidePanel.svelte'
-  import { calls, relative, type Agent, type Comment } from './stream'
+  import { calls, relative, workdir, type Agent, type Comment } from './stream'
 
   let {
     agent,
@@ -56,13 +56,13 @@
     const run = ++loads
     error = ''
     const loading = git
-      ? invoke<string>('git_patch', { project: agent.project, from: git.from, now: git.now, path }).then((text) => ({
+      ? invoke<string>('git_patch', { project: workdir(agent), from: git.from, now: git.now, path }).then((text) => ({
           path,
           hunks: (parsePatch(text)[0]?.hunks ?? []) as Hunk[],
           status: STATUS[git.status] ?? 'MODIFIED',
           binary: /^Binary files /m.test(text),
         }))
-      : invoke<string | null>('read_project_file', { project: agent.project, path }).then((current) => ({
+      : invoke<string | null>('read_project_file', { project: workdir(agent), path }).then((current) => ({
           path,
           hunks: structuredPatch(path, path, baseline ?? '', current ?? '', '', '', { context: 3 }).hunks as Hunk[],
           status: current === null ? 'DELETED' : baseline === null ? 'NEW' : 'MODIFIED',
@@ -197,7 +197,7 @@
       <span>
         {changes ? 'What is not committed yet, compared to the last commit' : 'Diff since the agent first touched the file'}
       </span>
-      <OpenWith project={agent.project} path={selected.path} up />
+      <OpenWith project={workdir(agent)} path={selected.path} up />
     </div>
   {:else}
     <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent.name} has not changed any file yet.`}</p>
