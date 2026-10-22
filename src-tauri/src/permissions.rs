@@ -193,7 +193,7 @@ mod tests {
                 for q in input["questions"].as_array().cloned().unwrap_or_default() {
                     answers.insert(
                         q["question"].as_str().unwrap_or_default().into(),
-                        "Red".into(),
+                        q["options"][0]["label"].clone(),
                     );
                 }
                 input["answers"] = Value::Object(answers);
@@ -292,6 +292,21 @@ mod tests {
             "default",
             &["Use the AskUserQuestion tool to ask whether I prefer blue or red, then repeat my answer in one word."],
             100,
+        )
+        .await;
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_goal_waits_for_a_question() {
+        run_with_delay(
+            "goal",
+            "acceptEdits",
+            &[
+                "For this whole session: before creating or changing any file, have your plan validated with the AskUserQuestion tool, and wait for the answer. Just reply OK for now.",
+                "/goal a file named done.txt exists in the current folder and contains the word ready",
+            ],
+            45,
         )
         .await;
     }
