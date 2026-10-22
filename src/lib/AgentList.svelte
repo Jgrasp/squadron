@@ -1,8 +1,8 @@
 <script lang="ts">
   import { ask } from '@tauri-apps/plugin-dialog'
-  import { agents, archive, clock, fork, ofProject, remove, rename, waiting, waitingDetail } from './agents.svelte'
+  import { agents, archive, clock, fork, ofProject, pin, remove, rename, waiting, waitingDetail } from './agents.svelte'
   import { ago, cost, short } from './format'
-  import { layout, toggleSidebar } from './layout.svelte'
+  import { layout, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivedAgents from './ArchivedAgents.svelte'
@@ -61,39 +61,38 @@
     hovered = { agent, top: rect.top - 6, left: rect.right + 12 }
   }
 
-  type Sort = { by: 'updated' | 'created' | 'name'; desc: boolean }
-  const SORTS: [Sort['by'], string][] = [
+  const SORTS: [AgentSort['by'], string][] = [
+    ['none', 'No sorting'],
     ['updated', 'Last activity'],
     ['created', 'Creation date'],
     ['name', 'Name'],
   ]
 
-  function savedSort(): Sort {
-    try {
-      return { by: 'created', desc: false, ...JSON.parse(localStorage.getItem('squadron.agentSort') ?? '{}') }
-    } catch {
-      return { by: 'created', desc: false }
-    }
-  }
-
-  let sort = $state<Sort>(savedSort())
   let sorting = $state(false)
+  let scope = $state<'all' | 'project'>('all')
   let showArchived = $state(false)
 
-  function sortBy(next: Partial<Sort>) {
-    sort = { ...sort, ...next }
-    try {
-      localStorage.setItem('squadron.agentSort', JSON.stringify(sort))
-    } catch {}
+  const own = $derived(layout.sorts[project.path])
+  const sort = $derived(own ?? layout.sort)
+  const shownSort = $derived(scope === 'project' ? sort : layout.sort)
+
+  function openSort() {
+    scope = own ? 'project' : 'all'
+    sorting = !sorting
   }
 
   const created = (a: Agent) => a.entries.find((e) => 'at' in e)?.at ?? 0
-  const key: Record<Sort['by'], (a: Agent, b: Agent) => number> = {
+  const key: Record<Exclude<AgentSort['by'], 'none'>, (a: Agent, b: Agent) => number> = {
     updated: (a, b) => a.since - b.since,
     created: (a, b) => created(a) - created(b),
     name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
   }
-  const list = $derived([...ofProject(project.path)].sort((a, b) => key[sort.by](a, b) * (sort.desc ? -1 : 1)))
+  const list = $derived.by(() => {
+    const all = [...ofProject(project.path)]
+    const by = sort.by
+    if (by !== 'none') all.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
+    return [...all.filter((a) => a.pinned), ...all.filter((a) => !a.pinned)]
+  })
   const pending = $derived(waiting(project.path))
   const total = $derived(list.reduce((sum, a) => sum + a.cost, 0))
 
@@ -132,6 +131,7 @@
       />
     {:else}
       <span class="name">{agent.name}</span>
+      {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
     {/if}
     <span class="cost">{cost(agent.cost)}</span>
   </span>
@@ -172,6 +172,7 @@
 {#if menu}
   {@const agent = menu.agent}
   <div class="menu" role="menu" aria-label="{agent.name} actions" data-menu style:left="{menu.x}px" style:top="{menu.y}px">
+    <button role="menuitem" onclick={() => ((pinned) => act((id) => pin(id, pinned)))(!agent.pinned)}>{agent.pinned ? 'Unpin' : 'Pin to the top'}</button>
     <button role="menuitem" disabled={!agent.sessionId} onclick={() => act(fork)}>Fork</button>
     <button role="menuitem" onclick={() => act(archive)}>Archive conversation</button>
     <button role="menuitem" class="danger" onclick={() => erase(agent)}>Delete…</button>
@@ -241,17 +242,33 @@
     <div class="actions">
       <button class="new" disabled={!project.exists} onclick={onnew} title="New agent ({hint('newAgent')})">+ Agent</button>
       <span class="anchor" data-menu>
-        <button class="fold" aria-label="Sort the agents" aria-haspopup="menu" aria-expanded={sorting} title="Sort the agents" onclick={() => (sorting = !sorting)}>
+        <button class="fold" class:own aria-label="Sort the agents" aria-haspopup="menu" aria-expanded={sorting} title={own ? `Sorted for ${project.name}` : 'Sort the agents'} onclick={openSort}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
         </button>
         {#if sorting}
           <div class="menu sort" role="menu" aria-label="Sort the agents">
+            <div class="scope" role="group" aria-label="Applies to">
+              <button aria-pressed={scope === 'all'} onclick={() => (scope = 'all')}>All projects</button>
+              <button aria-pressed={scope === 'project'} onclick={() => (scope = 'project')}>{project.name}</button>
+            </div>
             {#each SORTS as [by, label] (by)}
-              <button role="menuitemradio" aria-checked={sort.by === by} onclick={() => sortBy({ by })}>{label}</button>
+              <button role="menuitemradio" aria-checked={shownSort.by === by} onclick={() => setSort(scope === 'project' ? project.path : null, { by })}>{label}</button>
             {/each}
-            <span class="sep" aria-hidden="true"></span>
-            <button role="menuitemradio" aria-checked={!sort.desc} onclick={() => sortBy({ desc: false })}>{sort.by === 'name' ? 'A to Z' : 'Oldest first'}</button>
-            <button role="menuitemradio" aria-checked={sort.desc} onclick={() => sortBy({ desc: true })}>{sort.by === 'name' ? 'Z to A' : 'Newest first'}</button>
+            {#if shownSort.by !== 'none'}
+              <span class="line-sep" aria-hidden="true"></span>
+              <button role="menuitemradio" aria-checked={!shownSort.desc} onclick={() => setSort(scope === 'project' ? project.path : null, { desc: false })}
+                >{shownSort.by === 'name' ? 'A to Z' : 'Oldest first'}</button
+              >
+              <button role="menuitemradio" aria-checked={shownSort.desc} onclick={() => setSort(scope === 'project' ? project.path : null, { desc: true })}
+                >{shownSort.by === 'name' ? 'Z to A' : 'Newest first'}</button
+              >
+            {/if}
+            {#if scope === 'project'}
+              <span class="line-sep" aria-hidden="true"></span>
+              <button role="menuitem" disabled={!own} onclick={() => ((scope = 'all'), resetSort(project.path))}>
+                {own ? 'Use the sorting of all projects' : 'Uses the sorting of all projects'}
+              </button>
+            {/if}
           </div>
         {/if}
       </span>
@@ -357,10 +374,49 @@
     color: var(--accent);
   }
 
-  .sep {
+  .scope {
+    display: flex;
+    gap: 2px;
+    margin-bottom: 4px;
+    padding: 3px;
+    border-radius: 4px;
+    background: var(--surface-2);
+  }
+
+  .menu .scope button {
+    flex: 1;
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 3px;
+    color: var(--text-2);
+    text-align: center;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .menu .scope button[aria-pressed='true'] {
+    background: var(--text);
+    color: var(--ink);
+    font-weight: 600;
+  }
+
+  .line-sep {
     height: 1px;
     margin: 4px 6px;
     background: var(--border);
+  }
+
+  .fold.own {
+    color: var(--accent);
+  }
+
+  .pinned {
+    flex: none;
+    fill: none;
+    stroke: var(--project, currentColor);
+    stroke-width: 2.2;
+    stroke-linejoin: round;
   }
 
   .archived {

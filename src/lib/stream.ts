@@ -129,6 +129,7 @@ export type Agent = {
   subagents: Subagent[]
   goal: Goal | null
   worktree: { path: string; branch: string } | null
+  pinned?: boolean
 }
 
 type Json = Record<string, any>

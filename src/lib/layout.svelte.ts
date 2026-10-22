@@ -13,7 +13,13 @@ let split = false
 let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
+
+export type AgentSort = { by: 'none' | 'updated' | 'created' | 'name'; desc: boolean }
+let sort: AgentSort = { by: 'none', desc: false }
+let sorts: Record<string, AgentSort> = {}
 try {
+  sort = { ...sort, ...read('squadron.sort') }
+  sorts = read('squadron.sorts')
   stored = Number(localStorage.getItem('squadron.sidebar')) || 304
   folded = localStorage.getItem('squadron.collapsed') === '1'
   split = localStorage.getItem('squadron.diff') === 'split'
@@ -29,7 +35,21 @@ export const layout = $state({
   widths,
   full,
   panels,
+  sort,
+  sorts,
 })
+
+export function setSort(project: string | null, next: Partial<AgentSort>) {
+  if (project) layout.sorts[project] = { ...(layout.sorts[project] ?? layout.sort), ...next }
+  else layout.sort = { ...layout.sort, ...next }
+  keep('squadron.sort', JSON.stringify(layout.sort))
+  keep('squadron.sorts', JSON.stringify(layout.sorts))
+}
+
+export function resetSort(project: string) {
+  delete layout.sorts[project]
+  keep('squadron.sorts', JSON.stringify(layout.sorts))
+}
 
 function keep(key: string, value: string) {
   try {

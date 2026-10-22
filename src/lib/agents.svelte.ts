@@ -165,7 +165,7 @@ export function archiveIdle() {
   const limit = Date.now() - days * 86_400_000
   const shown = projects.overview ? undefined : agents.current[projects.current]
   for (const agent of [...agents.list])
-    if (['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && agent.since < limit && agent.id !== shown)
+    if (['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && !agent.pinned && agent.since < limit && agent.id !== shown)
       archive(agent.id)
 }
 
@@ -517,6 +517,13 @@ export async function remote(id: string, enabled: boolean) {
   if (!agent) return
   if (!enabled) agent.remote = null
   await invoke('remote_control', { id, enabled }).catch((e) => fail(agent, String(e)))
+}
+
+export function pin(id: string, pinned: boolean) {
+  const agent = find(id)
+  if (!agent) return
+  agent.pinned = pinned
+  persist(agent)
 }
 
 export function rename(id: string, name: string) {
