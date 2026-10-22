@@ -23,6 +23,7 @@ struct Agent {
     mode: String,
     id: String,
     feedbacks: usize,
+    env: Vec<(&'static str, &'static str)>,
 }
 
 fn feedback(line: &Value) -> Option<String> {
@@ -39,6 +40,10 @@ fn feedback(line: &Value) -> Option<String> {
 
 impl Agent {
     async fn start(name: &str, mode: &str) -> Self {
+        Self::start_with(name, mode, vec![]).await
+    }
+
+    async fn start_with(name: &str, mode: &str, env: Vec<(&'static str, &'static str)>) -> Self {
         let (tx, seen) = unbounded_channel();
         let asks = tx.clone();
         let gate = Gate::new("token".into(), move |ask| {
@@ -58,6 +63,7 @@ impl Agent {
             mode: mode.into(),
             id: String::new(),
             feedbacks: 0,
+            env,
         };
         agent.launch(None);
         agent
@@ -70,7 +76,8 @@ impl Agent {
             mode: self.mode.clone(),
         };
         let config = mcp_config(self.port, "token", "agent-1", false);
-        let cmd = command("claude", &self.dir, &options, resume, false, Some(&config));
+        let mut cmd = command("claude", &self.dir, &options, resume, false, Some(&config));
+        cmd.envs(self.env.iter().copied());
         let (lines, exit) = (self.tx.clone(), self.tx.clone());
         let mut record = std::fs::OpenOptions::new()
             .create(true)
@@ -174,7 +181,7 @@ const IMPOSSIBLE: &str = "/goal the file /etc/squadron-goal-marker exists and co
 
 #[tokio::test(flavor = "multi_thread")]
 #[ignore = "runs the real claude"]
-async fn goal_is_armed_when_the_plan_is_approved() {
+async fn goal_is_armed_when_the_plan_is_approved_after_two_refusals() {
     let mut agent = Agent::start("plan", "plan").await;
     agent.send("Write a Python script count.py that prints the numbers 1 to 5, one per line.");
     let mut plans = 0;
@@ -182,14 +189,17 @@ async fn goal_is_armed_when_the_plan_is_approved() {
         match seen {
             Seen::Ask(ask) if ask.tool_name == "ExitPlanMode" => {
                 plans += 1;
-                if plans == 1 {
-                    let decision = json!({"behavior": "deny", "message": "Also print done after the numbers."});
-                    agent.gate.answer(&ask.id, decision).unwrap();
-                } else {
+                let remark = match plans {
+                    1 => "Also print done after the numbers.",
+                    2 => "Also print start before the numbers.",
+                    _ => "",
+                };
+                if remark.is_empty() {
                     agent.allow(&ask);
-                    agent.send(
-                        "/goal running python3 count.py prints 1 to 5 one per line, then done",
-                    );
+                    agent.send("/goal running python3 count.py prints start, the numbers 1 to 5 one per line, then done");
+                } else {
+                    let decision = json!({"behavior": "deny", "message": remark});
+                    agent.gate.answer(&ask.id, decision).unwrap();
                 }
             }
             Seen::Ask(ask) => agent.allow(&ask),
@@ -203,11 +213,11 @@ async fn goal_is_armed_when_the_plan_is_approved() {
         .output()
         .unwrap();
     println!("PLANS {plans} FEEDBACKS {}", agent.feedbacks);
-    assert!(plans >= 2);
+    assert!(plans >= 3);
     assert!(agent.log().contains("Goal set"));
     assert_eq!(
         String::from_utf8_lossy(&output.stdout),
-        "1\n2\n3\n4\n5\ndone\n"
+        "start\n1\n2\n3\n4\n5\ndone\n"
     );
 }
 
@@ -302,4 +312,27 @@ async fn a_goal_cleared_first_after_a_resume_does_not_relaunch() {
     assert_eq!(agent.relaunches_after("/goal clear").await, 0);
     assert!(agent.log().contains("Goal cleared"));
     assert_eq!(agent.relaunches_after("Say hi in one word.").await, 0);
+}
+
+#[tokio::test(flavor = "multi_thread")]
+#[ignore = "runs the real claude"]
+async fn the_goal_holds_through_auto_compactions() {
+    let env = vec![("CLAUDE_CODE_AUTO_COMPACT_WINDOW", "90000")];
+    let mut agent = Agent::start_with("compact", "default", env).await;
+    let secrets = ["amber", "cobalt", "saffron", "viridian"];
+    for (i, secret) in secrets.iter().enumerate() {
+        let filler = "alpha bravo charlie delta echo foxtrot golf hotel india juliet kilo lima\n";
+        let text = format!(
+            "{}The secret word of this file is {secret}.\n",
+            filler.repeat(900)
+        );
+        std::fs::write(agent.dir.join(format!("part{}.txt", i + 1)), text).unwrap();
+    }
+    agent.send("/goal answers.txt lists the secret word of part1.txt, part2.txt, part3.txt and part4.txt (written on the last line of each file), and each file was read entirely with the Read tool, not with Bash");
+    agent.settle(false).await;
+    let answers = std::fs::read_to_string(agent.dir.join("answers.txt")).unwrap_or_default();
+    let compactions = agent.log().matches("\"compact_boundary\"").count();
+    println!("COMPACTIONS {compactions} FEEDBACKS {}", agent.feedbacks);
+    assert!(compactions > 0, "no auto-compaction happened");
+    assert!(secrets.iter().all(|s| answers.contains(s)), "{answers}");
 }
