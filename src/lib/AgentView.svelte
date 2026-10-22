@@ -457,7 +457,7 @@
                 >
                   <span class="ping" class:live={agent.remote?.state === 'connected'} aria-hidden="true"></span>
                   Remote control
-                  <span class="state">{agent.remote?.state === 'connected' ? 'connected' : agent.remote?.state === 'connecting' ? 'connecting…' : 'on'}</span>
+                  {#if agent.remote?.state === 'connecting'}<span class="state">connecting…</span>{/if}
                   <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {#if remoteOpen}
