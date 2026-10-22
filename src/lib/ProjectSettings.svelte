@@ -16,6 +16,7 @@
   ]
 
   let error = $state('')
+  const custom = (color: string) => !COLORS.some(([c]) => c.toLowerCase() === color.toLowerCase())
   const list = $derived(ordered())
   const movable = (index: number, by: number) => list[index + by]?.pinned === list[index].pinned
 
@@ -73,6 +74,14 @@
               onclick={() => act(() => editProject(project.path, { color }))}
             ></button>
           {/each}
+          <label class="swatch custom" class:on={custom(project.color)} style:--custom={custom(project.color) ? project.color : null} title="Custom color">
+            <input
+              type="color"
+              value={project.color}
+              aria-label="Custom color of {project.name}"
+              onchange={(e) => act(() => editProject(project.path, { color: e.currentTarget.value.toUpperCase() }))}
+            />
+          </label>
         </span>
         <span class="folder">
           <code>{home(project.path)}</code>
@@ -208,6 +217,23 @@
     border-radius: 5px;
   }
 
+  .custom {
+    position: relative;
+    overflow: hidden;
+    background: var(--custom, conic-gradient(#f472b6, #facc15, #4ade80, #60a5fa, #a78bfa, #f472b6));
+    cursor: pointer;
+  }
+
+  .custom input {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+    opacity: 0;
+    cursor: pointer;
+  }
+
+  .custom.on,
   .swatch[aria-pressed='true'] {
     box-shadow:
       0 0 0 2px var(--surface-1),
