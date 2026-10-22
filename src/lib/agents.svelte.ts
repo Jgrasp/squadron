@@ -107,7 +107,7 @@ export function persist(agent: Agent) {
 function save(agent: Agent) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
-  const { live, alive, processCost, interrupting, asks, remote, ...kept } = $state.snapshot(agent)
+  const { live, alive, processCost, interrupting, asks, ...kept } = $state.snapshot(agent)
   const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
   return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents }) })
 }
@@ -132,7 +132,14 @@ export async function restore() {
       invoke('delete_agent_file', { id: data.id })
       continue
     }
-    const agent: Agent = { ...newAgent(data.id, data.project, data.name, data.options), ...data, asks: [], alive: false, remote: null }
+    const wanted = data.remote
+    const agent: Agent = {
+      ...newAgent(data.id, data.project, data.name, data.options),
+      ...data,
+      asks: [],
+      alive: false,
+      remote: wanted ? { state: 'connecting', url: wanted.url } : null,
+    }
     if (agent.status === 'working' || agent.status === 'waiting') {
       agent.status = 'interrupted'
       agent.action = 'Stopped when Squadron closed'
@@ -148,6 +155,7 @@ export async function restore() {
     }).catch(
       (e) => fail(find(agent.id)!, String(e)),
     )
+    if (wanted) remote(agent.id, true)
   }
 }
 

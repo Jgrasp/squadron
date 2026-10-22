@@ -177,7 +177,7 @@
   function local(message: string) {
     const call = parse(message)
     if (!call) return false
-    const command = findCommand(commandList, call.name)
+    const command = findCommand(commandList, call.name.toLowerCase())
     if (command?.name === 'remote-control') {
       const on = call.args ? call.args === 'on' : !agent.remote
       remote(agent.id, on)
@@ -457,7 +457,7 @@
                 >
                   <span class="ping" class:live={agent.remote?.state === 'connected'} aria-hidden="true"></span>
                   Remote control
-                  <span class="state">{agent.remote?.state === 'connected' ? 'connected' : 'on'}</span>
+                  <span class="state">{agent.remote?.state === 'connected' ? 'connected' : agent.remote?.state === 'connecting' ? 'connecting…' : 'on'}</span>
                   <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {#if remoteOpen}
