@@ -5,6 +5,8 @@ export const EDITS = ['Edit', 'MultiEdit', 'Write', 'NotebookEdit']
 
 export type Hunk = { oldStart: number; newStart: number; lines: string[] }
 
+export type Proposal = { ask: string; path: string; hunks: Hunk[] }
+
 export type Changes = { from: string; now: string; files: { path: string; status: string; add: number | null; del: number | null }[] }
 
 export type Row = { kind: 'head'; text: string } | { kind: 'add' | 'del' | 'same'; old?: number; new?: number; text: string }

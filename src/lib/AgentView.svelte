@@ -4,7 +4,7 @@
   import { openUrl } from '@tauri-apps/plugin-opener'
   import { archive, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
-  import { changedFiles, type Changes } from './diff'
+  import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
   import { cost, meta, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
@@ -31,6 +31,11 @@
   let column: HTMLElement
   let stuck = $state(true)
   let diffFile = $state('')
+  let proposal = $state<Proposal | null>(null)
+
+  $effect(() => {
+    if (proposal && !agent.asks.some((a) => a.id === proposal?.ask)) proposal = null
+  })
   const panel = $derived(layout.panels[agent.project] ?? null)
   const toggle = (kind: PanelKind) => setPanel(agent.project, panel === kind ? null : kind)
 
@@ -541,7 +546,13 @@
         role="presentation"
       >
         <div class="column" bind:this={column}>
-          <Conversation {agent} {ondiff} onsubagent={openSubagent} onsubagents={() => openSubagent(null)} />
+          <Conversation
+          {agent}
+          {ondiff}
+          onsubagent={openSubagent}
+          onsubagents={() => openSubagent(null)}
+          onpreview={(p) => ((proposal = p), openDiff(p.path))}
+        />
         </div>
       </div>
 
@@ -644,7 +655,7 @@
   </section>
 
   {#if panel === 'diff'}
-    <DiffPanel {agent} {changes} bind:file={diffFile} bind:comments bind:target onclose={() => setPanel(agent.project, null)} />
+    <DiffPanel {agent} {changes} {proposal} bind:file={diffFile} bind:comments bind:target onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'editor'}
     <EditorPanel {agent} {changes} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'terminal'}

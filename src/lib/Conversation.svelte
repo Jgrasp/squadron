@@ -2,6 +2,7 @@
   import { clock } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
   import CommentChip from './CommentChip.svelte'
+  import type { Proposal } from './diff'
   import { highlight } from './commands'
   import ErrorCard from './ErrorCard.svelte'
   import { cost, duration, time, tokens } from './format'
@@ -18,7 +19,14 @@
     ondiff,
     onsubagent,
     onsubagents,
-  }: { agent: Agent; ondiff: (call: ToolCall) => void; onsubagent?: (sub: Subagent) => void; onsubagents?: () => void } = $props()
+    onpreview,
+  }: {
+    agent: Agent
+    ondiff: (call: ToolCall) => void
+    onsubagent?: (sub: Subagent) => void
+    onsubagents?: () => void
+    onpreview?: (proposal: Proposal) => void
+  } = $props()
 
   const SPAWN = ['Agent', 'Task']
 
@@ -202,7 +210,7 @@
   {:else if ask.tool_name === 'ExitPlanMode'}
     <PlanCard {agent} {ask} />
   {:else}
-    <PermissionCard {agent} {ask} onlog={onsubagent} />
+    <PermissionCard {agent} {ask} onlog={onsubagent} {onpreview} />
   {/if}
 {/each}
 

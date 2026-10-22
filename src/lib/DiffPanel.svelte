@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { parsePatch, structuredPatch } from 'diff'
-  import { changedFiles, type Changes, type Hunk } from './diff'
+  import { changedFiles, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
   import { layout, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
@@ -11,24 +11,37 @@
   let {
     agent,
     changes,
+    proposal = null,
     file = $bindable(),
     comments = $bindable(),
     target = $bindable(),
     onclose,
-  }: { agent: Agent; changes: Changes | null; file: string; comments: Comment[]; target: Comment | null; onclose: () => void } = $props()
+  }: {
+    agent: Agent
+    changes: Changes | null
+    proposal?: Proposal | null
+    file: string
+    comments: Comment[]
+    target: Comment | null
+    onclose: () => void
+  } = $props()
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
 
   const edited = $derived(changedFiles(calls(agent)).map((f) => ({ ...f, path: relative(agent, f.path) })))
-  const files = $derived(
+  const found = $derived(
     changes
       ? changes.files
           .map((f) => ({ path: f.path, add: f.add ?? 0, del: f.del ?? 0, edits: edited.find((e) => e.path === f.path)?.calls.length ?? 0 }))
           .sort((a, b) => Number(b.edits > 0) - Number(a.edits > 0))
       : edited.map((f) => ({ path: f.path, add: f.add, del: f.del, edits: f.calls.length })),
   )
+  const files = $derived(
+    proposal && !found.some((f) => f.path === proposal.path) ? [{ path: proposal.path, add: 0, del: 0, edits: 0 }, ...found] : found,
+  )
   const mine = $derived(files.filter((f) => f.edits).length)
   const selected = $derived(files.find((f) => f.path === file) ?? files[0])
+  const proposing = $derived(!!proposal && selected?.path === proposal.path)
 
   let view = $state<{ path: string; hunks: Hunk[]; status: string; binary: boolean } | null>(null)
   let error = $state('')
@@ -64,7 +77,13 @@
       })
   })
 
-  const shown = $derived(view?.path === selected?.path ? view : null)
+  const shown = $derived(
+    proposing && proposal
+      ? { path: proposal.path, hunks: proposal.hunks, status: 'PROPOSED', binary: false }
+      : view?.path === selected?.path
+        ? view
+        : null,
+  )
   const base = (path: string) => path.split('/').pop()!
   const name = (path: string) => (files.filter((f) => base(f.path) === base(path)).length > 1 ? path.split('/').slice(-2).join('/') : base(path))
 
@@ -141,10 +160,16 @@
         <div class="file">
           <div class="file-head">
             {#if shown}
-              <span class="badge" class:new={shown.status === 'NEW'} class:gone={shown.status === 'DELETED'}>{shown.status}</span>
+              <span class="badge" class:new={shown.status === 'NEW'} class:gone={shown.status === 'DELETED'} class:proposed={proposing}>{shown.status}</span>
             {/if}
             <span class="path">{selected.path}</span>
-            <span class="by">{selected.edits ? `${selected.edits} edit${selected.edits > 1 ? 's' : ''} by ${agent.name}` : `Not edited by ${agent.name}`}</span>
+            <span class="by"
+              >{proposing
+                ? `Proposed by ${agent.name} · not applied yet`
+                : selected.edits
+                  ? `${selected.edits} edit${selected.edits > 1 ? 's' : ''} by ${agent.name}`
+                  : `Not edited by ${agent.name}`}</span
+            >
           </div>
           {#if error}
             <p class="empty">{error}</p>
@@ -156,7 +181,7 @@
             <DiffView
               hunks={shown.hunks}
               split={layout.split}
-              oncomment={open}
+              oncomment={proposing ? undefined : open}
               {marked}
               open={commenting?.path === selected.path ? commenting : null}
               {editor}
@@ -308,13 +333,18 @@
     color: var(--ok-text);
   }
 
+  .badge.proposed {
+    background: var(--wait-bg);
+    color: var(--accent-soft);
+  }
+
   .badge.gone {
     background: var(--err-bg);
     color: var(--err-text);
   }
 
   .path {
-    flex: 1;
+    flex: 1 1 auto;
     min-width: 0;
     overflow-wrap: anywhere;
     font-family: var(--mono);

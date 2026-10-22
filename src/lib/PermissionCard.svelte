@@ -2,13 +2,18 @@
   import { invoke } from '@tauri-apps/api/core'
   import { structuredPatch } from 'diff'
   import { allow, deny, toolLabel } from './agents.svelte'
-  import { EDITS } from './diff'
+  import { EDITS, type Proposal } from './diff'
   import DiffView from './DiffView.svelte'
   import { projects } from './projects.svelte'
   import { ruleFor, ruleLabel } from './rules'
   import { argument, relative, subagentOf, type Agent, type Ask, type Subagent } from './stream'
 
-  let { agent, ask, onlog }: { agent: Agent; ask: Ask; onlog?: (sub: Subagent) => void } = $props()
+  let {
+    agent,
+    ask,
+    onlog,
+    onpreview,
+  }: { agent: Agent; ask: Ask; onlog?: (sub: Subagent) => void; onpreview?: (proposal: Proposal) => void } = $props()
 
   const edit = $derived(EDITS.includes(ask.tool_name))
   const sub = $derived(subagentOf(agent, ask.tool_use_id))
@@ -124,6 +129,14 @@
     <button class="btn allow" onclick={() => allow(agent, ask)}>Allow</button>
     <button class="btn always" onclick={() => allow(agent, ask, true)}>Always</button>
     <button class="btn refuse" onclick={() => deny(agent, ask)}>Deny</button>
+    {#if edit && patch && onpreview}
+      <button
+        class="btn preview"
+        onclick={() => patch && onpreview({ ask: ask.id, path: relative(agent, ask.input.file_path ?? ask.input.notebook_path), hunks: patch.hunks })}
+      >
+        See in the Diff panel
+      </button>
+    {/if}
   </div>
   <div class="note">
     <strong>Always</strong>
@@ -279,6 +292,13 @@
   .refuse {
     background: var(--surface-3);
     color: #e3d7cf;
+  }
+
+  .preview {
+    margin-left: auto;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--wait-text-2);
   }
 
   .note {
