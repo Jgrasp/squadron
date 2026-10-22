@@ -68,6 +68,10 @@
   onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false), (context = null))}
 />
 
+{#snippet pin()}
+  <svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
+{/snippet}
+
 <header data-tauri-drag-region bind:clientWidth={headerWidth}>
   <div class="start" data-tauri-drag-region>
     <div class="anchor" data-menu>
@@ -127,6 +131,7 @@
       >
         <span class="dot" aria-hidden="true"></span>
         {project.name}
+        {#if project.pinned}{@render pin()}{/if}
         {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
             class="badge error"
             role="img"
@@ -209,7 +214,7 @@
 
   <div class="measure" aria-hidden="true">
     {#each tabs as project, i (project.path)}
-      <span class="tab" bind:this={measures[i]}><span class="dot"></span>{project.name}</span>
+      <span class="tab" bind:this={measures[i]}><span class="dot"></span>{project.name}{#if project.pinned}{@render pin()}{/if}</span>
     {/each}
   </div>
 </header>
@@ -299,6 +304,15 @@
     box-shadow:
       0 0 0 1px var(--border-strong),
       0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .pinned {
+    flex: none;
+    fill: none;
+    stroke: var(--project, currentColor);
+    stroke-width: 2.2;
+    stroke-linejoin: round;
+    opacity: 0.9;
   }
 
   .menu.context {
