@@ -1,5 +1,6 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog'
+  import { ui } from './actions.svelte'
   import { shelve, unshelve } from './agents.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
 
@@ -42,7 +43,10 @@
   }
 </script>
 
-<p class="intro">Pinned projects always keep their tab, first in the bar. The others follow this order and move to the + menu when the bar is full.</p>
+<div class="top">
+  <p class="intro">Pinned projects always keep their tab, first in the bar. The others follow this order and move to the + menu when the bar is full.</p>
+  <button class="btn btn-primary" onclick={() => (ui.adding = '')}>+ Add a project</button>
+</div>
 <ul class="projects">
   {#each list as project, i (project.path)}
     <li style:--project={project.color}>
@@ -111,8 +115,22 @@
 {#if error}<p class="bad" role="alert">{error}</p>{/if}
 
 <style>
+  .top {
+    display: flex;
+    align-items: flex-start;
+    gap: 16px;
+    margin-bottom: 14px;
+  }
+
+  .top .btn {
+    flex: none;
+    height: 34px;
+    padding: 0 14px;
+  }
+
   .intro {
-    margin: 0 0 14px;
+    flex: 1;
+    margin: 0;
     color: var(--text-muted);
     line-height: 1.5;
   }

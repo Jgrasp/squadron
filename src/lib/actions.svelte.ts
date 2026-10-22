@@ -17,7 +17,7 @@ export type SettingsTab =
   | 'layout'
   | 'about'
 
-export const ui = $state({ creating: false, customizing: false, settings: null as SettingsTab | null })
+export const ui = $state({ creating: false, customizing: false, settings: null as SettingsTab | null, adding: null as string | null })
 
 export type Context = { project?: Project; agent?: Agent }
 

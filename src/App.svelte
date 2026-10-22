@@ -20,7 +20,6 @@
   import Overview from './lib/Overview.svelte'
   import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
-  let adding: string | null = $state(null)
   const project = $derived(current())
   const mirrored = $derived(
     agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? a.action : a.attention)),
@@ -88,7 +87,7 @@
 
   $effect(() => {
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
-      if (event.payload.type === 'drop' && event.payload.paths.length) adding = event.payload.paths[0]
+      if (event.payload.type === 'drop' && event.payload.paths.length) ui.adding = event.payload.paths[0]
     })
     return () => {
       unlisten.then((stop) => stop())
@@ -120,11 +119,11 @@
 <svelte:window onkeydown={shortcuts} onclick={links} />
 
 <div class="app">
-  <Header onadd={() => (adding = '')} />
+  <Header onadd={() => (ui.adding = '')} />
   {#if projects.overview}
     <Overview />
   {:else if projects.list.length === 0}
-    <EmptyProjects onadd={() => (adding = '')} />
+    <EmptyProjects onadd={() => (ui.adding = '')} />
   {:else if project}
     {#key project.path}
       {#if projects.board}
@@ -144,8 +143,8 @@
   <Customize />
 {/if}
 
-{#if adding !== null}
-  <AddProject path={adding} onclose={() => (adding = null)} />
+{#if ui.adding !== null}
+  <AddProject path={ui.adding} onclose={() => (ui.adding = null)} />
 {/if}
 
 <style>
