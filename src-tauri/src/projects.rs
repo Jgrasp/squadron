@@ -108,6 +108,50 @@ pub fn same_folder(a: &Path, b: &Path) -> bool {
     canonical(a) == canonical(b)
 }
 
+pub fn near(path: &Path) -> Option<PathBuf> {
+    if path.is_dir() {
+        return None;
+    }
+    let mut base = path.parent()?;
+    let mut missing = path.file_name()?;
+    while !base.is_dir() {
+        missing = base.file_name()?;
+        base = base.parent()?;
+    }
+    let wanted = missing.to_string_lossy().to_lowercase();
+    let distance = |name: &str| {
+        let (a, b): (Vec<char>, Vec<char>) = (
+            wanted.chars().collect(),
+            name.to_lowercase().chars().collect(),
+        );
+        let mut row: Vec<usize> = (0..=b.len()).collect();
+        for (i, ca) in a.iter().enumerate() {
+            let mut previous = row[0];
+            row[0] = i + 1;
+            for (j, cb) in b.iter().enumerate() {
+                let current = row[j + 1];
+                row[j + 1] = (previous + usize::from(ca != cb))
+                    .min(row[j] + 1)
+                    .min(current + 1);
+                previous = current;
+            }
+        }
+        row[b.len()]
+    };
+    let closest = fs::read_dir(base)
+        .ok()?
+        .flatten()
+        .filter(|entry| entry.path().is_dir())
+        .map(|entry| {
+            let name = entry.file_name().to_string_lossy().into_owned();
+            (distance(&name), entry.path())
+        })
+        .min_by_key(|(d, _)| *d)
+        .filter(|(d, _)| *d <= 2.max(wanted.chars().count() / 3))
+        .map(|(_, p)| p);
+    closest.or_else(|| (base.parent().is_some()).then(|| base.to_path_buf()))
+}
+
 pub fn inside(project: &Path, file: &Path) -> Option<PathBuf> {
     let root = fs::canonicalize(project).ok()?;
     let file = project.join(file);
@@ -145,6 +189,26 @@ mod tests {
         let _ = fs::remove_dir_all(&dir);
         fs::create_dir_all(&dir).unwrap();
         dir
+    }
+
+    #[test]
+    fn suggests_the_closest_existing_folder() {
+        let dir = temp("near");
+        fs::create_dir_all(dir.join("agence/mercure")).unwrap();
+        fs::create_dir_all(dir.join("agence/bmc")).unwrap();
+        assert_eq!(
+            near(&dir.join("agence/mercur")),
+            Some(dir.join("agence/mercure"))
+        );
+        assert_eq!(
+            near(&dir.join("agence/Mercure2/src")),
+            Some(dir.join("agence/mercure"))
+        );
+        assert_eq!(
+            near(&dir.join("agence/something-else")),
+            Some(dir.join("agence"))
+        );
+        assert_eq!(near(&dir.join("agence/bmc")), None);
     }
 
     #[test]

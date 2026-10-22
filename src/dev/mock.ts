@@ -207,6 +207,7 @@ mockIPC(
         return {
           ...folder(a.path.split('/').pop() ?? '', a.path),
           taken_by: projects.find((p) => p.path === a.path)?.name ?? null,
+          near: a.path.includes('absent') ? a.path.replace(/-?absent.*$/, '') : null,
         }
       case 'add_project':
         projects.push({ name: a.name, path: a.path, rules: [] })

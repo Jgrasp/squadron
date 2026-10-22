@@ -13,7 +13,7 @@ export type Project = {
   branch: string | null
 }
 
-export type Inspection = Project & { taken_by: string | null }
+export type Inspection = Project & { taken_by: string | null; near: string | null }
 
 export const projects = $state({ list: [] as Project[], current: '', overview: false, board: false })
 

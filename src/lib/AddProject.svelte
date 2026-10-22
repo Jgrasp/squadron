@@ -2,7 +2,7 @@
   import { open } from '@tauri-apps/plugin-dialog'
   import { untrack } from 'svelte'
   import Dialog from './Dialog.svelte'
-  import { add, inspect, projects, type Inspection } from './projects.svelte'
+  import { add, home, inspect, projects, type Inspection } from './projects.svelte'
 
   let { path: initial, onclose }: { path: string; onclose: () => void } = $props()
 
@@ -86,6 +86,9 @@
                 <button type="button" class="link" onclick={() => goTo(info!.taken_by!)}
                   >Go to {info.taken_by}</button
                 >
+              {:else if info?.near}
+                <span>Closest folder:</span>
+                <button type="button" class="link mono" onclick={() => (path = info!.near!)}>{home(info.near)}</button>
               {/if}
             </span>
           {:else if info?.git}
@@ -190,6 +193,10 @@
   .link {
     color: var(--accent-link);
     text-decoration: underline;
+  }
+
+  .link.mono {
+    font-family: var(--mono);
   }
 
   footer {

@@ -56,6 +56,7 @@ struct Inspection {
     #[serde(flatten)]
     folder: Folder,
     taken_by: Option<String>,
+    near: Option<PathBuf>,
 }
 
 #[tauri::command]
@@ -80,6 +81,7 @@ fn inspect_folder(projects: State<Projects>, path: PathBuf) -> Inspection {
             .iter()
             .find(|p| projects::same_folder(&p.path, &path))
             .map(|p| p.name.clone()),
+        near: projects::near(&path),
     }
 }
 
