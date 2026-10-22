@@ -95,7 +95,7 @@
             <span><strong>Squadron</strong><small>Version 0.1.0 · Linux</small></span>
           </div>
           {#each shown('menu.squadron') as id (id)}
-            <button role="menuitem" class="item" onclick={() => ((menuOpen = false), id === 'customize' ? (ui.customizing = true) : (ui.settings = id as SettingsTab))}>
+            <button role="menuitem" class="item" onclick={() => ((menuOpen = false), (ui.settings = id === 'settings' ? 'projects' : (id as SettingsTab)))}>
               <span><strong>{labelOf('menu.squadron', id)}</strong><small>{detailOf('menu.squadron', id)}</small></span>
             </button>
           {/each}
