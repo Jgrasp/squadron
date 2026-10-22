@@ -1,4 +1,4 @@
-export type Command = { name: string; description: string; argumentHint?: string; aliases?: string[]; builtin?: boolean; squadron?: boolean }
+export type Command = { name: string; description: string; argumentHint?: string; aliases?: string[]; builtin?: boolean }
 
 export type Model = { value: string; displayName?: string; description?: string }
 
@@ -6,12 +6,12 @@ export type Catalog = { commands: Command[]; models: Model[]; styles: string[] }
 
 export type Choice = { value: string; label?: string; detail?: string }
 
-export const SQUADRON: Command[] = [
+export const UNLISTED: Command[] = [
   {
     name: 'remote-control',
     description: 'Follow and answer this conversation from claude.ai or the Claude app',
     argumentHint: '[on|off]',
-    squadron: true,
+    builtin: true,
   },
 ]
 

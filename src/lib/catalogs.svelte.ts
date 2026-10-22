@@ -1,4 +1,4 @@
-import { SQUADRON, type Catalog, type Command } from './commands'
+import { UNLISTED, type Catalog, type Command } from './commands'
 import { known, type Agent } from './stream'
 
 const KEY = 'squadron.catalogs'
@@ -29,7 +29,7 @@ export function catalogOf(agent: Agent): Catalog | undefined {
 export function commandsOf(agent: Agent): Command[] {
   const terminal = known.terminal.length ? known.terminal : TERMINAL
   const base = catalogOf(agent)?.commands ?? agent.commands.map((name) => ({ name, description: '' }))
-  return [...base.filter((c) => !terminal.includes(c.name)), ...SQUADRON]
+  return [...base.filter((c) => !terminal.includes(c.name)), ...UNLISTED.filter((c) => !base.some((b) => b.name === c.name))]
 }
 
 export function namesOf(agent: Agent) {

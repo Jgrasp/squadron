@@ -108,7 +108,7 @@
 
   type Item = { value: string; label: string; hint?: string; detail?: string; usage?: string; group?: string; text: string }
 
-  const GROUPS = ['Commands', 'Skills', 'Claude Code', 'Squadron']
+  const GROUPS = ['Commands', 'Skills', 'Claude Code']
 
   let dismissed = $state('')
   let pick = $state(0)
@@ -124,7 +124,6 @@
     return command ? { command, query: (m[3] ?? '').toLowerCase() } : null
   })
   function groupOf(c: Command) {
-    if (c.squadron) return 'Squadron'
     if (c.builtin) return 'Claude Code'
     const skills = agent.skills.length ? agent.skills : known.skills
     return skills.some((s) => s === c.name || s.endsWith(`:${c.name}`)) ? 'Skills' : 'Commands'
