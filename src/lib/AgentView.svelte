@@ -13,7 +13,7 @@
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
-  import { hint } from './settings.svelte'
+  import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
@@ -95,7 +95,6 @@
   const info = $derived(
     shown('agent.info').filter(
       (id) =>
-        (id !== 'remote' || agent.remote) &&
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'branch' || branch) &&
         (id !== 'tasks' || agent.tasks.length),
@@ -444,12 +443,17 @@
         {/each}
       </div>
       {#if chips.length}
-        <div class="context" role="group" aria-label="Session context">
+        <div class="context" role="group" aria-label="Session context" style:--project={projects.list.find((p) => p.path === agent.project)?.color}>
           {#each chips as id (id)}
-            {#if id === 'remote'}
+            {#if id === 'remote' && !agent.remote}
+              <button class="chip" title="Turn on remote control: follow and answer this conversation from claude.ai or the Claude app" onclick={() => remote(agent.id, true)}>
+                <span class="ping off" aria-hidden="true"></span>
+                Remote control
+              </button>
+            {:else if id === 'remote'}
               <span class="anchor" data-remote-menu>
                 <button
-                  class="chip remote"
+                  class="chip on effect-{settings.tab_effect}"
                   aria-haspopup="menu"
                   aria-expanded={remoteOpen}
                   title="Remote control is on · this conversation can also be steered from claude.ai"
@@ -486,8 +490,7 @@
               </span>
             {:else}
               <button
-                class="chip subagents"
-                class:effect-snake={running > 0}
+                class="chip subagents {running > 0 ? `effect-${settings.tab_effect}` : ''}"
                 aria-pressed={panel === 'subagents'}
                 title="{running ? `${running} working · ` : ''}{tokens(agent.subagents.reduce((t, s) => t + s.tokens, 0))} tokens in subagents · {panel === 'subagents'
                   ? 'close'
@@ -942,11 +945,33 @@
     align-items: center;
     gap: 10px;
     height: 34px;
-    padding: 0 12px 0 10px;
+    padding: 0 12px;
     border-radius: 4px;
-    color: var(--text-strong);
+    background: var(--menu);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-muted);
     font-size: 14px;
+    font-weight: 500;
+  }
+
+  .chip:hover,
+  .chip[aria-pressed='true'],
+  .chip[aria-expanded='true'] {
+    background: var(--surface-5);
+  }
+
+  .chip.on,
+  .chip.subagents {
+    color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .chip.effect-snake {
+    box-shadow: none;
+  }
+
+  .chip.on {
+    --project: var(--remote-dot);
   }
 
   .chip svg {
@@ -956,19 +981,16 @@
     stroke-linecap: round;
   }
 
-  .remote {
-    padding: 0 10px 0 12px;
-    border-radius: 6px;
-    background: var(--remote-bg);
-    box-shadow: inset 0 0 0 1px var(--remote-ring);
-  }
-
   .ping {
     position: relative;
     width: 8px;
     height: 8px;
     border-radius: 4px;
     background: var(--remote-dot);
+  }
+
+  .ping.off {
+    background: var(--text-faint);
   }
 
   .ping.live::after {
@@ -1034,20 +1056,6 @@
     box-shadow: inset 0 0 0 1px var(--err-border);
     color: var(--err-text);
     font-weight: 600;
-  }
-
-  .subagents {
-    background: var(--menu);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-  }
-
-  .subagents.effect-snake {
-    box-shadow: none;
-  }
-
-  .subagents[aria-pressed='true'],
-  .subagents:hover {
-    background: var(--surface-5);
   }
 
   .go {
