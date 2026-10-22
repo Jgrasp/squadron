@@ -1,10 +1,11 @@
 <script lang="ts">
-  import { COLUMNS, moveCard, place, type Actions, type Card, type Column, type Mirror } from './board'
+  import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
-  import NewAgent from './NewAgent.svelte'
+  import OptionsFields from './OptionsFields.svelte'
   import { home, projects, type Project } from './projects.svelte'
-  import { hint } from './settings.svelte'
+  import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
+  import type { Options } from './stream'
 
   let {
     project,
@@ -24,8 +25,7 @@
 
   const LABELS = { working: 'Working', waiting: 'Waiting for you', done: 'Done', interrupted: 'Interrupted', error: 'Error' }
 
-  let editing = $state<{ card: Card; fresh: boolean } | null>(null)
-  let starting = $state<Card | null>(null)
+  let editing = $state<{ card: Card; fresh: boolean; start: boolean; options: Options } | null>(null)
   let drag = $state<{ id: string; x: number; y: number; over: Column | null; before: string | null } | null>(null)
   let focusId = ''
   let picking = $state(false)
@@ -36,7 +36,7 @@
   const virtual = $derived(
     agents
       .filter((a) => a.project === project.path && !project.cards.some((c) => c.agent === a.id))
-      .map((a): Card => ({ id: a.id, key: '', title: a.name, prompt: '', column: 'progress', agent: a.id })),
+      .map((a): Card => ({ id: a.id, key: '', title: a.name, prompt: '', column: stage(a), auto: stage(a), agent: a.id })),
   )
   const cards = $derived([...project.cards, ...virtual])
   const dragged = $derived(cards.find((c) => c.id === drag?.id))
@@ -46,19 +46,22 @@
     actions.cards(project.path, $state.snapshot(kept))
   }
 
-  function create() {
-    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', column: 'todo', agent: null }, fresh: true }
+  const defaults = () => ({ ...$state.snapshot(settings.defaults) })
+
+  function create(column: Column = 'todo') {
+    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', column, agent: null }, fresh: true, start: false, options: defaults() }
   }
 
-  function edit(card: Card) {
-    editing = { card: $state.snapshot(card), fresh: false }
+  function edit(card: Card, start = false) {
+    editing = { card: $state.snapshot(card), fresh: false, start, options: defaults() }
   }
 
-  function submit(event: Event) {
+  function submit(event: Event, start = false) {
     event.preventDefault()
     if (!editing?.card.title.trim()) return
     const card = { ...editing.card, key: editing.card.key.trim(), title: editing.card.title.trim(), prompt: editing.card.prompt.trim() }
     save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
+    if (start) actions.start(project.path, card.id, [card.key, card.title].filter(Boolean).join(' · '), $state.snapshot(editing.options), card.prompt || card.title)
     editing = null
   }
 
@@ -168,10 +171,10 @@
           </span>
         {/if}
       </div>
-      <span class="sub">Cards in progress follow the state of their agent</span>
+      <span class="sub">Tasks for you or for an agent. A task with an agent moves when the agent starts or finishes; you can move any task by hand.</span>
     </div>
     <div class="actions">
-      <button class="btn btn-primary" onclick={create}>+ Card</button>
+      <button class="btn btn-primary" onclick={() => create()}>+ Task</button>
       {#if onpopout}
         <button class="btn btn-ghost" onclick={onpopout} title="Open the board in its own window">
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
@@ -183,16 +186,18 @@
 
   <div class="columns">
     {#each COLUMNS as [column, title] (column)}
-      {@const list = cards.filter((c) => place(c, agentOf(c)) === column)}
+      {@const list = cards.filter((c) => follow(c, agentOf(c)).column === column)}
       <section data-column={column} class:over={drag?.over === column} aria-labelledby="column-{column}">
-        <h2 id="column-{column}">{title} <span>{list.length}</span></h2>
+        <h2 id="column-{column}"><span class="dot {column}" aria-hidden="true"></span>{title} <span class="count">{list.length}</span></h2>
         <ul>
           {#each list as card (card.id)}
             {@const agent = agentOf(card)}
             <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
             <li
               data-card={card.id}
-              class="card {agent ? look(agent) : ''}"
+              style:--project={project.color}
+              class="card {agent ? look(agent) : 'task'} {agent && look(agent) === 'working' ? `effect-${settings.tab_effect}` : ''}"
+              class:finished={column === 'done'}
               class:dragging={drag?.id === card.id}
               class:before={drag && drag.over === column && drag.before === card.id && drag.id !== card.id}
               tabindex="0"
@@ -204,6 +209,7 @@
             >
               {#if card.key}<span class="key">{card.key}</span>{/if}
               <strong>{card.title}</strong>
+              {#if !agent && card.prompt}<span class="note">{card.prompt}</span>{/if}
               {#if agent}
                 <span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span>
                 {#if agent.detail}<span class="detail">{agent.detail}</span>{/if}
@@ -215,7 +221,7 @@
                 {/if}
                 <span class="buttons">
                   <button class="link" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
-                    {agent.attention ? 'Answer' : 'Open agent'}
+                    {agent.attention ? 'Answer' : 'Open agent'} ›
                   </button>
                   {#if column === 'review' && (agent.add || agent.del)}
                     <button class="link diff" onclick={() => actions.diff(agent.id)}>
@@ -224,10 +230,15 @@
                   {/if}
                 </span>
               {:else if column !== 'done'}
-                <button class="link" disabled={!project.exists} onclick={() => (starting = card)}>Start an agent</button>
+                <button class="link" disabled={!project.exists} onclick={() => edit(card, true)}>
+                  <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>Start an agent
+                </button>
               {/if}
             </li>
           {/each}
+          {#if column !== 'done'}
+            <li class="add-row"><button class="new-task" onclick={() => create(column)}>+ Add a task</button></li>
+          {/if}
         </ul>
       </section>
     {/each}
@@ -239,8 +250,9 @@
 {/if}
 
 {#if editing}
-  <Dialog title={editing.fresh ? 'New card' : 'Edit card'} width={560} onclose={() => (editing = null)}>
-    <form onsubmit={submit}>
+  {@const linked = cards.some((c) => c.id === editing?.card.id && c.agent)}
+  <Dialog title={editing.fresh ? 'New task' : 'Task'} width={640} onclose={() => (editing = null)}>
+    <form onsubmit={(e) => submit(e, !!editing?.start)}>
       <div class="fields">
         <div class="row">
           <div class="group key-field">
@@ -254,16 +266,22 @@
           </div>
         </div>
         <div class="group">
-          <label for="card-prompt">Instruction</label>
+          <label for="card-prompt">Description</label>
           <textarea
             id="card-prompt"
             class="field"
             rows="5"
             bind:value={editing.card.prompt}
-            placeholder="First message of the agent started from this card"
-            onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
+            placeholder="What needs to be done. An agent started from this task gets it as its first message."
+            onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e, !!editing?.start)}
           ></textarea>
         </div>
+        {#if !linked}
+          <details class="agent" open={editing.start}>
+            <summary><span class="chevron" aria-hidden="true">›</span>Agent for this task</summary>
+            <div class="options"><OptionsFields bind:options={editing.options} /></div>
+          </details>
+        {/if}
       </div>
       <footer>
         {#if !editing.fresh && project.cards.some((c) => c.id === editing?.card.id)}
@@ -271,21 +289,24 @@
         {/if}
         <span class="spacer"></span>
         <button type="button" class="btn btn-secondary" onclick={() => (editing = null)}>Cancel</button>
-        <button class="btn btn-primary" disabled={!editing.card.title.trim()}>{editing.fresh ? 'Add card' : 'Save'}</button>
+        {#if linked}
+          <button class="btn btn-primary" disabled={!editing.card.title.trim()}>Save</button>
+        {:else}
+          <button type="button" class="btn {editing.start ? 'btn-secondary' : 'btn-primary'}" disabled={!editing.card.title.trim()} onclick={(e) => submit(e)}
+            >{editing.fresh ? 'Create task' : 'Save'}</button
+          >
+          <button
+            type="button"
+            class="btn {editing.start ? 'btn-primary' : 'btn-secondary'}"
+            disabled={!editing.card.title.trim() || !project.exists}
+            onclick={(e) => submit(e, true)}>{editing.fresh ? 'Create and start agent' : 'Save and start agent'}</button
+          >
+        {/if}
       </footer>
     </form>
   </Dialog>
 {/if}
 
-{#if starting}
-  {@const card = starting}
-  <NewAgent
-    {project}
-    draft={{ name: [card.key, card.title].filter(Boolean).join(' · '), text: card.prompt || card.title }}
-    start={(name, options, text) => actions.start(project.path, card.id, name, options, text)}
-    onclose={() => (starting = null)}
-  />
-{/if}
 
 <style>
   main {
@@ -464,14 +485,13 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-    border-radius: 6px;
+    border-radius: 8px;
     background: var(--bg-sidebar);
-    box-shadow: inset 0 0 0 1px var(--border);
   }
 
   section.over {
-    box-shadow: inset 0 0 0 1px var(--border-focus);
     background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-dashed);
   }
 
   h2 {
@@ -479,15 +499,34 @@
     align-items: center;
     gap: 8px;
     margin: 0;
-    padding: 12px 14px 8px;
+    padding: 14px 16px 10px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.08em;
     text-transform: uppercase;
-    color: var(--text-dim);
+    color: var(--text-muted);
   }
 
-  h2 span {
+  h2 .dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--text-faint);
+  }
+
+  h2 .dot.progress {
+    background: var(--sub-running);
+  }
+
+  h2 .dot.review {
+    background: var(--accent);
+  }
+
+  h2 .dot.done {
+    background: var(--done);
+  }
+
+  .count {
     font: 500 11.5px var(--mono);
     letter-spacing: 0;
     color: var(--text-faint);
@@ -498,11 +537,11 @@
     min-height: 0;
     overflow-y: auto;
     margin: 0;
-    padding: 2px 10px 10px;
+    padding: 0 10px 12px;
     list-style: none;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 6px;
   }
 
   .card {
@@ -510,17 +549,16 @@
     flex-direction: column;
     align-items: flex-start;
     gap: 6px;
-    padding: 12px;
-    border-radius: 4px;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
+    padding: 12px 14px;
+    border-radius: 6px;
+    background: var(--surface-1);
     cursor: grab;
     user-select: none;
     touch-action: none;
   }
 
   .card:hover {
-    background: var(--surface-3);
+    background: var(--surface-2);
   }
 
   .card.waiting {
@@ -533,14 +571,16 @@
     box-shadow: inset 0 0 0 1px var(--err-border);
   }
 
+  .card.finished strong {
+    color: var(--text-3);
+  }
+
   .card.dragging {
     opacity: 0.4;
   }
 
   .card.before {
-    box-shadow:
-      inset 0 0 0 1px var(--border-strong),
-      0 -5px 0 -3px var(--accent);
+    box-shadow: 0 -5px 0 -3px var(--accent);
   }
 
   .key {
@@ -551,6 +591,18 @@
   strong {
     font-weight: 600;
     line-height: 1.35;
+    overflow-wrap: anywhere;
+  }
+
+  .note {
+    display: -webkit-box;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+    font-size: 12.5px;
+    line-height: 1.45;
+    color: var(--text-dim);
     overflow-wrap: anywhere;
   }
 
@@ -618,18 +670,25 @@
   }
 
   .link {
-    height: 28px;
-    margin-top: 2px;
-    padding: 0 10px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 26px;
+    margin-left: -8px;
+    padding: 0 8px;
     border-radius: 4px;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    color: var(--text-2);
+    color: var(--accent-link);
     font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .link svg {
+    fill: currentColor;
   }
 
   .link:not(:disabled):hover {
-    background: var(--surface-5);
-    color: var(--text-strong);
+    background: var(--surface-3);
+    color: var(--accent-soft);
   }
 
   .link:disabled {
@@ -639,13 +698,7 @@
   .buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .link.diff {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
+    gap: 2px 10px;
   }
 
   .diff .add {
@@ -659,10 +712,69 @@
   }
 
   .link.answer {
+    margin-left: 0;
+    padding: 0 10px;
     background: var(--accent);
-    box-shadow: none;
     color: var(--accent-ink);
     font-weight: 700;
+  }
+
+  .link.answer:hover {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
+  }
+
+  .add-row {
+    list-style: none;
+  }
+
+  .new-task {
+    width: 100%;
+    height: 34px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px var(--border-dashed);
+    color: var(--text-dim);
+    font-size: 12.5px;
+  }
+
+  .new-task:hover {
+    background: var(--surface-1);
+    color: var(--text);
+  }
+
+  .options {
+    display: flex;
+    flex-direction: column;
+    gap: 18px;
+    padding-top: 10px;
+  }
+
+  .agent summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 4px;
+    font-weight: 600;
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .agent summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .agent .chevron {
+    display: inline-block;
+    transition: transform 0.15s;
+    color: var(--text-dim);
+  }
+
+  .agent[open] .chevron {
+    transform: rotate(90deg);
+  }
+
+  .agent :global(.pair) {
+    margin-top: 10px;
   }
 
   .ghost {

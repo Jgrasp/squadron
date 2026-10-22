@@ -3,7 +3,7 @@
   import AgentList from './AgentList.svelte'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
-  import { archiveProject, create, ofProject, selected, shelve } from './agents.svelte'
+  import { archiveProject, create, ofProject, selected } from './agents.svelte'
   import {
     dragSidebar,
     FOLDED_SIDEBAR,
@@ -71,7 +71,7 @@
 </script>
 
 <div class="body">
-  <AgentList {project} current={agent} onnew={() => (ui.creating = true)} onretire={retire} onarchive={() => shelve(project)} />
+  <AgentList {project} current={agent} onnew={() => (ui.creating = true)} />
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div
     class="resizer"

@@ -66,6 +66,8 @@ pub struct Card {
     pub column: Column,
     #[serde(default)]
     pub agent: Option<String>,
+    #[serde(default)]
+    pub auto: Option<Column>,
 }
 
 #[derive(Serialize)]
@@ -305,6 +307,7 @@ mod tests {
                 prompt: String::new(),
                 column: Column::Review,
                 agent: Some("a1".into()),
+                auto: Some(Column::Review),
             }],
             color: "#A78BFA".into(),
             pinned: true,

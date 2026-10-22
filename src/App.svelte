@@ -16,7 +16,7 @@
   import { setPanel } from './lib/layout.svelte'
   import './lib/pilot.svelte'
   import Board from './lib/Board.svelte'
-  import { mirror, place, type Actions } from './lib/board'
+  import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
   import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
@@ -55,10 +55,7 @@
 
   $effect(() => {
     for (const p of projects.list) {
-      const cards = p.cards.map((c) => {
-        const column = place(c, mirrored.find((a) => a.id === c.agent))
-        return column === c.column ? c : { ...c, column }
-      })
+      const cards = p.cards.map((c) => follow(c, mirrored.find((a) => a.id === c.agent)))
       if (cards.some((c, i) => c !== p.cards[i])) setCards(p.path, $state.snapshot(cards))
     }
   })

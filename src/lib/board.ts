@@ -3,7 +3,7 @@ import { calls, type Agent, type Options } from './stream'
 
 export type Column = 'todo' | 'progress' | 'review' | 'done'
 
-export type Card = { id: string; key: string; title: string; prompt: string; column: Column; agent: string | null }
+export type Card = { id: string; key: string; title: string; prompt: string; column: Column; agent: string | null; auto?: Column | null }
 
 export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention'> & { detail: string; done: number; total: number; add: number; del: number }
 
@@ -37,9 +37,12 @@ export function mirror(a: Agent, detail: string): Mirror {
   }
 }
 
-export function place(card: Card, agent?: Mirror): Column {
-  if (card.column === 'done' || !agent) return card.column
-  return agent.status === 'done' ? 'review' : 'progress'
+export const stage = (agent: Mirror): Column => (agent.status === 'done' ? 'review' : 'progress')
+
+export function follow(card: Card, agent?: Mirror): Card {
+  if (card.column === 'done' || !agent) return card
+  const now = stage(agent)
+  return card.auto === now ? card : { ...card, column: now, auto: now }
 }
 
 export function moveCard(cards: Card[], id: string, column: Column, before: string | null = null) {

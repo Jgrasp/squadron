@@ -1,16 +1,18 @@
 import { describe, expect, it } from 'vitest'
-import { moveCard, place, type Card, type Mirror } from './board'
+import { follow, moveCard, type Card, type Mirror } from './board'
 
 const card = (id: string, column: Card['column'] = 'todo'): Card => ({ id, key: '', title: id, prompt: '', column, agent: null })
 const agent = (status: Mirror['status']): Mirror => ({ id: 'a', project: '/p', name: 'a', status, attention: '', detail: '', done: 0, total: 0, add: 0, del: 0 })
 
 describe('board', () => {
-  it('places a card after its agent until it is done', () => {
-    expect(place(card('c', 'todo'))).toBe('todo')
-    expect(place(card('c', 'todo'), agent('working'))).toBe('progress')
-    expect(place(card('c', 'progress'), agent('waiting'))).toBe('progress')
-    expect(place(card('c', 'progress'), agent('done'))).toBe('review')
-    expect(place(card('c', 'done'), agent('working'))).toBe('done')
+  it('moves a card when its agent changes state, and keeps a manual move until then', () => {
+    expect(follow(card('c', 'todo')).column).toBe('todo')
+    const working = follow(card('c', 'todo'), agent('working'))
+    expect(working).toMatchObject({ column: 'progress', auto: 'progress' })
+    const moved = { ...working, column: 'todo' as const }
+    expect(follow(moved, agent('waiting'))).toBe(moved)
+    expect(follow(moved, agent('done'))).toMatchObject({ column: 'review', auto: 'review' })
+    expect(follow(card('c', 'done'), agent('working')).column).toBe('done')
   })
 
   it('moves a card to a column, before another card or at the end', () => {

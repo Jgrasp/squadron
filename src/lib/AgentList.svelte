@@ -12,9 +12,7 @@
     project,
     current,
     onnew,
-    onretire,
-    onarchive,
-  }: { project: Project; current?: Agent; onnew: () => void; onretire: () => void; onarchive: () => void } = $props()
+  }: { project: Project; current?: Agent; onnew: () => void } = $props()
 
   let editing = $state('')
   let newName = $state('')
@@ -204,10 +202,6 @@
     <span class="mono">{home(project.path)}</span>
     <span>{project.git ? `Git · ${project.branch ?? 'repository'}` : 'No Git repository'}</span>
     <span>Project cost · {cost(total)}</span>
-    <span class="actions">
-      <button class="retire" onclick={onarchive}>Archive project</button>
-      <button class="retire" onclick={onretire}>Remove project</button>
-    </span>
   </div>
 </aside>
 {/if}
@@ -698,19 +692,4 @@
     overflow-wrap: anywhere;
   }
 
-  .actions {
-    display: flex;
-    gap: 14px;
-    margin-top: 4px;
-  }
-
-  .retire {
-    align-self: flex-start;
-    color: var(--text-dim);
-    text-decoration: underline;
-  }
-
-  .retire:hover {
-    color: var(--err-text);
-  }
 </style>
