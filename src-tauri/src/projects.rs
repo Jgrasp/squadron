@@ -13,6 +13,17 @@ pub struct Project {
     pub cards: Vec<Card>,
     #[serde(default)]
     pub color: String,
+    #[serde(default)]
+    pub pinned: bool,
+}
+
+pub fn reorder(list: &mut [Project], paths: &[PathBuf]) {
+    list.sort_by_key(|p| {
+        paths
+            .iter()
+            .position(|q| *q == p.path)
+            .unwrap_or(usize::MAX)
+    });
 }
 
 pub const COLORS: [&str; 6] = [
@@ -62,6 +73,7 @@ pub struct Folder {
     pub rules: Vec<String>,
     pub cards: Vec<Card>,
     pub color: String,
+    pub pinned: bool,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
@@ -76,6 +88,7 @@ impl Folder {
             rules: project.rules.clone(),
             cards: project.cards.clone(),
             color: project.color.clone(),
+            pinned: project.pinned,
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -192,6 +205,19 @@ mod tests {
     }
 
     #[test]
+    fn reorders_projects_and_keeps_unknown_ones_last() {
+        let project = |name: &str| Project {
+            name: name.into(),
+            path: PathBuf::from(format!("/p/{name}")),
+            ..Default::default()
+        };
+        let mut list = vec![project("a"), project("b"), project("c")];
+        reorder(&mut list, &[PathBuf::from("/p/c"), PathBuf::from("/p/a")]);
+        let names: Vec<_> = list.iter().map(|p| p.name.as_str()).collect();
+        assert_eq!(names, ["c", "a", "b"]);
+    }
+
+    #[test]
     fn suggests_the_closest_existing_folder() {
         let dir = temp("near");
         fs::create_dir_all(dir.join("agence/mercure")).unwrap();
@@ -277,6 +303,7 @@ mod tests {
                 agent: Some("a1".into()),
             }],
             color: "#A78BFA".into(),
+            pinned: true,
         }];
         save(&file, &projects).unwrap();
         assert!(

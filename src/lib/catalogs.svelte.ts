@@ -11,7 +11,22 @@ try {
 
 export const catalogs = $state<Record<string, Catalog>>(stored)
 
+export type Account = { email?: string; organization?: string; subscriptionType?: string }
+
+let signedIn: Account | null = null
+try {
+  signedIn = JSON.parse(localStorage.getItem('squadron.account') ?? 'null')
+} catch {}
+
+export const account = $state({ value: signedIn })
+
 export function remember(project: string, response: Record<string, any>) {
+  if (response.account) {
+    account.value = response.account
+    try {
+      localStorage.setItem('squadron.account', JSON.stringify(response.account))
+    } catch {}
+  }
   catalogs[project] = {
     commands: response.commands ?? [],
     models: response.models ?? [],

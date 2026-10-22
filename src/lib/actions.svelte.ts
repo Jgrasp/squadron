@@ -5,7 +5,17 @@ import { projects, toggleBoard, type Project } from './projects.svelte'
 import type { Action } from './shortcuts'
 import type { Agent } from './stream'
 
-export type SettingsTab = 'defaults' | 'rules' | 'claude' | 'editors' | 'preferences' | 'shortcuts' | 'layout'
+export type SettingsTab =
+  | 'projects'
+  | 'archived'
+  | 'defaults'
+  | 'rules'
+  | 'claude'
+  | 'editors'
+  | 'preferences'
+  | 'shortcuts'
+  | 'layout'
+  | 'about'
 
 export const ui = $state({ creating: false, customizing: false, settings: null as SettingsTab | null })
 

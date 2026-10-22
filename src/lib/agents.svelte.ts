@@ -104,16 +104,16 @@ export function persist(agent: Agent) {
   timers.set(agent.id, window.setTimeout(() => save(agent), 600))
 }
 
-function save(agent: Agent) {
+function save(agent: Agent, extra: Record<string, unknown> = {}) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
   const { live, alive, processCost, interrupting, asks, ...kept } = $state.snapshot(agent)
   const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
-  return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents }) })
+  return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents, ...extra }) })
 }
 
 export function saveAll() {
-  return Promise.all(agents.list.map(save))
+  return Promise.all(agents.list.map((a) => save(a)))
 }
 
 export async function restore() {
@@ -128,35 +128,58 @@ export async function restore() {
   saved.sort((a, b) => (a.entries[0]?.kind === 'user' ? a.entries[0].at : 0) - (b.entries[0]?.kind === 'user' ? b.entries[0].at : 0))
   for (const data of saved) {
     if (find(data.id)) continue
-    if (!known.has(data.project)) {
-      invoke('delete_agent_file', { id: data.id })
-      continue
-    }
-    const wanted = data.remote
-    const agent: Agent = {
-      ...newAgent(data.id, data.project, data.name, data.options),
-      ...data,
-      asks: [],
-      alive: false,
-      remote: wanted ? { state: 'connecting', url: wanted.url } : null,
-    }
-    if (agent.status === 'working' || agent.status === 'waiting') {
-      agent.status = 'interrupted'
-      agent.action = 'Stopped when Squadron closed'
-    }
-    for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
-    agents.list.push(agent)
-    await invoke('restore_agent', {
-      id: agent.id,
-      project: agent.project,
-      options: agent.options,
-      sessionId: agent.sessionId,
-      fork: !!agent.forkOf,
-    }).catch(
-      (e) => fail(find(agent.id)!, String(e)),
-    )
-    if (wanted) remote(agent.id, true)
+    if (!known.has(data.project)) invoke('delete_agent_file', { id: data.id })
+    else await adopt(data)
   }
+}
+
+async function adopt(data: Agent) {
+  const wanted = data.remote
+  const agent: Agent = {
+    ...newAgent(data.id, data.project, data.name, data.options),
+    ...data,
+    asks: [],
+    alive: false,
+    remote: wanted ? { state: 'connecting', url: wanted.url } : null,
+  }
+  if (agent.status === 'working' || agent.status === 'waiting') {
+    agent.status = 'interrupted'
+    agent.action = 'Stopped when Squadron closed'
+  }
+  for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
+  agents.list.push(agent)
+  await invoke('restore_agent', {
+    id: agent.id,
+    project: agent.project,
+    options: agent.options,
+    sessionId: agent.sessionId,
+    fork: !!agent.forkOf,
+  }).catch((e) => fail(find(agent.id)!, String(e)))
+  if (wanted) remote(agent.id, true)
+}
+
+export type Archived = Agent & { archived?: number }
+
+export async function archived() {
+  return (await invoke<string[]>('list_archived'))
+    .flatMap((text) => {
+      try {
+        return [JSON.parse(text) as Archived]
+      } catch {
+        return []
+      }
+    })
+    .sort((a, b) => (b.archived ?? 0) - (a.archived ?? 0))
+}
+
+export async function unarchive(id: string) {
+  const { archived, ...data } = JSON.parse(await invoke<string>('restore_archived', { id })) as Archived
+  await adopt(data)
+  agents.current[data.project] = data.id
+}
+
+export function forget(id: string) {
+  return invoke('delete_archived', { id })
 }
 
 listen<{ id: string; stderr: string }>('agent-exit', ({ payload }) => {
@@ -435,9 +458,11 @@ export async function fork(id: string) {
 
 export async function archive(id: string) {
   clearTimeout(timers.get(id))
+  const agent = find(id)
   await invoke('archive_agent', { id })
   await invoke('cancel_permissions', { agent: id })
-  await invoke('delete_agent_file', { id })
+  if (agent) await save(agent, { archived: Date.now(), remote: null })
+  await invoke('archive_agent_file', { id }).catch(() => invoke('delete_agent_file', { id }))
   agents.list = agents.list.filter((a) => a.id !== id)
 }
 

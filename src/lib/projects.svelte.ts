@@ -8,6 +8,7 @@ export type Project = {
   rules: string[]
   cards: Card[]
   color: string
+  pinned: boolean
   exists: boolean
   git: boolean
   branch: string | null
@@ -43,6 +44,16 @@ export async function move(path: string, to: string) {
   set(await invoke<Project[]>('move_project', { path, to }))
   projects.current = to
 }
+
+export async function editProject(path: string, changes: { name?: string; color?: string; pinned?: boolean }) {
+  set(await invoke<Project[]>('edit_project', { path, ...changes }))
+}
+
+export async function orderProjects(paths: string[]) {
+  set(await invoke<Project[]>('order_projects', { paths }))
+}
+
+export const ordered = () => [...projects.list.filter((p) => p.pinned), ...projects.list.filter((p) => !p.pinned)]
 
 export async function addRule(path: string, rule: string) {
   set(await invoke<Project[]>('add_rule', { path, rule }))

@@ -8,7 +8,7 @@ import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[] }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'BMC', path: '/home/quentin/agence/bmc', rules: [] },
@@ -38,7 +38,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('fileas') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => folder(p.name, p.path, p.rules, p.cards, COLORS[i % COLORS.length]))
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned }))
 
 const timers = new Map<string, number>()
 let claudePath = 'claude'
@@ -253,6 +253,35 @@ mockIPC(
       case 'delete_agent_file':
         localStorage.removeItem(`agent:${a.id}`)
         return
+      case 'archive_agent_file':
+        localStorage.setItem(`archived:${a.id}`, localStorage.getItem(`agent:${a.id}`) ?? '{}')
+        localStorage.removeItem(`agent:${a.id}`)
+        return
+      case 'list_archived':
+        return Object.keys(localStorage).filter((k) => k.startsWith('archived:')).map((k) => localStorage.getItem(k))
+      case 'restore_archived': {
+        const data = localStorage.getItem(`archived:${a.id}`)
+        localStorage.removeItem(`archived:${a.id}`)
+        localStorage.setItem(`agent:${a.id}`, data ?? '{}')
+        return data
+      }
+      case 'delete_archived':
+        localStorage.removeItem(`archived:${a.id}`)
+        return
+      case 'edit_project': {
+        const project = projects.find((p) => p.path === a.path)!
+        if (a.name !== undefined) project.name = a.name
+        if (a.color !== undefined) project.color = a.color
+        if (a.pinned !== undefined) project.pinned = (args as { pinned: boolean }).pinned
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return views()
+      }
+      case 'order_projects': {
+        const order = (args as { paths: string[] }).paths
+        projects.sort((x, y) => order.indexOf(x.path) - order.indexOf(y.path))
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return views()
+      }
       case 'load_agents':
         return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
       case 'add_cost': {

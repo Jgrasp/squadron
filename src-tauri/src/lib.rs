@@ -172,6 +172,43 @@ fn cancel_permissions(gate: State<Gate>, agent: String) {
 }
 
 #[tauri::command]
+fn edit_project(
+    projects: State<Projects>,
+    path: PathBuf,
+    name: Option<String>,
+    color: Option<String>,
+    pinned: Option<bool>,
+) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        let project = list
+            .iter_mut()
+            .find(|p| p.path == path)
+            .ok_or("Unknown project.")?;
+        if let Some(name) = name.map(|n| n.trim().to_string()) {
+            if name.is_empty() {
+                return Err("The project needs a name.".into());
+            }
+            project.name = name;
+        }
+        if let Some(color) = color {
+            project.color = color;
+        }
+        if let Some(pinned) = pinned {
+            project.pinned = pinned;
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn order_projects(projects: State<Projects>, paths: Vec<PathBuf>) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        projects::reorder(list, &paths);
+        Ok(())
+    })
+}
+
+#[tauri::command]
 fn move_project(
     projects: State<Projects>,
     path: PathBuf,
@@ -642,6 +679,11 @@ impl AgentFiles {
         }
         Ok(self.0.join(format!("{id}.json")))
     }
+
+    fn archived(&self, id: &str) -> Result<PathBuf, String> {
+        let file = self.path(id)?;
+        Ok(self.0.join("archived").join(file.file_name().unwrap()))
+    }
 }
 
 #[tauri::command]
@@ -659,6 +701,38 @@ fn delete_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String>
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
         _ => Ok(()),
     }
+}
+
+#[tauri::command]
+fn archive_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String> {
+    let from = files.path(&id)?;
+    let to = files.archived(&id)?;
+    std::fs::create_dir_all(to.parent().unwrap()).map_err(|e| e.to_string())?;
+    std::fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn restore_archived(files: State<AgentFiles>, id: String) -> Result<String, String> {
+    let from = files.archived(&id)?;
+    let to = files.path(&id)?;
+    std::fs::rename(&from, &to).map_err(|e| e.to_string())?;
+    std::fs::read_to_string(to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_archived(files: State<AgentFiles>, id: String) -> Result<(), String> {
+    std::fs::remove_file(files.archived(&id)?).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_archived(files: State<AgentFiles>) -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir(files.0.join("archived")) else {
+        return Vec::new();
+    };
+    dir.filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .collect()
 }
 
 #[tauri::command]
@@ -716,6 +790,12 @@ pub fn run() {
             add_project,
             remove_project,
             move_project,
+            edit_project,
+            order_projects,
+            archive_agent_file,
+            restore_archived,
+            delete_archived,
+            list_archived,
             add_rule,
             answer_permission,
             pilot_reply,

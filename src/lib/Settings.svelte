@@ -5,7 +5,11 @@
   import OptionsFields from './OptionsFields.svelte'
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
+  import AboutSquadron from './AboutSquadron.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
+  import ArchivedAgents from './ArchivedAgents.svelte'
+  import { account } from './catalogs.svelte'
+  import ProjectSettings from './ProjectSettings.svelte'
   import { reset } from './layout-slots.svelte'
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
@@ -20,6 +24,8 @@
   const tab = $derived(ui.settings ?? 'defaults')
 
   const tabs: [Tab, string][] = [
+    ['projects', 'Projects'],
+    ['archived', 'Archived agents'],
     ['defaults', 'Agent defaults'],
     ['rules', 'Permission rules'],
     ['claude', 'Claude Code'],
@@ -27,6 +33,7 @@
     ['preferences', 'Preferences'],
     ['shortcuts', 'Shortcuts'],
     ['layout', 'Layout'],
+    ['about', 'About'],
   ]
   const effects: [TabEffect, string, string][] = [
     ['snake', 'Snake', 'A light trail runs around the tab, one lap every 2.4 s'],
@@ -108,7 +115,13 @@
   </div>
 
   <div class="body">
-    {#if tab === 'defaults'}
+    {#if tab === 'projects'}
+      <ProjectSettings />
+    {:else if tab === 'archived'}
+      <ArchivedAgents />
+    {:else if tab === 'about'}
+      <AboutSquadron />
+    {:else if tab === 'defaults'}
       <p class="intro">Used to fill in the New agent dialog.</p>
       <OptionsFields bind:options={defaults} />
     {:else if tab === 'rules'}
@@ -226,11 +239,16 @@
         <button class="btn btn-secondary" onclick={check}>Check</button>
       </div>
       {#if version}<p class="good">{version}</p>{/if}
+      {#if account.value}
+        <p class="intro">
+          Signed in as {[account.value.email, account.value.organization, account.value.subscriptionType].filter(Boolean).join(' · ')}
+        </p>
+      {/if}
     {/if}
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if tab !== 'rules' && tab !== 'layout'}
+  {#if !['rules', 'layout', 'projects', 'archived', 'about'].includes(tab)}
     <footer>
       {#if saved}<span class="good">Saved</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>Close</button>
@@ -242,6 +260,7 @@
 <style>
   .tabs {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
     padding: 10px 22px 0;
     border-bottom: 1px solid var(--border);

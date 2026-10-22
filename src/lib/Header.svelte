@@ -5,7 +5,7 @@
   import { ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
   import { hint, settings } from './settings.svelte'
-  import { projects } from './projects.svelte'
+  import { editProject, ordered, projects } from './projects.svelte'
 
   let { onadd }: { onadd: () => void } = $props()
 
@@ -32,14 +32,15 @@
     return Math.max(count, 1)
   })
 
+  const tabs = $derived(ordered())
   const visible = $derived.by(() => {
-    const shown = projects.list.slice(0, fit)
+    const shown = tabs.slice(0, Math.max(fit, tabs.filter((p) => p.pinned).length))
     const active = projects.list.find((p) => p.path === projects.current)
     if (active && !shown.includes(active)) shown[shown.length - 1] = active
     return shown
   })
 
-  const hidden = $derived(projects.list.filter((p) => !visible.includes(p)))
+  const hidden = $derived(tabs.filter((p) => !visible.includes(p)))
   const found = $derived(
     hidden.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase())),
   )
@@ -161,16 +162,23 @@
               <input bind:value={search} placeholder="Search a project" aria-label="Search a project" />
             </label>
             {#each found as project (project.path)}
-              <button role="menuitem" style:--project={project.color} onclick={() => choose(project.path)}>
-                <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
-                {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
-            class="badge error"
-            role="img"
-            aria-label="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error"
-            title="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error">!</span
-          >{/if}
-              </button>
+              <span class="entry">
+                <button role="menuitem" style:--project={project.color} onclick={() => choose(project.path)}>
+                  <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
+                  {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
+                      class="badge error"
+                      role="img"
+                      aria-label="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error"
+                      title="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error">!</span
+                    >{/if}
+                </button>
+                <button class="pin" aria-label="Pin {project.name} to the tab bar" title="Pin to the tab bar" onclick={() => editProject(project.path, { pinned: true })}>
+                  <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
+                </button>
+              </span>
             {/each}
+            <span class="rule" aria-hidden="true"></span>
+            <button role="menuitem" onclick={() => ((moreOpen = false), (ui.settings = 'projects'))}>Reorder and pin tabs…</button>
           </div>
         {/if}
       </div>
@@ -186,7 +194,7 @@
   </div>
 
   <div class="measure" aria-hidden="true">
-    {#each projects.list as project, i (project.path)}
+    {#each tabs as project, i (project.path)}
       <span class="tab" bind:this={measures[i]}><span class="dot"></span>{project.name}</span>
     {/each}
   </div>
@@ -470,6 +478,39 @@
     color: var(--accent-ink);
     font-size: 11.5px;
     font-weight: 700;
+  }
+
+  .entry {
+    display: flex;
+    align-items: center;
+  }
+
+  .entry > button[role='menuitem'] {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .pin {
+    flex: none;
+    width: 30px;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .pin:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .pin svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linejoin: round;
   }
 
   .badge.error {
