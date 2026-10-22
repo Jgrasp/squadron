@@ -23,6 +23,11 @@
   } = $props()
 
   let selected = $state<string | null>(null)
+  let size = $state<'panel' | 'wide' | 'screen'>('panel')
+
+  $effect(() => {
+    if (!viewing) size = 'panel'
+  })
   const open = $derived(agent.subagents.find((s) => s.id === viewing))
 
   $effect(() => {
@@ -79,13 +84,13 @@
   }
 </script>
 
-<SidePanel kind="subagents" title="Subagents" {onclose}>
+<SidePanel kind="subagents" title="Subagents" screen={size === 'screen' && !!open} wide={size === 'wide' && !!open} {onclose}>
   {#snippet sub()}
     {#if open}#{open.num} · {open.name}{:else}{subs.length} launched by {agent.name} · {types}{/if}
   {/snippet}
 
   {#if open}
-    <SubagentLog {agent} sub={open} {onview} {onquote} />
+    <SubagentLog {agent} sub={open} {onview} {onquote} {size} onsize={(next) => (size = next)} />
   {:else}
 
   <div class="filters">

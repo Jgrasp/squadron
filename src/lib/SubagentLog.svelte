@@ -13,7 +13,22 @@
     sub,
     onview,
     onquote,
-  }: { agent: Agent; sub: Subagent; onview: (id: string | null) => void; onquote: (text: string) => void } = $props()
+    size,
+    onsize,
+  }: {
+    agent: Agent
+    sub: Subagent
+    onview: (id: string | null) => void
+    onquote: (text: string) => void
+    size: 'panel' | 'wide' | 'screen'
+    onsize: (size: 'panel' | 'wide' | 'screen') => void
+  } = $props()
+
+  const SIZES = [
+    ['panel', 'Panel', 'Next to the conversation'],
+    ['wide', 'Wide', 'Up to the agent list'],
+    ['screen', 'Full screen', 'Full screen (F) · Esc to come back'],
+  ] as const
 
   type Item = { kind: 'text'; at?: number; text: string } | { kind: 'thinking'; at?: number; text?: string; ms?: number } | { kind: 'tool'; at?: number; call: ToolCall }
 
@@ -75,6 +90,14 @@
     if (event.ctrlKey || event.metaKey || event.altKey || target.closest('input, textarea, [contenteditable], dialog')) return
     if (event.key === 'j' && next) onview(next.id)
     else if (event.key === 'k' && previous) onview(previous.id)
+    else if (event.key === 'f') onsize(size === 'screen' ? 'panel' : 'screen')
+  }
+
+  function leave(event: KeyboardEvent) {
+    if (event.key !== 'Escape' || size !== 'screen') return
+    event.stopImmediatePropagation()
+    event.preventDefault()
+    onsize('panel')
   }
 
   const result = (call: ToolCall) => {
@@ -97,11 +120,16 @@
   }
 </script>
 
-<svelte:window onkeydown={keys} />
+<svelte:window onkeydown={keys} onkeydowncapture={leave} />
 
 <div class="nav">
   <button class="back" onclick={() => onview(null)}>‹ All subagents</button>
   <span class="grow"></span>
+  <div class="sizes" role="group" aria-label="Size of the view">
+    {#each SIZES as [id, label, title] (id)}
+      <button aria-pressed={size === id} {title} onclick={() => onsize(id)}>{label}</button>
+    {/each}
+  </div>
   <div class="steps" role="group" aria-label="Move between subagents">
     <button disabled={!previous} title={previous ? `Previous subagent · #${previous.num} ${previous.name} (K)` : ''} onclick={() => previous && onview(previous.id)}>‹ {previous ? `#${previous.num}` : ''}</button>
     <button disabled={!next} title={next ? `Next subagent · #${next.num} ${next.name} (J)` : ''} onclick={() => next && onview(next.id)}>{next ? `#${next.num}` : ''} ›</button>
@@ -211,9 +239,31 @@
     flex: 1;
   }
 
-  .steps {
+  .steps,
+  .sizes {
     display: flex;
     gap: 4px;
+  }
+
+  .sizes {
+    padding: 2px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    gap: 0;
+  }
+
+  .sizes button {
+    height: 24px;
+    padding: 0 9px;
+    border-radius: 3px;
+    color: var(--text-muted);
+    font-size: 12px;
+  }
+
+  .sizes button[aria-pressed='true'] {
+    background: var(--surface-5);
+    color: var(--text-strong);
+    font-weight: 600;
   }
 
   .steps button {

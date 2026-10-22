@@ -9,8 +9,25 @@
     sub,
     actions,
     children,
+    screen = false,
+    wide = false,
     onclose,
-  }: { kind: PanelKind; size?: string; title: string; sub: Snippet; actions?: Snippet; children: Snippet; onclose: () => void } = $props()
+  }: {
+    kind: PanelKind
+    size?: string
+    title: string
+    sub: Snippet
+    actions?: Snippet
+    children: Snippet
+    screen?: boolean
+    wide?: boolean
+    onclose: () => void
+  } = $props()
+
+  let left = $state(0)
+  $effect(() => {
+    if (wide) left = panel.parentElement?.getBoundingClientRect().left ?? 0
+  })
 
   const full = $derived(!!layout.full[kind])
   const width = $derived(layout.widths[size])
@@ -37,7 +54,16 @@
   }
 </script>
 
-<section class="panel" class:full style:width={full ? null : `${width}px`} aria-label={title} bind:this={panel}>
+<section
+  class="panel"
+  class:full
+  class:screen
+  class:wide
+  style:width={full || screen || wide ? null : `${width}px`}
+  style:left={wide ? `${left}px` : null}
+  aria-label={title}
+  bind:this={panel}
+>
   {#if !full}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
@@ -97,6 +123,19 @@
     z-index: 20;
     min-width: 0;
     border-left: none;
+  }
+
+  .panel.screen,
+  .panel.wide {
+    position: fixed;
+    inset: 54px 0 0 0;
+    z-index: 40;
+    min-width: 0;
+    border-left: none;
+  }
+
+  .panel.wide {
+    border-left: 1px solid var(--border);
   }
 
   .resizer {
