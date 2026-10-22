@@ -33,9 +33,9 @@ struct ReadAgent {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 struct StartAgent {
-    /// The first message of the new agent: what it must do.
-    prompt: String,
-    /// A short name for the agent. Squadron suggests one when left empty.
+    /// The first message of the new agent: what it must do. Taken from the card when you start a card and leave it empty.
+    prompt: Option<String>,
+    /// A short name for the agent. The card title, or a name Squadron suggests, when left empty.
     name: Option<String>,
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
@@ -47,16 +47,18 @@ struct StartAgent {
     mode: Option<String>,
     /// Id of a Kanban card the agent works on; the card then follows the agent.
     card: Option<String>,
+    /// When the task is done, in the user's words (\"done when…\"): Squadron runs it as Claude Code's /goal, so the agent keeps working after each turn until it is true, then the card goes to review. Ask for visible proof, such as tests run with their output shown. In plan mode it starts once the user approves the plan. Taken from the card when left empty.
+    done_when: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 struct CreateCard {
-    /// What the card is about.
+    /// What the task is about.
     title: String,
-    /// An optional ticket key, such as T16 or BAT-812.
-    key: Option<String>,
-    /// The instruction an agent started from this card receives.
+    /// The description: the first message an agent started from this card receives.
     prompt: Option<String>,
+    /// Optional. When the task is done, in the user's words (\"done when…\"): Squadron runs it as Claude Code's /goal, so the agent keeps working after each turn until it is true, then the card goes to review. Ask for visible proof, such as tests run with their output shown. In plan mode it starts once the user approves the plan.
+    done_when: Option<String>,
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
 }
@@ -154,7 +156,7 @@ impl Pilot {
         self.forward(&parts, "read_agent", json!(args)).await
     }
 
-    /// Starts a new agent in Squadron with its first message, as the user would from the New agent dialog. Its permission requests and questions go to the user.
+    /// Starts a new agent in Squadron, as the user would from the New agent dialog or from a Kanban card. With done_when, the agent keeps working until it is true. Its permission requests and questions go to the user.
     #[tool]
     async fn start_agent(
         &self,
@@ -164,7 +166,7 @@ impl Pilot {
         self.forward(&parts, "start_agent", json!(args)).await
     }
 
-    /// Adds a card to the To do column of a project's Kanban.
+    /// Adds a task to the To do column of a project's Kanban, with its description and, when the user says when it is done, done_when. Start its agent later with start_agent and the card id.
     #[tool]
     async fn create_card(
         &self,
@@ -216,9 +218,7 @@ mod tests {
     use crate::permissions::{Gate, mcp_config, serve_with_pilot};
     use std::time::Duration;
 
-    #[tokio::test(flavor = "multi_thread")]
-    #[ignore = "runs the real claude"]
-    async fn real_claude_moves_a_button_with_the_pilot() {
+    async fn drive(model: &str, prompt: &str, reply: fn(&Call) -> String) -> Vec<Call> {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
@@ -240,19 +240,15 @@ mod tests {
         tokio::spawn(async move {
             while let Some(call) = calls_rx.recv().await {
                 println!("CALL {} {} {}", call.agent, call.tool, call.args);
-                let result = match call.tool.as_str() {
-                    "get_layout" => json!({"slots": [{"slot": "agent.tools", "items": ["editor", "terminal", "diff", "kanban"], "hidden": []}]}).to_string(),
-                    _ => "Done.".to_string(),
-                };
                 record.lock().unwrap().push(call.clone());
-                pilot.reply(&call.id, result).unwrap();
+                pilot.reply(&call.id, reply(&call)).unwrap();
             }
         });
         let dir = std::env::temp_dir().join("squadron-pilot-test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let options = Options {
-            model: "haiku".into(),
+            model: model.into(),
             effort: "low".into(),
             mode: "default".into(),
         };
@@ -270,14 +266,27 @@ mod tests {
         )
         .unwrap();
         session.control(json!({"subtype": "initialize"})).unwrap();
-        session
-            .send("In Squadron, put the Editor button at the far right of the agent tools.")
-            .unwrap();
+        session.send(prompt).unwrap();
         let result = rx.recv_timeout(Duration::from_secs(240)).unwrap();
         println!("RESULT {}", &result[..result.len().min(400)]);
         session.stop().unwrap();
-        let calls = seen.lock().unwrap();
+        let calls = seen.lock().unwrap().clone();
         assert!(calls.iter().all(|c| c.agent == "agent-7"));
+        calls
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_moves_a_button_with_the_pilot() {
+        let calls = drive(
+            "haiku",
+            "In Squadron, put the Editor button at the far right of the agent tools.",
+            |call| match call.tool.as_str() {
+                "get_layout" => json!({"slots": [{"slot": "agent.tools", "items": ["editor", "terminal", "diff", "kanban"], "hidden": []}]}).to_string(),
+                _ => "Done.".to_string(),
+            },
+        )
+        .await;
         let set = calls
             .iter()
             .find(|c| c.tool == "set_layout")
@@ -287,5 +296,36 @@ mod tests {
             set.args["order"].as_array().unwrap().last().unwrap(),
             "editor"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_creates_a_task_with_a_goal_and_starts_it() {
+        let calls = drive(
+            "sonnet",
+            "In Squadron's Kanban, add a task to fix the CSV export of segments. It is done when the export tests pass with their output shown. Then start its agent with haiku.",
+            |call| match call.tool.as_str() {
+                "create_card" => "Card c-42 added to the To do column of Fileas.".to_string(),
+                "start_agent" => "Started agent a-9 in Fileas.".to_string(),
+                _ => "[]".to_string(),
+            },
+        )
+        .await;
+        let card = calls
+            .iter()
+            .find(|c| c.tool == "create_card")
+            .expect("create_card called");
+        assert!(
+            card.args["done_when"]
+                .as_str()
+                .unwrap_or_default()
+                .contains("test")
+        );
+        let start = calls
+            .iter()
+            .find(|c| c.tool == "start_agent")
+            .expect("start_agent called");
+        assert_eq!(start.args["card"], "c-42");
+        assert_eq!(start.args["model"], "haiku");
     }
 }

@@ -45,6 +45,9 @@ function text(agent: Agent, last: number) {
     .slice(-last)
 }
 
+const goalOf = (a: Agent) =>
+  a.goal ? { done_when: a.goal.condition, state: a.goal.state, relaunches: a.goal.relaunches || undefined, last_reason: a.goal.reason || undefined } : undefined
+
 const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknown> = {
   overview: () =>
     projects.list.map((p) => ({
@@ -58,26 +61,31 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
         doing: a.status === 'working' ? a.action : undefined,
         cost_usd: Math.round(a.cost * 100) / 100,
         tasks: a.tasks.length ? `${a.tasks.filter((t) => t.status === 'completed').length}/${a.tasks.length}` : undefined,
+        goal: goalOf(a),
       })),
-      cards: p.cards.map((c) => ({ id: c.id, key: c.key || undefined, title: c.title, column: c.column, agent: c.agent ?? undefined })),
+      cards: p.cards.map((c) => ({ id: c.id, title: c.title, prompt: c.prompt || undefined, goal: c.goal || undefined, column: c.column, agent: c.agent ?? undefined })),
     })),
 
   read_agent: (_, args) => {
     const agent = find(String(args.agent))
     if (!agent) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
-    return { name: agent.name, status: agent.status, waiting_for_user: agent.attention || undefined, messages: text(agent, Number(args.last) || 10) }
+    return { name: agent.name, status: agent.status, waiting_for_user: agent.attention || undefined, goal: goalOf(agent), messages: text(agent, Number(args.last) || 10) }
   },
 
   start_agent: async (caller, args) => {
-    if (!String(args.prompt ?? '').trim()) throw new Error('The prompt is empty.')
     const project = projectFor(caller, args.project)
+    const card = args.card ? project.cards.find((c) => c.id === args.card) : undefined
+    if (args.card && !card) throw new Error(`No card ${args.card} in ${project.name}.`)
+    const text = String(args.prompt ?? '').trim() || card?.prompt || card?.title || ''
+    if (!text) throw new Error('The prompt is empty.')
     if (!project.exists) throw new Error(`The folder of ${project.name} cannot be found.`)
     const options: Options = {
       model: pick(args.model, [...families(models()), ...models().map((m) => m.value)].filter((v) => v !== 'default'), settings.defaults.model, 'model'),
       effort: pick(args.effort, EFFORTS, settings.defaults.effort, 'effort'),
       mode: pick(args.mode, MODES, settings.defaults.mode, 'mode'),
     }
-    const name = String(args.name ?? '').trim()
+    const name = String(args.name ?? '').trim() || card?.title || ''
+    const goal = String(args.done_when ?? '').trim() || card?.goal || ''
     if (
       (options.mode === 'acceptEdits' || options.mode === 'auto') &&
       !(await ask(`${caller.name} wants to start ${name ? `“${name}”` : 'an agent'} in ${project.name} in ${options.mode} mode, which skips some permission requests.`, {
@@ -88,11 +96,10 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       }))
     )
       return `The user refused to start this agent in ${options.mode} mode.`
-    const card = args.card ? project.cards.find((c) => c.id === args.card) : undefined
-    if (args.card && !card) throw new Error(`No card ${args.card} in ${project.name}.`)
-    const id = await create(project.path, name, options, String(args.prompt).trim(), { by: caller.name })
+    const id = await create(project.path, name, options, text, { by: caller.name }, goal)
     if (card) await setCards(project.path, project.cards.map((c) => (c.id === card.id ? { ...c, agent: id, column: 'progress' } : c)))
-    return `Started agent ${id} in ${project.name}. Its permission requests and questions go to the user.`
+    const until = goal ? ` It works until this goal is met: ${goal}${options.mode === 'plan' ? ' (once the user approves its plan)' : ''}.` : ''
+    return `Started agent ${id} in ${project.name}.${until} Its permission requests and questions go to the user.`
   },
 
   create_card: async (caller, args) => {
@@ -100,9 +107,10 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const project = projectFor(caller, args.project)
     const card: Card = {
       id: crypto.randomUUID(),
-      key: String(args.key ?? '').trim(),
+      key: '',
       title: String(args.title).trim(),
       prompt: String(args.prompt ?? '').trim(),
+      goal: String(args.done_when ?? '').trim(),
       column: 'todo',
       agent: null,
     }
