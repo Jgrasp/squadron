@@ -1,5 +1,6 @@
 <script lang="ts">
   import { counts, EDITS } from './diff'
+  import { toolLabel } from './agents.svelte'
   import { argument, type Agent, type ToolCall } from './stream'
 
   let { agent, call, ondiff }: { agent: Agent; call: ToolCall; ondiff: (call: ToolCall) => void } = $props()
@@ -23,7 +24,7 @@
 
 {#if edit}
   <button class="row action" title="Open in the Diff panel" onclick={() => ondiff(call)} disabled={!call.result}>
-    <span class="name">{call.name}</span>
+    <span class="name">{toolLabel(call.name)}</span>
     <span class="arg">{arg}</span>
     {#if call.result}
       <span class="mono"><span class="add">+{changes.add}</span>{#if changes.del}&nbsp;<span class="del">−{changes.del}</span>{/if}</span>
@@ -36,7 +37,7 @@
       {#if failed}
         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
       {/if}
-      <span class="name">{call.name}</span>
+      <span class="name">{toolLabel(call.name)}</span>
       <span class="arg">{arg}</span>
       {#if code}<span class="code" class:ok={code === 'code 0'}>{code}</span>{/if}
       <span class="go">output ›</span>
@@ -45,7 +46,7 @@
   </details>
 {:else}
   <div class="row">
-    <span class="name">{call.name}</span>
+    <span class="name">{toolLabel(call.name)}</span>
     <span class="arg">{arg}</span>
     {#if !call.result}<span class="go">…</span>{/if}
   </div>
@@ -79,8 +80,9 @@
   }
 
   .name {
-    width: 40px;
+    min-width: 40px;
     flex: none;
+    white-space: nowrap;
     color: var(--text-dim);
   }
 
