@@ -67,6 +67,17 @@
   let pilot = $state(settings.pilot)
   let pilotAll = $state(settings.pilot_all)
   let archiveAfter = $state(settings.archive_after_days)
+  let steps = $state(settings.steps)
+  let thinking = $state(settings.thinking)
+  const STEPS: [typeof steps, string, string][] = [
+    ['grouped', 'Grouped', 'One line per reply for the thinking, the notes and the commands; the answer stands on its own'],
+    ['detailed', 'In full', 'Every thought, note and command in the flow of the conversation'],
+  ]
+  const THINKING: [typeof thinking, string][] = [
+    ['hidden', 'Hidden'],
+    ['duration', 'How long'],
+    ['summary', 'With its summary'],
+  ]
   const AGES: [number, string][] = [
     [0, 'Never'],
     [1, 'After a day'],
@@ -111,7 +122,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -248,6 +259,22 @@
             <strong>{title}</strong>
             <span class="hint">{hint}</span>
           </button>
+        {/each}
+      </div>
+      <h2>Conversation</h2>
+      <span class="label">Agent steps</span>
+      <div class="effects" role="group" aria-label="Agent steps">
+        {#each STEPS as [id, title, detail] (id)}
+          <button aria-pressed={steps === id} onclick={() => (steps = id)}>
+            <strong>{title}</strong>
+            <span class="hint">{detail}</span>
+          </button>
+        {/each}
+      </div>
+      <span class="label">Thinking</span>
+      <div class="effects three" role="group" aria-label="Thinking">
+        {#each THINKING as [id, title] (id)}
+          <button aria-pressed={thinking === id} onclick={() => (thinking = id)}><strong>{title}</strong></button>
         {/each}
       </div>
       <h2>Agents and Squadron</h2>
@@ -605,6 +632,16 @@
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
+  }
+
+  .effects.three {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .label {
+    display: block;
+    margin: 16px 0 8px;
+    font-weight: 600;
   }
 
   .effects button {

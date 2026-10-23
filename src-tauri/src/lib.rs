@@ -244,6 +244,8 @@ struct Config {
     pilot: bool,
     pilot_all: bool,
     archive_after_days: u32,
+    steps: String,
+    thinking: String,
 }
 
 impl Default for Config {
@@ -261,6 +263,8 @@ impl Default for Config {
             pilot: true,
             pilot_all: false,
             archive_after_days: 0,
+            steps: "grouped".into(),
+            thinking: "duration".into(),
         }
     }
 }
