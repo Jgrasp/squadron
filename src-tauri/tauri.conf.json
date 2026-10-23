@@ -1,0 +1,47 @@
+{
+  "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
+  "productName": "squadron",
+  "identifier": "dev.squadron.desktop",
+  "build": {
+    "frontendDist": "../dist",
+    "devUrl": "http://localhost:5173",
+    "beforeDevCommand": "pnpm dev",
+    "beforeBuildCommand": "pnpm build"
+  },
+  "app": {
+    "windows": [
+      {
+        "title": "Squadron",
+        "width": 1440,
+        "height": 900,
+        "resizable": true,
+        "minWidth": 1000,
+        "minHeight": 640,
+        "decorations": false
+      }
+    ],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": "all",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "createUpdaterArtifacts": true
+  },
+  "plugins": {
+    "updater": {
+      "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ0NzIzRUVBMUZGQTY0NzcKUldSM1pQb2Y2ajV5UktmeWdxdEdKSk9WbjBpNk5JUmtlb3BOOFRDNjVna2pweXh4QzVHR0dKWHYK",
+      "endpoints": [
+        "https://github.com/Jgrasp/squadron/releases/latest/download/latest.json"
+      ]
+    }
+  }
+}

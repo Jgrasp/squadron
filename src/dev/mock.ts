@@ -1,0 +1,477 @@
+import { mockIPC, mockWindows } from '@tauri-apps/api/mocks'
+import { emit } from '@tauri-apps/api/event'
+import hello from '../../src-tauri/tests/fixtures/hello.jsonl?raw'
+import nologin from '../../src-tauri/tests/fixtures/nologin.jsonl?raw'
+import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
+import taskList from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
+import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
+import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
+import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
+
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean }
+
+const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
+  { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
+  { name: 'Nova', path: '/home/demo/agence/nova', rules: [] },
+  { name: 'Lumen', path: '/home/demo/agence/lumen-absent', rules: [] },
+]
+
+const label = location.search.includes('board') ? 'board' : 'main'
+const channel = new BroadcastChannel('squadron-events')
+channel.onmessage = ({ data }) => data.target === label && emit(data.event, data.payload)
+let popup: Window | null = null
+
+if (location.search.includes('many'))
+  for (const name of ['Hermes', 'Atlas', 'Optika', 'Vinéa', 'Kalia', 'Sorbet', 'Néréide', 'Pixel Rando'])
+    projects.push({ name, path: `/home/demo/agence/${name.toLowerCase()}`, rules: [] })
+
+const COLORS = ['#A78BFA', '#2DD4BF', '#F472B6', '#60A5FA', '#A3E635', '#FACC15']
+
+const folder = (name: string, path: string, rules: string[] = [], cards: unknown[] = [], color = COLORS[0]) => ({
+  name,
+  path,
+  rules,
+  cards,
+  color,
+  exists: !path.includes('absent'),
+  git: !path.includes('nova'),
+  branch: path.includes('nova') ? null : 'feat/T15-segmentation',
+})
+
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived }))
+
+const timers = new Map<string, number>()
+let claudePath = 'claude'
+let tabEffect = 'pulse'
+let keyMap: Record<string, string> = {}
+let editorApps: unknown[] = []
+
+const asks: Record<string, [string, Record<string, unknown>]> = {
+  permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
+  edit: ['Edit', { file_path: 'src/Segmentation/ChannelSegmentResolver.php', old_string: 'resolve(CustomerInterface $customer)', new_string: 'resolve(\n        CustomerInterface $customer,\n        ?ChannelInterface $channel = null,\n    )' }],
+  mcp: ['mcp__github__create_pull_request', { owner: 'agence', repo: 'orbit', base: 'develop', head: 'feat/ORB-809', title: 'ORB-809 · Pilotage des batchs', draft: true }],
+  plan: ['ExitPlanMode', { plan: '# Segment CSV export\n\n1. Add the `export_csv` action to the grid.\n2. Create `SegmentCsvExporter`.\n3. Test the exporter.' }],
+  questions: ['AskUserQuestion', { questions: [
+    { question: 'Which CSV separator?', header: 'Separator', multiSelect: false, options: [{ label: 'Semicolon (Recommended)', description: 'French Excel' }, { label: 'Comma' }, { label: 'Tab' }] },
+    { question: 'Which columns to add?', header: 'Columns', multiSelect: true, options: [{ label: 'Creation date' }, { label: 'Order count' }, { label: 'Revenue' }] },
+  ] }],
+  question: ['AskUserQuestion', { questions: [
+    { question: 'How should I handle the 3 failing tests?', header: 'Tests', multiSelect: false, options: [
+      { label: 'Update the tests (Recommended)', description: 'Tests follow the new split() behaviour' },
+      { label: 'Restore keys in split()', description: 'Keeps the previous behaviour' },
+      { label: 'Mark the tests incomplete', description: 'CI stays green, a ticket must be opened' },
+    ] },
+  ] }],
+}
+function swarm(n = 48) {
+  const id = (i: number) => `toolu_swarm${i}`
+  const name = (i: number) => ['SyliusCoreBundle', 'SyliusPaymentBundle', 'SyliusApiBundle', 'BmcSegmentationBundle', 'BmcBatchUtilsBundle'][i % 5] + ` ${i}`
+  const lines: unknown[] = [
+    {
+      type: 'assistant',
+      message: {
+        id: 'msg_swarm',
+        model: 'claude-opus-5-5',
+        content: Array.from({ length: n }, (_, k) => ({ type: 'tool_use', id: id(k + 1), name: 'Agent', input: { description: name(k + 1), subagent_type: 'general-purpose', prompt: `List the PHP 8.5 deprecations of ${name(k + 1)}` } })),
+      },
+    },
+  ]
+  for (let i = 1; i <= n; i++)
+    lines.push({ type: 'system', subtype: 'task_started', task_id: `task${i}`, tool_use_id: id(i), description: name(i), subagent_type: 'general-purpose', prompt: `List the PHP 8.5 deprecations of ${name(i)}.\nDo not edit any file.`, task_type: 'local_agent', is_backgrounded: false })
+  for (let i = 1; i <= n; i++) {
+    lines.push({ type: 'assistant', parent_tool_use_id: id(i), message: { id: `msg_s${i}`, model: 'claude-opus-5-5', content: [{ type: 'text', text: 'I look for the casts PHP 8.5 deprecates.' }, { type: 'tool_use', id: `toolu_grep${i}`, name: 'Grep', input: { pattern: '\\((integer|boolean|double)\\)', path: 'src/' } }] } })
+    lines.push({ type: 'user', parent_tool_use_id: id(i), message: { content: [{ type: 'tool_result', tool_use_id: `toolu_grep${i}`, content: 'src/Model/Payment.php:143: return (integer) $this->amount;' }] } })
+    lines.push({ type: 'system', subtype: 'task_progress', task_id: `task${i}`, tool_use_id: id(i), description: 'Grep (integer)|(boolean) in src/', usage: { total_tokens: 7000 + i * 113, tool_uses: 1, duration_ms: 40000 + i * 900 }, last_tool_name: 'Grep' })
+  }
+  for (let i = 1; i <= Math.floor(n * 0.45); i++) {
+    const failed = i === 12 || i === 20
+    lines.push({ type: 'system', subtype: 'task_updated', task_id: `task${i}`, patch: { status: failed ? 'failed' : 'completed', end_time: Date.now() } })
+    lines.push({ type: 'system', subtype: 'task_notification', task_id: `task${i}`, tool_use_id: id(i), status: failed ? 'failed' : 'completed', summary: failed ? 'API Error: 529 Overloaded · 3 attempts' : `${name(i)}: 3 non-canonical casts, fixes proposed.`, usage: { total_tokens: 18000 + i * 211, tool_uses: 4, duration_ms: 120000 + i * 1000 } })
+  }
+  lines.push({ type: 'assistant', parent_tool_use_id: id(37), message: { id: 'msg_s37b', model: 'claude-opus-5-5', content: [{ type: 'tool_use', id: 'toolu_bash37', name: 'Bash', input: { command: 'lando php vendor/bin/phpstan analyse vendor/sylius/payment-bundle', description: 'Runs PHPStan on the bundle' } }] } })
+  return lines.map((l) => JSON.stringify(l)).join('\n')
+}
+
+const waitingReplay = new Map<string, () => void>()
+let askId = 0
+
+const goalLines = new Map<string, string[]>()
+
+function goal(id: string, condition: string) {
+  const say = (text: string) => JSON.stringify({ type: 'assistant', message: { id: crypto.randomUUID(), model: '<synthetic>', content: [{ type: 'text', text }] } })
+  const done = JSON.stringify({ type: 'result', is_error: false, num_turns: condition === 'clear' ? 0 : 3, total_cost_usd: 0, usage: {}, duration_ms: 4000 })
+  const feedback = (n: number) =>
+    JSON.stringify({ type: 'user', isSynthetic: true, message: { role: 'user', content: [{ type: 'text', text: `Stop hook feedback:\n[${condition}]: No test output in the transcript yet (check ${n}).` }] } })
+  const relaunches = condition.includes('never') ? 9 : 1
+  const lines = condition === 'clear' ? [say('Goal cleared: the goal'), done] : [say(`Goal set: ${condition}`), ...Array.from({ length: relaunches }, (_, n) => feedback(n + 1)), done]
+  goalLines.set(id, lines)
+  const next = () => {
+    const line = goalLines.get(id)?.shift()
+    if (!line) return timers.delete(id)
+    emit('agent-line', { id, line })
+    timers.set(id, window.setTimeout(next, 900))
+  }
+  const queued = () => (timers.has(id) ? window.setTimeout(queued, 200) : next())
+  queued()
+}
+
+function replay(id: string, text: string) {
+  if (text.startsWith('/goal ')) return goal(id, text.slice(6))
+  const key = Object.keys(asks).find((k) => text.includes(k))
+  if (key) {
+    const [tool_name, input] = asks[key]
+    const ask = String(askId++)
+    waitingReplay.set(ask, () => replay(id, 'ok'))
+    emit('permission-request', { id: ask, agent: id, tool_name, input: { ...input, file_path: input.file_path ? `${projectOf.get(id)}/${input.file_path}` : undefined }, tool_use_id: null })
+    return
+  }
+  if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
+  const stream = text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const lines = stream
+    .trim()
+    .split('\n')
+    .filter((l) => !(text.includes('long') && /"type":"(result|user)"/.test(l) && /interrupted|aborted/.test(l)))
+  const crash = text.includes('crash')
+  let i = 0
+  const next = () => {
+    if (crash && i === 6) {
+      timers.delete(id)
+      emit('agent-exit', { id, stderr: 'API Error: 529 {"type":"error","error":{"type":"overloaded_error","message":"Overloaded"}}' })
+      return
+    }
+    if (i >= lines.length) return timers.delete(id)
+    const line = lines[i++]
+    emit('agent-line', { id, line: line.replaceAll('/project', projectOf.get(id) ?? '/project') })
+    const sub = JSON.parse(line)
+    const call = sub.type === 'assistant' && sub.parent_tool_use_id && sub.message.content.find((c: { name?: string }) => c.name === 'Bash')
+    if (call) {
+      const ask = String(askId++)
+      waitingReplay.set(ask, next)
+      emit('permission-request', { id: ask, agent: id, tool_name: 'Bash', input: call.input, tool_use_id: call.id })
+      return
+    }
+    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') ? 150 : text.includes('swarm') ? 8 : 60))
+  }
+  next()
+}
+
+const projectOf = new Map<string, string>()
+const catalog = {
+  type: 'control_response',
+  response: {
+    subtype: 'success',
+    response: {
+      commands: [
+        { name: 'compact', description: 'Free up context by summarizing the conversation so far', argumentHint: '<optional custom summarization instructions>', builtin: true },
+        { name: 'clear', description: 'Start a new session with empty context', argumentHint: '[name]', aliases: ['reset', 'new'], builtin: true },
+        { name: 'context', description: 'Visualize current context usage', builtin: true },
+        { name: 'model', description: 'Set the AI model for Claude Code', argumentHint: '<model>', builtin: true },
+        { name: 'effort', description: 'Set effort level for model usage', argumentHint: '<low|medium|high|xhigh|max|auto|ultracode [on|off]>', builtin: true },
+        { name: 'fast', description: 'Toggle fast mode', argumentHint: '[on|off]', builtin: true },
+        { name: 'mcp', description: 'Manage MCP servers', argumentHint: '[reconnect|enable|disable [<server>|all]]', builtin: true },
+        { name: 'output-style', description: 'List output styles or switch to one', argumentHint: '[style]', builtin: true },
+        { name: 'ponytail:ponytail', description: '(ponytail) Lazy senior dev mode', argumentHint: '[lite|full|ultra]' },
+        { name: 'code-review', description: 'Review the current diff', argumentHint: '[target]' },
+        { name: 'codegraph:setup', description: '(codegraph) Install and configure CodeGraph on a project' },
+        { name: 'greet', description: 'Greet the user in a given tone', argumentHint: '<warm|formal|pirate>' },
+      ],
+      models: [
+        { value: 'default', displayName: 'Default (recommended)', description: 'Opus 5.5 · Best for everyday, complex tasks' },
+        { value: 'opus', displayName: 'Opus 5.5', description: 'Best for everyday, complex tasks' },
+        { value: 'fable', displayName: 'Fable 5.1', description: 'Most capable for your hardest and longest-running tasks' },
+        { value: 'sonnet', displayName: 'Sonnet 5.5', description: 'Fast and capable' },
+        { value: 'haiku', displayName: 'Haiku 5.5', description: 'Fastest for quick answers' },
+        { value: 'claude-haiku-4-5-20251001', displayName: 'Haiku 4.5', description: 'Fastest for quick answers' },
+        { value: 'claude-opus-5', displayName: 'Opus 5', description: 'Best for everyday, complex tasks' },
+        { value: 'claude-opus-4-7', displayName: 'Opus 4.7', description: 'Best for everyday, complex tasks' },
+        { value: 'claude-opus-4-6', displayName: 'Opus 4.6', description: 'Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'max'] },
+      ],
+      available_output_styles: ['default', 'Explanatory', 'Learning'],
+    },
+  },
+}
+const replies = new Map<string, (result: string) => void>()
+;(window as unknown as { __pilot: unknown }).__pilot = (agent: string, tool: string, args = {}) =>
+  new Promise((resolve) => {
+    const id = crypto.randomUUID()
+    replies.set(id, resolve)
+    emit('pilot-request', { id, agent, tool, args })
+  })
+const files = new Map<string, string>()
+let terminal = 0
+let line = ''
+const prompt = '\x1b[38;2;154;214;203mdemo\x1b[0m \x1b[2m~/agence/orbit\x1b[0m \x1b[38;2;201;166;255mfeat/T15-segmentation*\x1b[0m\r\n\x1b[38;2;224;138;91m❯\x1b[0m '
+
+if (location.search.includes('stress'))
+  setTimeout(async () => {
+    const { create } = await import('../lib/agents.svelte')
+    const { find, agents } = await import('../lib/agents.svelte')
+    const { apply, userMessage } = await import('../lib/stream')
+    const started = performance.now()
+    await create(projects[0].path, 'Long session', { model: 'opus', effort: 'high', mode: 'default' }, 'Start')
+    const agent = find(agents.list.at(-1)!.id)!
+    for (let turn = 0; turn < 120; turn++) {
+      if (turn) userMessage(agent, `Instruction ${turn}: keep working on module ${turn}`)
+      for (const line of (turn % 2 ? tools : sigint).trim().split('\n')) {
+        const d = JSON.parse(line.replaceAll('/project', projects[0].path))
+        if (d.type === 'result' && d.is_error) continue
+        apply(agent, d)
+      }
+      apply(agent, { type: 'result', is_error: false, total_cost_usd: turn * 0.01, usage: {}, duration_ms: 42000 })
+    }
+    console.log('stress', Math.round(performance.now() - started), 'ms', agent.entries.length, 'entries')
+  }, 300)
+
+mockWindows(label)
+mockIPC(
+  (cmd, args) => {
+    const a = args as Record<string, string>
+    switch (cmd) {
+      case 'list_projects':
+        return views()
+      case 'inspect_folder':
+        return {
+          ...folder(a.path.split('/').pop() ?? '', a.path),
+          taken_by: projects.find((p) => p.path === a.path)?.name ?? null,
+          taken_archived: !!projects.find((p) => p.path === a.path)?.archived,
+          near: a.path.includes('absent') ? a.path.replace(/-?absent.*$/, '') : null,
+        }
+      case 'add_project':
+        projects.push({ name: a.name, path: a.path, rules: [] })
+        return views()
+      case 'remove_project':
+        projects.splice(
+          projects.findIndex((p) => p.path === a.path),
+          1,
+        )
+        return views()
+      case 'move_project':
+        projects.find((p) => p.path === a.path)!.path = a.to
+        return views()
+      case 'create_agent':
+        projectOf.set(a.id, a.project)
+        emit('agent-line', { id: a.id, line: JSON.stringify(catalog) })
+        return replay(a.id, a.text)
+      case 'send_message':
+        return replay(a.id, a.text)
+      case 'interrupt_agent': {
+        clearTimeout(timers.get(a.id))
+        timers.delete(a.id)
+        const tail = sigint.trim().split('\n').slice(-2)
+        tail.forEach((line) => emit('agent-line', { id: a.id, line }))
+        emit('agent-exit', { id: a.id, stderr: '' })
+        return
+      }
+      case 'open_link':
+        window.open(a.url, '_blank')
+        return
+      case 'set_workdir':
+        return
+      case 'git_branch':
+        return `feat/${String(a.path).split('/').at(-1)}`
+      case 'stop_turn':
+        goalLines.set(a.id, (goalLines.get(a.id) ?? []).filter((l) => l.includes('"result"')))
+        return
+      case 'reload_agent':
+      case 'archive_agent':
+        clearTimeout(timers.get(a.id))
+        return
+      case 'answer_permission':
+        waitingReplay.get(a.id)?.()
+        waitingReplay.delete(a.id)
+        return
+      case 'cancel_permissions':
+      case 'add_rule':
+        if (cmd === 'add_rule') projects.find((p) => p.path === a.path)?.rules.push(a.rule)
+        return cmd === 'add_rule' ? views() : undefined
+      case 'save_agent':
+        localStorage.setItem(`agent:${a.id}`, a.data)
+        return
+      case 'delete_agent_file':
+        localStorage.removeItem(`agent:${a.id}`)
+        return
+      case 'archive_agent_file':
+        localStorage.setItem(`archived:${a.id}`, localStorage.getItem(`agent:${a.id}`) ?? '{}')
+        localStorage.removeItem(`agent:${a.id}`)
+        return
+      case 'list_archived':
+        return Object.keys(localStorage).filter((k) => k.startsWith('archived:')).map((k) => localStorage.getItem(k))
+      case 'restore_archived': {
+        const data = localStorage.getItem(`archived:${a.id}`)
+        localStorage.removeItem(`archived:${a.id}`)
+        localStorage.setItem(`agent:${a.id}`, data ?? '{}')
+        return data
+      }
+      case 'delete_archived':
+        localStorage.removeItem(`archived:${a.id}`)
+        return
+      case 'edit_project': {
+        const project = projects.find((p) => p.path === a.path)!
+        if (a.name !== undefined) project.name = a.name
+        if (a.color !== undefined) project.color = a.color
+        if (a.pinned !== undefined) project.pinned = (args as { pinned: boolean }).pinned
+        if (a.archived !== undefined) project.archived = (args as { archived: boolean }).archived
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return views()
+      }
+      case 'order_projects': {
+        const order = (args as { paths: string[] }).paths
+        projects.sort((x, y) => order.indexOf(x.path) - order.indexOf(y.path))
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return views()
+      }
+      case 'agent_ids':
+        return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => k.slice(6))
+      case 'load_agent':
+        return localStorage.getItem(`agent:${a.id}`)
+      case 'load_agents':
+        return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
+      case 'add_cost': {
+        const key = `cost:${a.day}`
+        const total = Number(localStorage.getItem(key) ?? 0) + Number(a.usd)
+        localStorage.setItem(key, String(total))
+        return total
+      }
+      case 'system_load':
+        return { cpu: 18 + Math.random() * 25, used: 13.6 * 2 ** 30, total: 31.2 * 2 ** 30 }
+      case 'day_cost':
+        return Number(localStorage.getItem(`cost:${a.day}`) ?? 0)
+      case 'fork_agent':
+      case 'restore_agent':
+        projectOf.set(a.id, a.project)
+        return
+      case 'read_project_file':
+        if (files.has(a.path)) return files.get(a.path)
+        if (a.path.endsWith('.php')) return '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'
+        return a.path.endsWith('resume.txt') ? '2\n' : null
+      case 'open_in_editor':
+        return
+      case 'get_settings':
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false }
+      case 'set_settings':
+        claudePath = (a as unknown as { config: { claude: string } }).config.claude
+        tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
+        keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
+        editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
+        return
+      case 'suggest_title':
+        return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
+      case 'claude_version':
+        return '2.1.304 (Claude Code)'
+      case 'remove_rule': {
+        const project = projects.find((p) => p.path === a.path)
+        if (project) project.rules = project.rules.filter((r) => r !== a.rule)
+        return views()
+      }
+      case 'set_claude_path':
+        claudePath = a.path
+        return
+      case 'set_cards':
+        projects.find((p) => p.path === a.path)!.cards = (args as { cards: unknown[] }).cards
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return views()
+      case 'plugin:webview|create_webview_window':
+        popup = window.open('/?board', 'board', 'popup,width=1240,height=820')
+        return
+      case 'plugin:window|get_all_windows':
+        return popup && !popup.closed ? [label, 'board'] : [label]
+      case 'plugin:window|set_focus':
+        if (label === 'main') popup?.focus()
+        return
+      case 'git_changes':
+        if (a.project.includes('nova')) throw 'not a git repository'
+        return {
+          from: 'a'.repeat(40),
+          now: 'b'.repeat(40),
+          files: [
+            { path: 'composer.lock', status: 'M', add: 3, del: 3 },
+            { path: 'resume.txt', status: 'M', add: 1, del: 1 },
+            { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 6, del: 2 },
+            { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
+            { path: 'src/Legacy/OldResolver.php', status: 'D', add: 0, del: 12 },
+          ],
+        }
+      case 'git_patch':
+        return a.path.endsWith('Test.php')
+          ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
+          : `diff --git a/${a.path} b/${a.path}\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
+      case 'list_dir': {
+        const tree: Record<string, [string, boolean][]> = {
+          '': [['config', true], ['src', true], ['tests', true], ['vendor', true], ['composer.json', false], ['composer.lock', false], ['resume.txt', false]],
+          src: [['Segmentation', true]],
+          'src/Segmentation': [['ChannelSegmentResolver.php', false], ['SegmentRepository.php', false]],
+          config: [['services.yaml', false]],
+          tests: [['ResolverTest.php', false]],
+        }
+        return (tree[a.path] ?? []).map(([name, dir]) => ({ name, dir }))
+      }
+      case 'write_project_file':
+        files.set(a.path, a.text)
+        return
+      case 'git_file':
+        return a.path.endsWith('.php') ? '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n' : null
+      case 'term_open': {
+        const id = ++terminal
+        setTimeout(() => emit('term-out', { id, data: prompt }), 50)
+        return { id, shell: 'zsh' }
+      }
+      case 'term_write': {
+        const id = Number(a.id)
+        const data = a.data === '\r' ? `\r\n${line ? `ran: ${line}\r\n` : ''}${prompt}` : a.data === '\x7f' ? '\b \b' : a.data
+        line = a.data === '\r' ? '' : a.data === '\x7f' ? line.slice(0, -1) : line + a.data
+        emit('term-out', { id, data })
+        return
+      }
+      case 'set_agent_options':
+        return
+      case 'remote_control':
+        if ((args as { enabled: boolean }).enabled)
+          for (const line of [
+            { type: 'system', subtype: 'bridge_state', state: 'ready' },
+            { type: 'control_response', response: { subtype: 'success', response: { session_url: 'https://claude.ai/code/session_demo' } } },
+            { type: 'system', subtype: 'bridge_state', state: 'connected' },
+          ])
+            emit('agent-line', { id: a.id, line: JSON.stringify(line) })
+        if ((args as { enabled: boolean }).enabled)
+          setTimeout(() => {
+            const message = { type: 'user', isReplay: true, parent_tool_use_id: null, timestamp: new Date().toISOString(), message: { role: 'user', content: 'Sent from my phone: what is left to do?' } }
+            emit('agent-line', { id: a.id, line: JSON.stringify(message) })
+            replay(a.id, 'ok')
+          }, 2500)
+        return
+      case 'pilot_reply':
+        replies.get(a.id)?.(a.result)
+        replies.delete(a.id)
+        return
+      case 'get_layout':
+        return JSON.parse(localStorage.getItem('layout') ?? '{}')
+      case 'set_layout':
+        localStorage.setItem('layout', JSON.stringify((args as { layout: unknown }).layout))
+        return
+      case 'detect_editors':
+        return [
+          { name: 'Zed', command: '/home/demo/.local/zed.app/bin/zed {project} {file}' },
+          { name: 'PhpStorm', command: '/opt/phpstorm/bin/phpstorm.sh {project}' },
+        ]
+      case 'open_with':
+        return
+      case 'term_resize':
+      case 'term_close':
+        return
+      case 'plugin:dialog|open':
+        return '/home/demo/agence/hermes'
+      case 'plugin:dialog|ask':
+        return true
+      case 'plugin:dialog|message':
+        return (args as { buttons?: { OkCancelCustom?: string[] } }).buttons?.OkCancelCustom?.[0] ?? 'Ok'
+    }
+  },
+  { shouldMockEvents: true },
+)
+
+const internals = (window as unknown as { __TAURI_INTERNALS__: { invoke: (cmd: string, args: any, options?: unknown) => Promise<unknown> } }).__TAURI_INTERNALS__
+const mocked = internals.invoke
+internals.invoke = async (cmd, args, options) => {
+  if (cmd !== 'plugin:event|emit_to') return mocked(cmd, args, options)
+  channel.postMessage({ target: args.target.label, event: args.event, payload: JSON.parse(JSON.stringify(args.payload ?? null)) })
+}

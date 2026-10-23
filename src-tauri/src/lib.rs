@@ -1,0 +1,1039 @@
+pub mod agents;
+pub mod claude;
+pub mod editors;
+pub mod git;
+pub mod permissions;
+pub mod pilot;
+pub mod projects;
+pub mod system;
+pub mod terminal;
+
+use agents::Agents;
+use permissions::Gate;
+use pilot::Pilot;
+use projects::{Card, Folder, Project};
+use serde::Serialize;
+use std::path::{Path, PathBuf};
+use std::sync::Mutex;
+use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
+use terminal::Terminals;
+
+struct Projects {
+    file: PathBuf,
+    list: Mutex<Vec<Project>>,
+}
+
+impl Projects {
+    fn views(list: &[Project]) -> Vec<Folder> {
+        list.iter().map(Folder::of).collect()
+    }
+
+    fn update(
+        &self,
+        change: impl FnOnce(&mut Vec<Project>) -> Result<(), String>,
+    ) -> Result<Vec<Folder>, String> {
+        let mut list = self.list.lock().unwrap();
+        let mut next = list.clone();
+        change(&mut next)?;
+        projects::paint(&mut next);
+        projects::save(&self.file, &next).map_err(|e| format!("Could not save: {e}"))?;
+        *list = next;
+        Ok(Self::views(&list))
+    }
+}
+
+fn check_new_folder(list: &[Project], path: &Path) -> Result<(), String> {
+    if !path.is_dir() {
+        return Err("This folder does not exist or cannot be read.".into());
+    }
+    match list.iter().find(|p| projects::same_folder(&p.path, path)) {
+        Some(p) => Err(format!("This folder is already the {} project.", p.name)),
+        None => Ok(()),
+    }
+}
+
+#[derive(Serialize)]
+struct Inspection {
+    #[serde(flatten)]
+    folder: Folder,
+    taken_by: Option<String>,
+    taken_archived: bool,
+    near: Option<PathBuf>,
+}
+
+#[tauri::command]
+fn list_projects(projects: State<Projects>) -> Vec<Folder> {
+    Projects::views(&projects.list.lock().unwrap())
+}
+
+#[tauri::command]
+fn inspect_folder(projects: State<Projects>, path: PathBuf) -> Inspection {
+    let list = projects.list.lock().unwrap();
+    let taken = list.iter().find(|p| projects::same_folder(&p.path, &path));
+    let name = path
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    Inspection {
+        folder: Folder::of(&Project {
+            name,
+            path: path.clone(),
+            ..Default::default()
+        }),
+        taken_by: taken.map(|p| p.name.clone()),
+        taken_archived: taken.is_some_and(|p| p.archived),
+        near: projects::near(&path),
+    }
+}
+
+#[tauri::command]
+fn add_project(
+    projects: State<Projects>,
+    path: PathBuf,
+    name: String,
+) -> Result<Vec<Folder>, String> {
+    let name = name.trim().to_string();
+    if name.is_empty() {
+        return Err("Give the project a name.".into());
+    }
+    projects.update(|list| {
+        check_new_folder(list, &path)?;
+        list.push(Project {
+            name,
+            path,
+            ..Default::default()
+        });
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn remove_project(projects: State<Projects>, path: PathBuf) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        list.retain(|p| p.path != path);
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn add_rule(projects: State<Projects>, path: PathBuf, rule: String) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        let project = list
+            .iter_mut()
+            .find(|p| p.path == path)
+            .ok_or("Unknown project.")?;
+        if !project.rules.contains(&rule) {
+            project.rules.push(rule);
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn remove_rule(
+    projects: State<Projects>,
+    path: PathBuf,
+    rule: String,
+) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        if let Some(project) = list.iter_mut().find(|p| p.path == path) {
+            project.rules.retain(|r| r != &rule);
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn set_cards(
+    projects: State<Projects>,
+    path: PathBuf,
+    cards: Vec<Card>,
+) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        list.iter_mut()
+            .find(|p| p.path == path)
+            .ok_or("Unknown project.")?
+            .cards = cards;
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn answer_permission(
+    gate: State<Gate>,
+    id: String,
+    decision: serde_json::Value,
+) -> Result<(), String> {
+    gate.answer(&id, decision)
+}
+
+#[tauri::command]
+fn cancel_permissions(gate: State<Gate>, agent: String) {
+    gate.cancel(&agent)
+}
+
+#[tauri::command]
+fn edit_project(
+    projects: State<Projects>,
+    path: PathBuf,
+    name: Option<String>,
+    color: Option<String>,
+    pinned: Option<bool>,
+    archived: Option<bool>,
+) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        let project = list
+            .iter_mut()
+            .find(|p| p.path == path)
+            .ok_or("Unknown project.")?;
+        if let Some(name) = name.map(|n| n.trim().to_string()) {
+            if name.is_empty() {
+                return Err("The project needs a name.".into());
+            }
+            project.name = name;
+        }
+        if let Some(color) = color {
+            project.color = color;
+        }
+        if let Some(pinned) = pinned {
+            project.pinned = pinned;
+        }
+        if let Some(archived) = archived {
+            project.archived = archived;
+        }
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn order_projects(projects: State<Projects>, paths: Vec<PathBuf>) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        projects::reorder(list, &paths);
+        Ok(())
+    })
+}
+
+#[tauri::command]
+fn move_project(
+    projects: State<Projects>,
+    path: PathBuf,
+    to: PathBuf,
+) -> Result<Vec<Folder>, String> {
+    projects.update(|list| {
+        check_new_folder(list, &to)?;
+        if let Some(p) = list.iter_mut().find(|p| p.path == path) {
+            p.path = to;
+        }
+        Ok(())
+    })
+}
+
+struct Settings {
+    file: PathBuf,
+    config: Mutex<Config>,
+}
+
+#[derive(Clone, Serialize, serde::Deserialize)]
+#[serde(default)]
+struct Config {
+    claude: String,
+    defaults: claude::Options,
+    tab_effect: String,
+    keys: std::collections::BTreeMap<String, String>,
+    editors: Vec<editors::App>,
+    pilot: bool,
+    pilot_all: bool,
+    archive_after_days: u32,
+}
+
+impl Default for Config {
+    fn default() -> Self {
+        Self {
+            claude: "claude".into(),
+            defaults: claude::Options {
+                model: "opus".into(),
+                effort: "high".into(),
+                mode: "default".into(),
+            },
+            tab_effect: "pulse".into(),
+            keys: Default::default(),
+            editors: Vec::new(),
+            pilot: true,
+            pilot_all: false,
+            archive_after_days: 0,
+        }
+    }
+}
+
+impl Settings {
+    fn load(file: PathBuf) -> Self {
+        let config = std::fs::read_to_string(&file)
+            .ok()
+            .and_then(|text| serde_json::from_str::<Config>(&text).ok())
+            .unwrap_or_default();
+        Self {
+            file,
+            config: Mutex::new(config),
+        }
+    }
+
+    fn claude(&self) -> String {
+        self.config.lock().unwrap().claude.clone()
+    }
+
+    fn save(&self, mut config: Config) -> Result<(), String> {
+        config.defaults.check()?;
+        if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
+            return Err(format!("Unknown tab effect: {}", config.tab_effect));
+        }
+        config.keys.retain(|_, value| !value.trim().is_empty());
+        config
+            .editors
+            .retain(|e| !e.name.trim().is_empty() && !e.command.trim().is_empty());
+        config.claude = config.claude.trim().to_string();
+        if config.claude.is_empty() {
+            config.claude = "claude".into();
+        }
+        if let Some(dir) = self.file.parent() {
+            std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        }
+        let text = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
+        std::fs::write(&self.file, text).map_err(|e| e.to_string())?;
+        *self.config.lock().unwrap() = config;
+        Ok(())
+    }
+}
+
+#[tauri::command]
+fn get_settings(settings: State<Settings>) -> Config {
+    settings.config.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn set_settings(
+    settings: State<Settings>,
+    agents: State<Agents>,
+    config: Config,
+) -> Result<(), String> {
+    agents.set_pilot(config.pilot);
+    settings.save(config)
+}
+
+#[tauri::command]
+fn remote_control(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    enabled: bool,
+) -> Result<(), String> {
+    agents.remote(&app, &settings.claude(), &id, enabled)
+}
+
+#[tauri::command]
+fn set_agent_options(
+    agents: State<Agents>,
+    id: String,
+    options: claude::Options,
+) -> Result<(), String> {
+    agents.set_options(&id, options)
+}
+
+#[tauri::command]
+fn pilot_reply(pilot: State<Pilot>, id: String, result: String) -> Result<(), String> {
+    pilot.reply(&id, result)
+}
+
+#[tauri::command]
+fn set_claude_path(settings: State<Settings>, path: String) -> Result<(), String> {
+    let mut config = settings.config.lock().unwrap().clone();
+    config.claude = path;
+    settings.save(config)
+}
+
+#[tauri::command]
+async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<String, String> {
+    let program = settings.claude();
+    let task: String = text.chars().take(2000).collect();
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        std::process::Command::new(program)
+            .current_dir(std::env::temp_dir())
+            .args([
+                "-p",
+                "--model",
+                "haiku",
+                "--effort",
+                "low",
+                "--output-format",
+                "json",
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "project",
+                "--no-session-persistence",
+                "--system-prompt",
+                "You name software tasks. Reply with a title of 2 to 5 words in the language of the task, with no quotes and no final punctuation.",
+                &task,
+            ])
+            .output()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    let reply: serde_json::Value =
+        serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+    let title = reply["result"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .trim_matches(['"', '\'', '.'])
+        .chars()
+        .take(60)
+        .collect::<String>();
+    if reply["is_error"].as_bool().unwrap_or(true) || title.is_empty() {
+        return Err("No title suggested.".into());
+    }
+    Ok(title)
+}
+
+#[tauri::command]
+fn claude_version(path: String) -> Result<String, String> {
+    let output = std::process::Command::new(path.trim())
+        .arg("--version")
+        .output()
+        .map_err(|e| e.to_string())?;
+    if !output.status.success() {
+        return Err(String::from_utf8_lossy(&output.stderr).trim().to_string());
+    }
+    Ok(String::from_utf8_lossy(&output.stdout).trim().to_string())
+}
+
+#[tauri::command]
+fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, String> {
+    let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    if std::fs::metadata(&file).is_ok_and(|m| m.len() > 5_000_000) {
+        return Err("File too large to show.".into());
+    }
+    match std::fs::read_to_string(file) {
+        Ok(text) => Ok(Some(text)),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => Ok(None),
+        Err(e) if e.kind() == std::io::ErrorKind::InvalidData => Err("Not a text file.".into()),
+        Err(e) => Err(e.to_string()),
+    }
+}
+
+#[tauri::command]
+fn write_project_file(project: PathBuf, path: PathBuf, text: String) -> Result<(), String> {
+    let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    std::fs::write(file, text).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize)]
+struct Entry {
+    name: String,
+    dir: bool,
+}
+
+#[tauri::command]
+fn list_dir(project: PathBuf, path: PathBuf) -> Result<Vec<Entry>, String> {
+    let dir = projects::inside(&project, &path).ok_or("Folder outside the project.")?;
+    let mut entries: Vec<Entry> = std::fs::read_dir(dir)
+        .map_err(|e| e.to_string())?
+        .filter_map(Result::ok)
+        .filter(|e| e.file_name() != ".git")
+        .map(|e| Entry {
+            name: e.file_name().to_string_lossy().into_owned(),
+            dir: e.path().is_dir(),
+        })
+        .collect();
+    entries.sort_by(|a, b| {
+        b.dir
+            .cmp(&a.dir)
+            .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+    });
+    Ok(entries)
+}
+
+#[tauri::command]
+async fn git_file(project: PathBuf, rev: String, path: String) -> Result<Option<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::show(&project, &rev, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn term_open(
+    app: AppHandle,
+    terminals: State<Terminals>,
+    project: PathBuf,
+    cols: u16,
+    rows: u16,
+) -> Result<serde_json::Value, String> {
+    let shell = std::env::var("SHELL").ok();
+    let shell = shell
+        .as_deref()
+        .and_then(|s| Path::new(s).file_name()?.to_str())
+        .unwrap_or("shell")
+        .to_string();
+    let out = app.clone();
+    let id = terminals.open(
+        &project,
+        None,
+        cols,
+        rows,
+        move |id, data| {
+            let _ = out.emit("term-out", serde_json::json!({ "id": id, "data": data }));
+        },
+        move |id| {
+            let _ = app.emit("term-exit", id);
+        },
+    )?;
+    Ok(serde_json::json!({ "id": id, "shell": shell }))
+}
+
+#[tauri::command]
+fn term_write(terminals: State<Terminals>, id: u32, data: String) -> Result<(), String> {
+    terminals.write(id, &data)
+}
+
+#[tauri::command]
+fn term_resize(terminals: State<Terminals>, id: u32, cols: u16, rows: u16) -> Result<(), String> {
+    terminals.resize(id, cols, rows)
+}
+
+#[tauri::command]
+fn term_close(terminals: State<Terminals>, id: u32) {
+    terminals.close(id)
+}
+
+#[tauri::command]
+async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
+    tauri::async_runtime::spawn_blocking(move || git::changes(&project))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn subagent_log(session: String, task: String) -> Result<Option<String>, String> {
+    let safe =
+        |id: &str| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
+    if !safe(&session) || !safe(&task) {
+        return Err("Invalid session or subagent id.".into());
+    }
+    let root = std::env::var_os("CLAUDE_CONFIG_DIR")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude")))
+        .ok_or("No Claude Code folder.")?
+        .join("projects");
+    let file = format!("agent-{task}.jsonl");
+    Ok(std::fs::read_dir(root)
+        .map_err(|e| e.to_string())?
+        .flatten()
+        .map(|dir| dir.path().join(&session).join("subagents").join(&file))
+        .find(|path| path.is_file())
+        .and_then(|path| std::fs::read_to_string(path).ok()))
+}
+
+#[tauri::command]
+async fn git_patch(
+    project: PathBuf,
+    from: String,
+    now: String,
+    path: String,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || git::patch(&project, &from, &now, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn detect_editors() -> Vec<editors::App> {
+    tauri::async_runtime::spawn_blocking(editors::detect)
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+fn open_with(command: String, project: PathBuf, path: PathBuf) -> Result<(), String> {
+    let file = if path.as_os_str().is_empty() {
+        None
+    } else {
+        Some(projects::inside(&project, &path).ok_or("File outside the project.")?)
+    };
+    editors::open(&command, &project, file.as_deref())
+}
+
+#[tauri::command]
+fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
+    let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn create_agent(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    project: PathBuf,
+    options: claude::Options,
+    text: String,
+    worktree: Option<String>,
+    dir: Option<PathBuf>,
+) -> Result<(), String> {
+    agents.register(&id, project, options, None, false)?;
+    agents.set_dir(&id, dir)?;
+    if let Some(name) = worktree {
+        agents.new_worktree(&id, &name)?;
+    }
+    agents.send(&app, &settings.claude(), &id, &text)
+}
+
+#[tauri::command]
+#[allow(clippy::too_many_arguments)]
+fn restore_agent(
+    agents: State<Agents>,
+    id: String,
+    project: PathBuf,
+    options: claude::Options,
+    session_id: Option<String>,
+    fork: bool,
+    at: Option<String>,
+    dir: Option<PathBuf>,
+) -> Result<(), String> {
+    agents.register(&id, project, options, session_id, fork)?;
+    agents.set_dir(&id, dir)?;
+    match at {
+        Some(at) => agents.fork_at(&id, &at),
+        None => Ok(()),
+    }
+}
+
+#[tauri::command]
+fn set_workdir(agents: State<Agents>, id: String, dir: Option<PathBuf>) -> Result<(), String> {
+    agents.set_dir(&id, dir)
+}
+
+#[tauri::command]
+fn fork_agent(
+    agents: State<Agents>,
+    id: String,
+    from: String,
+    project: PathBuf,
+    options: claude::Options,
+    at: Option<String>,
+) -> Result<(), String> {
+    let session = agents
+        .session_id(&from)
+        .ok_or("This agent has no session to fork yet.")?;
+    agents.register(&id, project, options, Some(session), true)?;
+    match at {
+        Some(at) => agents.fork_at(&id, &at),
+        None => Ok(()),
+    }
+}
+
+struct Usage {
+    file: PathBuf,
+    days: Mutex<std::collections::BTreeMap<String, f64>>,
+}
+
+fn check_day(day: &str) -> Result<(), String> {
+    let ok = day.len() == 10
+        && day.chars().enumerate().all(|(i, c)| {
+            if i == 4 || i == 7 {
+                c == '-'
+            } else {
+                c.is_ascii_digit()
+            }
+        });
+    if ok {
+        Ok(())
+    } else {
+        Err("Invalid day.".into())
+    }
+}
+
+#[tauri::command]
+fn add_cost(usage: State<Usage>, day: String, usd: f64) -> Result<f64, String> {
+    check_day(&day)?;
+    if !usd.is_finite() || usd < 0.0 {
+        return Err("Invalid cost.".into());
+    }
+    let mut days = usage.days.lock().unwrap();
+    let total = *days.entry(day).and_modify(|t| *t += usd).or_insert(usd);
+    let text = serde_json::to_string_pretty(&*days).map_err(|e| e.to_string())?;
+    if let Some(dir) = usage.file.parent() {
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    }
+    std::fs::write(&usage.file, text).map_err(|e| e.to_string())?;
+    Ok(total)
+}
+
+#[tauri::command]
+fn system_load(cpu: State<system::Cpu>) -> Option<system::Load> {
+    cpu.load()
+}
+
+#[tauri::command]
+fn day_cost(usage: State<Usage>, day: String) -> f64 {
+    usage.days.lock().unwrap().get(&day).copied().unwrap_or(0.0)
+}
+
+struct AgentFiles(PathBuf);
+
+struct LayoutFile(PathBuf);
+
+#[tauri::command]
+fn get_layout(file: State<LayoutFile>) -> serde_json::Value {
+    std::fs::read_to_string(&file.0)
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .filter(serde_json::Value::is_object)
+        .unwrap_or_else(|| serde_json::json!({}))
+}
+
+#[tauri::command]
+fn set_layout(file: State<LayoutFile>, layout: serde_json::Value) -> Result<(), String> {
+    if !layout.is_object() {
+        return Err("The layout must be an object.".into());
+    }
+    let tmp = file.0.with_extension("json.tmp");
+    std::fs::write(
+        &tmp,
+        serde_json::to_vec_pretty(&layout).map_err(|e| e.to_string())?,
+    )
+    .and_then(|_| std::fs::rename(&tmp, &file.0))
+    .map_err(|e| e.to_string())
+}
+
+impl AgentFiles {
+    fn path(&self, id: &str) -> Result<PathBuf, String> {
+        if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
+            return Err("Invalid agent id.".into());
+        }
+        Ok(self.0.join(format!("{id}.json")))
+    }
+
+    fn archived(&self, id: &str) -> Result<PathBuf, String> {
+        let file = self.path(id)?;
+        Ok(self.0.join("archived").join(file.file_name().unwrap()))
+    }
+}
+
+#[tauri::command]
+fn save_agent(files: State<AgentFiles>, id: String, data: String) -> Result<(), String> {
+    let path = files.path(&id)?;
+    std::fs::create_dir_all(&files.0).map_err(|e| e.to_string())?;
+    let tmp = path.with_extension("json.tmp");
+    std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
+    std::fs::rename(tmp, path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String> {
+    match std::fs::remove_file(files.path(&id)?) {
+        Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
+        _ => Ok(()),
+    }
+}
+
+#[tauri::command]
+fn archive_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String> {
+    let from = files.path(&id)?;
+    let to = files.archived(&id)?;
+    std::fs::create_dir_all(to.parent().unwrap()).map_err(|e| e.to_string())?;
+    std::fs::rename(from, to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn restore_archived(files: State<AgentFiles>, id: String) -> Result<String, String> {
+    let from = files.archived(&id)?;
+    let to = files.path(&id)?;
+    std::fs::rename(&from, &to).map_err(|e| e.to_string())?;
+    std::fs::read_to_string(to).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn delete_archived(files: State<AgentFiles>, id: String) -> Result<(), String> {
+    std::fs::remove_file(files.archived(&id)?).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn list_archived(files: State<AgentFiles>) -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir(files.0.join("archived")) else {
+        return Vec::new();
+    };
+    dir.filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .collect()
+}
+
+#[tauri::command]
+fn agent_ids(files: State<AgentFiles>) -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir(&files.0) else {
+        return Vec::new();
+    };
+    dir.filter_map(Result::ok)
+        .filter_map(|e| {
+            let path = e.path();
+            (path.extension()? == "json").then(|| path.file_stem()?.to_str().map(String::from))?
+        })
+        .collect()
+}
+
+#[tauri::command]
+fn load_agent(files: State<AgentFiles>, id: String) -> Option<String> {
+    std::fs::read_to_string(files.path(&id).ok()?).ok()
+}
+
+#[tauri::command]
+fn load_agents(files: State<AgentFiles>) -> Vec<String> {
+    let Ok(dir) = std::fs::read_dir(&files.0) else {
+        return Vec::new();
+    };
+    dir.filter_map(Result::ok)
+        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
+        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
+        .collect()
+}
+
+#[tauri::command]
+fn send_message(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    text: String,
+) -> Result<(), String> {
+    agents.send(&app, &settings.claude(), &id, &text)
+}
+
+#[tauri::command]
+fn interrupt_agent(agents: State<Agents>, id: String) -> Result<(), String> {
+    agents.interrupt(&id)
+}
+
+#[tauri::command]
+fn git_branch(path: PathBuf) -> Result<Option<String>, String> {
+    if !path.is_absolute() || !path.join(".git").exists() {
+        return Err("Not a git checkout.".into());
+    }
+    Ok(projects::branch(&path))
+}
+
+#[cfg(target_os = "linux")]
+fn new_browser_window(url: &str) -> Result<(), String> {
+    use gtk::gio::{AppInfo, AppInfoCreateFlags, prelude::*};
+    let browser = AppInfo::default_for_uri_scheme("https").ok_or("No default browser.")?;
+    let program = browser.executable();
+    let line = format!(
+        "{} --new-window",
+        shell_words::quote(&program.to_string_lossy())
+    );
+    let window =
+        AppInfo::create_from_commandline(line, Some("Browser"), AppInfoCreateFlags::SUPPORTS_URIS)
+            .map_err(|e| e.to_string())?;
+    let context = gtk::gdk::Display::default().and_then(|d| d.app_launch_context());
+    window
+        .launch_uris(&[url], context.as_ref())
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("Only web links open from here.".into());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let parent = window.clone();
+        window
+            .run_on_main_thread(move || {
+                let shown = new_browser_window(&url).or_else(|_| {
+                    parent
+                        .gtk_window()
+                        .map_err(|e| e.to_string())
+                        .and_then(|w| {
+                            gtk::show_uri_on_window(Some(&w), &url, 0).map_err(|e| e.to_string())
+                        })
+                });
+                if let Err(e) = shown {
+                    log::error!("{url} did not open: {e}");
+                }
+            })
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = window;
+        tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
+fn stop_turn(agents: State<Agents>, id: String) -> Result<(), String> {
+    agents.stop_turn(&id)
+}
+
+#[tauri::command]
+fn reload_agent(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+) -> Result<(), String> {
+    agents.reload(&app, &settings.claude(), &id)
+}
+
+#[tauri::command]
+fn archive_agent(agents: State<Agents>, id: String) {
+    agents.archive(&id)
+}
+
+#[cfg_attr(mobile, tauri::mobile_entry_point)]
+pub fn run() {
+    for leaked in [
+        "GIO_LAUNCHED_DESKTOP_FILE",
+        "GIO_LAUNCHED_DESKTOP_FILE_PID",
+        "LD_LIBRARY_PATH",
+    ] {
+        // SAFETY: runs first, before Squadron starts any thread.
+        unsafe { std::env::remove_var(leaked) };
+    }
+    tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_opener::init())
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
+        .manage(Agents::default())
+        .manage(Terminals::default())
+        .manage(system::Cpu::default())
+        .invoke_handler(tauri::generate_handler![
+            system_load,
+            stop_turn,
+            open_link,
+            git_branch,
+            set_workdir,
+            agent_ids,
+            load_agent,
+            list_projects,
+            inspect_folder,
+            add_project,
+            remove_project,
+            move_project,
+            edit_project,
+            order_projects,
+            archive_agent_file,
+            restore_archived,
+            delete_archived,
+            list_archived,
+            add_rule,
+            answer_permission,
+            pilot_reply,
+            set_agent_options,
+            remote_control,
+            cancel_permissions,
+            read_project_file,
+            write_project_file,
+            list_dir,
+            git_file,
+            term_open,
+            term_write,
+            term_resize,
+            term_close,
+            open_in_editor,
+            detect_editors,
+            open_with,
+            git_changes,
+            git_patch,
+            subagent_log,
+            get_settings,
+            set_settings,
+            set_claude_path,
+            claude_version,
+            suggest_title,
+            remove_rule,
+            set_cards,
+            create_agent,
+            restore_agent,
+            fork_agent,
+            save_agent,
+            delete_agent_file,
+            load_agents,
+            get_layout,
+            set_layout,
+            add_cost,
+            day_cost,
+            send_message,
+            interrupt_agent,
+            reload_agent,
+            archive_agent
+        ])
+        .setup(|app| {
+            if cfg!(debug_assertions) {
+                app.handle().plugin(
+                    tauri_plugin_log::Builder::default()
+                        .level(log::LevelFilter::Info)
+                        .build(),
+                )?;
+            }
+            let config = app.path().app_config_dir()?;
+            let file = config.join("projects.json");
+            let mut list = projects::load(&file);
+            if projects::paint(&mut list) {
+                let _ = projects::save(&file, &list);
+            }
+            app.manage(Projects {
+                list: Mutex::new(list),
+                file,
+            });
+            app.manage(Settings::load(config.join("settings.json")));
+            app.manage(AgentFiles(config.join("agents")));
+            app.manage(LayoutFile(config.join("layout.json")));
+            let file = config.join("usage.json");
+            let days = std::fs::read_to_string(&file)
+                .ok()
+                .and_then(|text| serde_json::from_str(&text).ok())
+                .unwrap_or_default();
+            app.manage(Usage {
+                file,
+                days: Mutex::new(days),
+            });
+            let handle = app.handle().clone();
+            let token = uuid::Uuid::new_v4().simple().to_string();
+            let gate = Gate::new(token.clone(), move |ask| {
+                let _ = handle.emit("permission-request", ask);
+            });
+            let handle = app.handle().clone();
+            let pilot = Pilot::new(token.clone(), move |call| {
+                let _ = handle.emit_to("main", "pilot-request", call);
+            });
+            let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
+                gate.clone(),
+                pilot.clone(),
+            ))?;
+            let agents = app.state::<Agents>();
+            agents.endpoint(port, token);
+            agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
+            app.manage(gate);
+            app.manage(pilot);
+            Ok(())
+        })
+        .on_window_event(|window, event| {
+            if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
+                window.app_handle().exit(0);
+            }
+        })
+        .build(tauri::generate_context!())
+        .expect("error while building tauri application")
+        .run(|app, event| {
+            if let RunEvent::Exit = event {
+                app.state::<Agents>().stop_all();
+                app.state::<Terminals>().close_all();
+            }
+        });
+}
