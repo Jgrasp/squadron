@@ -209,7 +209,10 @@ const file = (input: Record<string, unknown>) => String(input.file_path ?? input
 
 export function doing(call: Pick<ToolCall, 'name' | 'input'>) {
   const input = call.input
-  if (call.name === 'Bash') return String(input.description ?? '') || 'Running a command'
+  if (call.name === 'Bash') {
+    const described = String(input.description ?? '').split('\n')[0].trim()
+    return described && described.length <= 90 && !/&&|\|\||[|;`]|\$\(/.test(described) ? described : 'Running a command'
+  }
   if (call.name === 'Read') return `Reading ${file(input)}`
   if (['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(call.name)) return `Editing ${file(input)}`
   if (['Grep', 'Glob', 'LS'].includes(call.name)) return 'Searching the code'
@@ -433,7 +436,7 @@ function assistant(agent: Agent, d: Json) {
         if (last?.type === 'tools' && !sub) last.calls.push(added)
         else blocks().push({ type: 'tools', calls: [added], ...at })
       }
-      const action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
+      const action = doing({ name: c.name, input: c.input })
       if (sub) sub.last = action
       else if (INTERNAL.includes(c.name)) track(agent, c)
       else act(agent, action)
