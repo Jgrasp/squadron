@@ -596,7 +596,23 @@ export function rename(id: string, name: string) {
   persist(agent)
 }
 
-export const drafts: Record<string, string> = {}
+export type Draft = { text: string; files: string[]; comments: Comment[] }
+
+export const drafts: Record<string, Draft> = (() => {
+  try {
+    return JSON.parse(localStorage.getItem('squadron.drafts') ?? '{}')
+  } catch {
+    return {}
+  }
+})()
+
+export function keepDraft(id: string, draft: Draft) {
+  if (draft.text || draft.files.length || draft.comments.length) drafts[id] = draft
+  else delete drafts[id]
+  try {
+    localStorage.setItem('squadron.drafts', JSON.stringify(drafts))
+  } catch {}
+}
 
 export function forkPoint(agent: Agent, upTo: number) {
   const before = agent.entries.slice(0, upTo).findLast((e) => e.kind === 'agent')
@@ -621,7 +637,7 @@ export async function fork(id: string, upTo?: number) {
   copy.status = 'done'
   copy.action = `Forked from ${source.name}`
   const message = upTo === undefined ? undefined : snapshot.entries[upTo]
-  if (message?.kind === 'user') drafts[copy.id] = message.text
+  if (message?.kind === 'user') keepDraft(copy.id, { text: message.text, files: message.files ?? [], comments: message.comments ?? [] })
   agents.list.push(copy)
   const agent = agents.list.at(-1)!
   agents.current[agent.project] = agent.id

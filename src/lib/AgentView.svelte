@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, keepDraft, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -28,13 +28,8 @@
 
   let { agent }: { agent: Agent } = $props()
 
-  let text = $state(
-    untrack(() => {
-      const draft = drafts[agent.id] ?? ''
-      delete drafts[agent.id]
-      return draft
-    }),
-  )
+  const saved = untrack(() => drafts[agent.id])
+  let text = $state(saved?.text ?? '')
   let menuOpen = $state(false)
   let remoteOpen = $state(false)
   let scroller: HTMLElement
@@ -95,7 +90,7 @@
     lookUp(workdir(agent))
   })
 
-  let comments = $state<Comment[]>([])
+  let comments = $state<Comment[]>(saved?.comments ?? [])
 
   function sendReview(summary: string, list: Comment[]) {
     const message = summary || `Review of pull request #${pull?.number}`
@@ -309,7 +304,11 @@
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
   }
 
-  let attachments = $state<string[]>([])
+  let attachments = $state<string[]>(saved?.files ?? [])
+
+  $effect(() => {
+    keepDraft(agent.id, { text, files: $state.snapshot(attachments), comments: $state.snapshot(comments) })
+  })
   let dropping = $state(false)
   let attachError = $state('')
 
