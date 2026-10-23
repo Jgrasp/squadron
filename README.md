@@ -10,9 +10,9 @@ Install [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) and log
 curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | bash
 ```
 
-It puts the latest AppImage in `~/.local/bin` and adds Squadron to your applications. Squadron checks for updates every ten minutes: when one is out, the status bar shows **Update**, and one click downloads it, installs it and restarts.
+On Ubuntu and Debian it installs the `.deb` package, which uses the system's WebKit, and asks for your password. Elsewhere it puts the AppImage in `~/.local/bin` and adds Squadron to your applications; AppImages need FUSE (`libfuse2`).
 
-If Squadron does not start, your system may miss FUSE, which AppImages need: `sudo apt install libfuse2t64` on Ubuntu 24.04 and later, `libfuse2` before.
+Squadron checks for updates every ten minutes: when one is out, the status bar shows **Update**, and one click downloads it, installs it and restarts. The `.deb` asks for your password to install the update.
 
 ## Develop
 

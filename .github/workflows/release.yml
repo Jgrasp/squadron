@@ -36,5 +36,5 @@ jobs:
           tagName: ${{ github.ref_name }}
           releaseName: Squadron ${{ github.ref_name }}
           releaseBody: ${{ github.event.head_commit.message }}
-          args: --bundles appimage
+          args: --bundles deb,appimage
           includeUpdaterJson: true

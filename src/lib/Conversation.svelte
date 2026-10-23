@@ -12,6 +12,7 @@
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
   import { INTERNAL, type Agent, type Block, type Subagent, type ToolCall } from './stream'
+  import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
   import ToolRow from './ToolRow.svelte'
 
@@ -111,6 +112,43 @@
     return out
   }
 
+  const verbs: [string[], string, string][] = [
+    [['Bash'], 'ran a command', 'ran {n} commands'],
+    [['Read', 'Grep', 'Glob', 'LS'], 'read a file', 'read {n} files'],
+    [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'edited a file', 'edited {n} files'],
+    [['WebFetch', 'WebSearch'], 'looked something up', 'made {n} web lookups'],
+  ]
+
+  function split(list: Segment[]) {
+    let cut = list.length
+    while (cut > 0 && list[cut - 1].type === 'text') cut--
+    return { steps: list.slice(0, cut), answer: list.slice(cut) }
+  }
+
+  function stepsLine(steps: Segment[], live: boolean) {
+    const works = steps.flatMap((s) => (s.type === 'work' ? [s] : []))
+    const calls = works.flatMap((w) => w.calls)
+    const parts: string[] = []
+    const ms = works.reduce((t, w) => t + (w.thinking ? (w.ms ?? 0) : 0), 0)
+    if (settings.thinking !== 'hidden' && ms >= 1000) parts.push(`thought for ${duration(ms)}`)
+    let rest = calls.length
+    for (const [names, one, many] of verbs) {
+      const n = calls.filter((c) => names.includes(c.name)).length
+      if (n) parts.push(n > 1 ? many.replace('{n}', String(n)) : one)
+      rest -= n
+    }
+    if (rest) parts.push(rest > 1 ? `used ${rest} tools` : 'used a tool')
+    const notes = steps.filter((s) => s.type === 'text').length
+    if (notes) parts.push(`${notes} note${notes > 1 ? 's' : ''}`)
+    let line = parts.join(', ')
+    if (live) {
+      const last = steps.at(-1)
+      const now = last?.type === 'work' && last.thinking && last.ms === undefined && !last.calls.length ? 'Thinking…' : agent.action || 'Working…'
+      line = line ? `${now} · ${line}` : now
+    }
+    return line.charAt(0).toUpperCase() + line.slice(1) || 'Steps'
+  }
+
   function workOf(out: Segment[]) {
     const last = out.at(-1)
     if (last?.type === 'work') return last
@@ -123,6 +161,36 @@
   const working = $derived(agent.status === 'working')
 </script>
 
+{#snippet detail(list: Segment[], i: number, tail: Block | undefined, quiet: boolean)}
+  {#each list as segment, s (s)}
+    {#if segment.type === 'text'}
+      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} /></div>
+    {:else if segment.type === 'work'}
+      {#if segment.thinking && (settings.thinking !== 'hidden' || segment.ms === undefined)}
+        {@const took = segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
+        {#if segment.thought && settings.thinking === 'summary'}
+          <details class="thinking">
+            <summary><span class="chevron" aria-hidden="true">›</span>{took}<span class="gist">— {segment.thought.split(/(?<=[.!?])\s|\n/)[0]}</span></summary>
+            <p class="thought-text">{segment.thought}</p>
+          </details>
+        {:else}
+          <div class="thought">{took}</div>
+        {/if}
+      {/if}
+      {#if segment.calls.length}
+        <details class="tools" open={i === lastAgent && working}>
+          <summary><span class="chevron" aria-hidden="true">›</span>{summary(segment.calls)}</summary>
+          <div class="calls">
+            {#each segment.calls as call (call.id)}
+              <ToolRow {agent} {call} {ondiff} />
+            {/each}
+          </div>
+        </details>
+      {/if}
+    {/if}
+  {/each}
+{/snippet}
+
 {#each agent.entries as entry, i (i)}
   {#if entry.kind === 'user'}
     <div class="user" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
@@ -133,39 +201,25 @@
     </div>
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>Sent via remote control · {time(entry.at)}</span>{/if}
   {:else if entry.kind === 'agent'}
-    {#each groups(entry.blocks) as group, g (g)}
+    {@const reply = groups(entry.blocks)}
+    {@const tail = working && i === agent.entries.length - 1 ? entry.blocks.at(-1) : undefined}
+    {#each reply as group, g (g)}
       {#if group.type === 'spawn'}
         <SubagentsCard {agent} ids={group.calls.map((c) => c.id)} onopen={onsubagent} onpanel={onsubagents} />
+      {:else if settings.steps === 'detailed'}
+        <div class="agent">{@render detail(group.segments, i, tail, false)}</div>
       {:else}
-    <div class="agent">
-      {#each group.segments as segment, s (s)}
-        {#if segment.type === 'text'}
-          <Markdown text={segment.text} streaming={working && i === agent.entries.length - 1 && segment === entry.blocks.at(-1)} />
-        {:else if segment.type === 'work'}
-          {#if segment.thinking}
-            {@const took = segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
-            {#if segment.thought}
-              <details class="thinking">
-                <summary><span class="chevron" aria-hidden="true">›</span>{took}<span class="gist">— {segment.thought.split(/(?<=[.!?])\s|\n/)[0]}</span></summary>
-                <p class="thought-text">{segment.thought}</p>
-              </details>
-            {:else}
-              <div class="thought">{took}</div>
-            {/if}
-          {/if}
-          {#if segment.calls.length}
-            <details class="tools" open={i === lastAgent && working}>
-              <summary><span class="chevron" aria-hidden="true">›</span>{summary(segment.calls)}</summary>
-              <div class="calls">
-                {#each segment.calls as call (call.id)}
-                  <ToolRow {agent} {call} {ondiff} />
-                {/each}
-              </div>
-            </details>
-          {/if}
+        {@const parts = split(group.segments)}
+        {@const live = working && i === lastAgent && g === reply.length - 1}
+        {#if parts.steps.length || (live && !parts.answer.length)}
+          <details class="steps" class:live>
+            <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(parts.steps, live)}</span></summary>
+            <div class="step-list">{@render detail(parts.steps, i, tail, true)}</div>
+          </details>
         {/if}
-      {/each}
-    </div>
+        {#if parts.answer.length}
+          <div class="agent">{@render detail(parts.answer, i, tail, false)}</div>
+        {/if}
       {/if}
     {/each}
   {:else if entry.kind === 'turn'}
@@ -302,6 +356,59 @@
 {/if}
 
 <style>
+  .steps > summary {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 2px 0;
+    color: var(--text-dim);
+    font-size: 13px;
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .steps > summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .steps > summary:hover {
+    color: var(--text-2);
+  }
+
+  .steps[open] > summary .chevron {
+    transform: rotate(90deg);
+  }
+
+  .steps.live .line {
+    animation: breathe 1.6s ease-in-out infinite;
+  }
+
+  @keyframes breathe {
+    50% {
+      opacity: 0.55;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .steps.live .line {
+      animation: none;
+    }
+  }
+
+  .step-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    margin: 8px 0 4px 5px;
+    padding-left: 16px;
+    border-left: 1px solid var(--border);
+  }
+
+  .quiet {
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
   .menu {
     position: fixed;
     z-index: 20;

@@ -15,6 +15,8 @@ export type Config = {
   pilot: boolean
   pilot_all: boolean
   archive_after_days: number
+  steps: 'grouped' | 'detailed'
+  thinking: 'hidden' | 'duration' | 'summary'
 }
 
 export const settings = $state<Config>({
@@ -26,6 +28,8 @@ export const settings = $state<Config>({
   pilot: true,
   pilot_all: false,
   archive_after_days: 0,
+  steps: 'grouped',
+  thinking: 'duration',
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)
