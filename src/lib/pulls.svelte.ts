@@ -21,6 +21,7 @@ export type Pull = {
 export type Remark = { id: number; author: string; body: string; path: string | null; line: number | null; removed: boolean; reply_to: number | null; at: string }
 
 export const pulls = $state<Record<string, Pull | null>>({})
+export const reviews = $state<Record<string, Comment[]>>({})
 const checked: Record<string, number> = {}
 
 export async function lookUp(dir: string, force = false) {
@@ -35,10 +36,10 @@ export async function lookUp(dir: string, force = false) {
 
 export const lookUpAll = (force = false) => new Set(agents.list.map(workdir)).forEach((dir) => lookUp(dir, force))
 
-export async function post(dir: string, pull: Pull, list: Comment[]) {
+export async function post(dir: string, pull: Pull, list: Comment[], summary = '') {
   const drafts = list.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
   try {
-    return await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts })
+    return await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary })
   } catch (e) {
     return { done: 0, error: String(e) }
   } finally {

@@ -17,7 +17,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUp, post, pulls, stateLabel } from './pulls.svelte'
+  import { lookUp, pulls, stateLabel } from './pulls.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
@@ -92,19 +92,12 @@
   })
 
   let comments = $state<Comment[]>([])
-  let posting = $state(false)
-  let postError = $state('')
-  const postable = $derived(pull ? comments.filter((c) => c.pull === pull.number) : [])
 
-  async function postToPull() {
-    if (!pull || !postable.length) return
-    const sending = [...postable]
-    posting = true
-    postError = ''
-    const { done, error } = await post(workdir(agent), pull, sending)
-    comments = comments.filter((c) => !sending.slice(0, done).includes(c))
-    if (error) postError = done ? `${done} posted, then: ${error}` : error
-    posting = false
+  function sendReview(summary: string, list: Comment[]) {
+    const message = summary || `Review of pull request #${pull?.number}`
+    stuck = true
+    setPanel(agent.project, null)
+    if (!reply(agent, prompt(message, list))) send(agent.id, message, list)
   }
 
   let tuning = $state<Options | null>(null)
@@ -636,12 +629,6 @@
               onremove={() => comments.splice(i, 1)}
             />
           {/each}
-          {#if pull && postable.length}
-            <button type="button" class="post" disabled={posting} title="Post {postable.length > 1 ? 'these comments' : 'this comment'} on the pull request instead of sending {postable.length > 1 ? 'them' : 'it'} to {agent.name}" onclick={postToPull}>
-              <Icon name="pull" size={13} />{posting ? 'Posting…' : `Post ${postable.length} on PR #${pull.number}`}
-            </button>
-          {/if}
-          {#if postError}<span class="post-error" role="alert">{postError}</span>{/if}
         </div>
       {/if}
       {#if suggestions.length || guide}
@@ -733,6 +720,7 @@
       {proposal}
       {pull}
       bind:mode={diffSource}
+      onreview={sendReview}
       onhand={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}` : quote), composer.focus())}
       bind:file={diffFile}
       bind:comments
@@ -1538,29 +1526,7 @@
     gap: 6px;
   }
 
-  .post {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    height: 28px;
-    padding: 0 10px;
-    border-radius: 4px;
-    background: var(--ok-bg);
-    box-shadow: inset 0 0 0 1px var(--ok-line);
-    color: var(--ok-text);
-    font-size: 12.5px;
-    font-weight: 600;
-  }
 
-  .post:hover:not(:disabled) {
-    background: #24403b;
-  }
-
-  .post-error {
-    flex-basis: 100%;
-    font-size: 12.5px;
-    color: var(--err-text);
-  }
 
   .bar {
     max-width: 740px;

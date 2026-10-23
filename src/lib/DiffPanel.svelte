@@ -8,7 +8,8 @@
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
-  import { hostName, post, type Pull, type Remark } from './pulls.svelte'
+  import { ask } from '@tauri-apps/plugin-dialog'
+  import { hostName, post, reviews, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
 
@@ -22,6 +23,7 @@
     pull = null,
     mode = $bindable(),
     onhand,
+    onreview,
     onclose,
   }: {
     agent: Agent
@@ -33,6 +35,7 @@
     pull?: Pull | null
     mode: 'local' | 'pull'
     onhand: (quote: string) => void
+    onreview: (summary: string, list: Comment[]) => void
     onclose: () => void
   } = $props()
 
@@ -164,17 +167,28 @@
   let commenting = $state<(Line & { path: string }) | null>(null)
   let note = $state('')
 
+  const review = $derived(reviewing ? (reviews[agent.id] ?? []) : [])
   const here = (c: Comment) => (c.pull ?? null) === (reviewing ? pull!.number : null)
-  const indexOf = (path: string, line: Pick<Line, 'side' | 'number'>) =>
-    comments.findIndex((c) => here(c) && c.path === path && c.line === line.number && c.removed === (line.side === 'old'))
-  const existing = $derived(commenting ? indexOf(commenting.path, commenting) : -1)
+  const at = (path: string, line: Pick<Line, 'side' | 'number'>) => (c: Comment) =>
+    c.path === path && c.line === line.number && c.removed === (line.side === 'old')
+  function find(path: string, line: Pick<Line, 'side' | 'number'>) {
+    for (const list of [review, comments]) {
+      const index = list.findIndex((c) => here(c) && at(path, line)(c))
+      if (index >= 0) return { list, index, inReview: list === review }
+    }
+    return null
+  }
+  const existing = $derived(commenting ? find(commenting.path, commenting) : null)
   const marked = $derived(
-    comments.filter((c) => here(c) && c.path === selected?.path).map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
+    [...review, ...comments.filter(here)]
+      .filter((c) => c.path === selected?.path)
+      .map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
   )
 
   function open(line: Line) {
     commenting = { ...line, path: selected.path }
-    note = comments[indexOf(selected.path, line)]?.note ?? ''
+    const found = find(selected.path, line)
+    note = found ? found.list[found.index].note : ''
   }
 
   $effect(() => {
@@ -186,18 +200,30 @@
 
   const reveal = (el: HTMLElement) => el.scrollIntoView({ block: 'center' })
 
+  function draft(): Comment {
+    const { path, side, number, text } = commenting!
+    return { path, line: number, removed: side === 'old', code: text, note: note.trim(), ...(reviewing ? { pull: pull!.number } : {}) }
+  }
+
   function comment(event?: Event) {
     event?.preventDefault()
     if (!commenting || !note.trim()) return
-    const { path, side, number, text } = commenting
-    if (existing >= 0) comments[existing].note = note.trim()
-    else comments.push({ path, line: number, removed: side === 'old', code: text, note: note.trim(), ...(reviewing ? { pull: pull!.number } : {}) })
+    if (existing) existing.list[existing.index].note = note.trim()
+    else if (reviewing) reviews[agent.id] = [...(reviews[agent.id] ?? []), draft()]
+    else comments.push(draft())
+    commenting = null
+  }
+
+  function forAgent() {
+    if (!commenting || !note.trim()) return
+    comments.push(draft())
     commenting = null
   }
 
   let posting = $state(false)
   let postError = $state('')
-  const queued = $derived(reviewing ? comments.filter(here) : [])
+  let finishing = $state(false)
+  let summary = $state('')
 
   async function postNow() {
     if (!commenting || !note.trim() || !pull) return
@@ -207,23 +233,45 @@
     const { error } = await post(workdir(agent), pull, [{ path, line: number, removed: side === 'old', code: text, note: note.trim() }])
     posting = false
     if (error) return (postError = error)
-    if (existing >= 0) comments.splice(existing, 1)
+    if (existing) existing.list.splice(existing.index, 1)
     commenting = null
   }
 
-  async function postQueued() {
-    if (!pull || !queued.length) return
-    const sending = [...queued]
+  async function submit() {
+    if (!pull || !review.length) return
+    const sending = [...review]
     posting = true
     postError = ''
-    const { done, error } = await post(workdir(agent), pull, sending)
+    const { done, error } = await post(workdir(agent), pull, sending, summary)
     posting = false
-    for (const c of sending.slice(0, done)) comments.splice(comments.indexOf(c), 1)
-    if (error) postError = done ? `${done} posted, then: ${error}` : error
+    reviews[agent.id] = review.filter((c) => !sending.slice(0, done).includes(c))
+    if (error) return (postError = done ? `${done} posted, then: ${error}` : error)
+    summary = ''
+    finishing = false
+  }
+
+  function handOver() {
+    const list = $state.snapshot(review)
+    reviews[agent.id] = []
+    finishing = false
+    onreview(summary.trim(), list)
+    summary = ''
+  }
+
+  async function discard() {
+    const sure = await ask(`Discard the review and its ${review.length} comment${review.length > 1 ? 's' : ''}?`, {
+      title: 'Discard the review',
+      kind: 'warning',
+      okLabel: 'Discard',
+      cancelLabel: 'Keep it',
+    })
+    if (!sure) return
+    reviews[agent.id] = []
+    finishing = false
   }
 
   function remove() {
-    if (existing >= 0) comments.splice(existing, 1)
+    if (existing) existing.list.splice(existing.index, 1)
     commenting = null
   }
 </script>
@@ -259,6 +307,27 @@
       <button aria-pressed={layout.split} onclick={() => setSplit(true)}>Split</button>
     </div>
   {/snippet}
+  {#if reviewing && pull && review.length}
+    <div class="review-bar">
+      <span class="pulse" aria-hidden="true"></span>
+      <span class="what"><strong>Review in progress</strong> · {review.length} comment{review.length > 1 ? 's' : ''}</span>
+      {#if postError && !commenting}<span class="bad" role="alert">{postError}</span>{/if}
+      <button class="btn btn-secondary" onclick={discard}>Discard</button>
+      <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>Finish review</button>
+    </div>
+    {#if finishing}
+      <div class="finish">
+        <label for="review-summary" class="sr-only">Overall comment</label>
+        <!-- svelte-ignore a11y_autofocus -->
+        <textarea id="review-summary" class="field" rows="3" bind:value={summary} placeholder="Overall comment, optional" autofocus></textarea>
+        <div class="actions">
+          <span class="hint">Send the {review.length} comment{review.length > 1 ? 's' : ''} to {agent.name}, or post the review on {hostName(pull)}</span>
+          <button class="btn btn-secondary" disabled={posting} onclick={submit}>{posting ? 'Posting…' : `Post on ${hostName(pull)}`}</button>
+          <button class="btn btn-primary" disabled={posting} onclick={handOver}>Send to {agent.name}</button>
+        </div>
+      </div>
+    {/if}
+  {/if}
   {#if reviewing && pulled && pulled.ahead > 0 && source}
     <p class="ahead" role="note">
       {pulled.ahead} commit{pulled.ahead > 1 ? 's' : ''} of the branch {pulled.ahead > 1 ? 'are' : 'is'} not pushed to the pull request yet: lines can differ from {hostName(pull!)}.
@@ -360,13 +429,7 @@
             : 'Diff since the agent first touched the file'}
       </span>
       {#if reviewing && pull}
-        {#if postError && !commenting}<span class="bad" role="alert">{postError}</span>{/if}
         <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
-        {#if queued.length}
-          <button class="btn btn-primary" disabled={posting} onclick={postQueued}>
-            {posting ? 'Posting…' : `Post ${queued.length} comment${queued.length > 1 ? 's' : ''} on ${hostName(pull)}`}
-          </button>
-        {/if}
       {:else}
         <OpenWith project={workdir(agent)} path={selected.path} up />
       {/if}
@@ -420,19 +483,29 @@
       }}
     ></textarea>
     <div class="actions">
-      {#if existing >= 0}
+      {#if existing}
         <button type="button" class="btn btn-danger" onclick={remove}>Delete</button>
-      {/if}
-      {#if reviewing && pull}
-        <span class="hint">{postError ? '' : `Post it on ${hostName(pull)} now, or keep it for your next message to ${agent.name}`}</span>
-        {#if postError}<span class="hint bad" role="alert">{postError}</span>{/if}
+        <span class="hint">{existing.inReview ? 'In the review' : 'In your next message'} · <kbd>Ctrl ↵</kbd></span>
         <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-        <button class="btn btn-secondary" disabled={!note.trim() || posting}>{existing >= 0 ? 'Save' : `Keep for ${agent.name}`}</button>
-        <button type="button" class="btn btn-primary" disabled={!note.trim() || posting} onclick={postNow}>{posting ? 'Posting…' : `Post on ${hostName(pull)}`}</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>Save</button>
+      {:else if reviewing && pull && review.length}
+        <span class="hint">Review in progress · {review.length} comment{review.length > 1 ? 's' : ''} · <kbd>Ctrl ↵</kbd></span>
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>Add to review</button>
+      {:else if reviewing && pull}
+        {#if postError}<span class="hint bad" role="alert">{postError}</span>{:else}<span class="hint"><kbd>Ctrl ↵</kbd> starts a review</span>{/if}
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
+        <button type="button" class="btn btn-ghost" title="Posts this comment on {hostName(pull)} right away" disabled={!note.trim() || posting} onclick={postNow}>
+          {posting ? 'Posting…' : `Post on ${hostName(pull)}`}
+        </button>
+        <button type="button" class="btn btn-secondary" title="Adds it to your next message to {agent.name}" disabled={!note.trim()} onclick={forAgent}>Add comment</button>
+        <button class="btn btn-primary" title="Gathers this comment and the next ones; send them to {agent.name} or post them on {hostName(pull)} at the end" disabled={!note.trim()}>
+          Start a review
+        </button>
       {:else}
-        <span class="hint">{existing >= 0 ? 'In your next message' : 'Added to your next message'} · <kbd>Ctrl ↵</kbd></span>
+        <span class="hint">Added to your next message · <kbd>Ctrl ↵</kbd></span>
         <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-        <button class="btn btn-primary" disabled={!note.trim()}>{existing >= 0 ? 'Save' : 'Add comment'}</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>Add comment</button>
       {/if}
     </div>
   </form>
@@ -538,6 +611,67 @@
   .handed {
     font-size: 12px;
     color: var(--ok-text);
+  }
+
+  .review-bar {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--wait-bg);
+    font-size: 13px;
+  }
+
+  .review-bar .what {
+    flex: 1;
+    color: var(--accent-soft);
+  }
+
+  .review-bar .what strong {
+    color: var(--text-strong);
+  }
+
+  .review-bar .btn {
+    height: 30px;
+    padding: 0 12px;
+  }
+
+  .pulse {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--accent);
+    box-shadow: 0 0 0 3px rgba(224, 138, 91, 0.25);
+  }
+
+  .finish {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-1);
+  }
+
+  .finish textarea {
+    height: auto;
+    padding: 10px 12px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .finish .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .finish .btn {
+    height: 32px;
+    padding: 0 12px;
   }
 
   .fetching {

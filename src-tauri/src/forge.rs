@@ -477,17 +477,20 @@ pub async fn post(
     number: u64,
     head: String,
     drafts: Vec<Draft>,
+    summary: String,
 ) -> Result<Posted, String> {
     let repo = repo_of(dir)?;
+    let summary = summary.trim().to_string();
     match repo.host {
         Host::Bitbucket => {
+            let url = format!("/repositories/{}/pullrequests/{number}/comments", repo.slug);
             let total = drafts.len();
             for (done, draft) in drafts.into_iter().enumerate() {
                 let mut inline = json!({ "path": draft.path });
                 inline[if draft.removed { "from" } else { "to" }] = json!(draft.line);
                 let sent = bitbucket(
                     Method::POST,
-                    &format!("/repositories/{}/pullrequests/{number}/comments", repo.slug),
+                    &url,
                     &[],
                     Some(json!({ "content": { "raw": draft.body }, "inline": inline })),
                 )
@@ -499,9 +502,14 @@ pub async fn post(
                     });
                 }
             }
+            let sent = if summary.is_empty() {
+                Ok(Value::Null)
+            } else {
+                bitbucket(Method::POST, &url, &[], Some(json!({ "content": { "raw": summary } }))).await
+            };
             Ok(Posted {
                 done: total,
-                error: None,
+                error: sent.err(),
             })
         }
         Host::GitHub => blocking(move || {
@@ -509,7 +517,7 @@ pub async fn post(
                 .iter()
                 .map(|d| json!({ "path": d.path, "line": d.line, "side": if d.removed { "LEFT" } else { "RIGHT" }, "body": d.body }))
                 .collect();
-            let review = json!({ "commit_id": head, "event": "COMMENT", "comments": comments });
+            let review = json!({ "commit_id": head, "event": "COMMENT", "body": summary, "comments": comments });
             let sent = gh(
                 &["api", "-X", "POST", &format!("repos/{}/pulls/{number}/reviews", repo.slug), "--input", "-"],
                 Some(&review.to_string()),
