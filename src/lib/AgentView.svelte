@@ -329,10 +329,31 @@
     })
   }
 
+  let pasting = 0
+
+  async function systemImage() {
+    const path = await invoke<string | null>('paste_image').catch((e) => ((attachError = String(e)), null))
+    if (path) attach([path])
+  }
+
+  function pasteKey(event: KeyboardEvent) {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return
+    const mine = ++pasting
+    setTimeout(() => mine === pasting && systemImage(), 120)
+  }
+
   async function pasted(event: ClipboardEvent) {
-    const images = [...(event.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'))
-    if (!images.length) return
-    if (!event.clipboardData?.getData('text/plain')) event.preventDefault()
+    pasting++
+    const data = event.clipboardData
+    const images = [...(data?.items ?? [])]
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => !!file)
+    if (!images.length) {
+      if (!data?.getData('text/plain')) systemImage()
+      return
+    }
+    if (!data?.getData('text/plain')) event.preventDefault()
     attachError = ''
     for (const image of images) {
       const name = image.name && image.name !== 'image.png' ? image.name : `screenshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${image.type.split('/')[1] || 'png'}`
@@ -763,7 +784,7 @@
       {/if}
       <div class="bar">
         <label for="composer" class="sr-only">Message to the agent</label>
-        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={keys} onpaste={pasted}></textarea>
+        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (pasteKey(e), keys(e))} onpaste={pasted}></textarea>
         <button type="button" class="btn-icon" aria-label="Attach files" title="Attach files or screenshots, or paste and drop them here" onclick={browseFiles}>
           <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg

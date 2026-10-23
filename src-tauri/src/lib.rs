@@ -931,6 +931,46 @@ fn save_attachment(app: AppHandle, name: String, data: String) -> Result<PathBuf
 }
 
 #[tauri::command]
+async fn paste_image(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<Option<PathBuf>, String> {
+    let folder = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("attachments")
+        .join(uuid::Uuid::new_v4().simple().to_string());
+    #[cfg(target_os = "linux")]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        window
+            .run_on_main_thread(move || {
+                let clipboard = gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD);
+                clipboard.request_image(move |_, image| {
+                    let saved = image.map(|pixbuf| {
+                        let file = folder.join("screenshot.png");
+                        std::fs::create_dir_all(&folder)
+                            .map_err(|e| e.to_string())
+                            .and_then(|_| {
+                                pixbuf.savev(&file, "png", &[]).map_err(|e| e.to_string())
+                            })
+                            .map(|_| file)
+                    });
+                    let _ = tx.send(saved);
+                });
+            })
+            .map_err(|e| e.to_string())?;
+        rx.await.unwrap_or(None).transpose()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, folder);
+        Ok(None)
+    }
+}
+
+#[tauri::command]
 fn open_attachment(path: PathBuf) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     let meta = std::fs::metadata(&path).map_err(|_| "The file is gone.")?;
@@ -1119,6 +1159,7 @@ pub fn run() {
             save_attachment,
             attachment_preview,
             open_attachment,
+            paste_image,
             interrupt_agent,
             reload_agent,
             archive_agent
