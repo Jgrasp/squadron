@@ -5,6 +5,7 @@
   import { account } from './catalogs.svelte'
   import { projects } from './projects.svelte'
   import { settings } from './settings.svelte'
+  import { checkNow, install, update } from './update.svelte'
 
   let version = $state('')
   let claude = $state('')
@@ -29,6 +30,16 @@
   <dd>{projects.list.length}</dd>
   <dt>Agents</dt>
   <dd>{agents.list.length}</dd>
+  <dt>Updates</dt>
+  <dd class="updates">
+    {#if update.found}
+      <span>Squadron {update.found.version} is available</span>
+      <button class="btn btn-primary" disabled={update.progress !== null} onclick={install}>Update</button>
+    {:else}
+      <span>Checked every 10 minutes</span>
+      <button class="btn btn-secondary" disabled={update.checking} onclick={checkNow}>{update.checking ? 'Checking…' : 'Check for updates'}</button>
+    {/if}
+  </dd>
 </dl>
 
 <style>
@@ -75,6 +86,17 @@
 
   dt {
     color: var(--text-dim);
+  }
+
+  .updates {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .updates .btn {
+    height: 32px;
+    padding: 0 12px;
   }
 
   dd {
