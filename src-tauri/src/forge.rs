@@ -10,7 +10,7 @@ const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
 const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting.";
 const NO_USER_SCOPE: &str =
     "Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.";
-const BITBUCKET_FIELDS: &str = "values.id,values.title,values.description,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
+const BITBUCKET_FIELDS: &str = "values.id,values.title,values.description,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.participated_on,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
 const GITHUB_FIELDS: &str = "number,title,body,url,state,isDraft,reviewDecision,latestReviews,reviewRequests,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt,mergeable";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -468,6 +468,7 @@ fn bitbucket_verdict(person: &Value) -> &'static str {
     match (person["approved"] == true, person["state"].as_str()) {
         (true, _) => "approved",
         (_, Some("changes_requested")) => "changes_requested",
+        _ if person["participated_on"].is_string() => "commented",
         _ => "waiting",
     }
 }
@@ -586,6 +587,7 @@ fn github_pull(found: &Value, me: &str) -> Pull {
             .and_then(|r| match r["state"].as_str() {
                 Some("APPROVED") => Some("approved".into()),
                 Some("CHANGES_REQUESTED") => Some("changes_requested".into()),
+                Some("COMMENTED") => Some("commented".into()),
                 _ => None,
             }),
         reviewers: github_reviewers(found),
@@ -950,6 +952,14 @@ mod tests {
         );
         assert_eq!(bitbucket_pull(&found, &Value::Null, "{b}").checks, None);
         assert_eq!(bitbucket_pull(&found, &Value::Null, "{b}").reviewed, None);
+        let mut talked = found.clone();
+        talked["participants"][2]["participated_on"] = json!("2026-10-23T10:00:00Z");
+        assert_eq!(
+            bitbucket_pull(&talked, &Value::Null, "{b}")
+                .reviewed
+                .as_deref(),
+            Some("commented")
+        );
         assert_eq!(
             bitbucket_pull(&found, &Value::Null, "{a}")
                 .reviewed
@@ -969,8 +979,12 @@ mod tests {
         });
         let pull = github_pull(&found, "octo");
         assert_eq!(
-            (pull.branch.as_str(), pull.author.as_str(), pull.reviewed),
-            ("feat/export", "octo", None)
+            (
+                pull.branch.as_str(),
+                pull.author.as_str(),
+                pull.reviewed.as_deref()
+            ),
+            ("feat/export", "octo", Some("commented"))
         );
         assert_eq!(
             github_pull(&found, "ann").reviewed.as_deref(),

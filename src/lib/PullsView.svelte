@@ -51,7 +51,13 @@
   }
 
   const verdict = (pull: Pull) =>
-    pull.reviewed === 'approved' ? 'You approved' : pull.reviewed === 'changes_requested' ? 'You asked for changes' : 'Waiting for you'
+    pull.reviewed === 'approved'
+      ? 'You approved'
+      : pull.reviewed === 'changes_requested'
+        ? 'You asked for changes'
+        : pull.reviewed === 'commented'
+          ? 'You commented'
+          : 'Waiting for you'
 </script>
 
 <div class="page">

@@ -21,7 +21,7 @@ export type Pull = {
   head: string
   author: string
   updated: string
-  reviewed: 'approved' | 'changes_requested' | null
+  reviewed: 'approved' | 'changes_requested' | 'commented' | null
   reviewers: Reviewer[]
   conflicts: boolean
 }
