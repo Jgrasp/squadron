@@ -530,6 +530,13 @@ async fn pull_lists(dir: PathBuf) -> Result<forge::Lists, String> {
 }
 
 #[tauri::command]
+async fn changed_files(dir: PathBuf, base: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::changed_files(&dir, &base))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn review_checkout(
     app: AppHandle,
     project: PathBuf,
@@ -1044,6 +1051,7 @@ pub fn run() {
             pull_request,
             pull_lists,
             review_checkout,
+            changed_files,
             pull_changes,
             pull_remarks,
             post_remarks,

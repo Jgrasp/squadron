@@ -743,14 +743,12 @@ pub async fn post(
             let url = format!("/repositories/{}/pullrequests/{number}/comments", repo.slug);
             let total = drafts.len();
             for (done, draft) in drafts.into_iter().enumerate() {
-                let mut inline = json!({ "path": draft.path });
-                inline[if draft.removed { "from" } else { "to" }] = json!(draft.line);
-                let sent = bitbucket(
-                    Method::POST,
-                    &url,
-                    &[],
-                    Some(json!({ "content": { "raw": draft.body }, "inline": inline })),
-                )
+                let mut comment = json!({ "content": { "raw": draft.body } });
+                if !draft.path.is_empty() {
+                    comment["inline"] = json!({ "path": draft.path });
+                    comment["inline"][if draft.removed { "from" } else { "to" }] = json!(draft.line);
+                }
+                let sent = bitbucket(Method::POST, &url, &[], Some(comment))
                 .await;
                 if let Err(error) = sent {
                     return Ok(Posted {
@@ -781,8 +779,14 @@ pub async fn post(
         Host::GitHub => blocking(move || {
             let comments: Vec<Value> = drafts
                 .iter()
+                .filter(|d| !d.path.is_empty())
                 .map(|d| json!({ "path": d.path, "line": d.line, "side": if d.removed { "LEFT" } else { "RIGHT" }, "body": d.body }))
                 .collect();
+            let summary = std::iter::once(summary.as_str())
+                .chain(drafts.iter().filter(|d| d.path.is_empty()).map(|d| d.body.as_str()))
+                .filter(|part| !part.trim().is_empty())
+                .collect::<Vec<_>>()
+                .join("\n\n");
             let event = match verdict.as_str() {
                 "approve" => "APPROVE",
                 "request_changes" => "REQUEST_CHANGES",

@@ -123,6 +123,21 @@ pub fn pull_changes(dir: &Path, base: &str, branch: &str, head: &str) -> Result<
     })
 }
 
+pub fn changed_files(dir: &Path, base: &str) -> Result<Vec<String>, String> {
+    if base.is_empty() || base.starts_with('-') {
+        return Err("Unknown branch.".into());
+    }
+    let names = diff(
+        dir,
+        &["--name-only", "-z", &format!("origin/{base}...HEAD")],
+    )?;
+    Ok(names
+        .split('\0')
+        .filter(|n| !n.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
 pub fn review_checkout(
     project: &Path,
     into: &Path,

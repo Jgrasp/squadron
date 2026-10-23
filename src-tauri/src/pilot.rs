@@ -82,10 +82,10 @@ struct SetWorktree {
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ReviewComment {
-    /// The file, relative to the repository root, as the diff shows it.
-    path: String,
+    /// A file the pull request changes, relative to the repository root. Leave it out, with line, for a comment on the whole pull request.
+    path: Option<String>,
     /// A line the diff shows, changed or in its context: its number in the new version of the file, or in the old version when removed is true.
-    line: u32,
+    line: Option<u32>,
     /// True when the comment is about a line the pull request removes.
     removed: Option<bool>,
     /// The comment in Markdown: what is wrong and what to do.
@@ -227,7 +227,7 @@ impl Pilot {
         self.forward(&parts, "set_worktree", json!(args)).await
     }
 
-    /// Adds a comment on a line to the user's draft review of the pull request you were asked to review. The user reads, edits and posts the review: nothing reaches Bitbucket or GitHub without them.
+    /// Adds a comment to the user's draft review of the pull request you were asked to review, on a line the diff shows or, without path and line, on the whole pull request. The user reads, edits and posts the review: nothing reaches Bitbucket or GitHub without them.
     #[tool]
     async fn add_review_comment(
         &self,
@@ -343,7 +343,13 @@ mod tests {
         let calls = drive_in(
             "haiku",
             "Review pull request #12 “Cart total with discounts” by Ann, from feature/discount into main, on GitHub.\n\nThis folder is a checkout of the pull request branch: git diff origin/main...HEAD shows what it changes. Read the code around the changes too.\n\nDo not change any file. For each problem worth raising, call add_review_comment with the file, the line in the new version (or the removed line with removed: true) and a short comment: what is wrong and what to do. Leave out style nitpicks.\n\nEnd with a short summary of the pull request and of your main concerns.",
-            |_| "Added to the user's review of pull request #12.".to_string(),
+            |call| {
+                if call.args["path"] == "checkout.js" {
+                    "Error: checkout.js is not changed by the pull request. Put the comment on the changed line it relates to best, in one of these files: cart.js. Or leave path and line out to comment on the whole pull request.".to_string()
+                } else {
+                    "Added to the user's review of pull request #12.".to_string()
+                }
+            },
             |dir| {
                 let sh = |args: &[&str]| {
                     let out = std::process::Command::new("git").current_dir(dir).args(args).output().unwrap();
@@ -353,6 +359,7 @@ mod tests {
                 sh(&["config", "user.email", "t@t"]);
                 sh(&["config", "user.name", "t"]);
                 std::fs::write(dir.join("cart.js"), "export function total(items) {\n  return items.reduce((sum, item) => sum + item.price * item.quantity, 0)\n}\n").unwrap();
+                std::fs::write(dir.join("checkout.js"), "import { total } from './cart.js'\n\nexport function amountDue(cart) {\n  return total(cart.items)\n}\n").unwrap();
                 sh(&["add", "."]);
                 sh(&["commit", "-qm", "Cart total"]);
                 sh(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
@@ -367,12 +374,26 @@ mod tests {
             .filter(|c| c.tool == "add_review_comment")
             .collect();
         assert!(!comments.is_empty(), "no review comment");
-        assert!(comments.iter().all(|c| {
-            c.args["path"] == "cart.js"
-                && c.args["line"]
-                    .as_u64()
-                    .is_some_and(|l| (1..=8).contains(&l))
+        let kept: Vec<_> = comments
+            .iter()
+            .filter(|c| c.args["path"] != "checkout.js")
+            .collect();
+        assert!(!kept.is_empty());
+        assert!(kept.iter().all(|c| {
+            c.args["path"].is_null()
+                || (c.args["path"] == "cart.js"
+                    && c.args["line"]
+                        .as_u64()
+                        .is_some_and(|l| (1..=8).contains(&l)))
         }));
+        if comments.len() > kept.len() {
+            assert!(
+                calls.iter().rposition(|c| c.args["path"] == "checkout.js")
+                    < calls.iter().rposition(
+                        |c| c.tool == "add_review_comment" && c.args["path"] != "checkout.js"
+                    )
+            );
+        }
         assert!(
             !std::process::Command::new("git")
                 .current_dir(std::env::temp_dir().join("squadron-pilot-test"))

@@ -61,7 +61,9 @@ export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree'
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
 export function prompt(text: string, comments: Comment[] = []) {
-  const blocks = comments.map((c) => `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}`)
+  const blocks = comments.map((c) =>
+    c.path ? `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}` : `On the whole pull request:\n${c.note}`,
+  )
   return [...blocks, text].filter(Boolean).join('\n\n')
 }
 
@@ -130,7 +132,7 @@ export type Agent = {
   goal: Goal | null
   worktree: { path: string; branch: string } | null
   pinned?: boolean
-  review?: { project: string; number: number }
+  review?: { project: string; number: number; base?: string }
 }
 
 type Json = Record<string, any>

@@ -71,7 +71,10 @@
 
   let remarks = $state<Remark[]>([])
 
+  let fresh = $state(0)
+
   $effect(() => {
+    void fresh
     if (!reviewing || !pull) return
     const { number } = pull
     invoke<Remark[]>('pull_remarks', { dir: folder, number })
@@ -247,6 +250,29 @@
     if (error) return (postError = error)
     if (existing) existing.list.splice(existing.index, 1)
     commenting = null
+    fresh++
+  }
+
+  let generalNote = $state('')
+  const mineGeneral = $derived(reviewing ? [...review, ...comments.filter(here)].filter((c) => !c.path) : [])
+  const generalDraft = (): Comment => ({ path: '', line: 0, removed: false, code: '', note: generalNote.trim(), pull: pull!.number })
+
+  function addGeneral(where: 'review' | 'agent') {
+    if (!generalNote.trim() || !pull) return
+    if (where === 'review') reviews[reviewKey] = [...(reviews[reviewKey] ?? []), generalDraft()]
+    else comments.push(generalDraft())
+    generalNote = ''
+  }
+
+  async function postGeneral() {
+    if (!generalNote.trim() || !pull) return
+    posting = true
+    postError = ''
+    const { error } = await post(folder, pull, [generalDraft()])
+    posting = false
+    if (error) return (postError = error)
+    generalNote = ''
+    fresh++
   }
 
   let listing = $state(false)
@@ -265,9 +291,10 @@
   })
 
   function goTo(c: Comment) {
+    listing = false
+    if (!c.path) return document.querySelector('.general')?.scrollIntoView({ block: 'start' })
     file = c.path
     target = c
-    listing = false
   }
 
   function drop(c: Comment) {
@@ -409,7 +436,7 @@
         {#each review as c, i (i)}
           <li>
             <button class="go" onclick={() => goTo(c)}>
-              <span class="where">{c.path}:{c.line}{c.removed ? ' · removed line' : ''}</span>
+              <span class="where">{c.path ? `${c.path}:${c.line}${c.removed ? ' · removed line' : ''}` : 'Pull request'}</span>
               <span class="note">{c.note}</span>
             </button>
             <button class="drop" aria-label="Delete the comment on {c.path} line {c.line}" title="Delete" onclick={() => drop(c)}>×</button>
@@ -494,10 +521,34 @@
       />
     {/if}
     <div class="body">
-      {#if reviewing && general.length}
-        <details class="general" open>
-          <summary>{general.length} comment{general.length > 1 ? 's' : ''} on the pull request</summary>
+      {#if reviewing && pull}
+        {@const count = general.length + mineGeneral.length}
+        <details class="general" open={count > 0 || undefined}>
+          <summary>{count ? `${count} comment${count > 1 ? 's' : ''} on the pull request` : 'Comment on the whole pull request'}</summary>
           {#each general as t (t.root.id)}{@render thread(t)}{/each}
+          {#each mineGeneral as c, i (i)}
+            <div class="thread mine">
+              <span class="who"><strong>You</strong> · {review.includes(c) ? 'in your review, not posted yet' : `in your next message to ${agent?.name}`}</span>
+              <Markdown text={c.note} />
+              <div class="thread-actions"><button class="drop" aria-label="Delete this comment" title="Delete" onclick={() => drop(c)}>×</button></div>
+            </div>
+          {/each}
+          <form class="pr-comment" onsubmit={(e) => (e.preventDefault(), addGeneral('review'))}>
+            <label for="pr-comment" class="sr-only">Comment on the whole pull request</label>
+            <textarea id="pr-comment" class="field" rows="2" bind:value={generalNote} placeholder="Comment on the whole pull request"></textarea>
+            <div class="actions">
+              <span class="hint"></span>
+              {#if !review.length}
+                <button type="button" class="btn btn-ghost" disabled={!generalNote.trim() || posting} onclick={postGeneral}>
+                  {posting ? 'Posting…' : `Post on ${hostName(pull)}`}
+                </button>
+                {#if agent}
+                  <button type="button" class="btn btn-secondary" disabled={!generalNote.trim()} onclick={() => addGeneral('agent')}>Add comment</button>
+                {/if}
+              {/if}
+              <button class="btn btn-primary" disabled={!generalNote.trim()}>{review.length ? 'Add to review' : 'Start a review'}</button>
+            </div>
+          </form>
         </details>
       {/if}
       {#if selected}
@@ -802,6 +853,36 @@
 
   .count-toggle:hover {
     color: var(--text-strong);
+  }
+
+  .pr-comment {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+  }
+
+  .pr-comment textarea {
+    height: auto;
+    padding: 10px 12px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .pr-comment .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .pr-comment .btn {
+    height: 32px;
+    padding: 0 12px;
+  }
+
+  .thread.mine {
+    box-shadow: inset 3px 0 0 var(--accent);
   }
 
   .drafts-list {

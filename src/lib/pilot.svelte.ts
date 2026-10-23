@@ -156,11 +156,19 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
   add_review_comment: async (caller, args) => {
     if (!caller.review) throw new Error('You were not asked to review a pull request.')
     const path = String(args.path ?? '').trim().replace(/^\/+/, '')
-    const line = Number(args.line)
+    const line = path ? Number(args.line) : 0
     const body = String(args.body ?? '').trim()
-    if (!path || !Number.isInteger(line) || line < 1 || !body) throw new Error('path, line and body are needed.')
-    const removed = args.removed === true
-    const text = removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
+    if (!body) throw new Error('The comment is empty.')
+    if (path && (!Number.isInteger(line) || line < 1)) throw new Error('A comment on a file needs the line it is about. Leave path and line out to comment on the whole pull request.')
+    if (path && caller.review.base) {
+      const files = await invoke<string[]>('changed_files', { dir: workdir(caller), base: caller.review.base }).catch(() => null)
+      if (files && !files.includes(path))
+        throw new Error(
+          `${path} is not changed by the pull request. Put the comment on the changed line it relates to best, in one of these files: ${files.join(', ')}. Or leave path and line out to comment on the whole pull request.`,
+        )
+    }
+    const removed = !!path && args.removed === true
+    const text = !path || removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
     const key = `${caller.review.project}#${caller.review.number}`
     reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
     return `Added to the user's review of pull request #${caller.review.number} (${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''} so far).`
