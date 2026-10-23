@@ -10,6 +10,7 @@ const read = (key: string) => JSON.parse(localStorage.getItem(key) ?? '{}')
 let stored = 304
 let folded = false
 let split = false
+let fileTree = true
 let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
@@ -23,6 +24,7 @@ try {
   stored = Number(localStorage.getItem('squadron.sidebar')) || 304
   folded = localStorage.getItem('squadron.collapsed') === '1'
   split = localStorage.getItem('squadron.diff') === 'split'
+  fileTree = localStorage.getItem('squadron.diff-tree') !== 'off'
   widths = { ...widths, ...read('squadron.diff-widths'), ...read('squadron.widths') }
   full = { diff: localStorage.getItem('squadron.diff-full') === '1', ...read('squadron.full') }
   panels = read('squadron.panels')
@@ -32,6 +34,7 @@ export const layout = $state({
   sidebar: Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, stored)),
   collapsed: folded,
   split,
+  fileTree,
   widths,
   full,
   panels,
@@ -60,6 +63,11 @@ function keep(key: string, value: string) {
 export function setSplit(on: boolean) {
   layout.split = on
   keep('squadron.diff', on ? 'split' : 'unified')
+}
+
+export function setFileTree(on: boolean) {
+  layout.fileTree = on
+  keep('squadron.diff-tree', on ? 'on' : 'off')
 }
 
 export function resizePanel(size: string, width: number, max: number) {

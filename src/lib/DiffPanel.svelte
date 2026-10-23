@@ -4,7 +4,8 @@
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
-  import { layout, setSplit } from './layout.svelte'
+  import ChangedFiles from './ChangedFiles.svelte'
+  import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
   import { hostName, type Pull, type Remark } from './pulls.svelte'
@@ -209,6 +210,15 @@
     {/if}
   {/snippet}
   {#snippet actions()}
+    <button
+      class="tree-toggle"
+      aria-pressed={layout.fileTree}
+      aria-label="File tree"
+      title="{layout.fileTree ? 'Hide' : 'Show'} the file tree"
+      onclick={() => setFileTree(!layout.fileTree)}
+    >
+      <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
+    </button>
     {#if pull}
       <div class="modes" role="group" aria-label="What to compare">
         <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>Changes</button>
@@ -228,6 +238,7 @@
   {#if reviewing && !source}
     <p class="empty pad">{pullError || `Reading pull request #${pull!.number}…`}</p>
   {:else if files.length}
+    {#if !layout.fileTree}
     <div class="tabs" role="tablist" aria-label="Changed files">
       {#each files as f (f.path)}
         <button
@@ -243,6 +254,16 @@
       {/each}
     </div>
 
+    {/if}
+
+    <div class="columns">
+    {#if layout.fileTree}
+      <ChangedFiles
+        files={files.map((f) => ({ ...f, other: !f.edits && !reviewing, talks: reviewing ? talks(f.path) : 0 }))}
+        selected={selected?.path}
+        onpick={(path) => (file = path)}
+      />
+    {/if}
     <div class="body">
       {#if reviewing && general.length}
         <details class="general" open>
@@ -286,6 +307,7 @@
           {/if}
         </div>
       {/if}
+    </div>
     </div>
 
     <div class="foot">
@@ -465,6 +487,34 @@
     color: var(--ok-text);
   }
 
+  .tree-toggle {
+    width: 30px;
+    height: 30px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-muted);
+  }
+
+  .tree-toggle svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  .tree-toggle[aria-pressed='true'] {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .columns {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+
   .ahead {
     flex: none;
     margin: 0;
@@ -519,6 +569,7 @@
 
   .body {
     flex: 1;
+    min-width: 0;
     min-height: 0;
     overflow: auto;
     padding: 14px 16px;
