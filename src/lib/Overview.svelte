@@ -4,6 +4,7 @@
   import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
   import PullTag from './PullTag.svelte'
+  import { lists, needsYou } from './pulls.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
 
@@ -52,6 +53,15 @@
     projects.overview = false
     projects.current = project
   }
+
+  function openPulls(project: string) {
+    open(project)
+    projects.board = false
+    projects.pulls = true
+  }
+
+  const open_pulls = (project: string) => (lists[project] ? lists[project].review.length + lists[project].mine.length : 0)
+  const pullsWaiting = $derived(projects.list.reduce((n, p) => n + needsYou(p.path), 0))
 </script>
 
 <main>
@@ -59,7 +69,8 @@
     <div>
       <h1>Overview</h1>
       <span>
-        Agents across all your projects{#if pending}&nbsp;· <strong>{pending} waiting for you</strong>{/if}
+        Agents across all your projects{#if pending}&nbsp;· <strong>{pending} waiting for you</strong>{/if}{#if pullsWaiting}&nbsp;·
+          <strong>{pullsWaiting} pull request{pullsWaiting > 1 ? 's' : ''} for you</strong>{/if}
         · Today <span class="mono">{cost(todayCost())}</span>
       </span>
     </div>
@@ -90,6 +101,20 @@
                   ? `${group.all.length} agent${group.all.length > 1 ? 's' : ''}${waiting ? ` · ${waiting} waiting for you` : ''} · ${cost(group.all.reduce((s, a) => s + a.cost, 0))}`
                   : 'No agents'}
               </span>
+              {#if open_pulls(group.project.path)}
+                {@const waiting = needsYou(group.project.path)}
+                <button
+                  class="pulls"
+                  class:urgent={waiting > 0}
+                  title="Pull requests you review and you wrote in {group.project.name}"
+                  onclick={() => openPulls(group.project.path)}
+                >
+                  <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"
+                    ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4M13 3l-3 3 3 3" /></svg
+                  >
+                  {waiting ? `${waiting} pull request${waiting > 1 ? 's' : ''} for you` : `${open_pulls(group.project.path)} pull request${open_pulls(group.project.path) > 1 ? 's' : ''}`}
+                </button>
+              {/if}
               <button class="link" onclick={() => open(group.project.path)}>Open project</button>
             </th>
           </tr>
@@ -246,6 +271,41 @@
   .link {
     color: var(--accent-link);
     font-size: 12.5px;
+  }
+
+  .pulls {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 9px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 12px;
+    vertical-align: middle;
+  }
+
+  .pulls svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+
+  .pulls:hover {
+    background: var(--surface-5);
+    color: var(--text-strong);
+  }
+
+  .pulls.urgent {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 600;
+  }
+
+  .pulls.urgent:hover {
+    background: var(--accent-soft);
+    color: var(--accent-ink);
   }
 
   .link:hover {
