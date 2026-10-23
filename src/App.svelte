@@ -7,7 +7,7 @@
   import EmptyProjects from './lib/EmptyProjects.svelte'
   import Header from './lib/Header.svelte'
   import ProjectView from './lib/ProjectView.svelte'
-  import Settings from './lib/Settings.svelte'
+  import Settings from './lib/SettingsDialog.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, create, find, loadToday, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
