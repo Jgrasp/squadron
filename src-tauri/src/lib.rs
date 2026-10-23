@@ -825,6 +825,24 @@ fn git_branch(path: PathBuf) -> Result<Option<String>, String> {
     Ok(projects::branch(&path))
 }
 
+#[cfg(target_os = "linux")]
+fn new_browser_window(url: &str) -> Result<(), String> {
+    use gtk::gio::{AppInfo, AppInfoCreateFlags, prelude::*};
+    let browser = AppInfo::default_for_uri_scheme("https").ok_or("No default browser.")?;
+    let program = browser.executable();
+    let line = format!(
+        "{} --new-window",
+        shell_words::quote(&program.to_string_lossy())
+    );
+    let window =
+        AppInfo::create_from_commandline(line, Some("Browser"), AppInfoCreateFlags::SUPPORTS_URIS)
+            .map_err(|e| e.to_string())?;
+    let context = gtk::gdk::Display::default().and_then(|d| d.app_launch_context());
+    window
+        .launch_uris(&[url], context.as_ref())
+        .map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
@@ -835,12 +853,14 @@ fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
         let parent = window.clone();
         window
             .run_on_main_thread(move || {
-                let shown = parent
-                    .gtk_window()
-                    .map_err(|e| e.to_string())
-                    .and_then(|w| {
-                        gtk::show_uri_on_window(Some(&w), &url, 0).map_err(|e| e.to_string())
-                    });
+                let shown = new_browser_window(&url).or_else(|_| {
+                    parent
+                        .gtk_window()
+                        .map_err(|e| e.to_string())
+                        .and_then(|w| {
+                            gtk::show_uri_on_window(Some(&w), &url, 0).map_err(|e| e.to_string())
+                        })
+                });
                 if let Err(e) = shown {
                     log::error!("{url} did not open: {e}");
                 }
