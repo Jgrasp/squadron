@@ -4,6 +4,7 @@ import { defineConfig } from 'vite'
 export default defineConfig({
   plugins: [svelte()],
   clearScreen: false,
+  cacheDir: process.env.SQUADRON_VITE_CACHE ?? 'node_modules/.vite',
   server: {
     port: 5173,
     strictPort: true,

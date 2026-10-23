@@ -3,6 +3,8 @@
   import { flip } from 'svelte/animate'
   import { ofProject, shelve, todayCost, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
+  import { getVersion } from '@tauri-apps/api/app'
+  import { checkNow } from './update.svelte'
   import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
@@ -63,6 +65,11 @@
       context = null
     }
   }
+
+  let version = $state('')
+  getVersion()
+    .then((v) => (version = v))
+    .catch(() => {})
 </script>
 
 <svelte:window
@@ -93,10 +100,14 @@
         <div class="menu" role="menu" aria-label="Squadron menu">
           <div class="about">
             <span class="triangle big" aria-hidden="true"></span>
-            <span><strong>Squadron</strong><small>Version 0.1.0 · Linux</small></span>
+            <span><strong>Squadron</strong><small>Version {version} · Linux</small></span>
           </div>
           {#each shown('menu.squadron') as id (id)}
-            <button role="menuitem" class="item" onclick={() => ((menuOpen = false), (ui.settings = id === 'settings' ? 'projects' : (id as SettingsTab)))}>
+            <button
+              role="menuitem"
+              class="item"
+              onclick={() => ((menuOpen = false), id === 'updates' ? checkNow() : (ui.settings = id === 'settings' ? 'projects' : (id as SettingsTab)))}
+            >
               <span><strong>{labelOf('menu.squadron', id)}</strong><small>{detailOf('menu.squadron', id)}</small></span>
             </button>
           {/each}

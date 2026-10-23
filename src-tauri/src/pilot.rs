@@ -81,6 +81,15 @@ struct SetWorktree {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct ImportSession {
+    /// The Claude Code session id of the conversation, the name of its .jsonl file in ~/.claude/projects. Leave it out to list the conversations Squadron can import.
+    session: Option<String>,
+    /// Project name or path. Your own project when left empty.
+    project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct ReviewComment {
     /// A file the pull request changes, relative to the repository root. Leave it out, with line, for a comment on the whole pull request.
     path: Option<String>,
@@ -236,6 +245,16 @@ impl Pilot {
     ) -> String {
         self.forward(&parts, "add_review_comment", json!(args))
             .await
+    }
+
+    /// Imports into Squadron a conversation held elsewhere, in the Claude app or Claude Code, as a new agent of the project that continues it. Without session, lists the conversations of the project that Squadron can import, with their title and session id.
+    #[tool]
+    async fn import_session(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<ImportSession>,
+    ) -> String {
+        self.forward(&parts, "import_session", json!(args)).await
     }
 
     /// Returns Squadron's layout: each slot (a bar of buttons or a menu), its items and which are hidden.
@@ -403,6 +422,35 @@ mod tests {
                 .stdout
                 .iter()
                 .any(|_| true)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_imports_a_conversation_from_the_claude_app() {
+        let calls = drive(
+            "haiku",
+            "In the Claude app I have a conversation called “[BAT-809] : Pilotage tickets”. Import it into Squadron.",
+            |call| {
+                if call.args["session"].is_string() {
+                    "Imported “[BAT-809] : Pilotage tickets” in BMC - TMC as agent a-12. It continues the conversation, in a fork, from its next message.".to_string()
+                } else {
+                    json!([
+                        {"session": "524864f5-9fdd-4c1b-949d-d095b2079be7", "title": "BAT-809 : T7C greffes admin 2.3", "from": "Claude app"},
+                        {"session": "271982a4-ba81-4f9b-ac49-2c87f1ef6e88", "title": "[BAT-809] : Pilotage tickets", "from": "Claude app"}
+                    ])
+                    .to_string()
+                }
+            },
+        )
+        .await;
+        let imported = calls
+            .iter()
+            .find(|c| c.tool == "import_session" && c.args["session"].is_string())
+            .expect("import_session called with a session");
+        assert_eq!(
+            imported.args["session"],
+            "271982a4-ba81-4f9b-ac49-2c87f1ef6e88"
         );
     }
 

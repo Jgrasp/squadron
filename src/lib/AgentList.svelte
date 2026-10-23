@@ -6,6 +6,7 @@
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
+  import ImportPanel from './ImportPanel.svelte'
   import PullTag from './PullTag.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
@@ -71,6 +72,7 @@
   let sorting = $state(false)
   let scope = $state<'all' | 'project'>('all')
   let showArchived = $state(false)
+  let showImport = $state(false)
 
   const own = $derived(layout.sorts[project.path])
   const sort = $derived(own ?? layout.sort)
@@ -181,6 +183,9 @@
   </div>
 {/if}
 
+{#if showImport}
+  <ImportPanel {project} onclose={() => (showImport = false)} />
+{/if}
 {#if showArchived}
   <ArchivePanel {project} onclose={() => (showArchived = false)} />
 {/if}
@@ -226,19 +231,18 @@
   <div class="head">
     <div class="who">
       <span class="square" aria-hidden="true"></span>
-      <div>
-        <strong>{project.name}</strong>
-        <small class:bad={!project.exists}>
-          {#if !project.exists}
-            Folder not found
-          {:else if list.length}
-            {list.length} agent{list.length > 1 ? 's' : ''}{#if pending}&nbsp;· {pending} waiting for you{/if}
-          {:else}
-            No agents
-          {/if}
-        </small>
-      </div>
+      <strong title={project.name}>{project.name}</strong>
     </div>
+    <div class="under">
+    <small class:bad={!project.exists}>
+      {#if !project.exists}
+        Folder not found
+      {:else if list.length}
+        {list.length} agent{list.length > 1 ? 's' : ''}{#if pending}&nbsp;· {pending} waiting for you{/if}
+      {:else}
+        No agents
+      {/if}
+    </small>
     <div class="actions">
       <button class="new" disabled={!project.exists} onclick={onnew} title="New agent ({hint('newAgent')})">+ Agent</button>
       <span class="anchor" data-menu>
@@ -278,6 +282,16 @@
       <button class="fold" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
+      <button
+        class="fold"
+        aria-label="Import conversations"
+        title="Import conversations of {project.name} from the Claude app or Claude Code"
+        disabled={!project.exists}
+        onclick={() => (showImport = true)}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3" /></svg>
+      </button>
+    </div>
     </div>
   </div>
 
@@ -436,41 +450,43 @@
 
   .head {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
+    flex-direction: column;
+    gap: 8px;
     padding: 2px 4px 10px;
   }
 
   .who {
+    min-width: 0;
     display: flex;
     align-items: center;
     gap: 10px;
   }
 
-  .who {
+  .who strong {
     min-width: 0;
-  }
-
-  .who div {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .who strong,
-  .who small {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+    font-size: 15px;
   }
 
-  .who small {
+  .under {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .under small {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     font-size: 12px;
     color: var(--text-dim);
   }
 
-  .who small.bad {
+  .under small.bad {
     color: var(--err-text);
   }
 

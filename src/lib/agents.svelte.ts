@@ -6,6 +6,7 @@ import { addRule, editProject, projects, type Project } from './projects.svelte'
 import { ask } from '@tauri-apps/plugin-dialog'
 import { matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
+import { entriesOf } from './transcript'
 import {
   apply,
   argument,
@@ -238,6 +239,55 @@ async function adopt(data: Agent) {
     dir: agent.worktree?.path ?? null,
   }).catch((e) => fail(find(agent.id)!, String(e)))
   if (wanted) remote(agent.id, true)
+}
+
+export type Elsewhere = {
+  id: string
+  title: string
+  cwd: string
+  here: boolean
+  updated: number
+  size: number
+  app: boolean
+  archived: boolean
+  model: string | null
+  effort: string | null
+  mode: string | null
+}
+
+export async function knownSessions() {
+  const all: Agent[] = [...agents.list, ...(await archived())]
+  return new Set(all.flatMap((a) => [a.sessionId, a.imported].filter((id): id is string => !!id)))
+}
+
+export async function importSession(project: string, found: Elsewhere, name = '') {
+  const transcript = await invoke<string>('read_session', { project, id: found.id })
+  const from = found.app ? 'the Claude app' : 'Claude Code'
+  const pick = <T extends string>(value: string | null, allowed: readonly T[], fallback: T) => (allowed.includes(value as T) ? (value as T) : fallback)
+  const options: Options = {
+    model: found.model && /^[a-z0-9][a-z0-9.\-[\]]*$/i.test(found.model) ? found.model : settings.defaults.model,
+    effort: pick(found.effort, ['low', 'medium', 'high', 'xhigh', 'max'] as const, settings.defaults.effort),
+    mode: pick(found.mode, ['default', 'plan', 'acceptEdits', 'auto'] as const, settings.defaults.mode),
+  }
+  const entries = entriesOf(transcript)
+  const data: Agent = {
+    ...newAgent(crypto.randomUUID(), project, name || found.title || 'Imported conversation', options),
+    entries: [...entries, { kind: 'forked', at: Date.now(), from }],
+    status: 'done',
+    action: `Imported from ${from}`,
+    since: found.updated || Date.now(),
+    turns: entries.filter((e) => e.kind === 'user').length,
+    sessionId: found.id,
+    forkOf: from,
+    forkAt: null,
+    imported: found.id,
+    worktree: found.here && found.cwd && found.cwd !== project ? { path: found.cwd, branch: '' } : null,
+  }
+  await adopt(data)
+  const agent = find(data.id)!
+  if (agent.worktree) branchOf(agent)
+  persist(agent)
+  return agent
 }
 
 export type Archived = Agent & { archived?: number; withProject?: boolean }

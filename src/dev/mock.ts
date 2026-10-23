@@ -413,6 +413,18 @@ mockIPC(
         throw 'Not an image.'
       case 'open_attachment':
         return
+      case 'project_sessions':
+        return [
+          { id: '271982a4-ba81-4f9b-ac49-2c87f1ef6e88', title: '[ORB-809] Pilotage tickets', cwd: a.project, here: true, updated: Date.now() - 3_600_000, size: 34_000_000, app: true, archived: false, model: 'opus', effort: 'high', mode: 'default' },
+          { id: '524864f5-9fdd-4c1b-949d-d095b2079be7', title: 'ORB-809 : T7C admin grafts', cwd: `${a.project}/.worktrees/T7C`, here: true, updated: Date.now() - 7_200_000, size: 12_900_000, app: true, archived: false, model: 'opus', effort: 'xhigh', mode: 'default' },
+          { id: 'c5a6da9d-6748-4b1f-8b9d-f3703886fcc7', title: 'Fix the CSV export', cwd: a.project, here: true, updated: Date.now() - 86_400_000, size: 640_000, app: false, archived: false, model: null, effort: null, mode: null },
+          { id: '91c0d768-d00c-4f8d-83e3-36db4bff2000', title: 'Old spike on prices', cwd: a.project, here: true, updated: Date.now() - 30 * 86_400_000, size: 80_000, app: true, archived: true, model: 'sonnet', effort: 'low', mode: 'plan' },
+        ]
+      case 'read_session':
+        return [
+          JSON.stringify({ type: 'user', timestamp: new Date().toISOString(), message: { content: 'Where are we on the tickets?' } }),
+          JSON.stringify({ type: 'assistant', uuid: 'u1', message: { id: 'm1', model: 'claude-opus', content: [{ type: 'text', text: 'T70 is in review, T7C is next.' }] } }),
+        ].join('\n')
       case 'review_checkout':
         return `/home/demo/.local/share/squadron/reviews/orbit-${a.number}`
       case 'pull_lists': {

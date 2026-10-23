@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { branchOf, create, find, ofProject, persist } from './agents.svelte'
+import { branchOf, create, find, importSession, knownSessions, ofProject, persist, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
@@ -151,6 +151,22 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     await invoke('set_workdir', { id: target.id, dir: path })
     persist(target)
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
+  },
+
+  import_session: async (caller, args) => {
+    const project = projectFor(caller, args.project)
+    const [found, known] = await Promise.all([invoke<Elsewhere[]>('project_sessions', { project: project.path }), knownSessions()])
+    const wanted = String(args.session ?? '').trim()
+    if (!wanted)
+      return found
+        .filter((f) => !known.has(f.id))
+        .slice(0, 50)
+        .map((f) => ({ session: f.id, title: f.title, updated: new Date(f.updated).toISOString(), from: f.app ? 'Claude app' : 'Claude Code', archived: f.archived || undefined }))
+    const pick = found.find((f) => f.id === wanted)
+    if (!pick) throw new Error(`No conversation ${wanted} in ${project.name}. Call import_session without session to list them.`)
+    if (known.has(pick.id)) throw new Error(`“${pick.title}” is already in Squadron.`)
+    const agent = await importSession(project.path, pick)
+    return `Imported “${agent.name}” in ${project.name} as agent ${agent.id}. It continues the conversation, in a fork, from its next message.`
   },
 
   add_review_comment: async (caller, args) => {

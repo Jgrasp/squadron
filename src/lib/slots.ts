@@ -46,6 +46,7 @@ export const SLOTS: Record<Slot, { title: string; hint: string; items: [string, 
     hint: 'The menu under the Squadron logo',
     items: [
       ['settings', 'Settings', 'Projects, agents, tools and interface'],
+      ['updates', 'Check for updates', 'Looks for a new version of Squadron'],
       ['about', 'About Squadron', 'Version, Claude Code and account'],
     ],
     locked: ['settings'],
