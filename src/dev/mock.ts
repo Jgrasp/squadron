@@ -406,7 +406,7 @@ mockIPC(
         localStorage.removeItem('bitbucket')
         return
       case 'pull_changes':
-        return {
+        return new Promise((resolve) => setTimeout(resolve, 1500)).then(() => ({
           changes: {
             from: 'c'.repeat(40),
             now: 'b'.repeat(40),
@@ -416,7 +416,7 @@ mockIPC(
             ],
           },
           ahead: 1,
-        }
+        }))
       case 'pull_remarks':
         return [
           { id: 1, author: 'Amandine T.', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z' },

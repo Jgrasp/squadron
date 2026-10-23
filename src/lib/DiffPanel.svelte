@@ -40,8 +40,10 @@
   const keyOf = (p: Pull) => `${p.number}:${p.head}`
   let pulled = $state<{ key: string; changes: Changes; ahead: number } | null>(null)
   let pullError = $state('')
+  let attempt = $state(0)
 
   $effect(() => {
+    void attempt
     if (!reviewing || !pull) return
     const key = keyOf(pull)
     if (untrack(() => pulled?.key) === key) return
@@ -263,7 +265,19 @@
     </p>
   {/if}
   {#if reviewing && !source}
-    <p class="empty pad">{pullError || `Reading pull request #${pull!.number}…`}</p>
+    <div class="fetching" role="status">
+      {#if pullError}
+        <svg class="failed" width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 7v6M12 16.5v.5" /></svg>
+        <strong>Pull request #{pull!.number} could not be read</strong>
+        <span class="why">{pullError}</span>
+        <button class="btn btn-secondary" onclick={() => attempt++}>Try again</button>
+      {:else}
+        <svg class="ring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle class="track" cx="17" cy="17" r="14" /><circle class="arc" cx="17" cy="17" r="14" /></svg>
+        <strong>Fetching pull request #{pull!.number}</strong>
+        <span class="branches">{pull!.branch} → {pull!.base}</span>
+        <span class="why">Getting both branches from {hostName(pull!)}, then building the diff on this computer</span>
+      {/if}
+    </div>
   {:else if files.length}
     {#if !layout.fileTree}
     <div class="tabs" role="tablist" aria-label="Changed files">
@@ -524,6 +538,67 @@
   .handed {
     font-size: 12px;
     color: var(--ok-text);
+  }
+
+  .fetching {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .fetching strong {
+    margin-top: 8px;
+    font-size: 15px;
+    color: var(--text-strong);
+  }
+
+  .branches {
+    font: 12.5px var(--mono);
+    color: var(--text-2);
+  }
+
+  .why {
+    max-width: 420px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .fetching .btn {
+    margin-top: 8px;
+  }
+
+  .ring {
+    fill: none;
+    stroke-width: 3;
+    animation: spin 1.1s linear infinite;
+  }
+
+  .ring .track {
+    stroke: var(--surface-4);
+  }
+
+  .ring .arc {
+    stroke: var(--accent);
+    stroke-linecap: round;
+    stroke-dasharray: 22 66;
+  }
+
+  .failed {
+    fill: none;
+    stroke: var(--err);
+    stroke-width: 2;
+    stroke-linecap: round;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .ring {
+      animation-duration: 3s;
+    }
   }
 
   .tree-toggle {
