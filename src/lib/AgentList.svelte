@@ -101,6 +101,7 @@
 
   function label(agent: Agent) {
     if (blocked(agent)) return 'Waiting for you'
+    if (!agent.entries.length) return 'Ready for your first message'
     switch (agent.status) {
       case 'working':
         return activity(agent)

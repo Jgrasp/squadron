@@ -24,7 +24,7 @@
   let goal = $state('')
   let worktree = $state<string | null>(null)
 
-  const ready = $derived(text.trim().length > 0)
+  const ready = true
 
   function submit(event?: Event) {
     event?.preventDefault()
@@ -55,6 +55,7 @@
           class="field"
           rows="4"
           bind:value={text}
+          placeholder="Optional. You can also write it in the conversation, with screenshots and files."
           autofocus
           onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
         ></textarea>

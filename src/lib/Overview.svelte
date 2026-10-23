@@ -28,6 +28,7 @@
 
   function label(agent: Agent) {
     if (look(agent) === 'waiting' && agent.status !== 'waiting') return 'Waiting for you'
+    if (!agent.entries.length) return 'Ready for your first message'
     switch (agent.status) {
       case 'waiting':
         return agent.asks[0]?.tool_name === 'AskUserQuestion' ? 'Waiting for your answer' : 'Waiting for your approval'

@@ -251,7 +251,7 @@ mockIPC(
       case 'create_agent':
         projectOf.set(a.id, a.project)
         emit('agent-line', { id: a.id, line: JSON.stringify(catalog) })
-        return replay(a.id, a.text)
+        return a.text.trim() ? replay(a.id, a.text) : undefined
       case 'send_message':
         return replay(a.id, a.text)
       case 'interrupt_agent': {

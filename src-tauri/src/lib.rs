@@ -698,6 +698,9 @@ fn create_agent(
     if let Some(name) = worktree {
         agents.new_worktree(&id, &name)?;
     }
+    if text.trim().is_empty() {
+        return Ok(());
+    }
     agents.send(&app, &settings.claude(), &id, serde_json::json!(text))
 }
 

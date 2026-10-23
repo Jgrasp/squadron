@@ -424,24 +424,21 @@ type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; 
 
 export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
-  agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback, options))
+  agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || 'New agent', options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
   if (!name) {
     agent.autoName = true
-    invoke<string>('suggest_title', { text })
-      .then((title) => {
-        if (!agent.autoName) return
-        agent.name = title
-        agent.autoName = false
-        persist(agent)
-      })
-      .catch(() => {})
+    if (text.trim()) entitle(agent, text)
   }
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
   else agents.current[project] = agent.id
-  userMessage(agent, text)
+  if (text.trim()) userMessage(agent, text)
+  else {
+    agent.status = 'done'
+    agent.since = Date.now()
+  }
   persist(agent)
   try {
     await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null })
@@ -453,9 +450,21 @@ export async function create(project: string, name: string, options: Options, te
   return agent.id
 }
 
+function entitle(agent: Agent, text: string) {
+  invoke<string>('suggest_title', { text })
+    .then((title) => {
+      if (!agent.autoName) return
+      agent.name = title
+      agent.autoName = false
+      persist(agent)
+    })
+    .catch(() => {})
+}
+
 export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = []) {
   const agent = find(id)
   if (!agent) return
+  if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
   userMessage(agent, text, comments, files)
   persist(agent)
   try {
