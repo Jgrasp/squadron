@@ -9,6 +9,14 @@
   let token = $state('')
   let error = $state('')
   let busy = $state(false)
+  let copied = $state('')
+  const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket']
+
+  function copy(scope: string) {
+    navigator.clipboard.writeText(scope)
+    copied = scope
+    setTimeout(() => copied === scope && (copied = ''), 1500)
+  }
 
   const refresh = () => invoke<Accounts>('forge_accounts').then((found) => (accounts = found))
   refresh()
@@ -48,10 +56,23 @@
       <button class="btn btn-secondary" onclick={signOut}>Sign out</button>
     </div>
   {:else}
-    <p class="intro">
-      Create an API token on <strong>id.atlassian.com › Security › API tokens</strong>, choose “Create API token with scopes”, then Bitbucket with
-      <code>read:repository:bitbucket</code>, <code>read:pullrequest:bitbucket</code> and <code>write:pullrequest:bitbucket</code>.
-    </p>
+    <ol class="intro steps">
+      <li>
+        <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: 'https://id.atlassian.com/manage-profile/security/api-tokens' })}>
+          Open the API tokens page
+        </button>
+      </li>
+      <li>Choose <strong>Create API token with scopes</strong>, name it Squadron, then pick <strong>Bitbucket</strong>.</li>
+      <li>
+        Tick these three scopes. Click one to copy it, then paste it in the scope search:
+        <span class="scopes">
+          {#each SCOPES as scope (scope)}
+            <button class="scope" onclick={() => copy(scope)}>{copied === scope ? 'Copied' : scope}</button>
+          {/each}
+        </span>
+      </li>
+      <li>Paste the token below with the email of your Atlassian account.</li>
+    </ol>
     <form onsubmit={signIn}>
       <label for="bitbucket-email">Atlassian email</label>
       <input id="bitbucket-email" class="field" type="email" autocomplete="off" bind:value={email} />
@@ -102,6 +123,34 @@
 
   code {
     font-size: 12.5px;
+  }
+
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding-left: 18px;
+  }
+
+  .scopes {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin-top: 6px;
+  }
+
+  .scope {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font: 12.5px var(--mono);
+  }
+
+  .scope:hover {
+    background: var(--surface-5);
+    color: var(--text-strong);
   }
 
   label {
