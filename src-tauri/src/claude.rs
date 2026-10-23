@@ -211,10 +211,14 @@ impl Session {
     }
 
     pub fn send(&mut self, text: &str) -> io::Result<()> {
+        self.send_content(json!(text))
+    }
+
+    pub fn send_content(&mut self, content: Value) -> io::Result<()> {
         let uuid = uuid::Uuid::new_v4().to_string();
         self.sent.lock().unwrap().insert(uuid.clone());
         let message =
-            json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": text}});
+            json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": content}});
         writeln!(self.stdin, "{message}")?;
         self.stdin.flush()?;
         self.busy.store(true, Ordering::SeqCst);

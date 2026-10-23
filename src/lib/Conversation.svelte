@@ -2,6 +2,7 @@
   import { SvelteSet } from 'svelte/reactivity'
   import { clock, forkPoint } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
+  import Attachment from './Attachment.svelte'
   import CommentChip from './CommentChip.svelte'
   import type { Proposal } from './diff'
   import { highlight } from './commands'
@@ -200,6 +201,9 @@
     <div class="user" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
       {#if entry.comments}
         <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
+      {/if}
+      {#if entry.files}
+        <div class="files">{#each entry.files as file (file)}<Attachment path={file} large />{/each}</div>
       {/if}
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
@@ -498,6 +502,17 @@
     height: 6px;
     border-radius: 3px;
     background: var(--remote-dot);
+  }
+
+  .files + .said {
+    margin-top: 10px;
+  }
+
+  .files {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: flex-end;
+    gap: 8px;
   }
 
   .said {

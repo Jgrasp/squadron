@@ -453,13 +453,13 @@ export async function create(project: string, name: string, options: Options, te
   return agent.id
 }
 
-export async function send(id: string, text: string, comments: Comment[] = []) {
+export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = []) {
   const agent = find(id)
   if (!agent) return
-  userMessage(agent, text, comments)
+  userMessage(agent, text, comments, files)
   persist(agent)
   try {
-    await invoke('send_message', { id, text: prompt(text, comments) })
+    await invoke('send_message', { id, text: prompt(text, comments), files })
   } catch (e) {
     fail(agent, String(e))
   }

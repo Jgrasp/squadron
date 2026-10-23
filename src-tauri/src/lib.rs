@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod attach;
 pub mod claude;
 pub mod editors;
 pub mod forge;
@@ -697,7 +698,7 @@ fn create_agent(
     if let Some(name) = worktree {
         agents.new_worktree(&id, &name)?;
     }
-    agents.send(&app, &settings.claude(), &id, &text)
+    agents.send(&app, &settings.claude(), &id, serde_json::json!(text))
 }
 
 #[tauri::command]
@@ -917,8 +918,34 @@ fn send_message(
     settings: State<Settings>,
     id: String,
     text: String,
+    files: Option<Vec<PathBuf>>,
 ) -> Result<(), String> {
-    agents.send(&app, &settings.claude(), &id, &text)
+    let content = attach::content(&text, &files.unwrap_or_default())?;
+    agents.send(&app, &settings.claude(), &id, content)
+}
+
+#[tauri::command]
+fn save_attachment(app: AppHandle, name: String, data: String) -> Result<PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    attach::save(&dir.join("attachments"), &name, &data)
+}
+
+#[tauri::command]
+fn open_attachment(path: PathBuf) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let meta = std::fs::metadata(&path).map_err(|_| "The file is gone.")?;
+    let launcher = path.extension().is_some_and(|e| e == "desktop");
+    if !meta.is_file() || meta.permissions().mode() & 0o111 != 0 || launcher {
+        return Err("Squadron only opens documents and images from here.".into());
+    }
+    tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn attachment_preview(path: PathBuf) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || attach::preview(&path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -1089,6 +1116,9 @@ pub fn run() {
             add_cost,
             day_cost,
             send_message,
+            save_attachment,
+            attachment_preview,
+            open_attachment,
             interrupt_agent,
             reload_agent,
             archive_agent

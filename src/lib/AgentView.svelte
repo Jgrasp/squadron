@@ -16,6 +16,9 @@
   import SubagentsPanel from './SubagentsPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
+  import Attachment from './Attachment.svelte'
+  import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
+  import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
   import { lookUp, needsYou, openReview, progress, pulls, reviews, stateLabel } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
@@ -306,17 +309,77 @@
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
   }
 
+  let attachments = $state<string[]>([])
+  let dropping = $state(false)
+  let attachError = $state('')
+
+  const attach = (paths: string[]) => (attachments = [...attachments, ...paths.filter((p) => !attachments.includes(p))])
+
+  async function browseFiles() {
+    const chosen = await chooseFiles({ multiple: true })
+    if (chosen) attach(Array.isArray(chosen) ? chosen : [chosen])
+  }
+
+  function base64(file: Blob) {
+    return new Promise<string>((done, fail) => {
+      const reader = new FileReader()
+      reader.onload = () => done(String(reader.result).split(',')[1] ?? '')
+      reader.onerror = () => fail(reader.error)
+      reader.readAsDataURL(file)
+    })
+  }
+
+  async function pasted(event: ClipboardEvent) {
+    const images = [...(event.clipboardData?.files ?? [])].filter((f) => f.type.startsWith('image/'))
+    if (!images.length) return
+    if (!event.clipboardData?.getData('text/plain')) event.preventDefault()
+    attachError = ''
+    for (const image of images) {
+      const name = image.name && image.name !== 'image.png' ? image.name : `screenshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${image.type.split('/')[1] || 'png'}`
+      try {
+        attach([await invoke<string>('save_attachment', { name, data: await base64(image) })])
+      } catch (e) {
+        attachError = String(e)
+      }
+    }
+  }
+
+  $effect(() => {
+    let stop: (() => void) | undefined
+    let gone = false
+    getCurrentWebview()
+      .onDragDropEvent(({ payload }) => {
+        if (payload.type === 'over' || payload.type === 'enter') dropping = true
+        else if (payload.type === 'leave') dropping = false
+        else if (payload.type === 'drop') {
+          dropping = false
+          attach(payload.paths)
+          composer?.focus()
+        }
+      })
+      .then((unlisten) => (gone ? unlisten() : (stop = unlisten)))
+      .catch(() => {})
+    return () => {
+      gone = true
+      stop?.()
+    }
+  })
+
   function submit(event?: Event) {
     event?.preventDefault()
     const message = text.trim()
     const attached = $state.snapshot(comments)
-    if (!message && !attached.length) return
+    const joined = $state.snapshot(attachments)
+    if (!message && !attached.length && !joined.length) return
     text = ''
     recall = -1
     stuck = true
-    if (!attached.length && !agent.asks.length && local(message)) return
+    if (!attached.length && !joined.length && !agent.asks.length && local(message)) return
     comments = []
-    if (!reply(agent, prompt(message, attached))) send(agent.id, message, attached)
+    if (!reply(agent, prompt(message, attached))) {
+      attachments = []
+      send(agent.id, message, attached, joined)
+    }
   }
 
   function show(area: HTMLTextAreaElement, value: string) {
@@ -639,7 +702,14 @@
       {/if}
     </div>
 
+    {#if dropping}<div class="dropzone" aria-hidden="true">Drop to attach to your message to {agent.name}</div>{/if}
     <form class="composer" onsubmit={submit}>
+      {#if attachments.length || attachError}
+        <div class="attached files" aria-label="Files sent with your message">
+          {#each attachments as file, i (file)}<Attachment path={file} onremove={() => attachments.splice(i, 1)} />{/each}
+          {#if attachError}<span class="attach-error" role="alert">{attachError}</span>{/if}
+        </div>
+      {/if}
       {#if comments.length}
         <div class="attached" aria-label="Comments on the diff, sent with your message">
           {#each comments as comment, i (i)}
@@ -693,7 +763,12 @@
       {/if}
       <div class="bar">
         <label for="composer" class="sr-only">Message to the agent</label>
-        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={keys}></textarea>
+        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={keys} onpaste={pasted}></textarea>
+        <button type="button" class="btn-icon" aria-label="Attach files" title="Attach files or screenshots, or paste and drop them here" onclick={browseFiles}>
+          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
+          >
+        </button>
         {#if busy}
           <button type="button" class="btn-icon" aria-label="Interrupt" title="Interrupt ({hint('interrupt')})" onclick={() => interrupt(agent.id)}>
             <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
@@ -726,7 +801,7 @@
             </div>
           {/if}
         </div>
-        <button class="btn btn-primary send" disabled={!text.trim() && !comments.length}>
+        <button class="btn btn-primary send" disabled={!text.trim() && !comments.length && !attachments.length}>
           {pending === 'AskUserQuestion' ? 'Answer' : pending === 'ExitPlanMode' ? 'Send feedback' : pending ? 'Deny' : 'Send'}
         </button>
       </div>
@@ -772,6 +847,7 @@
   }
 
   .conversation {
+    position: relative;
     flex: 1;
     min-width: 360px;
     display: flex;
@@ -1558,6 +1634,33 @@
   }
 
 
+
+  .attached.files {
+    gap: 12px;
+    padding-top: 8px;
+  }
+
+  .attach-error {
+    flex-basis: 100%;
+    font-size: 12.5px;
+    color: var(--err-text);
+  }
+
+  .dropzone {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--accent);
+    border-radius: 8px;
+    background: rgba(26, 21, 19, 0.82);
+    color: var(--text-strong);
+    font-size: 16px;
+    font-weight: 600;
+    pointer-events: none;
+  }
 
   .bar {
     max-width: 740px;

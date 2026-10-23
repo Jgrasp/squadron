@@ -79,7 +79,7 @@ export type Goal = {
 }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number; comments?: Comment[]; remote?: boolean }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean }
   | { kind: 'agent'; blocks: Block[]; uuid?: string }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
@@ -233,8 +233,8 @@ export function activity(agent: Agent) {
   return agent.action
 }
 
-export function userMessage(agent: Agent, text: string, comments: Comment[] = []) {
-  agent.entries.push({ kind: 'user', text, at: Date.now(), ...(comments.length ? { comments } : {}) })
+export function userMessage(agent: Agent, text: string, comments: Comment[] = [], files: string[] = []) {
+  agent.entries.push({ kind: 'user', text, at: Date.now(), ...(comments.length ? { comments } : {}), ...(files.length ? { files } : {}) })
   agent.attention = ''
   if (!agent.alive) agent.processCost = 0
   agent.status = 'working'

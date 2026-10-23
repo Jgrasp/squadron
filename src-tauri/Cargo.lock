@@ -3839,6 +3839,7 @@ name = "squadron"
 version = "0.1.2"
 dependencies = [
  "axum",
+ "base64 0.22.1",
  "gtk",
  "http",
  "keyring",

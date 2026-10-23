@@ -405,6 +405,14 @@ mockIPC(
               ],
             }
           : null
+      case 'save_attachment':
+        files.set(`/attachments/${a.name}`, `data:image/png;base64,${a.data}`)
+        return `/attachments/${a.name}`
+      case 'attachment_preview':
+        if (files.has(a.path)) return files.get(a.path)
+        throw 'Not an image.'
+      case 'open_attachment':
+        return
       case 'review_checkout':
         return `/home/demo/.local/share/squadron/reviews/orbit-${a.number}`
       case 'pull_lists': {
