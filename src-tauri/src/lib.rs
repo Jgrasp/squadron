@@ -553,8 +553,9 @@ async fn post_remarks(
     head: String,
     drafts: Vec<forge::Draft>,
     summary: String,
+    verdict: String,
 ) -> Result<forge::Posted, String> {
-    forge::post(&dir, number, head, drafts, summary).await
+    forge::post(&dir, number, head, drafts, summary, verdict).await
 }
 
 #[tauri::command]

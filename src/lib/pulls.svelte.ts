@@ -58,10 +58,10 @@ export async function lookUp(dir: string, force = false) {
 
 export const lookUpAll = (force = false) => new Set(agents.list.map(workdir)).forEach((dir) => lookUp(dir, force))
 
-export async function post(dir: string, pull: Pull, list: Comment[], summary = '') {
+export async function post(dir: string, pull: Pull, list: Comment[], summary = '', verdict = '') {
   const drafts = list.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
   try {
-    return await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary })
+    return await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary, verdict })
   } catch (e) {
     return { done: 0, error: String(e) }
   } finally {

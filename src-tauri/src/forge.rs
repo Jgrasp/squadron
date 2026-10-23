@@ -649,6 +649,7 @@ pub async fn post(
     head: String,
     drafts: Vec<Draft>,
     summary: String,
+    verdict: String,
 ) -> Result<Posted, String> {
     let repo = repo_of(dir)?;
     let summary = summary.trim().to_string();
@@ -673,11 +674,20 @@ pub async fn post(
                     });
                 }
             }
-            let sent = if summary.is_empty() {
+            let mut sent = if summary.is_empty() {
                 Ok(Value::Null)
             } else {
                 bitbucket(Method::POST, &url, &[], Some(json!({ "content": { "raw": summary } }))).await
             };
+            let decision = match verdict.as_str() {
+                "approve" => Some("approve"),
+                "request_changes" => Some("request-changes"),
+                _ => None,
+            };
+            if let (Ok(_), Some(decision)) = (&sent, decision) {
+                let pull = format!("/repositories/{}/pullrequests/{number}/{decision}", repo.slug);
+                sent = bitbucket(Method::POST, &pull, &[], None).await;
+            }
             Ok(Posted {
                 done: total,
                 error: sent.err(),
@@ -688,7 +698,15 @@ pub async fn post(
                 .iter()
                 .map(|d| json!({ "path": d.path, "line": d.line, "side": if d.removed { "LEFT" } else { "RIGHT" }, "body": d.body }))
                 .collect();
-            let review = json!({ "commit_id": head, "event": "COMMENT", "body": summary, "comments": comments });
+            let event = match verdict.as_str() {
+                "approve" => "APPROVE",
+                "request_changes" => "REQUEST_CHANGES",
+                _ => "COMMENT",
+            };
+            if event == "COMMENT" && comments.is_empty() && summary.is_empty() {
+                return Ok(Posted { done: 0, error: None });
+            }
+            let review = json!({ "commit_id": head, "event": event, "body": summary, "comments": comments });
             let sent = gh(
                 &["api", "-X", "POST", &format!("repos/{}/pulls/{number}/reviews", repo.slug), "--input", "-"],
                 Some(&review.to_string()),

@@ -15,6 +15,7 @@
 
   let {
     agent,
+    dir,
     changes,
     proposal = null,
     file = $bindable(),
@@ -24,9 +25,11 @@
     mode = $bindable(),
     onhand,
     onreview,
+    onposted,
     onclose,
   }: {
-    agent: Agent
+    agent: Agent | null
+    dir?: string
     changes: Changes | null
     proposal?: Proposal | null
     file: string
@@ -36,10 +39,13 @@
     mode: 'local' | 'pull'
     onhand: (quote: string) => void
     onreview: (summary: string, list: Comment[]) => void
+    onposted?: () => void
     onclose: () => void
   } = $props()
 
+  const folder = $derived(dir ?? workdir(agent!))
   const reviewing = $derived(mode === 'pull' && !!pull)
+  const reviewKey = $derived(agent?.id ?? `${folder}#${pull?.number}`)
   const keyOf = (p: Pull) => `${p.number}:${p.head}`
   let pulled = $state<{ key: string; changes: Changes; ahead: number } | null>(null)
   let pullError = $state('')
@@ -52,7 +58,7 @@
     if (untrack(() => pulled?.key) === key) return
     pullError = ''
     const { base, branch, head } = pull
-    invoke<{ changes: Changes; ahead: number }>('pull_changes', { dir: workdir(agent), base, branch, head })
+    invoke<{ changes: Changes; ahead: number }>('pull_changes', { dir: folder, base, branch, head })
       .then((result) => (pulled = { key, ...result }))
       .catch((e) => (pullError = String(e)))
   })
@@ -62,7 +68,7 @@
   $effect(() => {
     if (!reviewing || !pull) return
     const { number } = pull
-    invoke<Remark[]>('pull_remarks', { dir: workdir(agent), number })
+    invoke<Remark[]>('pull_remarks', { dir: folder, number })
       .then((found) => (remarks = found))
       .catch(() => (remarks = []))
   })
@@ -103,7 +109,7 @@
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
 
-  const edited = $derived(changedFiles(calls(agent)).map((f) => ({ ...f, path: relative(agent, f.path) })))
+  const edited = $derived(agent ? changedFiles(calls(agent)).map((f) => ({ ...f, path: relative(agent, f.path) })) : [])
   const found = $derived(
     source
       ? source.files
@@ -133,13 +139,13 @@
     const run = ++loads
     error = ''
     const loading = git
-      ? invoke<string>('git_patch', { project: workdir(agent), from: git.from, now: git.now, path }).then((text) => ({
+      ? invoke<string>('git_patch', { project: folder, from: git.from, now: git.now, path }).then((text) => ({
           path,
           hunks: (parsePatch(text)[0]?.hunks ?? []) as Hunk[],
           status: STATUS[git.status] ?? 'MODIFIED',
           binary: /^Binary files /m.test(text),
         }))
-      : invoke<string | null>('read_project_file', { project: workdir(agent), path }).then((current) => ({
+      : invoke<string | null>('read_project_file', { project: folder, path }).then((current) => ({
           path,
           hunks: structuredPatch(path, path, baseline ?? '', current ?? '', '', '', { context: 3 }).hunks as Hunk[],
           status: current === null ? 'DELETED' : baseline === null ? 'NEW' : 'MODIFIED',
@@ -167,7 +173,7 @@
   let commenting = $state<(Line & { path: string }) | null>(null)
   let note = $state('')
 
-  const review = $derived(reviewing ? (reviews[agent.id] ?? []) : [])
+  const review = $derived(reviewing ? (reviews[reviewKey] ?? []) : [])
   const here = (c: Comment) => (c.pull ?? null) === (reviewing ? pull!.number : null)
   const at = (path: string, line: Pick<Line, 'side' | 'number'>) => (c: Comment) =>
     c.path === path && c.line === line.number && c.removed === (line.side === 'old')
@@ -209,7 +215,7 @@
     event?.preventDefault()
     if (!commenting || !note.trim()) return
     if (existing) existing.list[existing.index].note = note.trim()
-    else if (reviewing) reviews[agent.id] = [...(reviews[agent.id] ?? []), draft()]
+    else if (reviewing) reviews[reviewKey] = [...(reviews[reviewKey] ?? []), draft()]
     else comments.push(draft())
     commenting = null
   }
@@ -230,29 +236,39 @@
     const { path, side, number, text } = commenting
     posting = true
     postError = ''
-    const { error } = await post(workdir(agent), pull, [{ path, line: number, removed: side === 'old', code: text, note: note.trim() }])
+    const { error } = await post(folder, pull, [{ path, line: number, removed: side === 'old', code: text, note: note.trim() }])
     posting = false
     if (error) return (postError = error)
     if (existing) existing.list.splice(existing.index, 1)
     commenting = null
   }
 
+  let verdict = $state<'' | 'approve' | 'request_changes'>('')
+  const VERDICTS: [typeof verdict, string][] = [
+    ['', 'Comment'],
+    ['approve', 'Approve'],
+    ['request_changes', 'Request changes'],
+  ]
+  const ready = $derived(verdict === 'request_changes' ? !!summary.trim() || review.length > 0 : verdict === 'approve' || !!summary.trim() || review.length > 0)
+
   async function submit() {
-    if (!pull || !review.length) return
+    if (!pull || !ready) return
     const sending = [...review]
     posting = true
     postError = ''
-    const { done, error } = await post(workdir(agent), pull, sending, summary)
+    const { done, error } = await post(folder, pull, sending, summary, verdict)
     posting = false
-    reviews[agent.id] = review.filter((c) => !sending.slice(0, done).includes(c))
+    reviews[reviewKey] = review.filter((c) => !sending.slice(0, done).includes(c))
     if (error) return (postError = done ? `${done} posted, then: ${error}` : error)
     summary = ''
+    verdict = ''
     finishing = false
+    onposted?.()
   }
 
   function handOver() {
     const list = $state.snapshot(review)
-    reviews[agent.id] = []
+    reviews[reviewKey] = []
     finishing = false
     onreview(summary.trim(), list)
     summary = ''
@@ -266,7 +282,7 @@
       cancelLabel: 'Keep it',
     })
     if (!sure) return
-    reviews[agent.id] = []
+    reviews[reviewKey] = []
     finishing = false
   }
 
@@ -281,9 +297,9 @@
     {#if reviewing && pull}
       PR #{pull.number} · {pull.branch} → {pull.base}{source ? ` · ${files.length} file${files.length > 1 ? 's' : ''}` : ''}
     {:else if changes}
-      {files.length} uncommitted file{files.length > 1 ? 's' : ''} · {mine} edited by {agent.name}
+      {files.length} uncommitted file{files.length > 1 ? 's' : ''} · {mine} edited by {agent?.name}
     {:else}
-      Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
+      Changes by {agent?.name} · {files.length} file{files.length > 1 ? 's' : ''}
     {/if}
   {/snippet}
   {#snippet actions()}
@@ -296,7 +312,7 @@
     >
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
     </button>
-    {#if pull}
+    {#if pull && agent}
       <div class="modes" role="group" aria-label="What to compare">
         <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>Changes</button>
         <button aria-pressed={reviewing} onclick={() => (mode = 'pull')}>PR #{pull.number}</button>
@@ -307,28 +323,47 @@
       <button aria-pressed={layout.split} onclick={() => setSplit(true)}>Split</button>
     </div>
   {/snippet}
-  {#if reviewing && pull && review.length}
-    <div class="review-bar">
+  {#if reviewing && pull && (review.length || !agent)}
+    <div class="review-bar" class:idle={!review.length}>
       <span class="pulse" aria-hidden="true"></span>
-      <span class="what"><strong>Review in progress</strong> · {review.length} comment{review.length > 1 ? 's' : ''}</span>
+      <span class="what">
+        {#if review.length}<strong>Review in progress</strong> · {review.length} comment{review.length > 1 ? 's' : ''}{:else}<strong>Your review</strong> · comment the lines, then finish{/if}
+      </span>
       {#if postError && !commenting}<span class="bad" role="alert">{postError}</span>{/if}
-      <button class="btn btn-secondary" onclick={discard}>Discard</button>
+      {#if review.length}<button class="btn btn-secondary" onclick={discard}>Discard</button>{/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>Finish review</button>
     </div>
     {#if finishing}
       <div class="finish">
         <label for="review-summary" class="sr-only">Overall comment</label>
         <!-- svelte-ignore a11y_autofocus -->
-        <textarea id="review-summary" class="field" rows="3" bind:value={summary} placeholder="Overall comment, optional" autofocus></textarea>
+        <textarea
+          id="review-summary"
+          class="field"
+          rows="3"
+          bind:value={summary}
+          placeholder={verdict === 'request_changes' ? 'What should change' : 'Overall comment, optional'}
+          autofocus
+        ></textarea>
         <div class="actions">
-          <span class="hint">Send the {review.length} comment{review.length > 1 ? 's' : ''} to {agent.name}, or post the review on {hostName(pull)}</span>
-          <button class="btn btn-secondary" disabled={posting} onclick={submit}>{posting ? 'Posting…' : `Post on ${hostName(pull)}`}</button>
-          <button class="btn btn-primary" disabled={posting} onclick={handOver}>Send to {agent.name}</button>
+          {#if agent}
+            <span class="hint">Send the {review.length} comment{review.length > 1 ? 's' : ''} to {agent.name}, or post the review on {hostName(pull)}</span>
+            <button class="btn btn-secondary" disabled={posting || !review.length} onclick={submit}>{posting ? 'Posting…' : `Post on ${hostName(pull)}`}</button>
+            <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>Send to {agent.name}</button>
+          {:else}
+            <div class="modes verdicts" role="radiogroup" aria-label="Verdict">
+              {#each VERDICTS as [id, label] (id)}
+                <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{label}</button>
+              {/each}
+            </div>
+            <span class="hint"></span>
+            <button class="btn btn-primary" disabled={posting || !ready} onclick={submit}>{posting ? 'Posting…' : `Submit on ${hostName(pull)}`}</button>
+          {/if}
         </div>
       </div>
     {/if}
   {/if}
-  {#if reviewing && pulled && pulled.ahead > 0 && source}
+  {#if reviewing && agent && pulled && pulled.ahead > 0 && source}
     <p class="ahead" role="note">
       {pulled.ahead} commit{pulled.ahead > 1 ? 's' : ''} of the branch {pulled.ahead > 1 ? 'are' : 'is'} not pushed to the pull request yet: lines can differ from {hostName(pull!)}.
     </p>
@@ -355,7 +390,7 @@
           role="tab"
           aria-selected={f === selected}
           class:other={!f.edits && !reviewing}
-          title={f.edits ? f.path : `${f.path} · not edited by ${agent.name}`}
+          title={f.edits || !agent ? f.path : `${f.path} · not edited by ${agent.name}`}
           onclick={() => (file = f.path)}
         >
           {name(f.path)} <span class="add">+{f.add}</span>{#if f.del}<span class="del">−{f.del}</span>{/if}
@@ -390,10 +425,10 @@
             <span class="path">{selected.path}</span>
             <span class="by" hidden={reviewing}
               >{proposing
-                ? `Proposed by ${agent.name} · not applied yet`
+                ? `Proposed by ${agent?.name} · not applied yet`
                 : selected.edits
-                  ? `${selected.edits} edit${selected.edits > 1 ? 's' : ''} by ${agent.name}`
-                  : `Not edited by ${agent.name}`}</span
+                  ? `${selected.edits} edit${selected.edits > 1 ? 's' : ''} by ${agent?.name}`
+                  : `Not edited by ${agent?.name}`}</span
             >
           </div>
           {#if error}
@@ -431,11 +466,11 @@
       {#if reviewing && pull}
         <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
       {:else}
-        <OpenWith project={workdir(agent)} path={selected.path} up />
+        <OpenWith project={folder} path={selected.path} up />
       {/if}
     </div>
   {:else}
-    <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent.name} has not changed any file yet.`}</p>
+    <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent?.name} has not changed any file yet.`}</p>
   {/if}
 </SidePanel>
 
@@ -454,8 +489,8 @@
         <Markdown text={r.body} />
       </div>
     {/each}
-    <div class="thread-actions">
-      {#if handed.includes(t.root.id)}
+    <div class="thread-actions" hidden={!agent}>
+      {#if !agent}{:else if handed.includes(t.root.id)}
         <span class="handed">In your next message to {agent.name}</span>
       {:else}
         <button class="btn btn-secondary" onclick={() => hand(t, line)}>Hand to {agent.name}</button>
@@ -473,7 +508,7 @@
       class="field"
       rows="3"
       bind:value={note}
-      placeholder="What should {agent.name} change here?"
+      placeholder={agent ? `What should ${agent.name} change here?` : 'Your comment'}
       autofocus
       onkeydown={(e) => {
         if (e.key === 'Escape') {
@@ -498,8 +533,10 @@
         <button type="button" class="btn btn-ghost" title="Posts this comment on {hostName(pull)} right away" disabled={!note.trim() || posting} onclick={postNow}>
           {posting ? 'Posting…' : `Post on ${hostName(pull)}`}
         </button>
-        <button type="button" class="btn btn-secondary" title="Adds it to your next message to {agent.name}" disabled={!note.trim()} onclick={forAgent}>Add comment</button>
-        <button class="btn btn-primary" title="Gathers this comment and the next ones; send them to {agent.name} or post them on {hostName(pull)} at the end" disabled={!note.trim()}>
+        {#if agent}
+          <button type="button" class="btn btn-secondary" title="Adds it to your next message to {agent.name}" disabled={!note.trim()} onclick={forAgent}>Add comment</button>
+        {/if}
+        <button class="btn btn-primary" title="Gathers this comment and the next ones until you finish the review" disabled={!note.trim()}>
           Start a review
         </button>
       {:else}
@@ -622,6 +659,25 @@
     border-bottom: 1px solid var(--border);
     background: var(--wait-bg);
     font-size: 13px;
+  }
+
+  .review-bar.idle {
+    background: var(--surface-1);
+  }
+
+  .review-bar.idle .pulse {
+    background: var(--text-faint);
+    box-shadow: none;
+  }
+
+  .review-bar.idle .what {
+    color: var(--text-dim);
+  }
+
+  .verdicts button[aria-checked='true'] {
+    background: var(--surface-4);
+    color: var(--text-strong);
+    font-weight: 600;
   }
 
   .review-bar .what {

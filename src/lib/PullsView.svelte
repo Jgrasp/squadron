@@ -4,11 +4,16 @@
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
   import { hostName, lists, lookUpLists, pulls, stateLabel, type Pull } from './pulls.svelte'
-  import { workdir } from './stream'
+  import DiffPanel from './DiffPanel.svelte'
+  import { workdir, type Comment } from './stream'
 
   let { project, onclose }: { project: Project; onclose: () => void } = $props()
 
   let refreshing = $state(false)
+  let opened = $state<Pull | null>(null)
+  let file = $state('')
+  let notes = $state<Comment[]>([])
+  let target = $state<Comment | null>(null)
   const found = $derived(lists[project.path])
   const waiting = $derived(found?.review.filter((p) => !p.reviewed) ?? [])
   const reviewed = $derived(found?.review.filter((p) => p.reviewed) ?? [])
@@ -35,6 +40,7 @@
     pull.reviewed === 'approved' ? 'You approved' : pull.reviewed === 'changes_requested' ? 'You asked for changes' : 'Waiting for you'
 </script>
 
+<div class="page">
 <main>
   <div class="top">
     <div class="heading">
@@ -64,7 +70,14 @@
             <span class="verdict {pull.reviewed ?? 'waiting'}">{verdict(pull)}</span>
             {@render about(pull)}
             <div class="actions">
-              <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+              <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+              <button
+                class="btn {pull.reviewed ? 'btn-secondary' : 'btn-primary'}"
+                aria-pressed={opened?.number === pull.number}
+                onclick={() => ((opened = opened?.number === pull.number ? null : pull), (file = ''))}
+              >
+                Review
+              </button>
             </div>
           </article>
         {:else}
@@ -83,7 +96,7 @@
             {@render about(pull)}
             <div class="actions">
               {#if agent}<button class="btn btn-secondary" title="The agent working on {pull.branch}" onclick={() => show(agent)}>{agent.name}</button>{/if}
-              <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+              <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
             </div>
           </article>
         {:else}
@@ -93,6 +106,25 @@
     {/if}
   </div>
 </main>
+{#if opened}
+  {#key opened.number}
+    <DiffPanel
+      agent={null}
+      dir={project.path}
+      changes={null}
+      pull={opened}
+      mode="pull"
+      bind:file
+      bind:comments={notes}
+      bind:target
+      onhand={() => {}}
+      onreview={() => {}}
+      onposted={() => lookUpLists(project.path, true)}
+      onclose={() => (opened = null)}
+    />
+  {/key}
+{/if}
+</div>
 
 {#snippet about(pull: Pull)}
   <div class="about">
@@ -112,7 +144,15 @@
 {/snippet}
 
 <style>
+  .page {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+
   main {
+    min-width: 0;
+    container-type: inline-size;
     flex: 1;
     min-height: 0;
     display: flex;
@@ -323,6 +363,37 @@
   .empty {
     margin: 0;
     color: var(--text-dim);
+  }
+
+  @container (max-width: 760px) {
+    .top,
+    .scroll {
+      padding-left: 20px;
+      padding-right: 20px;
+    }
+
+    article {
+      grid-template-columns: minmax(0, 1fr) auto;
+      gap: 6px 12px;
+    }
+
+    .verdict {
+      grid-column: 1;
+    }
+
+    .about {
+      grid-column: 1;
+    }
+
+    .facts,
+    .open {
+      display: none;
+    }
+
+    .actions {
+      grid-column: 2;
+      grid-row: 1 / span 2;
+    }
   }
 
   .problem {
