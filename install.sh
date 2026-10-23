@@ -13,7 +13,7 @@ echo "Downloading $(basename "$url")"
 curl -fL --progress-bar "$url" -o "$bin/squadron.AppImage"
 chmod +x "$bin/squadron.AppImage"
 curl -fsSL "https://raw.githubusercontent.com/$repo/main/src-tauri/icons/128x128.png" -o "$data/icon.png"
-cat > "$apps/squadron-app.desktop" <<DESKTOP
+cat > "$apps/squadron.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=Squadron
