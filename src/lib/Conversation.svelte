@@ -118,9 +118,8 @@
       {/if}
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
       {#if onfork && entry.text && forkPoint(agent, i)}
-        <button class="fork" title="New agent with the conversation before this message, and this message ready to edit" onclick={() => onfork(i)}>
-          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2" /><circle cx="18" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><path d="M6 7v10M18 7c0 6-12 4-12 10" /></svg>
-          Fork from here
+        <button class="fork" aria-label="Fork from here" title="Fork from here: a new agent with the conversation before this message, and this message ready to edit" onclick={() => onfork(i)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2" /><circle cx="18" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><path d="M6 7v10M18 7c0 6-12 4-12 10" /></svg>
         </button>
       {/if}
     </div>
@@ -300,17 +299,25 @@
 
   .fork {
     position: absolute;
-    top: 100%;
-    right: 0;
-    display: flex;
-    align-items: center;
-    gap: 5px;
-    padding: 4px 2px 2px;
-    font-size: 11.5px;
-    color: var(--text-dim);
-    white-space: nowrap;
+    right: 100%;
+    bottom: 0;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    margin-right: 8px;
+    border-radius: 50%;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-muted);
     opacity: 0;
     transition: opacity 0.12s;
+  }
+
+  .fork::before {
+    content: '';
+    position: absolute;
+    inset: 0 -8px 0 0;
   }
 
   .fork svg {
@@ -325,7 +332,8 @@
   }
 
   .fork:hover {
-    color: var(--accent-link);
+    background: var(--surface-5);
+    color: var(--text-strong);
   }
 
   .via {
