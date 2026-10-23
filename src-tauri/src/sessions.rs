@@ -147,8 +147,13 @@ pub fn list(project: &Path) -> Vec<Found> {
     let Some(root) = claude_dir().map(|d| d.join("projects")) else {
         return Vec::new();
     };
+    let config = if cfg!(target_os = "macos") {
+        "Library/Application Support"
+    } else {
+        ".config"
+    };
     let app = home()
-        .map(|h| app_sessions(&h.join(".config")))
+        .map(|h| app_sessions(&h.join(config)))
         .unwrap_or_default();
     let mut found: Vec<Found> = folders(&root, project)
         .iter()
