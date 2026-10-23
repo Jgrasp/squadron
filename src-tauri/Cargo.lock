@@ -3847,6 +3847,7 @@ dependencies = [
  "portable-pty",
  "reqwest",
  "rmcp",
+ "rustls",
  "schemars 1.2.3",
  "serde",
  "serde_json",

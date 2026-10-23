@@ -101,6 +101,11 @@ pub struct Accounts {
     pub github: Option<String>,
 }
 
+fn client() -> reqwest::Client {
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    reqwest::Client::new()
+}
+
 fn text(value: &Value) -> String {
     value.as_str().unwrap_or_default().to_string()
 }
@@ -138,7 +143,7 @@ fn account() -> Result<Account, String> {
 }
 
 pub async fn sign_in(email: String, token: String) -> Result<(), String> {
-    let response = reqwest::Client::new()
+    let response = client()
         .get(format!("{BITBUCKET}/user"))
         .basic_auth(&email, Some(&token))
         .send()
@@ -181,7 +186,7 @@ async fn bitbucket(
         format!("{BITBUCKET}{url}")
     };
     let url = reqwest::Url::parse_with_params(&url, query).map_err(|e| e.to_string())?;
-    let mut request = reqwest::Client::new()
+    let mut request = client()
         .request(method, url)
         .basic_auth(account.email, Some(account.token));
     if let Some(body) = body {
@@ -708,5 +713,15 @@ mod tests {
         assert_eq!(entry.get_password().unwrap(), "dummy");
         entry.delete_credential().unwrap();
         assert!(matches!(entry.get_password(), Err(keyring::Error::NoEntry)));
+    }
+
+    #[tokio::test]
+    #[ignore = "calls Bitbucket"]
+    async fn real_bitbucket_rejects_a_wrong_token() {
+        let refused = sign_in("nobody@example.com".into(), "wrong".into()).await;
+        assert_eq!(
+            refused,
+            Err("Bitbucket refused this email and token.".into())
+        );
     }
 }
