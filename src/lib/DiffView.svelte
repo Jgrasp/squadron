@@ -13,6 +13,7 @@
     marked = [],
     editor,
     below,
+    commentRemoved = true,
   }: {
     hunks: Hunk[]
     split?: boolean
@@ -22,6 +23,7 @@
     marked?: (Pick<Line, 'side' | 'number'> & { note: string })[]
     editor?: Snippet
     below?: Snippet<[Line]>
+    commentRemoved?: boolean
   } = $props()
 
   const at = (side: Line['side'], number?: number) => open?.side === side && open.number === number
@@ -39,7 +41,7 @@
     <button use:sync class="plus bubble effect-snake" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
       <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
     </button>
-  {:else if oncomment}
+  {:else if oncomment && (commentRemoved || line.side === 'new')}
     <button class="plus" aria-label="Comment line {line.number}" title="Comment this line" onclick={() => oncomment(line)}>+</button>
   {/if}
 {/snippet}

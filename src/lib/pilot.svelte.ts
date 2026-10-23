@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { branchOf, create, find, importSession, knownSessions, ofProject, persist, type Elsewhere } from './agents.svelte'
+import { branchOf, create, find, importSession, knownSessions, ofProject, persist, send, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
@@ -153,6 +153,18 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
   },
 
+  message_agent: async (caller, args) => {
+    const target = find(String(args.agent ?? ''))
+    if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    if (target === caller) throw new Error('That agent is you.')
+    projectFor(caller, target.project)
+    const message = String(args.message ?? '').trim()
+    if (!message) throw new Error('The message is empty.')
+    if (target.asks.length) throw new Error(`${target.name} waits for the user to answer a question or a permission request. Only the user can answer it: tell them.`)
+    await send(target.id, message, [], [], caller.name)
+    return `Sent to ${target.name}. ${target.status === 'working' ? 'It reads it once its current action ends.' : 'It starts on it now.'} Read its answer later with read_agent.`
+  },
+
   import_session: async (caller, args) => {
     const project = projectFor(caller, args.project)
     const [found, known] = await Promise.all([invoke<Elsewhere[]>('project_sessions', { project: project.path }), knownSessions()])
@@ -187,7 +199,8 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const text = !path || removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
     const key = `${caller.review.project}#${caller.review.number}`
     reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
-    return `Added to the user's review of pull request #${caller.review.number} (${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''} so far).`
+    const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
+    return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
   },
 
   get_layout: () =>

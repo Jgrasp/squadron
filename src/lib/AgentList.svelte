@@ -232,6 +232,9 @@
     <div class="who">
       <span class="square" aria-hidden="true"></span>
       <strong title={project.name}>{project.name}</strong>
+      <button class="fold collapse" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+      </button>
     </div>
     <div class="under">
     <small class:bad={!project.exists}>
@@ -245,7 +248,7 @@
     </small>
     <div class="actions">
       <button class="new" disabled={!project.exists} onclick={onnew} title="New agent ({hint('newAgent')})">+ Agent</button>
-      <span class="anchor" data-menu>
+      <span class="anchor loose" data-menu>
         <button class="fold" class:own aria-label="Sort the agents" aria-haspopup="menu" aria-expanded={sorting} title={own ? `Sorted for ${project.name}` : 'Sort the agents'} onclick={openSort}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
         </button>
@@ -278,9 +281,6 @@
       </span>
       <button class="fold" aria-label="Archived agents" title="Archived agents of {project.name}" onclick={() => (showArchived = true)}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" /></svg>
-      </button>
-      <button class="fold" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
       <button
         class="fold"
@@ -371,10 +371,16 @@
     position: relative;
   }
 
+  .anchor.loose {
+    position: static;
+  }
+
   .menu.sort {
     position: absolute;
-    top: 36px;
-    right: 0;
+    top: calc(100% - 4px);
+    left: 4px;
+    width: max-content;
+    min-width: 230px;
   }
 
   .menu [aria-checked='true'] {
@@ -449,6 +455,7 @@
   }
 
   .head {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 8px;
@@ -460,6 +467,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+
+  .collapse {
+    margin-left: auto;
   }
 
   .who strong {

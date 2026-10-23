@@ -570,10 +570,13 @@ async fn pull_changes(
     base: String,
     branch: String,
     head: String,
+    since: Option<String>,
 ) -> Result<git::Pulled, String> {
-    tauri::async_runtime::spawn_blocking(move || git::pull_changes(&dir, &base, &branch, &head))
-        .await
-        .map_err(|e| e.to_string())?
+    tauri::async_runtime::spawn_blocking(move || {
+        git::pull_changes(&dir, &base, &branch, &head, since.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

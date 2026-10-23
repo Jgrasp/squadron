@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { untrack } from 'svelte'
+  import { tick, untrack } from 'svelte'
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, rows, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
@@ -11,7 +11,7 @@
   import { ask } from '@tauri-apps/plugin-dialog'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { hostName, post, reviews, type Pull, type Remark } from './pulls.svelte'
+  import { hostName, markReviewed, post, reviews, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
 
@@ -30,6 +30,7 @@
     onposted,
     reviewer = null,
     onagent,
+    since = null,
     onclose,
   }: {
     agent: Agent | null
@@ -46,14 +47,17 @@
     onposted?: () => void
     reviewer?: Agent | null
     onagent?: () => Promise<unknown>
+    since?: string | null
     onclose: () => void
   } = $props()
 
   const folder = $derived(dir ?? workdir(agent!))
   const reviewing = $derived(mode === 'pull' && !!pull)
   const reviewKey = $derived(agent?.id ?? `${folder}#${pull?.number}`)
-  const keyOf = (p: Pull) => `${p.number}:${p.head}`
-  let pulled = $state<{ key: string; changes: Changes; ahead: number } | null>(null)
+  let onlyNew = $state(untrack(() => !!since))
+  let sinceError = $state('')
+  const keyOf = (p: Pull) => `${p.number}:${p.head}:${onlyNew ? since : ''}`
+  let pulled = $state<{ key: string; changes: Changes; ahead: number; added: number } | null>(null)
   let pullError = $state('')
   let attempt = $state(0)
 
@@ -64,9 +68,14 @@
     if (untrack(() => pulled?.key) === key) return
     pullError = ''
     const { base, branch, head } = pull
-    invoke<{ changes: Changes; ahead: number }>('pull_changes', { dir: folder, base, branch, head })
+    const from = onlyNew ? since : null
+    invoke<{ changes: Changes; ahead: number; added: number }>('pull_changes', { dir: folder, base, branch, head, since: from })
       .then((result) => (pulled = { key, ...result }))
-      .catch((e) => (pullError = String(e)))
+      .catch((e) => {
+        if (!from) return (pullError = String(e))
+        sinceError = String(e)
+        onlyNew = false
+      })
   })
 
   let remarks = $state<Remark[]>([])
@@ -162,7 +171,7 @@
 
   $effect(() => {
     const path = selected?.path
-    if (!path) return
+    if (!path || reviewing) return
     const git = source && { from: source.from, now: source.now, status: source.files.find((f) => f.path === path)?.status ?? '' }
     const baseline = edited.find((f) => f.path === path)?.baseline ?? null
     void selected.edits
@@ -227,8 +236,82 @@
     note = found ? found.list[found.index].note : ''
   }
 
+  type Patch = { hunks: Hunk[]; status: string; binary: boolean }
+  let patches = $state<Record<string, Patch | { error: string } | 'loading'>>({})
+  const patchOf = (path: string) => patches[`${source?.from}:${source?.now}:${path}`]
+
+  function loadPatch(path: string) {
+    if (!source || patchOf(path)) return
+    const key = `${source.from}:${source.now}:${path}`
+    const status = source.files.find((f) => f.path === path)?.status ?? ''
+    patches[key] = 'loading'
+    invoke<string>('git_patch', { project: folder, from: source.from, now: source.now, path })
+      .then(
+        (text) =>
+          (patches[key] = { hunks: (parsePatch(text)[0]?.hunks ?? []) as Hunk[], status: STATUS[status] ?? 'MODIFIED', binary: /^Binary files /m.test(text) }),
+      )
+      .catch((e) => (patches[key] = { error: String(e) }))
+  }
+
+  function approach(el: HTMLElement, path: string) {
+    const watch = new IntersectionObserver((seen) => seen.some((s) => s.isIntersecting) && loadPatch(path), {
+      root: el.closest('.body'),
+      rootMargin: '800px 0px',
+    })
+    watch.observe(el)
+    return { destroy: () => watch.disconnect() }
+  }
+
+  let body = $state<HTMLElement>()
+  let spot = $state('')
+  let folded = $state<string[]>([])
+
+  let steered = 0
+
+  function spy() {
+    if (!body || !reviewing || Date.now() - steered < 400) return
+    const top = body.getBoundingClientRect().top + 60
+    let found = ''
+    for (const el of body.querySelectorAll<HTMLElement>('[data-file]')) {
+      if (el.getBoundingClientRect().top > top) break
+      found = el.dataset.file ?? ''
+    }
+    spot = found || files[0]?.path || ''
+  }
+
   $effect(() => {
-    if (!target || shown?.path !== target.path) return
+    void files
+    void reviewing
+    tick().then(spy)
+  })
+
+  function scrollToFile(path: string) {
+    spot = path
+    steered = Date.now()
+    folded = folded.filter((p) => p !== path)
+    tick().then(() => body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: 'start' }))
+  }
+
+  const notesFor = (path: string) => [...review, ...comments.filter(here)].filter((c) => c.path === path)
+  const markedFor = (path: string) => notesFor(path).map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note }))
+  function outsideFor(path: string, hunks: Hunk[]) {
+    const lines = new Set(rows(hunks).flatMap((r) => (r.kind === 'head' ? [] : r.kind === 'del' ? [`old:${r.old}`] : [`new:${r.new}`])))
+    return notesFor(path).filter((c) => !lines.has(`${c.removed ? 'old' : 'new'}:${c.line}`))
+  }
+
+  function openAt(path: string, line: Line) {
+    commenting = { ...line, path }
+    const found = find(path, line)
+    note = found ? found.list[found.index].note : ''
+  }
+
+  $effect(() => {
+    if (!target) return
+    if (reviewing) {
+      const patch = patchOf(target.path)
+      const path = target.path
+      if (!patch || patch === 'loading') return untrack(() => (loadPatch(path), scrollToFile(path)))
+    } else if (shown?.path !== target.path) return
     commenting = { side: target.removed ? 'old' : 'new', number: target.line, text: target.code, path: target.path }
     note = target.note
     target = null
@@ -307,14 +390,11 @@
       : [],
   )
 
-  $effect(() => {
-    if (reviewing && review.length && !untrack(() => file)) file = review[0].path
-  })
-
   function goTo(c: Comment) {
     listing = false
     if (!c.path) return document.querySelector('.general')?.scrollIntoView({ block: 'start' })
-    file = c.path
+    if (reviewing) scrollToFile(c.path)
+    else file = c.path
     target = c
   }
 
@@ -352,6 +432,7 @@
     summary = ''
     verdict = ''
     finishing = false
+    if (!agent) markReviewed(folder, pull)
     onposted?.()
   }
 
@@ -384,7 +465,9 @@
 <SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title="Diff" {onclose}>
   {#snippet sub()}
     {#if reviewing && pull}
-      PR #{pull.number} · {pull.branch} → {pull.base}{source ? ` · ${files.length} file${files.length > 1 ? 's' : ''}` : ''}
+      PR #{pull.number} · {pull.branch} → {pull.base}{source ? ` · ${files.length} file${files.length > 1 ? 's' : ''}` : ''}{onlyNew && pulled
+        ? ` · ${pulled.added} new commit${pulled.added === 1 ? '' : 's'} since your review`
+        : ''}
     {:else if changes}
       {files.length} uncommitted file{files.length > 1 ? 's' : ''} · {mine} edited by {agent?.name}
     {:else}
@@ -401,6 +484,12 @@
     >
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
     </button>
+    {#if reviewing && since}
+      <div class="modes" role="group" aria-label="What to review">
+        <button aria-pressed={onlyNew} onclick={() => ((onlyNew = true), (sinceError = ''))}>Since your review</button>
+        <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>All changes</button>
+      </div>
+    {/if}
     {#if pull && agent}
       <div class="modes" role="group" aria-label="What to compare">
         <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>Changes</button>
@@ -495,6 +584,9 @@
       </div>
     {/if}
   {/if}
+  {#if reviewing && sinceError}
+    <p class="ahead" role="note">{sinceError}</p>
+  {/if}
   {#if reviewing && agent && pulled && pulled.ahead > 0 && source}
     <p class="ahead" role="note">
       {pulled.ahead} commit{pulled.ahead > 1 ? 's' : ''} of the branch {pulled.ahead > 1 ? 'are' : 'is'} not pushed to the pull request yet: lines can differ from {hostName(pull!)}.
@@ -520,10 +612,10 @@
       {#each files as f (f.path)}
         <button
           role="tab"
-          aria-selected={f === selected}
+          aria-selected={reviewing ? f.path === spot : f === selected}
           class:other={!f.edits && !reviewing}
           title={f.edits || !agent ? f.path : `${f.path} · not edited by ${agent.name}`}
-          onclick={() => (file = f.path)}
+          onclick={() => (reviewing ? scrollToFile(f.path) : (file = f.path))}
         >
           {name(f.path)} <span class="add">+{f.add}</span>{#if f.del}<span class="del">−{f.del}</span>{/if}
           {#if reviewing && talks(f.path)}<span class="talks" title="{talks(f.path)} review thread{talks(f.path) > 1 ? 's' : ''}">{talks(f.path)}</span>{/if}
@@ -537,11 +629,11 @@
     {#if layout.fileTree}
       <ChangedFiles
         files={files.map((f) => ({ ...f, other: !f.edits && !reviewing, talks: reviewing ? talks(f.path) : 0, drafts: reviewing ? draftsIn(f.path) : 0 }))}
-        selected={selected?.path}
-        onpick={(path) => (file = path)}
+        selected={reviewing ? spot : selected?.path}
+        onpick={(path) => (reviewing ? scrollToFile(path) : (file = path))}
       />
     {/if}
-    <div class="body">
+    <div class="body" class:stack={reviewing} bind:this={body} onscroll={spy}>
       {#if reviewing && pull}
         {@const count = general.length + mineGeneral.length}
         <details class="general" open={count > 0 || undefined}>
@@ -572,7 +664,69 @@
           </form>
         </details>
       {/if}
-      {#if selected}
+      {#if reviewing}
+        {#each files as f (f.path)}
+          {@const patch = patchOf(f.path)}
+          {@const open = !folded.includes(f.path)}
+          <section class="file" data-file={f.path} use:approach={f.path}>
+            <div class="file-head">
+              <button
+                class="fold-file"
+                aria-expanded={open}
+                aria-label="{open ? 'Fold' : 'Unfold'} {f.path}"
+                onclick={() => (folded = open ? [...folded, f.path] : folded.filter((p) => p !== f.path))}
+              >
+                <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+              {#if patch && typeof patch === 'object' && 'status' in patch}
+                <span class="badge" class:new={patch.status === 'NEW'} class:gone={patch.status === 'DELETED'}>{patch.status}</span>
+              {/if}
+              <span class="path">{f.path}</span>
+              <span class="stat"><span class="add">+{f.add}</span>{#if f.del}&nbsp;<span class="del">−{f.del}</span>{/if}</span>
+            </div>
+            {#if open}
+              {#if !patch || patch === 'loading'}
+                <p class="empty">Reading the file…</p>
+              {:else if 'error' in patch}
+                <p class="empty">{patch.error}</p>
+              {:else}
+                {@const away = outsideFor(f.path, patch.hunks)}
+                {#if away.length}
+                  <div class="outside">
+                    <span class="outside-head">Your comments on lines the diff does not show</span>
+                    {#each away as c, i (i)}
+                      <div class="outside-item">
+                        <span class="mono">{c.removed ? 'removed ' : ''}line {c.line}</span>
+                        <div class="outside-note"><Markdown text={c.note} /></div>
+                        <button class="drop" aria-label="Delete the comment on line {c.line}" title="Delete" onclick={() => drop(c)}>×</button>
+                      </div>
+                    {/each}
+                  </div>
+                {/if}
+                {#if patch.binary}
+                  <p class="empty">Binary file, no preview.</p>
+                {:else if patch.hunks.length}
+                  {#snippet lineThreads(line: Line)}
+                    {#each threadsAt(f.path, line) as t (t.root.id)}{@render thread(t, line)}{/each}
+                  {/snippet}
+                  <DiffView
+                    hunks={patch.hunks}
+                    split={layout.split}
+                    oncomment={(line) => openAt(f.path, line)}
+                    commentRemoved={!onlyNew}
+                    marked={markedFor(f.path)}
+                    open={commenting?.path === f.path ? commenting : null}
+                    {editor}
+                    below={lineThreads}
+                  />
+                {:else}
+                  <p class="empty">No change to show.</p>
+                {/if}
+              {/if}
+            {/if}
+          </section>
+        {/each}
+      {:else if selected}
         <div class="file">
           <div class="file-head">
             {#if shown}
@@ -626,7 +780,9 @@
     <div class="foot">
       <span>
         {reviewing && pull
-          ? `What the pull request changes, compared to ${pull.base}`
+          ? onlyNew
+            ? 'What changed since your review; removed lines are commented from All changes'
+            : `What the pull request changes, compared to ${pull.base}`
           : changes
             ? 'What is not committed yet, compared to the last commit'
             : 'Diff since the agent first touched the file'}
@@ -1213,6 +1369,56 @@
     flex: 1;
     min-height: 0;
     display: flex;
+  }
+
+  .body.stack {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+  }
+
+  .stack .file {
+    overflow: visible;
+  }
+
+  .stack .file-head {
+    position: sticky;
+    top: -14px;
+    z-index: 3;
+    border-radius: 6px 6px 0 0;
+    box-shadow: 0 1px 0 var(--border);
+  }
+
+  .fold-file {
+    flex: none;
+    width: 22px;
+    height: 22px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .fold-file:hover {
+    background: var(--surface-3);
+    color: var(--text-strong);
+  }
+
+  .fold-file svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    transition: transform 0.12s;
+  }
+
+  .fold-file[aria-expanded='true'] svg {
+    transform: rotate(90deg);
+  }
+
+  .stat {
+    flex: none;
+    font: 12px var(--mono);
   }
 
   .ahead {

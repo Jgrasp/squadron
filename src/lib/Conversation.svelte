@@ -207,6 +207,7 @@
       {/if}
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
+    {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>Sent by {entry.from}, approved by you · {time(entry.at)}</span>{/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>Sent via remote control · {time(entry.at)}</span>{/if}
   {:else if entry.kind === 'agent'}
     {@const reply = groups(entry.blocks)}

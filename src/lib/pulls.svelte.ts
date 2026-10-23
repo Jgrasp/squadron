@@ -20,8 +20,12 @@ export type Pull = {
   base: string
   head: string
   author: string
+  author_avatar: string
   updated: string
-  reviewed: 'approved' | 'changes_requested' | null
+  reviewed: 'approved' | 'changes_requested' | 'commented' | null
+  reviewed_head: string | null
+  reviewed_at: string | null
+  head_at: string | null
   reviewers: Reviewer[]
   conflicts: boolean
 }
@@ -34,10 +38,10 @@ export function progress(pull: Pull) {
 }
 
 export function standing(pull: Pull): [string, string] {
-  if (pull.changes_requested) return ['changes_requested', 'Changes requested']
-  if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['approved', 'Approved']
-  if (pull.draft) return ['draft', 'Draft']
-  return ['open', 'In review']
+  if (pull.changes_requested) return ['act-fix', 'Changes requested']
+  if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['act-merge', 'Approved']
+  if (pull.draft) return ['quiet', 'Draft']
+  return ['wait', 'In review']
 }
 
 export type Lists = { review: Pull[]; mine: Pull[]; error: string }
@@ -55,7 +59,24 @@ export type Remark = {
 }
 
 export const pulls = $state<Record<string, Pull | null>>({})
-export const reviews = $state<Record<string, Comment[]>>({})
+export const reviews = $state<Record<string, Comment[]>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.reviews') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+$effect.root(() => {
+  $effect(() => {
+    const kept = Object.fromEntries(Object.entries($state.snapshot(reviews)).filter(([, list]) => list.length))
+    try {
+      localStorage.setItem('squadron.reviews', JSON.stringify(kept))
+    } catch {}
+  })
+})
 export const reopen = $state<{ number: number | null }>({ number: null })
 
 export function openReview(project: string, number: number) {
@@ -78,9 +99,42 @@ export async function lookUpLists(project: string, force = false) {
   }
 }
 
+export const reviewedHeads = $state<Record<string, string>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.reviewed') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+export function markReviewed(dir: string, pull: Pull) {
+  reviewedHeads[`${dir}#${pull.number}`] = pull.head
+  try {
+    localStorage.setItem('squadron.reviewed', JSON.stringify(reviewedHeads))
+  } catch {}
+}
+
+const same = (a: string, b: string) => a.startsWith(b) || b.startsWith(a)
+
+export function sinceOf(dir: string, pull: Pull) {
+  return reviewedHeads[`${dir}#${pull.number}`] ?? pull.reviewed_head ?? pull.reviewed_at
+}
+
+export function moved(dir: string, pull: Pull) {
+  const local = reviewedHeads[`${dir}#${pull.number}`]
+  if (local) return !same(local, pull.head)
+  if (pull.reviewed_head) return !same(pull.reviewed_head, pull.head)
+  if (pull.reviewed_at && pull.head_at) return Date.parse(pull.head_at) > Date.parse(pull.reviewed_at)
+  return false
+}
+
+export const waitsFor = (dir: string, pull: Pull) => !pull.reviewed || moved(dir, pull)
+
 export const needsYou = (project: string) => {
   const found = lists[project]
-  return found ? found.review.filter((p) => !p.reviewed).length + found.mine.filter((p) => p.changes_requested).length : 0
+  return found ? found.review.filter((p) => waitsFor(project, p)).length + found.mine.filter((p) => p.changes_requested).length : 0
 }
 const checked: Record<string, number> = {}
 

@@ -13,7 +13,7 @@ use tokio::sync::oneshot;
 pub const INSTRUCTIONS: &str = "You run inside Squadron, the desktop app where the user drives several Claude Code agents. \
 These tools act on Squadron itself: its projects and agents, the Kanban cards, and the layout of its buttons and menus. \
 When the user asks to change Squadron (move or hide a button, add a card, start an agent), use these tools and never edit Squadron's source code. \
-You can prepare and start new agents as the user would, but you never answer, approve or steer an existing agent in the user's place. \
+You can prepare and start new agents as the user would, and send an instruction to another agent with message_agent: the user approves each message. You never answer another agent's questions or permission requests in the user's place. \
 When you start working in a git worktree that you entered yourself (a script, git worktree add, cd), call set_worktree so Squadron shows its branch. \
 To start an agent in a worktree a script made, pass its path to start_agent.";
 
@@ -77,6 +77,15 @@ struct SetWorktree {
     path: String,
     /// The agent id, as listed by overview, to set the worktree of another agent. Yourself when left empty.
     agent: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct MessageAgent {
+    /// The agent id, as listed by overview.
+    agent: String,
+    /// The instruction, as the user would write it to that agent.
+    message: String,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -245,6 +254,16 @@ impl Pilot {
     ) -> String {
         self.forward(&parts, "add_review_comment", json!(args))
             .await
+    }
+
+    /// Sends a message to another agent, as the next message of its conversation, marked as coming from you. The user approves each message before it is sent. It cannot answer that agent's pending question or permission request: only the user can.
+    #[tool]
+    async fn message_agent(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<MessageAgent>,
+    ) -> String {
+        self.forward(&parts, "message_agent", json!(args)).await
     }
 
     /// Imports into Squadron a conversation held elsewhere, in the Claude app or Claude Code, as a new agent of the project that continues it. Without session, lists the conversations of the project that Squadron can import, with their title and session id.
@@ -422,6 +441,32 @@ mod tests {
                 .stdout
                 .iter()
                 .any(|_| true)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_sends_an_instruction_to_another_agent() {
+        let calls = drive(
+            "haiku",
+            "Tell the agent T7C in Squadron not to push its branch ia/BAT-809-T7C-admin-greffes, and to put the variants and the orders on their own branches.",
+            |call| match call.tool.as_str() {
+                "overview" => json!([{"project": "BMC - TMC", "agents": [{"id": "a-7c", "name": "BAT-809 : T7C greffes admin 2.3", "state": "working"}, {"id": "a-5c", "name": "BAT-809 : T5C plugins", "state": "done"}]}]).to_string(),
+                "message_agent" => "Sent to BAT-809 : T7C greffes admin 2.3. It reads it once its current action ends.".to_string(),
+                _ => "[]".to_string(),
+            },
+        )
+        .await;
+        let sent = calls
+            .iter()
+            .find(|c| c.tool == "message_agent")
+            .expect("message_agent called");
+        assert_eq!(sent.args["agent"], "a-7c");
+        assert!(
+            sent.args["message"]
+                .as_str()
+                .unwrap()
+                .contains("ia/BAT-809-T7C-admin-greffes")
         );
     }
 
