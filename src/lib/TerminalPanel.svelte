@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { openUrl } from '@tauri-apps/plugin-opener'
   import { FitAddon } from '@xterm/addon-fit'
   import { Terminal } from '@xterm/xterm'
   import '@xterm/xterm/css/xterm.css'
@@ -58,7 +59,14 @@
     })
     document.fonts.load("12.5px 'DM Mono'").finally(() => {
       if (disposed) return
-      created = new Terminal({ fontFamily: "'DM Mono', monospace", fontSize: 12.5, lineHeight: 1.3, cursorBlink: true, theme: THEME })
+      created = new Terminal({
+        fontFamily: "'DM Mono', monospace",
+        fontSize: 12.5,
+        lineHeight: 1.3,
+        cursorBlink: true,
+        theme: THEME,
+        linkHandler: { activate: (_, uri) => /^https?:\/\//.test(uri) && openUrl(uri) },
+      })
       fit = new FitAddon()
       created.loadAddon(fit)
       created.open(host)

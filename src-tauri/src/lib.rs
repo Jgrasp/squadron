@@ -847,6 +847,14 @@ fn archive_agent(agents: State<Agents>, id: String) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
+    for leaked in [
+        "GIO_LAUNCHED_DESKTOP_FILE",
+        "GIO_LAUNCHED_DESKTOP_FILE_PID",
+        "LD_LIBRARY_PATH",
+    ] {
+        // SAFETY: runs first, before Squadron starts any thread.
+        unsafe { std::env::remove_var(leaked) };
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
