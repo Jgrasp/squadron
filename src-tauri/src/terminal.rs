@@ -56,6 +56,13 @@ impl Terminals {
         cmd.cwd(dir);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
+        for leaked in [
+            "GIO_LAUNCHED_DESKTOP_FILE",
+            "GIO_LAUNCHED_DESKTOP_FILE_PID",
+            "LD_LIBRARY_PATH",
+        ] {
+            cmd.env_remove(leaked);
+        }
         let child = pair.slave.spawn_command(cmd).map_err(|e| e.to_string())?;
         drop(pair.slave);
         let mut reader = pair.master.try_clone_reader().map_err(|e| e.to_string())?;
