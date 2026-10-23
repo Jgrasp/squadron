@@ -8,7 +8,7 @@
   import { ago, cost, meta, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
-  import { projects, toggleBoard } from './projects.svelte'
+  import { projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
@@ -17,7 +17,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUp, pulls, stateLabel } from './pulls.svelte'
+  import { lookUp, needsYou, pulls, stateLabel } from './pulls.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
@@ -455,6 +455,13 @@
         {/if}
       </button>
     {/snippet}
+    {#snippet pullsTool()}
+      <button class="btn btn-ghost" aria-label="Pull requests" title="Pull requests you review and you wrote" onclick={togglePulls}>
+        <Icon name="pull" />
+        {#if !panel}Pull requests{/if}
+        {#if needsYou(agent.project)}<span class="count">{needsYou(agent.project)}</span>{/if}
+      </button>
+    {/snippet}
     {#snippet kanbanTool()}
       <button class="btn btn-ghost" aria-label="Kanban" title="Kanban ({hint('kanban')})" onclick={toggleBoard}>
         <Icon name="kanban" />
@@ -463,7 +470,7 @@
     {/snippet}
       {#each ui.customizing ? all('agent.tools') : shown('agent.tools') as id (id)}
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
-            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : kanbanTool)()}
+            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : kanbanTool)()}
             {#if ui.customizing}
               <button class="eye" data-keep aria-label="{hidden('agent.tools', id) ? 'Show' : 'Hide'} {labelOf('agent.tools', id)}" onclick={() => toggleItem('agent.tools', id)}>
                 <Icon name={hidden('agent.tools', id) ? 'eye-off' : 'eye'} size={12} />
@@ -1062,6 +1069,17 @@
 
   .chip.branch:hover {
     background: var(--menu);
+  }
+
+  .count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 11px/18px var(--sans);
+    text-align: center;
   }
 
   .chip.pull {

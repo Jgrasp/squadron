@@ -396,8 +396,27 @@ mockIPC(
               head: 'b'.repeat(40),
             }
           : null
+      case 'pull_lists': {
+        if (!a.dir.includes('orbit')) throw 'The project is not on Bitbucket or GitHub.'
+        const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
+          host: 'bitbucket', number, title, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
+          approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
+          updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, ...extra,
+        })
+        return {
+          review: [
+            pull(2093, 'Remove the old GfK import and its patches', 'Amandine T.', 'dev/T21', { comments: 2 }),
+            pull(2098, 'Lower the autovacuum thresholds of sale', 'Amandine T.', 'dev/T19', { checks: 'passing' }),
+            pull(2071, 'Export segments as CSV', 'Lucas M.', 'dev/T12', { reviewed: 'approved', approvals: 1 }),
+          ],
+          mine: [
+            pull(2108, 'feat(segments): channel-aware segment resolver', 'Quentin Briais', 'feat/orbit', { approvals: 1, comments: 3, checks: 'passing' }),
+            pull(2101, 'Faster price index rebuild', 'Quentin Briais', 'dev/T17', { changes_requested: true, checks: 'failing', comments: 5 }),
+          ],
+        }
+      }
       case 'forge_accounts':
-        return { bitbucket: localStorage.getItem('bitbucket'), github: 'octo' }
+        return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, github: 'octo' }
       case 'bitbucket_sign_in':
         if (a.token === 'bad') throw 'Bitbucket refused this email and token.'
         localStorage.setItem('bitbucket', a.email)

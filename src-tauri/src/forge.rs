@@ -8,6 +8,10 @@ use std::process::{Command, Stdio};
 
 const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
 const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting.";
+const NO_USER_SCOPE: &str =
+    "Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.";
+const BITBUCKET_FIELDS: &str = "values.id,values.title,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.updated_on,values.participants.approved,values.participants.state,values.participants.user.uuid";
+const GITHUB_FIELDS: &str = "number,title,url,state,isDraft,reviewDecision,latestReviews,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Host {
@@ -67,6 +71,15 @@ pub struct Pull {
     pub branch: String,
     pub base: String,
     pub head: String,
+    pub author: String,
+    pub updated: String,
+    pub reviewed: Option<String>,
+}
+
+#[derive(Serialize)]
+pub struct Lists {
+    pub review: Vec<Pull>,
+    pub mine: Vec<Pull>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -98,6 +111,7 @@ pub struct Posted {
 #[derive(Serialize)]
 pub struct Accounts {
     pub bitbucket: Option<String>,
+    pub bitbucket_user: bool,
     pub github: Option<String>,
 }
 
@@ -128,6 +142,8 @@ fn checks<'a>(states: impl Iterator<Item = &'a str>) -> Option<String> {
 struct Account {
     email: String,
     token: String,
+    #[serde(default)]
+    uuid: Option<String>,
 }
 
 fn entry() -> Result<keyring::Entry, String> {
@@ -152,8 +168,38 @@ pub async fn sign_in(email: String, token: String) -> Result<(), String> {
     if response.status() == reqwest::StatusCode::UNAUTHORIZED {
         return Err("Bitbucket refused this email and token.".into());
     }
-    let secret = serde_json::to_string(&Account { email, token }).map_err(|e| e.to_string())?;
+    let uuid = if response.status().is_success() {
+        let user: Value = response.json().await.unwrap_or_default();
+        user["uuid"].as_str().map(str::to_string)
+    } else {
+        None
+    };
+    keep(&Account { email, token, uuid })
+}
+
+fn keep(account: &Account) -> Result<(), String> {
+    let secret = serde_json::to_string(account).map_err(|e| e.to_string())?;
     entry()?.set_password(&secret).map_err(|e| e.to_string())
+}
+
+async fn bitbucket_me() -> Result<String, String> {
+    let mut account = account()?;
+    if let Some(uuid) = &account.uuid {
+        return Ok(uuid.clone());
+    }
+    let user = bitbucket(Method::GET, "/user", &[("fields", "uuid")], None)
+        .await
+        .map_err(|e| {
+            if e.contains("403") {
+                NO_USER_SCOPE.into()
+            } else {
+                e
+            }
+        })?;
+    let uuid = user["uuid"].as_str().ok_or(NO_USER_SCOPE)?.to_string();
+    account.uuid = Some(uuid.clone());
+    keep(&account)?;
+    Ok(uuid)
 }
 
 pub fn sign_out() -> Result<(), String> {
@@ -164,8 +210,10 @@ pub fn sign_out() -> Result<(), String> {
 }
 
 pub fn accounts() -> Accounts {
+    let found = account().ok();
     Accounts {
-        bitbucket: account().ok().map(|a| a.email),
+        bitbucket_user: found.as_ref().is_some_and(|a| a.uuid.is_some()),
+        bitbucket: found.map(|a| a.email),
         github: gh(&["api", "user", "--jq", ".login"], None)
             .ok()
             .map(|login| login.trim().to_string())
@@ -265,7 +313,7 @@ pub async fn pull(dir: &Path) -> Result<Option<Pull>, String> {
                     ("state", "DECLINED"),
                     ("sort", "-updated_on"),
                     ("pagelen", "1"),
-                    ("fields", "values.id,values.title,values.state,values.draft,values.comment_count,values.links.html.href,values.source.commit.hash,values.destination.branch.name,values.participants.approved,values.participants.state"),
+                    ("fields", BITBUCKET_FIELDS),
                 ],
                 None,
             )
@@ -284,25 +332,128 @@ pub async fn pull(dir: &Path) -> Result<Option<Pull>, String> {
             )
             .await
             .unwrap_or_default();
-            Ok(Some(bitbucket_pull(found, &statuses, &branch)))
+            let me = account().ok().and_then(|a| a.uuid).unwrap_or_default();
+            Ok(Some(bitbucket_pull(found, &statuses, &me)))
         }
-        Host::GitHub => blocking(move || {
-            let out = gh(
-                &[
-                    "pr", "list", "--repo", &repo.slug, "--head", &branch, "--state", "all",
-                    "--limit", "1", "--json",
-                    "number,title,url,state,isDraft,reviewDecision,latestReviews,comments,statusCheckRollup,baseRefName,headRefOid",
-                ],
-                None,
-            )?;
-            let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-            Ok(list.get(0).map(|found| github_pull(found, &branch)))
-        })
-        .await,
+        Host::GitHub => {
+            blocking(move || {
+                let out = gh(
+                    &[
+                        "pr",
+                        "list",
+                        "--repo",
+                        &repo.slug,
+                        "--head",
+                        &branch,
+                        "--state",
+                        "all",
+                        "--limit",
+                        "1",
+                        "--json",
+                        GITHUB_FIELDS,
+                    ],
+                    None,
+                )?;
+                let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+                Ok(list.get(0).map(|found| github_pull(found, "")))
+            })
+            .await
+        }
     }
 }
 
-fn bitbucket_pull(found: &Value, statuses: &Value, branch: &str) -> Pull {
+pub async fn lists(dir: &Path) -> Result<Lists, String> {
+    let repo = repo_of(dir)?;
+    match repo.host {
+        Host::Bitbucket => {
+            let me = bitbucket_me().await?;
+            let url = format!("/repositories/{}/pullrequests", repo.slug);
+            let mut found = Vec::new();
+            for who in ["reviewers", "author"] {
+                let q = format!("{who}.uuid=\"{me}\" AND state=\"OPEN\"");
+                let page = bitbucket(
+                    Method::GET,
+                    &url,
+                    &[
+                        ("q", &q),
+                        ("sort", "-updated_on"),
+                        ("pagelen", "50"),
+                        ("fields", BITBUCKET_FIELDS),
+                    ],
+                    None,
+                )
+                .await?;
+                found.push(page["values"].as_array().cloned().unwrap_or_default());
+            }
+            let mut mine = Vec::new();
+            for pull in &found[1] {
+                let statuses = bitbucket(
+                    Method::GET,
+                    &format!("{url}/{}/statuses", pull["id"]),
+                    &[("fields", "values.state"), ("pagelen", "50")],
+                    None,
+                )
+                .await
+                .unwrap_or_default();
+                mine.push(bitbucket_pull(pull, &statuses, &me));
+            }
+            Ok(Lists {
+                review: found[0]
+                    .iter()
+                    .map(|p| bitbucket_pull(p, &Value::Null, &me))
+                    .collect(),
+                mine,
+            })
+        }
+        Host::GitHub => {
+            blocking(move || {
+                let me = gh(&["api", "user", "--jq", ".login"], None)?
+                    .trim()
+                    .to_string();
+                let search = |query: &str| -> Result<Vec<Pull>, String> {
+                    let out = gh(
+                        &[
+                            "pr",
+                            "list",
+                            "--repo",
+                            &repo.slug,
+                            "--state",
+                            "open",
+                            "--limit",
+                            "50",
+                            "--search",
+                            query,
+                            "--json",
+                            GITHUB_FIELDS,
+                        ],
+                        None,
+                    )?;
+                    let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+                    Ok(list
+                        .as_array()
+                        .into_iter()
+                        .flatten()
+                        .map(|p| github_pull(p, &me))
+                        .collect())
+                };
+                let mut review = search("review-requested:@me")?;
+                review.iter_mut().for_each(|p| p.reviewed = None);
+                for pull in search("reviewed-by:@me -author:@me")? {
+                    if !review.iter().any(|p| p.number == pull.number) {
+                        review.push(pull);
+                    }
+                }
+                Ok(Lists {
+                    review,
+                    mine: search("author:@me")?,
+                })
+            })
+            .await
+        }
+    }
+}
+
+fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
     let people = found["participants"]
         .as_array()
         .map(Vec::as_slice)
@@ -327,13 +478,23 @@ fn bitbucket_pull(found: &Value, statuses: &Value, branch: &str) -> Pull {
         changes_requested: people.iter().any(|p| p["state"] == "changes_requested"),
         comments: found["comment_count"].as_u64().unwrap_or_default() as u32,
         checks: checks(states),
-        branch: branch.into(),
+        branch: text(&found["source"]["branch"]["name"]),
         base: text(&found["destination"]["branch"]["name"]),
         head: text(&found["source"]["commit"]["hash"]),
+        author: text(&found["author"]["display_name"]),
+        updated: text(&found["updated_on"]),
+        reviewed: people
+            .iter()
+            .find(|p| !me.is_empty() && p["user"]["uuid"] == me)
+            .and_then(|p| match (p["approved"] == true, p["state"].as_str()) {
+                (true, _) => Some("approved".into()),
+                (_, Some("changes_requested")) => Some("changes_requested".into()),
+                _ => None,
+            }),
     }
 }
 
-fn github_pull(found: &Value, branch: &str) -> Pull {
+fn github_pull(found: &Value, me: &str) -> Pull {
     let states = found["statusCheckRollup"]
         .as_array()
         .into_iter()
@@ -367,9 +528,19 @@ fn github_pull(found: &Value, branch: &str) -> Pull {
         changes_requested: found["reviewDecision"] == "CHANGES_REQUESTED",
         comments: found["comments"].as_array().map_or(0, Vec::len) as u32,
         checks: checks(states),
-        branch: branch.into(),
+        branch: text(&found["headRefName"]),
         base: text(&found["baseRefName"]),
         head: text(&found["headRefOid"]),
+        author: text(&found["author"]["login"]),
+        updated: text(&found["updatedAt"]),
+        reviewed: reviews
+            .iter()
+            .find(|r| !me.is_empty() && r["author"]["login"] == me)
+            .and_then(|r| match r["state"].as_str() {
+                Some("APPROVED") => Some("approved".into()),
+                Some("CHANGES_REQUESTED") => Some("changes_requested".into()),
+                _ => None,
+            }),
     }
 }
 
@@ -572,13 +743,14 @@ mod tests {
         let found = json!({
             "id": 2108, "title": "feat(prevision): [FIL-671] prévision", "state": "OPEN", "draft": false, "comment_count": 3,
             "links": { "html": { "href": "https://bitbucket.org/akki-team/fileas/pull-requests/2108" } },
-            "source": { "commit": { "hash": "1094c23e6813" } },
+            "source": { "branch": { "name": "dev/FIL-671" }, "commit": { "hash": "1094c23e6813" } },
             "destination": { "branch": { "name": "feature/FIL-671" } },
-            "participants": [{ "approved": true, "state": "approved" }, { "approved": false, "state": "changes_requested" }, { "approved": false, "state": null }]
+            "author": { "display_name": "Quentin Briais" }, "updated_on": "2026-10-23T09:27:57+00:00",
+            "participants": [{ "approved": true, "state": "approved", "user": { "uuid": "{a}" } }, { "approved": false, "state": "changes_requested", "user": { "uuid": "{me}" } }, { "approved": false, "state": null, "user": { "uuid": "{b}" } }]
         });
         let statuses = json!({ "values": [{ "state": "SUCCESSFUL" }, { "state": "INPROGRESS" }] });
         assert_eq!(
-            bitbucket_pull(&found, &statuses, "dev/FIL-671"),
+            bitbucket_pull(&found, &statuses, "{me}"),
             Pull {
                 host: "bitbucket".into(),
                 number: 2108,
@@ -593,20 +765,39 @@ mod tests {
                 branch: "dev/FIL-671".into(),
                 base: "feature/FIL-671".into(),
                 head: "1094c23e6813".into(),
+                author: "Quentin Briais".into(),
+                updated: "2026-10-23T09:27:57+00:00".into(),
+                reviewed: Some("changes_requested".into()),
             }
         );
-        assert_eq!(bitbucket_pull(&found, &Value::Null, "b").checks, None);
+        assert_eq!(bitbucket_pull(&found, &Value::Null, "{b}").checks, None);
+        assert_eq!(bitbucket_pull(&found, &Value::Null, "{b}").reviewed, None);
+        assert_eq!(
+            bitbucket_pull(&found, &Value::Null, "{a}")
+                .reviewed
+                .as_deref(),
+            Some("approved")
+        );
+        assert_eq!(bitbucket_pull(&found, &Value::Null, "").reviewed, None);
     }
 
     #[test]
     fn sums_up_a_github_pull_request() {
         let found = json!({
             "number": 12, "title": "Export", "url": "https://github.com/a/b/pull/12", "state": "MERGED", "isDraft": true,
-            "reviewDecision": "APPROVED", "latestReviews": [{ "state": "APPROVED" }, { "state": "COMMENTED" }], "comments": [{}, {}],
+            "reviewDecision": "APPROVED", "latestReviews": [{ "state": "APPROVED", "author": { "login": "ann" } }, { "state": "COMMENTED", "author": { "login": "octo" } }], "comments": [{}, {}],
             "statusCheckRollup": [{ "__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS" }, { "__typename": "StatusContext", "state": "FAILURE" }],
-            "baseRefName": "main", "headRefOid": "abc123"
+            "baseRefName": "main", "headRefName": "feat/export", "headRefOid": "abc123", "author": { "login": "octo" }, "updatedAt": "2026-10-23T10:00:00Z"
         });
-        let pull = github_pull(&found, "feat/export");
+        let pull = github_pull(&found, "octo");
+        assert_eq!(
+            (pull.branch.as_str(), pull.author.as_str(), pull.reviewed),
+            ("feat/export", "octo", None)
+        );
+        assert_eq!(
+            github_pull(&found, "ann").reviewed.as_deref(),
+            Some("approved")
+        );
         assert_eq!(
             (
                 pull.state.as_str(),
@@ -670,7 +861,7 @@ mod tests {
     fn real_github_pull_request_and_remarks() {
         let out = gh(&["pr", "list", "--repo", "akki-team/lrpresse", "--head", "dev/theme-quentin", "--state", "all", "--limit", "1", "--json", "number,title,url,state,isDraft,reviewDecision,latestReviews,comments,statusCheckRollup,baseRefName,headRefOid"], None).unwrap();
         let list: Value = serde_json::from_str(&out).unwrap();
-        let pull = github_pull(&list[0], "dev/theme-quentin");
+        let pull = github_pull(&list[0], "");
         assert_eq!(
             (pull.host.as_str(), pull.number, pull.state.as_str()),
             ("github", 71, "merged")
@@ -731,5 +922,33 @@ mod tests {
             refused,
             Err("Bitbucket refused this email and token.".into())
         );
+    }
+
+    #[tokio::test]
+    #[ignore = "reads the pull requests of Fileas and LR Presse"]
+    async fn real_lists_of_pull_requests() {
+        for dir in [
+            "/home/jgrasp/Projects/Symfony/fileas",
+            "/home/jgrasp/Projects/Shopify/lr-presse-shopify",
+        ] {
+            match lists(Path::new(dir)).await {
+                Ok(found) => println!(
+                    "{dir}: {} to review {:?}, {} mine {:?}",
+                    found.review.len(),
+                    found
+                        .review
+                        .iter()
+                        .map(|p| (p.number, p.reviewed.clone()))
+                        .collect::<Vec<_>>(),
+                    found.mine.len(),
+                    found
+                        .mine
+                        .iter()
+                        .map(|p| (p.number, p.checks.clone(), p.approvals))
+                        .collect::<Vec<_>>()
+                ),
+                Err(e) => println!("{dir}: error {e}"),
+            }
+        }
     }
 }

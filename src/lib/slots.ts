@@ -27,6 +27,7 @@ export const SLOTS: Record<Slot, { title: string; hint: string; items: [string, 
       ['terminal', 'Terminal'],
       ['diff', 'Diff'],
       ['kanban', 'Kanban'],
+      ['pulls', 'Pull requests', 'Those you review and those you wrote'],
     ],
   },
   'agent.menu': {

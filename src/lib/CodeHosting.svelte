@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { lookUpAll } from './pulls.svelte'
 
-  type Accounts = { bitbucket: string | null; github: string | null }
+  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; github: string | null }
 
   let accounts = $state<Accounts | null>(null)
   let email = $state('')
@@ -10,7 +10,7 @@
   let error = $state('')
   let busy = $state(false)
   let copied = $state('')
-  const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket']
+  const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket']
 
   function copy(scope: string) {
     navigator.clipboard.writeText(scope)
@@ -55,6 +55,12 @@
       <span>Signed in as <strong>{accounts.bitbucket}</strong> · the token stays in the system keyring</span>
       <button class="btn btn-secondary" onclick={signOut}>Sign out</button>
     </div>
+    {#if !accounts.bitbucket_user}
+      <p class="intro">
+        This token lacks <code>read:user:bitbucket</code>, so Squadron cannot list the pull requests you review or wrote. Sign out, then sign in with a token
+        that has the four scopes.
+      </p>
+    {/if}
   {:else}
     <ol class="intro steps">
       <li>
@@ -64,7 +70,7 @@
       </li>
       <li>Choose <strong>Create API token with scopes</strong>, name it Squadron, then pick <strong>Bitbucket</strong>.</li>
       <li>
-        Tick these three scopes. Click one to copy it, then paste it in the scope search:
+        Tick these four scopes. Click one to copy it, then paste it in the scope search:
         <span class="scopes">
           {#each SCOPES as scope (scope)}
             <button class="scope" onclick={() => copy(scope)}>{copied === scope ? 'Copied' : scope}</button>

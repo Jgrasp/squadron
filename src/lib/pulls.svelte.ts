@@ -16,12 +16,34 @@ export type Pull = {
   branch: string
   base: string
   head: string
+  author: string
+  updated: string
+  reviewed: 'approved' | 'changes_requested' | null
 }
+
+export type Lists = { review: Pull[]; mine: Pull[]; error: string }
 
 export type Remark = { id: number; author: string; body: string; path: string | null; line: number | null; removed: boolean; reply_to: number | null; at: string }
 
 export const pulls = $state<Record<string, Pull | null>>({})
 export const reviews = $state<Record<string, Comment[]>>({})
+export const lists = $state<Record<string, Lists>>({})
+const listed: Record<string, number> = {}
+
+export async function lookUpLists(project: string, force = false) {
+  if (!force && Date.now() - (listed[project] ?? 0) < 60_000) return
+  listed[project] = Date.now()
+  try {
+    lists[project] = { ...(await invoke<Omit<Lists, 'error'>>('pull_lists', { dir: project })), error: '' }
+  } catch (e) {
+    lists[project] = { review: [], mine: [], error: String(e) }
+  }
+}
+
+export const needsYou = (project: string) => {
+  const found = lists[project]
+  return found ? found.review.filter((p) => !p.reviewed).length + found.mine.filter((p) => p.changes_requested).length : 0
+}
 const checked: Record<string, number> = {}
 
 export async function lookUp(dir: string, force = false) {

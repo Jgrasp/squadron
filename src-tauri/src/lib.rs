@@ -525,6 +525,11 @@ async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
 }
 
 #[tauri::command]
+async fn pull_lists(dir: PathBuf) -> Result<forge::Lists, String> {
+    forge::lists(&dir).await
+}
+
+#[tauri::command]
 async fn pull_changes(
     dir: PathBuf,
     base: String,
@@ -558,6 +563,7 @@ async fn forge_accounts() -> forge::Accounts {
         .await
         .unwrap_or(forge::Accounts {
             bitbucket: None,
+            bitbucket_user: false,
             github: None,
         })
 }
@@ -1009,6 +1015,7 @@ pub fn run() {
             git_changes,
             git_patch,
             pull_request,
+            pull_lists,
             pull_changes,
             pull_remarks,
             post_remarks,

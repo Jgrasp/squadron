@@ -85,6 +85,7 @@ export function waitingAgents() {
 export function show(agent: Agent) {
   projects.overview = false
   projects.board = false
+  projects.pulls = false
   projects.current = agent.project
   agents.current[agent.project] = agent.id
 }

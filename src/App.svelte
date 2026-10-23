@@ -21,7 +21,8 @@
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate } from './lib/update.svelte'
-  import { lookUpAll } from './lib/pulls.svelte'
+  import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
+  import PullsView from './lib/PullsView.svelte'
   import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
@@ -79,8 +80,9 @@
       setInterval(() => (rescan(), archiveIdle()), 15_000)
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)
-      lookUpAll()
-      setInterval(() => lookUpAll(), 3 * 60_000)
+      const lookUpPulls = () => (lookUpAll(), projects.list.forEach((p) => lookUpLists(p.path)))
+      lookUpPulls()
+      setInterval(lookUpPulls, 3 * 60_000)
     })
 
   $effect(() => {
@@ -138,6 +140,8 @@
     {#key project.path}
       {#if projects.board}
         <Board {project} agents={mirrored} {actions} onclose={() => (projects.board = false)} onpopout={popOut} />
+      {:else if projects.pulls}
+        <PullsView {project} onclose={() => (projects.pulls = false)} />
       {:else}
         <ProjectView {project} />
       {/if}
