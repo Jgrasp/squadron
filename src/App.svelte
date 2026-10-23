@@ -19,6 +19,7 @@
   import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
   import StatusBar from './lib/StatusBar.svelte'
+  import { lookForUpdate } from './lib/update.svelte'
   import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
@@ -74,6 +75,8 @@
     .then(() => {
       archiveIdle()
       setInterval(() => (rescan(), archiveIdle()), 15_000)
+      lookForUpdate()
+      setInterval(lookForUpdate, 6 * 3600_000)
     })
 
   $effect(() => {

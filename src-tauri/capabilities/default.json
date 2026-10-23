@@ -19,6 +19,8 @@
     "dialog:allow-open",
     "dialog:allow-ask",
     "dialog:allow-message",
-    "opener:default"
+    "opener:default",
+    "updater:default",
+    "process:allow-restart"
   ]
 }

@@ -3,6 +3,7 @@
   import { onMount } from 'svelte'
   import { clock, limits, type Limit } from './agents.svelte'
   import { time } from './format'
+  import { install, update } from './update.svelte'
 
   type Load = { cpu: number; used: number; total: number }
 
@@ -47,6 +48,17 @@
       Memory {@render meter(load.used / load.total)}<span class="mono">{gb(load.used)} / {gb(load.total)} GB</span>
     </span>
   {/if}
+  {#if update.found}
+    <button class="update" title={update.error || `Download ${update.found.version}, install it and restart Squadron`} onclick={install}>
+      {#if update.progress !== null}
+        Downloading {update.found.version}… {Math.round(update.progress * 100)}%
+      {:else if update.error}
+        Update failed · retry
+      {:else}
+        Squadron {update.found.version} is available · Update
+      {/if}
+    </button>
+  {/if}
   <span class="spacer"></span>
   {#each windows as [label, hint, limit] (label)}
     {@const at = limit.resetsAt * 1000}
@@ -88,6 +100,16 @@
 
   .mono {
     color: var(--text-2);
+  }
+
+  .update {
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 3px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 11.5px;
+    font-weight: 600;
   }
 
   .spacer {
