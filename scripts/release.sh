@@ -5,7 +5,7 @@ notes=${2:-}
 repo=Jgrasp/squadron
 cd "$(dirname "$0")/.."
 . "$HOME/.cargo/env"
-[ -z "$(git status --porcelain)" ] || { echo "Commit or stash your changes first." >&2; exit 1; }
+[ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "Commit or stash your changes first." >&2; exit 1; }
 
 sed -i "0,/^version = .*/s//version = \"$version\"/" src-tauri/Cargo.toml
 (cd src-tauri && cargo update -p squadron --offline -q)
