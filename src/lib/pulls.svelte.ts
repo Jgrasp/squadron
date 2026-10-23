@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { agents } from './agents.svelte'
-import { workdir } from './stream'
+import { workdir, type Comment } from './stream'
 
 export type Pull = {
   host: 'bitbucket' | 'github'
@@ -34,6 +34,17 @@ export async function lookUp(dir: string, force = false) {
 }
 
 export const lookUpAll = (force = false) => new Set(agents.list.map(workdir)).forEach((dir) => lookUp(dir, force))
+
+export async function post(dir: string, pull: Pull, list: Comment[]) {
+  const drafts = list.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
+  try {
+    return await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts })
+  } catch (e) {
+    return { done: 0, error: String(e) }
+  } finally {
+    lookUp(dir, true)
+  }
+}
 
 export const hostName = (pull: Pull) => (pull.host === 'github' ? 'GitHub' : 'Bitbucket')
 

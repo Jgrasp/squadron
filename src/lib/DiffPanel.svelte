@@ -8,7 +8,7 @@
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
-  import { hostName, type Pull, type Remark } from './pulls.svelte'
+  import { hostName, post, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
 
@@ -193,6 +193,33 @@
     commenting = null
   }
 
+  let posting = $state(false)
+  let postError = $state('')
+  const queued = $derived(reviewing ? comments.filter(here) : [])
+
+  async function postNow() {
+    if (!commenting || !note.trim() || !pull) return
+    const { path, side, number, text } = commenting
+    posting = true
+    postError = ''
+    const { error } = await post(workdir(agent), pull, [{ path, line: number, removed: side === 'old', code: text, note: note.trim() }])
+    posting = false
+    if (error) return (postError = error)
+    if (existing >= 0) comments.splice(existing, 1)
+    commenting = null
+  }
+
+  async function postQueued() {
+    if (!pull || !queued.length) return
+    const sending = [...queued]
+    posting = true
+    postError = ''
+    const { done, error } = await post(workdir(agent), pull, sending)
+    posting = false
+    for (const c of sending.slice(0, done)) comments.splice(comments.indexOf(c), 1)
+    if (error) postError = done ? `${done} posted, then: ${error}` : error
+  }
+
   function remove() {
     if (existing >= 0) comments.splice(existing, 1)
     commenting = null
@@ -319,7 +346,13 @@
             : 'Diff since the agent first touched the file'}
       </span>
       {#if reviewing && pull}
+        {#if postError && !commenting}<span class="bad" role="alert">{postError}</span>{/if}
         <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+        {#if queued.length}
+          <button class="btn btn-primary" disabled={posting} onclick={postQueued}>
+            {posting ? 'Posting…' : `Post ${queued.length} comment${queued.length > 1 ? 's' : ''} on ${hostName(pull)}`}
+          </button>
+        {/if}
       {:else}
         <OpenWith project={workdir(agent)} path={selected.path} up />
       {/if}
@@ -376,11 +409,17 @@
       {#if existing >= 0}
         <button type="button" class="btn btn-danger" onclick={remove}>Delete</button>
       {/if}
-      <span class="hint"
-        >{existing >= 0 ? 'In your next message' : 'Added to your next message'}{reviewing ? ', or posted on the pull request from there' : ''} · <kbd>Ctrl ↵</kbd></span
-      >
-      <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-      <button class="btn btn-primary" disabled={!note.trim()}>{existing >= 0 ? 'Save' : 'Add comment'}</button>
+      {#if reviewing && pull}
+        <span class="hint">{postError ? '' : `Post it on ${hostName(pull)} now, or keep it for your next message to ${agent.name}`}</span>
+        {#if postError}<span class="hint bad" role="alert">{postError}</span>{/if}
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
+        <button class="btn btn-secondary" disabled={!note.trim() || posting}>{existing >= 0 ? 'Save' : `Keep for ${agent.name}`}</button>
+        <button type="button" class="btn btn-primary" disabled={!note.trim() || posting} onclick={postNow}>{posting ? 'Posting…' : `Post on ${hostName(pull)}`}</button>
+      {:else}
+        <span class="hint">{existing >= 0 ? 'In your next message' : 'Added to your next message'} · <kbd>Ctrl ↵</kbd></span>
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>{existing >= 0 ? 'Save' : 'Add comment'}</button>
+      {/if}
     </div>
   </form>
 {/snippet}
@@ -691,6 +730,11 @@
   .btn-danger {
     background: #3a2420;
     color: #f8d5cc;
+  }
+
+  .bad,
+  .foot .bad {
+    color: var(--err-text);
   }
 
   .hint {

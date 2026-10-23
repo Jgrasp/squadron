@@ -17,7 +17,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUp, pulls, stateLabel } from './pulls.svelte'
+  import { lookUp, post, pulls, stateLabel } from './pulls.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
@@ -101,17 +101,10 @@
     const sending = [...postable]
     posting = true
     postError = ''
-    try {
-      const drafts = sending.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
-      const { done, error } = await invoke<{ done: number; error: string | null }>('post_remarks', { dir: workdir(agent), number: pull.number, head: pull.head, drafts })
-      comments = comments.filter((c) => !sending.slice(0, done).includes(c))
-      if (error) postError = done ? `${done} posted, then: ${error}` : error
-      lookUp(workdir(agent), true)
-    } catch (e) {
-      postError = String(e)
-    } finally {
-      posting = false
-    }
+    const { done, error } = await post(workdir(agent), pull, sending)
+    comments = comments.filter((c) => !sending.slice(0, done).includes(c))
+    if (error) postError = done ? `${done} posted, then: ${error}` : error
+    posting = false
   }
 
   let tuning = $state<Options | null>(null)
