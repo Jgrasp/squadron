@@ -42,7 +42,17 @@ export function standing(pull: Pull): [string, string] {
 
 export type Lists = { review: Pull[]; mine: Pull[]; error: string }
 
-export type Remark = { id: number; author: string; body: string; path: string | null; line: number | null; removed: boolean; reply_to: number | null; at: string }
+export type Remark = {
+  id: number
+  author: string
+  body: string
+  path: string | null
+  line: number | null
+  removed: boolean
+  reply_to: number | null
+  at: string
+  kind: 'line' | 'general'
+}
 
 export const pulls = $state<Record<string, Pull | null>>({})
 export const reviews = $state<Record<string, Comment[]>>({})

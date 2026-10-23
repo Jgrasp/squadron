@@ -580,6 +580,17 @@ async fn pull_remarks(dir: PathBuf, number: u64) -> Result<Vec<forge::Remark>, S
 }
 
 #[tauri::command]
+async fn pull_reply(
+    dir: PathBuf,
+    number: u64,
+    to: u64,
+    kind: String,
+    body: String,
+) -> Result<(), String> {
+    forge::reply(&dir, number, to, kind, body).await
+}
+
+#[tauri::command]
 async fn post_remarks(
     dir: PathBuf,
     number: u64,
@@ -1054,6 +1065,7 @@ pub fn run() {
             changed_files,
             pull_changes,
             pull_remarks,
+            pull_reply,
             post_remarks,
             forge_accounts,
             bitbucket_sign_in,

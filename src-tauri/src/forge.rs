@@ -102,6 +102,7 @@ pub struct Remark {
     pub removed: bool,
     pub reply_to: Option<u64>,
     pub at: String,
+    pub kind: String,
 }
 
 #[derive(Deserialize)]
@@ -685,7 +686,7 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
                     found.extend(
                         lines(&gh(&["api", &api, "--paginate", "--jq", jq], None)?)
                             .iter()
-                            .map(github_remark),
+                            .map(|found| github_remark(found, kind)),
                     );
                 }
                 found.sort_by(|a, b| a.at.cmp(&b.at));
@@ -712,10 +713,16 @@ fn bitbucket_remark(found: &Value) -> Option<Remark> {
         removed: to.is_none() && from.is_some(),
         reply_to: found["parent"]["id"].as_u64(),
         at: text(&found["created_on"]),
+        kind: if inline["path"].is_string() {
+            "line"
+        } else {
+            "general"
+        }
+        .into(),
     })
 }
 
-fn github_remark(found: &Value) -> Remark {
+fn github_remark(found: &Value, kind: &str) -> Remark {
     Remark {
         id: found["id"].as_u64().unwrap_or_default(),
         author: text(&found["user"]["login"]),
@@ -725,6 +732,46 @@ fn github_remark(found: &Value) -> Remark {
         removed: found["side"] == "LEFT",
         reply_to: found["in_reply_to_id"].as_u64(),
         at: text(&found["created_at"]),
+        kind: if kind == "pulls" { "line" } else { "general" }.into(),
+    }
+}
+
+pub async fn reply(
+    dir: &Path,
+    number: u64,
+    to: u64,
+    kind: String,
+    body: String,
+) -> Result<(), String> {
+    let repo = repo_of(dir)?;
+    let body = body.trim().to_string();
+    if body.is_empty() {
+        return Err("The reply is empty.".into());
+    }
+    match repo.host {
+        Host::Bitbucket => bitbucket(
+            Method::POST,
+            &format!("/repositories/{}/pullrequests/{number}/comments", repo.slug),
+            &[],
+            Some(json!({ "content": { "raw": body }, "parent": { "id": to } })),
+        )
+        .await
+        .map(|_| ()),
+        Host::GitHub => {
+            blocking(move || {
+                let api = if kind == "line" {
+                    format!("repos/{}/pulls/{number}/comments/{to}/replies", repo.slug)
+                } else {
+                    format!("repos/{}/issues/{number}/comments", repo.slug)
+                };
+                gh(
+                    &["api", "-X", "POST", &api, "--input", "-"],
+                    Some(&json!({ "body": body }).to_string()),
+                )
+                .map(|_| ())
+            })
+            .await
+        }
     }
 }
 
@@ -992,9 +1039,16 @@ mod tests {
         assert_eq!(bitbucket_remark(&outdated).unwrap().line, None);
         assert_eq!(bitbucket_remark(&general).unwrap().path, None);
         assert_eq!(bitbucket_remark(&gone), None);
+        assert_eq!(
+            (
+                a.kind.as_str(),
+                bitbucket_remark(&general).unwrap().kind.as_str()
+            ),
+            ("line", "general")
+        );
 
         let github = json!({ "id": 1, "body": "Nit", "user": { "login": "octo" }, "path": "a.ts", "line": 5, "side": "LEFT", "in_reply_to_id": null, "created_at": "t" });
-        let c = github_remark(&github);
+        let c = github_remark(&github, "pulls");
         assert_eq!(
             (
                 c.path.as_deref(),

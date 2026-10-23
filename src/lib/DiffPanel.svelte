@@ -103,6 +103,27 @@
   const talks = (path: string) => threads.filter((t) => t.root.path === path && t.root.line !== null).length
   const when = (at: string) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   let handed = $state<number[]>([])
+  let replying = $state<number | null>(null)
+  let answer = $state('')
+  let answering = $state(false)
+  let replyError = $state('')
+
+  async function reply(thread: Thread, event: Event) {
+    event.preventDefault()
+    if (!pull || !answer.trim()) return
+    answering = true
+    replyError = ''
+    try {
+      await invoke('pull_reply', { dir: folder, number: pull.number, to: thread.root.id, kind: thread.root.kind, body: answer })
+      replying = null
+      answer = ''
+      fresh++
+    } catch (e) {
+      replyError = String(e)
+    } finally {
+      answering = false
+    }
+  }
 
   function hand(thread: Thread, line?: Line) {
     const said = thread.all.map((r) => `${r.author}: ${r.body}`).join('\n')
@@ -636,13 +657,40 @@
         <Markdown text={r.body} />
       </div>
     {/each}
-    <div class="thread-actions" hidden={!agent}>
-      {#if !agent}{:else if handed.includes(t.root.id)}
-        <span class="handed">In your next message to {agent.name}</span>
-      {:else}
-        <button class="btn btn-secondary" onclick={() => hand(t, line)}>Hand to {agent.name}</button>
-      {/if}
-    </div>
+    {#if replying === t.root.id}
+      <form class="reply-form" onsubmit={(e) => reply(t, e)}>
+        <label for="reply-{t.root.id}" class="sr-only">Reply to {t.root.author}</label>
+        <!-- svelte-ignore a11y_autofocus -->
+        <textarea
+          id="reply-{t.root.id}"
+          class="field"
+          rows="2"
+          bind:value={answer}
+          placeholder="Reply to {t.root.author}"
+          autofocus
+          onkeydown={(e) => {
+            if (e.key === 'Escape') (e.stopPropagation(), (replying = null))
+            else if (e.ctrlKey && e.key === 'Enter') reply(t, e)
+          }}
+        ></textarea>
+        <div class="thread-actions">
+          {#if replyError}<span class="bad" role="alert">{replyError}</span>{/if}
+          <button type="button" class="btn btn-secondary" onclick={() => (replying = null)}>Cancel</button>
+          <button class="btn btn-primary" disabled={!answer.trim() || answering}>{answering ? 'Replying…' : `Reply on ${hostName(pull!)}`}</button>
+        </div>
+      </form>
+    {:else}
+      <div class="thread-actions">
+        <button class="btn btn-secondary" onclick={() => ((replying = t.root.id), (answer = ''), (replyError = ''))}>Reply</button>
+        {#if agent}
+          {#if handed.includes(t.root.id)}
+            <span class="handed">In your next message to {agent.name}</span>
+          {:else}
+            <button class="btn btn-secondary" onclick={() => hand(t, line)}>Hand to {agent.name}</button>
+          {/if}
+        {/if}
+      </div>
+    {/if}
   </div>
 {/snippet}
 
@@ -784,7 +832,22 @@
 
   .thread-actions {
     display: flex;
+    align-items: center;
     justify-content: flex-end;
+    gap: 8px;
+  }
+
+  .reply-form {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .reply-form textarea {
+    height: auto;
+    padding: 10px 12px;
+    resize: vertical;
+    line-height: 1.5;
   }
 
   .thread-actions .btn {
