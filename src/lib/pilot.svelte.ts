@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { branchOf, create, find, importSession, knownSessions, ofProject, persist, type Elsewhere } from './agents.svelte'
+import { branchOf, create, find, importSession, knownSessions, ofProject, persist, send, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
@@ -151,6 +151,18 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     await invoke('set_workdir', { id: target.id, dir: path })
     persist(target)
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
+  },
+
+  message_agent: async (caller, args) => {
+    const target = find(String(args.agent ?? ''))
+    if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    if (target === caller) throw new Error('That agent is you.')
+    projectFor(caller, target.project)
+    const message = String(args.message ?? '').trim()
+    if (!message) throw new Error('The message is empty.')
+    if (target.asks.length) throw new Error(`${target.name} waits for the user to answer a question or a permission request. Only the user can answer it: tell them.`)
+    await send(target.id, message, [], [], caller.name)
+    return `Sent to ${target.name}. ${target.status === 'working' ? 'It reads it once its current action ends.' : 'It starts on it now.'} Read its answer later with read_agent.`
   },
 
   import_session: async (caller, args) => {

@@ -511,14 +511,15 @@ function entitle(agent: Agent, text: string) {
     .catch(() => {})
 }
 
-export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = []) {
+export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = [], from = '') {
   const agent = find(id)
   if (!agent) return
   if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
-  userMessage(agent, text, comments, files)
+  userMessage(agent, text, comments, files, from)
   persist(agent)
+  const said = from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments)
   try {
-    await invoke('send_message', { id, text: prompt(text, comments), files })
+    await invoke('send_message', { id, text: said, files })
   } catch (e) {
     fail(agent, String(e))
   }
