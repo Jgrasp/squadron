@@ -6,6 +6,7 @@
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
+  import ImportPanel from './ImportPanel.svelte'
   import PullTag from './PullTag.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
@@ -71,6 +72,7 @@
   let sorting = $state(false)
   let scope = $state<'all' | 'project'>('all')
   let showArchived = $state(false)
+  let showImport = $state(false)
 
   const own = $derived(layout.sorts[project.path])
   const sort = $derived(own ?? layout.sort)
@@ -181,6 +183,9 @@
   </div>
 {/if}
 
+{#if showImport}
+  <ImportPanel {project} onclose={() => (showImport = false)} />
+{/if}
 {#if showArchived}
   <ArchivePanel {project} onclose={() => (showArchived = false)} />
 {/if}
@@ -271,6 +276,15 @@
           </div>
         {/if}
       </span>
+      <button
+        class="fold"
+        aria-label="Import conversations"
+        title="Import conversations of {project.name} from the Claude app or Claude Code"
+        disabled={!project.exists}
+        onclick={() => (showImport = true)}
+      >
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v12M7 10l5 5 5-5M4 17v3h16v-3" /></svg>
+      </button>
       <button class="fold" aria-label="Archived agents" title="Archived agents of {project.name}" onclick={() => (showArchived = true)}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" /></svg>
       </button>

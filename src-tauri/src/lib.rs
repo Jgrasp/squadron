@@ -7,6 +7,7 @@ pub mod git;
 pub mod permissions;
 pub mod pilot;
 pub mod projects;
+pub mod sessions;
 pub mod system;
 pub mod terminal;
 
@@ -989,6 +990,20 @@ async fn paste_image(
 }
 
 #[tauri::command]
+async fn project_sessions(project: PathBuf) -> Vec<sessions::Found> {
+    tauri::async_runtime::spawn_blocking(move || sessions::list(&project))
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+async fn read_session(project: PathBuf, id: String) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || sessions::transcript(&project, &id))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn open_attachment(path: PathBuf) -> Result<(), String> {
     use std::os::unix::fs::PermissionsExt;
     let meta = std::fs::metadata(&path).map_err(|_| "The file is gone.")?;
@@ -1178,6 +1193,8 @@ pub fn run() {
             attachment_preview,
             open_attachment,
             paste_image,
+            project_sessions,
+            read_session,
             interrupt_agent,
             reload_agent,
             archive_agent

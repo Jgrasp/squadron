@@ -133,6 +133,7 @@ export type Agent = {
   worktree: { path: string; branch: string } | null
   pinned?: boolean
   review?: { project: string; number: number; base?: string }
+  imported?: string
 }
 
 type Json = Record<string, any>
