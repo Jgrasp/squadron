@@ -11,7 +11,7 @@
   import PermissionCard from './PermissionCard.svelte'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
-  import { INTERNAL, type Agent, type Block, type Subagent, type ToolCall } from './stream'
+  import { doing, INTERNAL, type Agent, type Block, type Subagent, type ToolCall } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
   import ToolRow from './ToolRow.svelte'
@@ -119,6 +119,14 @@
     [['WebFetch', 'WebSearch'], 'looked something up', 'made {n} web lookups'],
   ]
 
+  function now(steps: Segment[]) {
+    const last = steps.at(-1)
+    const call = last?.type === 'work' ? last.calls.at(-1) : undefined
+    if (call && !call.result) return doing(call)
+    if (last?.type === 'work' && last.thinking && last.ms === undefined) return 'Thinking…'
+    return last?.type === 'text' ? 'Writing…' : 'Working…'
+  }
+
   function split(list: Segment[]) {
     let cut = list.length
     while (cut > 0 && list[cut - 1].type === 'text') cut--
@@ -141,11 +149,7 @@
     const notes = steps.filter((s) => s.type === 'text').length
     if (notes) parts.push(`${notes} note${notes > 1 ? 's' : ''}`)
     let line = parts.join(', ')
-    if (live) {
-      const last = steps.at(-1)
-      const now = last?.type === 'work' && last.thinking && last.ms === undefined && !last.calls.length ? 'Thinking…' : agent.action || 'Working…'
-      line = line ? `${now} · ${line}` : now
-    }
+    if (live) line = line ? `${now(steps)} · ${line}` : now(steps)
     return line.charAt(0).toUpperCase() + line.slice(1) || 'Steps'
   }
 
@@ -238,6 +242,11 @@
       <span></span>
       Conversation compacted · {tokens(entry.before)} → {tokens(entry.after)} tokens · {time(entry.at)}
       <span></span>
+    </div>
+  {:else if entry.kind === 'note' && entry.command === 'notice'}
+    <div class="notice">
+      <span class="from">Claude Code · {time(entry.at)}</span>
+      {entry.text}
     </div>
   {:else if entry.kind === 'note'}
     <div class="separator" role="separator">
@@ -371,6 +380,13 @@
     display: none;
   }
 
+  .steps > summary .line {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
   .steps > summary:hover {
     color: var(--text-2);
   }
@@ -402,6 +418,26 @@
     margin: 8px 0 4px 5px;
     padding-left: 16px;
     border-left: 1px solid var(--border);
+  }
+
+  .notice {
+    align-self: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 3px;
+    max-width: 640px;
+    padding: 8px 12px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px var(--border);
+    color: var(--text-muted);
+    font-size: 12.5px;
+    line-height: 1.5;
+    overflow-wrap: anywhere;
+  }
+
+  .notice .from {
+    color: var(--text-faint);
+    font-size: 11.5px;
   }
 
   .quiet {

@@ -7,7 +7,7 @@
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
   import StatusIcon from './StatusIcon.svelte'
-  import type { Agent } from './stream'
+  import { activity, type Agent } from './stream'
   import { asking, count, LOOKS, summary } from './subagents'
 
   let {
@@ -102,7 +102,7 @@
     if (blocked(agent)) return 'Waiting for you'
     switch (agent.status) {
       case 'working':
-        return agent.action
+        return activity(agent)
       case 'done':
         return `Done ${ago(agent.since, clock.now)}`
       case 'interrupted':
@@ -775,6 +775,10 @@
     white-space: nowrap;
     font: 11.5px var(--mono);
     color: var(--text-dim);
+  }
+
+  .state {
+    font: 12px var(--sans);
   }
 
   .done .state,

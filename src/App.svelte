@@ -19,12 +19,13 @@
   import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
   import StatusBar from './lib/StatusBar.svelte'
+  import { activity } from './lib/stream'
   import { lookForUpdate } from './lib/update.svelte'
   import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
   const mirrored = $derived(
-    agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? a.action : a.attention)),
+    agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? activity(a) : a.attention)),
   )
 
   const actions: Actions = {

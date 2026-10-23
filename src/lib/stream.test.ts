@@ -25,6 +25,19 @@ function fresh() {
 
 const kinds = (entries: Entry[]) => entries.map((e) => e.kind)
 
+describe('notices', () => {
+  it('shows a task notification from Claude Code as a note, not as a message of yours', () => {
+    const agent = fresh()
+    apply(agent, {
+      type: 'user',
+      isReplay: true,
+      message: { role: 'user', content: '<task-notification>\nponytail: its hook was skipped.\n</task-notification>' },
+    })
+    expect(agent.entries.at(-1)).toMatchObject({ kind: 'note', command: 'notice', text: 'ponytail: its hook was skipped.' })
+    expect(agent.entries.filter((e) => e.kind === 'user')).toHaveLength(1)
+  })
+})
+
 describe('worktree', () => {
   it('follows an agent that enters a worktree with EnterWorktree', () => {
     const agent = fresh()

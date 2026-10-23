@@ -16,6 +16,7 @@ import {
   fail,
   GOAL_RELAUNCHES,
   newAgent,
+  notice,
   prompt,
   reloaded,
   userMessage,
@@ -224,6 +225,7 @@ async function adopt(data: Agent) {
   }
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
+  agent.entries = agent.entries.map((e) => (e.kind === 'user' && notice(e.text) !== undefined ? { kind: 'note', at: e.at, command: 'notice', text: notice(e.text)! } : e))
   agents.list.push(agent)
   await invoke('restore_agent', {
     id: agent.id,

@@ -204,6 +204,29 @@ export function argument(agent: Agent, call: Pick<ToolCall, 'name' | 'input'>): 
   }
 }
 
+const file = (input: Record<string, unknown>) => String(input.file_path ?? input.notebook_path ?? '').split('/').at(-1) || 'a file'
+
+export function doing(call: Pick<ToolCall, 'name' | 'input'>) {
+  const input = call.input
+  if (call.name === 'Bash') return String(input.description ?? '') || 'Running a command'
+  if (call.name === 'Read') return `Reading ${file(input)}`
+  if (['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(call.name)) return `Editing ${file(input)}`
+  if (['Grep', 'Glob', 'LS'].includes(call.name)) return 'Searching the code'
+  if (['WebFetch', 'WebSearch'].includes(call.name)) return 'Looking it up on the web'
+  if (call.name === 'Agent' || call.name === 'Task') return 'Starting a subagent'
+  return `Using ${call.name.split('__').at(-1)}`
+}
+
+export function activity(agent: Agent) {
+  const last = agent.entries.at(-1)
+  const block = last?.kind === 'agent' ? last.blocks.at(-1) : undefined
+  const call = block?.type === 'tools' ? block.calls.at(-1) : undefined
+  if (call && !call.result && !INTERNAL.includes(call.name)) return doing(call)
+  if (block?.type === 'thinking' && block.ms === undefined) return 'Thinking…'
+  if (block?.type === 'text') return 'Writing…'
+  return agent.action
+}
+
 export function userMessage(agent: Agent, text: string, comments: Comment[] = []) {
   agent.entries.push({ kind: 'user', text, at: Date.now(), ...(comments.length ? { comments } : {}) })
   agent.attention = ''
@@ -476,9 +499,16 @@ function relaunched(agent: Agent, text: string) {
   })
 }
 
+export const notice = (text: string) => /^<task-notification>\s*([\s\S]*?)\s*<\/task-notification>$/.exec(text.trim())?.[1]
+
 function remoteMessage(agent: Agent, d: Json) {
   const text = textOf(d.message?.content).trim()
   if (!text) return
+  const inside = notice(text)
+  if (inside !== undefined) {
+    agent.entries.push({ kind: 'note', at: d.timestamp ? Date.parse(d.timestamp) : Date.now(), command: 'notice', text: inside })
+    return
+  }
   userMessage(agent, text)
   const entry = agent.entries.at(-1)
   if (entry?.kind === 'user') {

@@ -4,7 +4,7 @@
   import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
   import StatusIcon from './StatusIcon.svelte'
-  import type { Agent } from './stream'
+  import { activity, type Agent } from './stream'
 
   let finished = $state(true)
 
@@ -44,7 +44,7 @@
     if (agent.status === 'waiting') return waitingDetail(agent)
     if (agent.attention) return agent.attention
     if (agent.status === 'done' && agent.summary) return agent.summary
-    return agent.action || agent.summary
+    return (agent.status === 'working' ? activity(agent) : agent.action) || agent.summary
   }
 
   function open(project: string) {
