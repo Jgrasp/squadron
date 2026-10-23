@@ -338,6 +338,17 @@
       <button aria-pressed={layout.split} onclick={() => setSplit(true)}>Split</button>
     </div>
   {/snippet}
+  {#if reviewing && pull}
+    <div class="pr-head">
+      <strong class="pr-title">{pull.title}</strong>
+      {#if pull.description.trim()}
+        <details class="pr-description">
+          <summary>Description</summary>
+          <div class="pr-body"><Markdown text={pull.description} /></div>
+        </details>
+      {/if}
+    </div>
+  {/if}
   {#if reviewing && pull && (review.length || !agent)}
     <div class="review-bar" class:idle={!review.length}>
       <span class="pulse" aria-hidden="true"></span>
@@ -677,6 +688,43 @@
   .handed {
     font-size: 12px;
     color: var(--ok-text);
+  }
+
+  .pr-head {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 12px 16px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .pr-title {
+    font-size: 15px;
+    line-height: 1.4;
+    color: var(--text-strong);
+  }
+
+  .pr-description > summary {
+    width: fit-content;
+    cursor: pointer;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .pr-description > summary:hover {
+    color: var(--text-2);
+  }
+
+  .pr-body {
+    max-height: 40vh;
+    overflow-y: auto;
+    margin-top: 8px;
+    padding: 12px 14px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+    font-size: 13.5px;
   }
 
   .review-bar {

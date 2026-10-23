@@ -384,6 +384,7 @@ mockIPC(
               host: 'bitbucket',
               number: 2108,
               title: 'feat(segments): channel-aware segment resolver',
+              description: '## Result\n\n- The resolver takes the channel into account\n- `ResolverTest` covers a missing channel\n\n## Tests\n\n```bash\nvendor/bin/phpunit tests/Segmentation\n```',
               url: 'https://bitbucket.org/orbit/orbit/pull-requests/2108',
               state: 'open',
               draft: false,
@@ -409,7 +410,7 @@ mockIPC(
       case 'pull_lists': {
         if (!a.dir.includes('orbit')) throw 'The project is not on Bitbucket or GitHub.'
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
-          host: 'bitbucket', number, title, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
+          host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
           updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, conflicts: false,
           reviewers: [

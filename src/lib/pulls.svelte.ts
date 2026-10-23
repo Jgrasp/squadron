@@ -7,6 +7,7 @@ export type Pull = {
   host: 'bitbucket' | 'github'
   number: number
   title: string
+  description: string
   url: string
   state: 'open' | 'merged' | 'declined' | 'closed' | 'superseded'
   draft: boolean
