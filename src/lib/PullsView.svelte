@@ -3,7 +3,7 @@
   import { agents, clock, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { hostName, lists, lookUpLists, pulls, stateLabel, type Pull } from './pulls.svelte'
+  import { hostName, lists, lookUpLists, pulls, reviewWithAgent, stateLabel, type Pull } from './pulls.svelte'
   import DiffPanel from './DiffPanel.svelte'
   import { workdir, type Comment } from './stream'
 
@@ -120,6 +120,8 @@
       onhand={() => {}}
       onreview={() => {}}
       onposted={() => lookUpLists(project.path, true)}
+      reviewer={agents.list.find((a) => a.review?.project === project.path && a.review.number === opened?.number) ?? null}
+      onagent={() => reviewWithAgent(project.path, opened!)}
       onclose={() => (opened = null)}
     />
   {/key}

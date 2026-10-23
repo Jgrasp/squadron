@@ -530,6 +530,32 @@ async fn pull_lists(dir: PathBuf) -> Result<forge::Lists, String> {
 }
 
 #[tauri::command]
+async fn review_checkout(
+    app: AppHandle,
+    project: PathBuf,
+    number: u64,
+    branch: String,
+    base: String,
+) -> Result<PathBuf, String> {
+    let name = project
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let into = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("reviews")
+        .join(format!("{name}-{number}"));
+    std::fs::create_dir_all(into.parent().unwrap()).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        git::review_checkout(&project, &into, &branch, &base).map(|_| into)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn pull_changes(
     dir: PathBuf,
     base: String,
@@ -1017,6 +1043,7 @@ pub fn run() {
             git_patch,
             pull_request,
             pull_lists,
+            review_checkout,
             pull_changes,
             pull_remarks,
             post_remarks,

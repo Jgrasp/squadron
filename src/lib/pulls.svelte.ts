@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
-import { agents } from './agents.svelte'
+import { agents, create, persist } from './agents.svelte'
+import { settings } from './settings.svelte'
 import { workdir, type Comment } from './stream'
 
 export type Pull = {
@@ -67,6 +68,23 @@ export async function post(dir: string, pull: Pull, list: Comment[], summary = '
   } finally {
     lookUp(dir, true)
   }
+}
+
+export async function reviewWithAgent(project: string, pull: Pull) {
+  const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base })
+  const prompt = [
+    `Review pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
+    `This folder is a checkout of the pull request branch: git diff origin/${pull.base}...HEAD shows what it changes. Read the code around the changes too.`,
+    'Do not change any file. For each problem worth raising, call add_review_comment with the file, the line in the new version (or the removed line with removed: true) and a short comment: what is wrong and what to do. Leave out style nitpicks.',
+    'End with a short summary of the pull request and of your main concerns.',
+  ].join('\n\n')
+  const id = await create(project, `Review #${pull.number}`, { ...settings.defaults }, prompt, { dir })
+  const agent = agents.list.find((a) => a.id === id)
+  if (agent) {
+    agent.review = { project, number: pull.number }
+    persist(agent)
+  }
+  return id
 }
 
 export const hostName = (pull: Pull) => (pull.host === 'github' ? 'GitHub' : 'Bitbucket')

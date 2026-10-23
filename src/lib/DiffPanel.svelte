@@ -9,6 +9,8 @@
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
   import { ask } from '@tauri-apps/plugin-dialog'
+  import { show } from './agents.svelte'
+  import { settings } from './settings.svelte'
   import { hostName, post, reviews, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
@@ -26,6 +28,8 @@
     onhand,
     onreview,
     onposted,
+    reviewer = null,
+    onagent,
     onclose,
   }: {
     agent: Agent | null
@@ -40,6 +44,8 @@
     onhand: (quote: string) => void
     onreview: (summary: string, list: Comment[]) => void
     onposted?: () => void
+    reviewer?: Agent | null
+    onagent?: () => Promise<unknown>
     onclose: () => void
   } = $props()
 
@@ -243,6 +249,15 @@
     commenting = null
   }
 
+  let starting = $state(false)
+
+  async function askAgent() {
+    starting = true
+    postError = ''
+    await onagent?.().catch((e) => (postError = String(e)))
+    starting = false
+  }
+
   let verdict = $state<'' | 'approve' | 'request_changes'>('')
   const VERDICTS: [typeof verdict, string][] = [
     ['', 'Comment'],
@@ -330,6 +345,20 @@
         {#if review.length}<strong>Review in progress</strong> · {review.length} comment{review.length > 1 ? 's' : ''}{:else}<strong>Your review</strong> · comment the lines, then finish{/if}
       </span>
       {#if postError && !commenting}<span class="bad" role="alert">{postError}</span>{/if}
+      {#if reviewer}
+        <button class="agent-link" title="Open the conversation of {reviewer.name}" onclick={() => show(reviewer)}>
+          {reviewer.name} {reviewer.status === 'working' ? 'is reviewing…' : reviewer.status === 'waiting' ? 'waits for you' : reviewer.status === 'error' ? 'stopped on an error' : 'has reviewed'}
+        </button>
+      {:else if onagent}
+        <button
+          class="btn btn-secondary"
+          disabled={starting || !settings.pilot}
+          title={settings.pilot
+            ? 'An agent reads the pull request in its own worktree and adds its remarks to your review'
+            : 'Turn on “Agents can drive Squadron” in Settings › Preferences first'}
+          onclick={askAgent}>{starting ? 'Starting…' : 'Ask an agent'}</button
+        >
+      {/if}
       {#if review.length}<button class="btn btn-secondary" onclick={discard}>Discard</button>{/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>Finish review</button>
     </div>
@@ -659,6 +688,20 @@
     border-bottom: 1px solid var(--border);
     background: var(--wait-bg);
     font-size: 13px;
+  }
+
+  .agent-link {
+    height: 30px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 12.5px;
+  }
+
+  .agent-link:hover {
+    background: var(--surface-5);
+    color: var(--text-strong);
   }
 
   .review-bar.idle {

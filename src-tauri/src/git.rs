@@ -123,6 +123,29 @@ pub fn pull_changes(dir: &Path, base: &str, branch: &str, head: &str) -> Result<
     })
 }
 
+pub fn review_checkout(
+    project: &Path,
+    into: &Path,
+    branch: &str,
+    base: &str,
+) -> Result<(), String> {
+    if [branch, base]
+        .iter()
+        .any(|b| b.is_empty() || b.starts_with('-'))
+    {
+        return Err("Unknown branch.".into());
+    }
+    fetch(project, &[branch, base]);
+    let target = format!("origin/{branch}");
+    if into.join(".git").exists() {
+        run(git(into).args(["checkout", "--quiet", "--detach", &target]))?;
+    } else {
+        let into = into.to_string_lossy();
+        run(git(project).args(["worktree", "add", "--quiet", "--detach", &into, &target]))?;
+    }
+    Ok(())
+}
+
 fn between(dir: &Path, from: String, now: String) -> Result<Changes, String> {
     let names = diff(dir, &["--name-status", "-z", &from, &now])?;
     let stats = diff(dir, &["--numstat", "-z", &from, &now])?;

@@ -9,7 +9,8 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
 import { settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import type { Agent, Options } from './stream'
+import { reviews } from './pulls.svelte'
+import { workdir, type Agent, type Options } from './stream'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
@@ -150,6 +151,19 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     await invoke('set_workdir', { id: target.id, dir: path })
     persist(target)
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
+  },
+
+  add_review_comment: async (caller, args) => {
+    if (!caller.review) throw new Error('You were not asked to review a pull request.')
+    const path = String(args.path ?? '').trim().replace(/^\/+/, '')
+    const line = Number(args.line)
+    const body = String(args.body ?? '').trim()
+    if (!path || !Number.isInteger(line) || line < 1 || !body) throw new Error('path, line and body are needed.')
+    const removed = args.removed === true
+    const text = removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
+    const key = `${caller.review.project}#${caller.review.number}`
+    reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
+    return `Added to the user's review of pull request #${caller.review.number} (${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''} so far).`
   },
 
   get_layout: () =>

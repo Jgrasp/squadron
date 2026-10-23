@@ -396,6 +396,8 @@ mockIPC(
               head: 'b'.repeat(40),
             }
           : null
+      case 'review_checkout':
+        return `/home/demo/.local/share/squadron/reviews/orbit-${a.number}`
       case 'pull_lists': {
         if (!a.dir.includes('orbit')) throw 'The project is not on Bitbucket or GitHub.'
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
