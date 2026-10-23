@@ -3,23 +3,23 @@ set -euo pipefail
 repo=Jgrasp/squadron
 bin="${SQUADRON_DIR:-$HOME/.local/bin}"
 apps="$HOME/.local/share/applications"
-icons="$HOME/.local/share/icons/hicolor/128x128/apps"
+data="$HOME/.local/share/squadron"
 
 url=$(curl -fsSL "https://github.com/$repo/releases/latest/download/latest.json" | sed -n 's/.*"url": *"\([^"]*\.AppImage\)".*/\1/p' | head -1)
 [ -n "$url" ] || { echo "No Squadron release found." >&2; exit 1; }
 
-mkdir -p "$bin" "$apps" "$icons"
+mkdir -p "$bin" "$apps" "$data"
 echo "Downloading $(basename "$url")"
 curl -fL --progress-bar "$url" -o "$bin/squadron.AppImage"
 chmod +x "$bin/squadron.AppImage"
-curl -fsSL "https://raw.githubusercontent.com/$repo/main/src-tauri/icons/128x128.png" -o "$icons/squadron.png"
+curl -fsSL "https://raw.githubusercontent.com/$repo/main/src-tauri/icons/128x128.png" -o "$data/icon.png"
 cat > "$apps/squadron-app.desktop" <<DESKTOP
 [Desktop Entry]
 Type=Application
 Name=Squadron
 Comment=Drive several Claude Code agents side by side
 Exec=$bin/squadron.AppImage
-Icon=squadron
+Icon=$data/icon.png
 Terminal=false
 Categories=Development;
 StartupWMClass=squadron
