@@ -846,10 +846,21 @@ fn save_agent(files: State<AgentFiles>, id: String, data: String) -> Result<(), 
 }
 
 #[tauri::command]
-fn delete_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String> {
-    match std::fs::remove_file(files.path(&id)?) {
+fn delete_agent_file(app: AppHandle, files: State<AgentFiles>, id: String) -> Result<(), String> {
+    let path = files.path(&id)?;
+    let gone = std::fs::read_to_string(&path).unwrap_or_default();
+    match std::fs::remove_file(path) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
-        _ => Ok(()),
+        _ => {
+            forget_attachments(&app, &files.0, &gone);
+            Ok(())
+        }
+    }
+}
+
+fn forget_attachments(app: &AppHandle, agents: &Path, gone: &str) {
+    if let Ok(data) = app.path().app_data_dir() {
+        attach::forget(&data.join("attachments"), agents, gone);
     }
 }
 
@@ -870,8 +881,12 @@ fn restore_archived(files: State<AgentFiles>, id: String) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn delete_archived(files: State<AgentFiles>, id: String) -> Result<(), String> {
-    std::fs::remove_file(files.archived(&id)?).map_err(|e| e.to_string())
+fn delete_archived(app: AppHandle, files: State<AgentFiles>, id: String) -> Result<(), String> {
+    let path = files.archived(&id)?;
+    let gone = std::fs::read_to_string(&path).unwrap_or_default();
+    std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    forget_attachments(&app, &files.0, &gone);
+    Ok(())
 }
 
 #[tauri::command]
@@ -1187,6 +1202,17 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            let (store, agents) = (
+                app.path().app_data_dir()?.join("attachments"),
+                config.join("agents"),
+            );
+            std::thread::spawn(move || {
+                attach::sweep(
+                    &store,
+                    &agents,
+                    std::time::Duration::from_secs(7 * 24 * 3600),
+                )
+            });
             app.manage(LayoutFile(config.join("layout.json")));
             let file = config.join("usage.json");
             let days = std::fs::read_to_string(&file)

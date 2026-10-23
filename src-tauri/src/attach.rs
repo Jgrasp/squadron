@@ -1,8 +1,10 @@
 use base64::Engine;
 use base64::engine::general_purpose::STANDARD;
 use serde_json::{Value, json};
+use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
+use std::time::{Duration, SystemTime};
 
 const IMAGE_LIMIT: u64 = 5 * 1024 * 1024;
 
@@ -74,6 +76,52 @@ pub fn save(dir: &Path, name: &str, data: &str) -> Result<PathBuf, String> {
     Ok(file)
 }
 
+fn folders(text: &str) -> HashSet<String> {
+    text.match_indices("/attachments/")
+        .filter_map(|(at, mark)| text.get(at + mark.len()..at + mark.len() + 32))
+        .filter(|id| id.bytes().all(|b| b.is_ascii_hexdigit()))
+        .map(str::to_string)
+        .collect()
+}
+
+fn referenced(agents: &Path) -> HashSet<String> {
+    [agents.to_path_buf(), agents.join("archived")]
+        .iter()
+        .filter_map(|dir| fs::read_dir(dir).ok())
+        .flatten()
+        .flatten()
+        .filter(|entry| entry.path().extension().is_some_and(|x| x == "json"))
+        .filter_map(|entry| fs::read_to_string(entry.path()).ok())
+        .flat_map(|text| folders(&text))
+        .collect()
+}
+
+pub fn forget(attachments: &Path, agents: &Path, gone: &str) {
+    let kept = referenced(agents);
+    for id in folders(gone).difference(&kept) {
+        let _ = fs::remove_dir_all(attachments.join(id));
+    }
+}
+
+pub fn sweep(attachments: &Path, agents: &Path, older: Duration) {
+    let kept = referenced(agents);
+    let Ok(dir) = fs::read_dir(attachments) else {
+        return;
+    };
+    for entry in dir.flatten() {
+        let name = entry.file_name().to_string_lossy().into_owned();
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|at| SystemTime::now().duration_since(at).ok())
+            .is_some_and(|age| age > older);
+        if old && !kept.contains(&name) {
+            let _ = fs::remove_dir_all(entry.path());
+        }
+    }
+}
+
 pub fn preview(path: &Path) -> Result<String, String> {
     let kind = media_type(path).ok_or("Not an image.")?;
     let bytes = fs::read(path).map_err(|e| e.to_string())?;
@@ -131,6 +179,46 @@ mod tests {
         );
         assert!(preview(&notes).is_err());
         assert!(content("x", &[dir.join("missing.png")]).is_err());
+    }
+
+    #[test]
+    fn deletes_the_captures_no_agent_uses_anymore() {
+        let root = std::env::temp_dir().join(format!("squadron-sweep-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let (store, agents) = (root.join("attachments"), root.join("agents"));
+        fs::create_dir_all(agents.join("archived")).unwrap();
+        let shot = |n: &str| save(&store, n, "AA==").unwrap();
+        let (kept, archived, dropped, draft) =
+            (shot("a.png"), shot("b.png"), shot("c.png"), shot("d.png"));
+        let id = |p: &Path| {
+            p.parent()
+                .unwrap()
+                .file_name()
+                .unwrap()
+                .to_string_lossy()
+                .into_owned()
+        };
+        let quoted = |p: &Path| format!("{{\"files\":[\"{}\"]}}", p.display());
+        fs::write(agents.join("one.json"), quoted(&kept)).unwrap();
+        fs::write(agents.join("archived/two.json"), quoted(&archived)).unwrap();
+        assert_eq!(folders(&quoted(&kept)), HashSet::from([id(&kept)]));
+
+        forget(
+            &store,
+            &agents,
+            &format!("{}{}", quoted(&dropped), quoted(&kept)),
+        );
+        assert!(!dropped.exists() && kept.exists());
+
+        let old = SystemTime::now() - Duration::from_secs(8 * 24 * 3600);
+        for p in [&kept, &archived, &draft] {
+            fs::File::open(p.parent().unwrap())
+                .unwrap()
+                .set_modified(old)
+                .unwrap();
+        }
+        sweep(&store, &agents, Duration::from_secs(7 * 24 * 3600));
+        assert!(kept.exists() && archived.exists() && !draft.exists());
     }
 
     #[test]
