@@ -27,7 +27,6 @@
   } = $props()
 
   const at = (side: Line['side'], number?: number) => open?.side === side && open.number === number
-  const sync = (el: HTMLElement) => el.getAnimations({ subtree: true }).forEach((a) => (a.startTime = 0))
   const noteAt = (side: Line['side'], number?: number) => marked.find((m) => m.side === side && m.number === number)?.note
 
   const unified = $derived(split ? [] : rows(hunks))
@@ -38,7 +37,7 @@
 {#snippet plus(line: Line)}
   {@const note = noteAt(line.side, line.number)}
   {#if note !== undefined}
-    <button use:sync class="plus bubble effect-snake" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
+    <button class="plus bubble effect-snake" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
       <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
     </button>
   {:else if oncomment && (commentRemoved || line.side === 'new')}
