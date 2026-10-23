@@ -9,9 +9,35 @@ pub struct Load {
     pub total: u64,
 }
 
+#[cfg(not(target_os = "macos"))]
 #[derive(Default)]
 pub struct Cpu(Mutex<Option<(u64, u64)>>);
 
+#[cfg(target_os = "macos")]
+pub struct Cpu(Mutex<sysinfo::System>);
+
+#[cfg(target_os = "macos")]
+impl Default for Cpu {
+    fn default() -> Self {
+        Self(Mutex::new(sysinfo::System::new()))
+    }
+}
+
+#[cfg(target_os = "macos")]
+impl Cpu {
+    pub fn load(&self) -> Option<Load> {
+        let mut system = self.0.lock().unwrap();
+        system.refresh_cpu_usage();
+        system.refresh_memory();
+        Some(Load {
+            cpu: system.global_cpu_usage() as f64,
+            used: system.used_memory(),
+            total: system.total_memory(),
+        })
+    }
+}
+
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 pub fn ticks(stat: &str) -> Option<(u64, u64)> {
     let fields: Vec<u64> = stat
         .lines()
@@ -24,6 +50,7 @@ pub fn ticks(stat: &str) -> Option<(u64, u64)> {
     Some((idle, fields.iter().take(8).sum()))
 }
 
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 pub fn memory(meminfo: &str) -> Option<(u64, u64)> {
     let kib = |key: &str| -> Option<u64> {
         meminfo
@@ -39,6 +66,7 @@ pub fn memory(meminfo: &str) -> Option<(u64, u64)> {
     Some((total - kib("MemAvailable:")?, total))
 }
 
+#[cfg(not(target_os = "macos"))]
 impl Cpu {
     pub fn load(&self) -> Option<Load> {
         let (idle, all) = ticks(&fs::read_to_string("/proc/stat").ok()?)?;

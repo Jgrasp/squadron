@@ -4,6 +4,22 @@ repo=Jgrasp/squadron
 manifest=$(curl -fsSL "https://github.com/$repo/releases/latest/download/latest.json")
 pick() { printf '%s\n' "$manifest" | sed -n "s/.*\"url\": *\"\([^\"]*\.$1\)\".*/\1/p" | head -1; }
 
+if [ "$(uname)" = Darwin ]; then
+  url=$(pick 'app\.tar\.gz')
+  [ -n "$url" ] || { echo "This release has no macOS build yet." >&2; exit 1; }
+  tmp=$(mktemp -d)
+  echo "Downloading $(basename "$url")"
+  curl -fL --progress-bar "$url" -o "$tmp/squadron.tar.gz"
+  tar -xzf "$tmp/squadron.tar.gz" -C "$tmp"
+  app=$(find "$tmp" -maxdepth 1 -name '*.app' | head -1)
+  [ -n "$app" ] || { echo "The download holds no app." >&2; exit 1; }
+  rm -rf "/Applications/$(basename "$app")"
+  mv "$app" /Applications/
+  rm -rf "$tmp"
+  echo "Squadron is installed in /Applications. Open it from Launchpad or Spotlight."
+  exit 0
+fi
+
 if command -v apt >/dev/null && [ -n "$(pick deb)" ]; then
   url=$(pick deb)
   file=$(mktemp --suffix=.deb)

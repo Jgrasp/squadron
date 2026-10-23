@@ -8,6 +8,7 @@ pub struct App {
     pub command: String,
 }
 
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 const JETBRAINS: [&str; 9] = [
     "phpstorm",
     "idea",
@@ -20,6 +21,7 @@ const JETBRAINS: [&str; 9] = [
     "rubymine",
 ];
 
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 fn field(entry: &str, key: &str) -> Option<String> {
     entry
         .lines()
@@ -27,6 +29,7 @@ fn field(entry: &str, key: &str) -> Option<String> {
         .map(|value| value.trim().to_string())
 }
 
+#[cfg_attr(target_os = "macos", allow(dead_code))]
 pub fn from_desktop(text: &str) -> Option<App> {
     let entry = text.split("\n[").next()?;
     let categories = field(entry, "Categories").unwrap_or_default();
@@ -64,6 +67,54 @@ pub fn from_desktop(text: &str) -> Option<App> {
     })
 }
 
+#[cfg(target_os = "macos")]
+pub fn detect() -> Vec<App> {
+    const KNOWN: [(&str, bool); 19] = [
+        ("Visual Studio Code", false),
+        ("Cursor", false),
+        ("Zed", false),
+        ("Windsurf", false),
+        ("VSCodium", false),
+        ("Sublime Text", false),
+        ("PhpStorm", true),
+        ("IntelliJ IDEA", true),
+        ("IntelliJ IDEA Ultimate", true),
+        ("IntelliJ IDEA CE", true),
+        ("WebStorm", true),
+        ("PyCharm", true),
+        ("PyCharm Professional Edition", true),
+        ("PyCharm CE", true),
+        ("GoLand", true),
+        ("RustRover", true),
+        ("CLion", true),
+        ("Rider", true),
+        ("RubyMine", true),
+    ];
+    let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_default();
+    let folders = [PathBuf::from("/Applications"), home.join("Applications")];
+    KNOWN
+        .iter()
+        .filter(|(name, _)| {
+            folders
+                .iter()
+                .any(|dir| dir.join(format!("{name}.app")).exists())
+        })
+        .map(|(name, whole)| App {
+            name: name.to_string(),
+            command: format!(
+                "open -a {} {}",
+                shell_words::quote(name),
+                if *whole {
+                    "{project}"
+                } else {
+                    "{project} {file}"
+                }
+            ),
+        })
+        .collect()
+}
+
+#[cfg(not(target_os = "macos"))]
 pub fn detect() -> Vec<App> {
     let home = std::env::var("HOME").map(PathBuf::from).unwrap_or_default();
     let dirs = [

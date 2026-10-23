@@ -1106,6 +1106,46 @@ fn archive_agent(agents: State<Agents>, id: String) {
     agents.archive(&id)
 }
 
+#[cfg(target_os = "macos")]
+fn login_path() {
+    use std::io::Read;
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let Ok(mut child) = std::process::Command::new(shell)
+        .args(["-ilc", "printf '\\n%s' \"$PATH\""])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
+        .spawn()
+    else {
+        return;
+    };
+    let start = std::time::Instant::now();
+    while child.try_wait().ok().flatten().is_none() {
+        if start.elapsed() > std::time::Duration::from_secs(3) {
+            let _ = child.kill();
+            return;
+        }
+        std::thread::sleep(std::time::Duration::from_millis(30));
+    }
+    let mut out = String::new();
+    let _ = child.stdout.take().map(|mut o| o.read_to_string(&mut out));
+    let found = out.lines().last().unwrap_or_default().trim().to_string();
+    let home = std::env::var("HOME").unwrap_or_default();
+    let local = format!("{home}/.local/bin");
+    let path = [
+        found.as_str(),
+        "/opt/homebrew/bin",
+        "/usr/local/bin",
+        local.as_str(),
+    ]
+    .into_iter()
+    .filter(|p| !p.is_empty())
+    .collect::<Vec<_>>()
+    .join(":");
+    // SAFETY: runs first, before Squadron starts any thread.
+    unsafe { std::env::set_var("PATH", path) };
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     for leaked in [
@@ -1116,7 +1156,9 @@ pub fn run() {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::remove_var(leaked) };
     }
-    #[cfg(debug_assertions)]
+    #[cfg(target_os = "macos")]
+    login_path();
+    #[cfg(all(debug_assertions, target_os = "linux"))]
     if let Some(data) = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
