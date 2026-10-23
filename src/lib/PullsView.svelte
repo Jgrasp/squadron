@@ -118,7 +118,7 @@
       bind:target
       onhand={() => {}}
       onreview={() => {}}
-      onposted={() => lookUpLists(project.path, true)}
+      onposted={() => ((opened = null), lookUpLists(project.path, true))}
       reviewer={agents.list.find((a) => a.review?.project === project.path && a.review.number === opened?.number) ?? null}
       onagent={() => reviewWithAgent(project.path, opened!)}
       onclose={() => (opened = null)}
