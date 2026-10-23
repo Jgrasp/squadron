@@ -14,10 +14,11 @@ describe('entriesOf', () => {
       line({ type: 'assistant', uuid: 'u3', isSidechain: true, message: { id: 'm3', model: 'claude-opus', content: [{ type: 'text', text: 'subagent' }] } }),
       line({ type: 'user', isCompactSummary: true, message: { content: 'Summary' } }),
       line({ type: 'user', message: { content: [{ type: 'text', text: 'Thanks' }] } }),
+      line({ type: 'user', message: { content: '<pasted_content id="a">\nLog line\n</pasted_content>\nWhat is wrong?' } }),
       'not json',
     ].join('\n')
     const entries = entriesOf(transcript)
-    expect(entries.map((e) => e.kind)).toEqual(['user', 'agent', 'compacted', 'user'])
+    expect(entries.map((e) => e.kind)).toEqual(['user', 'agent', 'compacted', 'user', 'user'])
     const reply = entries[1] as Extract<(typeof entries)[number], { kind: 'agent' }>
     expect(reply.uuid).toBe('u2')
     expect(reply.blocks.map((b) => b.type)).toEqual(['thinking', 'text', 'tools'])
