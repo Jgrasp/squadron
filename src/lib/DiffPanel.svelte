@@ -6,7 +6,8 @@
   import DiffView, { type Line } from './DiffView.svelte'
   import { layout, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
-  import { hostName, type Pull } from './pulls.svelte'
+  import Markdown from './Markdown.svelte'
+  import { hostName, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
 
@@ -19,6 +20,7 @@
     target = $bindable(),
     pull = null,
     mode = $bindable(),
+    onhand,
     onclose,
   }: {
     agent: Agent
@@ -29,6 +31,7 @@
     target: Comment | null
     pull?: Pull | null
     mode: 'local' | 'pull'
+    onhand: (quote: string) => void
     onclose: () => void
   } = $props()
 
@@ -47,6 +50,48 @@
       .then((result) => (pulled = { key, ...result }))
       .catch((e) => (pullError = String(e)))
   })
+
+  let remarks = $state<Remark[]>([])
+
+  $effect(() => {
+    if (!reviewing || !pull) return
+    const { number } = pull
+    invoke<Remark[]>('pull_remarks', { dir: workdir(agent), number })
+      .then((found) => (remarks = found))
+      .catch(() => (remarks = []))
+  })
+
+  type Thread = { root: Remark; all: Remark[] }
+  const threads = $derived.by(() => {
+    const byId = new Map(remarks.map((r) => [r.id, r]))
+    const rootOf = (r: Remark) => {
+      for (let i = 0; r.reply_to !== null && byId.has(r.reply_to) && i < 100; i++) r = byId.get(r.reply_to)!
+      return r
+    }
+    const list = new Map<number, Thread>()
+    for (const r of remarks) {
+      const root = rootOf(r)
+      if (!list.has(root.id)) list.set(root.id, { root, all: [] })
+      list.get(root.id)!.all.push(r)
+    }
+    return [...list.values()]
+  })
+  const general = $derived(threads.filter((t) => !t.root.path || t.root.line === null))
+  const threadsAt = (path: string, line: Line) =>
+    threads.filter((t) => t.root.path === path && t.root.line === line.number && t.root.removed === (line.side === 'old'))
+  const talks = (path: string) => threads.filter((t) => t.root.path === path && t.root.line !== null).length
+  const when = (at: string) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  let handed = $state<number[]>([])
+
+  function hand(thread: Thread, line?: Line) {
+    const said = thread.all.map((r) => `${r.author}: ${r.body}`).join('\n')
+    if (line && thread.root.path) comments.push({ path: thread.root.path, line: line.number, removed: line.side === 'old', code: line.text, note: `Review on the pull request\n${said}` })
+    else {
+      const where = thread.root.path ? ` about ${thread.root.path}` : ''
+      onhand(`Review on pull request #${pull!.number}${where}:\n${said.split('\n').map((l) => `> ${l}`).join('\n')}`)
+    }
+    handed.push(thread.root.id)
+  }
 
   const source = $derived(reviewing ? (pull && pulled?.key === keyOf(pull) ? pulled.changes : null) : changes)
 
@@ -193,11 +238,18 @@
           onclick={() => (file = f.path)}
         >
           {name(f.path)} <span class="add">+{f.add}</span>{#if f.del}<span class="del">−{f.del}</span>{/if}
+          {#if reviewing && talks(f.path)}<span class="talks" title="{talks(f.path)} review thread{talks(f.path) > 1 ? 's' : ''}">{talks(f.path)}</span>{/if}
         </button>
       {/each}
     </div>
 
     <div class="body">
+      {#if reviewing && general.length}
+        <details class="general" open>
+          <summary>{general.length} comment{general.length > 1 ? 's' : ''} on the pull request</summary>
+          {#each general as t (t.root.id)}{@render thread(t)}{/each}
+        </details>
+      {/if}
       {#if selected}
         <div class="file">
           <div class="file-head">
@@ -227,6 +279,7 @@
               {marked}
               open={commenting?.path === selected.path ? commenting : null}
               {editor}
+              {below}
             />
           {:else}
             <p class="empty">The file is back to its original state.</p>
@@ -253,6 +306,31 @@
     <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent.name} has not changed any file yet.`}</p>
   {/if}
 </SidePanel>
+
+{#snippet below(line: Line)}
+  {#if reviewing && selected}
+    {#each threadsAt(selected.path, line) as t (t.root.id)}{@render thread(t, line)}{/each}
+  {/if}
+{/snippet}
+
+{#snippet thread(t: Thread, line?: Line)}
+  <div class="thread" class:inline-thread={!!line}>
+    {#if !line && t.root.path}<span class="where">{t.root.path} · outdated</span>{/if}
+    {#each t.all as r (r.id)}
+      <div class="remark" class:reply={r !== t.root}>
+        <span class="who"><strong>{r.author}</strong> · {when(r.at)}</span>
+        <Markdown text={r.body} />
+      </div>
+    {/each}
+    <div class="thread-actions">
+      {#if handed.includes(t.root.id)}
+        <span class="handed">In your next message to {agent.name}</span>
+      {:else}
+        <button class="btn btn-secondary" onclick={() => hand(t, line)}>Hand to {agent.name}</button>
+      {/if}
+    </div>
+  </div>
+{/snippet}
 
 {#snippet editor()}
   <form class="inline" onsubmit={comment} use:reveal>
@@ -305,6 +383,86 @@
     background: var(--surface-4);
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .talks {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 9px;
+    background: var(--wait-bg);
+    color: var(--accent-soft);
+    font: 600 11px/18px var(--sans);
+    text-align: center;
+  }
+
+  .general {
+    margin-bottom: 14px;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px var(--border);
+    background: var(--surface-1);
+  }
+
+  .general summary {
+    padding: 10px 12px;
+    cursor: pointer;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .thread {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px 14px;
+    border-top: 1px solid var(--border);
+    font: 13px/1.5 var(--sans);
+    color: var(--text);
+  }
+
+  .inline-thread {
+    margin: 6px 12px 10px 48px;
+    border: none;
+    border-radius: 6px;
+    background: var(--surface-2);
+    box-shadow: inset 3px 0 0 var(--accent-soft), inset 0 0 0 1px var(--border-strong);
+  }
+
+  .where {
+    font: 12px var(--mono);
+    color: var(--text-dim);
+  }
+
+  .remark.reply {
+    padding-left: 14px;
+    border-left: 2px solid var(--border-strong);
+  }
+
+  .who {
+    display: block;
+    margin-bottom: 2px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .who strong {
+    color: var(--text-2);
+  }
+
+  .thread-actions {
+    display: flex;
+    justify-content: flex-end;
+  }
+
+  .thread-actions .btn {
+    height: 30px;
+    padding: 0 12px;
+  }
+
+  .handed {
+    font-size: 12px;
+    color: var(--ok-text);
   }
 
   .ahead {

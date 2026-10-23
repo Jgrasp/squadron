@@ -740,6 +740,7 @@
       {proposal}
       {pull}
       bind:mode={diffSource}
+      onhand={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}` : quote), composer.focus())}
       bind:file={diffFile}
       bind:comments
       bind:target
