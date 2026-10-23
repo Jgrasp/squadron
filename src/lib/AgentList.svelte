@@ -6,8 +6,9 @@
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
+  import PullTag from './PullTag.svelte'
   import StatusIcon from './StatusIcon.svelte'
-  import type { Agent } from './stream'
+  import { activity, type Agent } from './stream'
   import { asking, count, LOOKS, summary } from './subagents'
 
   let {
@@ -100,9 +101,10 @@
 
   function label(agent: Agent) {
     if (blocked(agent)) return 'Waiting for you'
+    if (!agent.entries.length) return 'Ready for your first message'
     switch (agent.status) {
       case 'working':
-        return agent.action
+        return activity(agent)
       case 'done':
         return `Done ${ago(agent.since, clock.now)}`
       case 'interrupted':
@@ -135,6 +137,7 @@
     <span class="cost">{cost(agent.cost)}</span>
   </span>
   <span class="state">{label(agent)}</span>
+  <PullTag {agent} />
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
   {:else if agent.status === 'waiting'}
@@ -775,6 +778,10 @@
     white-space: nowrap;
     font: 11.5px var(--mono);
     color: var(--text-dim);
+  }
+
+  .state {
+    font: 12px var(--sans);
   }
 
   .done .state,

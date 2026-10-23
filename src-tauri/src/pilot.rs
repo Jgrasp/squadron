@@ -81,6 +81,19 @@ struct SetWorktree {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct ReviewComment {
+    /// A file the pull request changes, relative to the repository root. Leave it out, with line, for a comment on the whole pull request.
+    path: Option<String>,
+    /// A line the diff shows, changed or in its context: its number in the new version of the file, or in the old version when removed is true.
+    line: Option<u32>,
+    /// True when the comment is about a line the pull request removes.
+    removed: Option<bool>,
+    /// The comment in Markdown: what is wrong and what to do.
+    body: String,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MoveCard {
     /// The card id, as listed by `overview`.
     card: String,
@@ -214,6 +227,17 @@ impl Pilot {
         self.forward(&parts, "set_worktree", json!(args)).await
     }
 
+    /// Adds a comment to the user's draft review of the pull request you were asked to review, on a line the diff shows or, without path and line, on the whole pull request. The user reads, edits and posts the review: nothing reaches Bitbucket or GitHub without them.
+    #[tool]
+    async fn add_review_comment(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<ReviewComment>,
+    ) -> String {
+        self.forward(&parts, "add_review_comment", json!(args))
+            .await
+    }
+
     /// Returns Squadron's layout: each slot (a bar of buttons or a menu), its items and which are hidden.
     #[tool]
     async fn get_layout(&self, Extension(parts): Extension<http::request::Parts>) -> String {
@@ -247,6 +271,15 @@ mod tests {
     use std::time::Duration;
 
     async fn drive(model: &str, prompt: &str, reply: fn(&Call) -> String) -> Vec<Call> {
+        drive_in(model, prompt, reply, |_| {}).await
+    }
+
+    async fn drive_in(
+        model: &str,
+        prompt: &str,
+        reply: fn(&Call) -> String,
+        setup: fn(&std::path::Path),
+    ) -> Vec<Call> {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
@@ -275,6 +308,7 @@ mod tests {
         let dir = std::env::temp_dir().join("squadron-pilot-test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
+        setup(&dir);
         let options = Options {
             model: model.into(),
             effort: "low".into(),
@@ -301,6 +335,75 @@ mod tests {
         let calls = seen.lock().unwrap().clone();
         assert!(calls.iter().all(|c| c.agent == "agent-7"));
         calls
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_reviews_a_pull_request_into_the_users_draft() {
+        let calls = drive_in(
+            "haiku",
+            "Review pull request #12 “Cart total with discounts” by Ann, from feature/discount into main, on GitHub.\n\nThis folder is a checkout of the pull request branch: git diff origin/main...HEAD shows what it changes. Read the code around the changes too.\n\nDo not change any file. For each problem worth raising, call add_review_comment with the file, the line in the new version (or the removed line with removed: true) and a short comment: what is wrong and what to do. Leave out style nitpicks.\n\nEnd with a short summary of the pull request and of your main concerns.",
+            |call| {
+                if call.args["path"] == "checkout.js" {
+                    "Error: checkout.js is not changed by the pull request. Put the comment on the changed line it relates to best, in one of these files: cart.js. Or leave path and line out to comment on the whole pull request.".to_string()
+                } else {
+                    "Added to the user's review of pull request #12.".to_string()
+                }
+            },
+            |dir| {
+                let sh = |args: &[&str]| {
+                    let out = std::process::Command::new("git").current_dir(dir).args(args).output().unwrap();
+                    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+                };
+                sh(&["init", "-q", "-b", "main"]);
+                sh(&["config", "user.email", "t@t"]);
+                sh(&["config", "user.name", "t"]);
+                std::fs::write(dir.join("cart.js"), "export function total(items) {\n  return items.reduce((sum, item) => sum + item.price * item.quantity, 0)\n}\n").unwrap();
+                std::fs::write(dir.join("checkout.js"), "import { total } from './cart.js'\n\nexport function amountDue(cart) {\n  return total(cart.items)\n}\n").unwrap();
+                sh(&["add", "."]);
+                sh(&["commit", "-qm", "Cart total"]);
+                sh(&["update-ref", "refs/remotes/origin/main", "HEAD"]);
+                sh(&["checkout", "-qb", "feature/discount"]);
+                std::fs::write(dir.join("cart.js"), "export function total(items, discount) {\n  const sum = items.reduce((sum, item) => sum + item.price * item.quantity, 0)\n  return sum - sum * discount / 100\n}\n\nexport function average(items) {\n  return total(items, 0) / items.length\n}\n").unwrap();
+                sh(&["commit", "-qam", "Discounts"]);
+            },
+        )
+        .await;
+        let comments: Vec<_> = calls
+            .iter()
+            .filter(|c| c.tool == "add_review_comment")
+            .collect();
+        assert!(!comments.is_empty(), "no review comment");
+        let kept: Vec<_> = comments
+            .iter()
+            .filter(|c| c.args["path"] != "checkout.js")
+            .collect();
+        assert!(!kept.is_empty());
+        assert!(kept.iter().all(|c| {
+            c.args["path"].is_null()
+                || (c.args["path"] == "cart.js"
+                    && c.args["line"]
+                        .as_u64()
+                        .is_some_and(|l| (1..=8).contains(&l)))
+        }));
+        if comments.len() > kept.len() {
+            assert!(
+                calls.iter().rposition(|c| c.args["path"] == "checkout.js")
+                    < calls.iter().rposition(
+                        |c| c.tool == "add_review_comment" && c.args["path"] != "checkout.js"
+                    )
+            );
+        }
+        assert!(
+            !std::process::Command::new("git")
+                .current_dir(std::env::temp_dir().join("squadron-pilot-test"))
+                .args(["status", "--porcelain"])
+                .output()
+                .unwrap()
+                .stdout
+                .iter()
+                .any(|_| true)
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

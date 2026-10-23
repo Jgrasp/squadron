@@ -4,8 +4,8 @@
   let { comment, light = false, onopen, onremove }: { comment: Comment; light?: boolean; onopen?: () => void; onremove?: () => void } =
     $props()
 
-  const ref = $derived(`${comment.path.split('/').pop()}:${comment.line}`)
-  const title = $derived(`${comment.path}:${comment.line}${comment.removed ? ' · removed line' : ''}\n${comment.code.trim()}\n\n${comment.note}`)
+  const ref = $derived(comment.path ? `${comment.path.split('/').pop()}:${comment.line}` : 'Pull request')
+  const title = $derived(comment.path ? `${comment.path}:${comment.line}${comment.removed ? ' · removed line' : ''}\n${comment.code.trim()}\n\n${comment.note}` : comment.note)
 </script>
 
 {#snippet body()}

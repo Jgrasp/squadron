@@ -16,4 +16,4 @@ public=$(git commit-tree "HEAD^{tree}" ${parent:+-p "$parent"} -m "Squadron $ver
 git update-ref refs/heads/public "$public"
 git tag "v$version" "$public"
 git push -q "git@github.com:$repo.git" public:main "v$version"
-echo "v$version pushed: GitHub builds the AppImage, https://github.com/$repo/actions"
+echo "v$version pushed: GitHub builds the release, https://github.com/$repo/actions"

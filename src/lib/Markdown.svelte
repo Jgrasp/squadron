@@ -1,7 +1,40 @@
 <script lang="ts" module>
+  import { LanguageDescription, type Language } from '@codemirror/language'
+  import { languages } from '@codemirror/language-data'
+  import { classHighlighter, highlightCode } from '@lezer/highlight'
   import MarkdownIt from 'markdown-it'
 
-  const md = new MarkdownIt({ html: false, linkify: true }).disable('image')
+  const grammars = new Map<string, Language | null>()
+  let loaded = $state(0)
+
+  function colored(code: string, lang: string) {
+    if (!grammars.has(lang)) {
+      const found = LanguageDescription.matchLanguageName(languages, lang, true)
+      grammars.set(lang, null)
+      found?.load().then((support) => {
+        grammars.set(lang, support.language)
+        loaded++
+      })
+    }
+    const grammar = grammars.get(lang)
+    if (!grammar) return ''
+    let html = ''
+    const escape = md.utils.escapeHtml
+    highlightCode(code, grammar.parser.parse(code), classHighlighter, (text, classes) => (html += classes ? `<span class="${classes}">${escape(text)}</span>` : escape(text)), () => (html += '\n'))
+    return html
+  }
+
+  const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') }).disable('image')
+  const fence = md.renderer.rules.fence!
+  const copyButton = `<button type="button" class="copy" data-copy><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>Copy</span></button>`
+  md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const lang = tokens[idx].info.trim().split(/\s+/)[0] || 'text'
+    const source = fence(tokens, idx, options, env, self)
+    if (lang !== 'markdown' && lang !== 'md')
+      return `<div class="code"><div class="code-head"><span>${md.utils.escapeHtml(lang)}</span>${copyButton}</div>${source}</div>`
+    const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">Preview</button><button type="button" data-view="source" aria-pressed="false">Markdown</button></span>`
+    return `<div class="code"><div class="code-head">${tabs}${copyButton}</div><div class="rendered">${md.render(tokens[idx].content)}</div><div class="source" hidden>${source}</div></div>`
+  }
 </script>
 
 <script lang="ts">
@@ -35,15 +68,122 @@
     }
   })
 
-  const html = $derived(md.render(streaming ? text.slice(0, shown) : text))
+  const html = $derived.by(() => {
+    void loaded
+    return md.render(streaming ? text.slice(0, shown) : text)
+  })
+
+  function click(event: MouseEvent) {
+    const target = event.target as HTMLElement
+    const block = target.closest('.code')
+    const view = target.closest<HTMLButtonElement>('[data-view]')
+    if (block && view) {
+      for (const tab of block.querySelectorAll(':scope > .code-head [data-view]')) tab.setAttribute('aria-pressed', String(tab === view))
+      block.querySelector(':scope > .rendered')?.toggleAttribute('hidden', view.dataset.view !== 'preview')
+      block.querySelector(':scope > .source')?.toggleAttribute('hidden', view.dataset.view !== 'source')
+      return
+    }
+    const button = target.closest<HTMLButtonElement>('[data-copy]')
+    const code = block?.querySelector(':scope > pre, :scope > .source > pre')?.textContent
+    if (!button || code === undefined || code === null) return
+    navigator.clipboard.writeText(code.replace(/\n$/, ''))
+    const label = button.querySelector('span')!
+    label.textContent = 'Copied'
+    setTimeout(() => (label.textContent = 'Copy'), 1500)
+  }
 </script>
 
-<div class="prose" class:streaming>{@html html}</div>
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<div class="prose" class:streaming onclick={click}>{@html html}</div>
 
 <style>
   .prose {
     line-height: 1.65;
     overflow-wrap: anywhere;
+  }
+
+  .prose :global(.code) {
+    margin: 0 0 10px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+    overflow: hidden;
+  }
+
+  .prose :global(.code-head) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 6px 6px 6px 12px;
+    border-bottom: 1px solid var(--border);
+    font: 11.5px var(--mono);
+    color: var(--text-faint);
+  }
+
+  .prose :global(.copy) {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 4px;
+    background: var(--text);
+    color: var(--ink);
+    font: 600 12.5px var(--sans);
+  }
+
+  .prose :global(.copy svg) {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+  }
+
+  .prose :global(.copy:hover) {
+    background: var(--text-strong);
+  }
+
+  .prose :global(.views) {
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 4px;
+    background: var(--surface-2);
+  }
+
+  .prose :global(.views button) {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 3px;
+    font: 500 12px var(--sans);
+    color: var(--text-dim);
+  }
+
+  .prose :global(.views button[aria-pressed='true']) {
+    background: var(--surface-5);
+    color: var(--text-strong);
+  }
+
+  .prose :global(.rendered) {
+    max-height: 520px;
+    overflow: auto;
+    padding: 14px 16px;
+  }
+
+  .prose :global(.rendered > :first-child) {
+    margin-top: 0;
+  }
+
+  .prose :global(.rendered > :last-child) {
+    margin-bottom: 0;
+  }
+
+  .prose :global(.code pre) {
+    margin: 0;
+    max-height: 420px;
+    overflow: auto;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .prose :global(> :first-child) {
@@ -146,5 +286,43 @@
     vertical-align: -2px;
     background: var(--accent);
     animation: blink 1s steps(1) infinite;
+  }
+
+  .prose :global(:is(.tok-keyword, .tok-meta)) {
+    color: #9ad6cb;
+  }
+
+  .prose :global(:is(.tok-string, .tok-string2, .tok-link)) {
+    color: #f0a57a;
+  }
+
+  .prose :global(.tok-comment) {
+    color: #a89c94;
+    font-style: italic;
+  }
+
+  .prose :global(:is(.tok-number, .tok-bool, .tok-atom)) {
+    color: #f7c7aa;
+  }
+
+  .prose :global(:is(.tok-typeName, .tok-className, .tok-namespace)) {
+    color: #e7c3ae;
+  }
+
+  .prose :global(:is(.tok-propertyName, .tok-attributeName)) {
+    color: #d8cdc6;
+  }
+
+  .prose :global(:is(.tok-heading, .tok-tagName)) {
+    color: #9ad6cb;
+    font-weight: 600;
+  }
+
+  .prose :global(.tok-inserted) {
+    color: #9ad6cb;
+  }
+
+  .prose :global(:is(.tok-deleted, .tok-invalid)) {
+    color: #f59e8c;
   }
 </style>

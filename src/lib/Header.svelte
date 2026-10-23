@@ -2,6 +2,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
   import { ofProject, shelve, todayCost, waiting, waitingAgents } from './agents.svelte'
+  import { needsYou } from './pulls.svelte'
   import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
@@ -134,7 +135,15 @@
         <span class="dot" aria-hidden="true"></span>
         {project.name}
         {#if project.pinned}{@render pin()}{/if}
-        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
+        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if needsYou(project.path)}<span
+            class="badge pulls"
+            role="img"
+            aria-label="{needsYou(project.path)} pull request{needsYou(project.path) > 1 ? 's' : ''} waiting for you"
+            title="{needsYou(project.path)} pull request{needsYou(project.path) > 1 ? 's' : ''} waiting for you"
+            ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"
+              ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4" /></svg
+            >{needsYou(project.path)}</span
+          >{/if}{#if failed(project.path)}<span
             class="badge error"
             role="img"
             aria-label="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error"
@@ -554,6 +563,19 @@
     stroke: currentColor;
     stroke-width: 2;
     stroke-linejoin: round;
+  }
+
+  .badge.pulls {
+    gap: 4px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--accent-soft);
+  }
+
+  .badge.pulls svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.4;
   }
 
   .badge.error {

@@ -17,7 +17,7 @@ export type Project = {
 
 export type Inspection = Project & { taken_by: string | null; taken_archived: boolean; near: string | null }
 
-export const projects = $state({ list: [] as Project[], archived: [] as Project[], current: '', overview: false, board: false })
+export const projects = $state({ list: [] as Project[], archived: [] as Project[], current: '', overview: false, board: false, pulls: false })
 
 export function current(): Project | undefined {
   return projects.list.find((p) => p.path === projects.current)
@@ -74,7 +74,14 @@ export async function toggleBoard() {
   const popped = await WebviewWindow.getByLabel('board')
   if (popped) return popped.setFocus()
   projects.overview = false
+  projects.pulls = false
   projects.board = !projects.board
+}
+
+export function togglePulls() {
+  projects.overview = false
+  projects.board = false
+  projects.pulls = !projects.pulls
 }
 
 export async function popOut() {

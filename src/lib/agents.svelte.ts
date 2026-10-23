@@ -16,6 +16,7 @@ import {
   fail,
   GOAL_RELAUNCHES,
   newAgent,
+  notice,
   prompt,
   reloaded,
   userMessage,
@@ -84,6 +85,7 @@ export function waitingAgents() {
 export function show(agent: Agent) {
   projects.overview = false
   projects.board = false
+  projects.pulls = false
   projects.current = agent.project
   agents.current[agent.project] = agent.id
 }
@@ -224,6 +226,7 @@ async function adopt(data: Agent) {
   }
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
+  agent.entries = agent.entries.map((e) => (e.kind === 'user' && notice(e.text) !== undefined ? { kind: 'note', at: e.at, command: 'notice', text: notice(e.text)! } : e))
   agents.list.push(agent)
   await invoke('restore_agent', {
     id: agent.id,
@@ -421,24 +424,21 @@ type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; 
 
 export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
-  agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback, options))
+  agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || 'New agent', options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
   if (!name) {
     agent.autoName = true
-    invoke<string>('suggest_title', { text })
-      .then((title) => {
-        if (!agent.autoName) return
-        agent.name = title
-        agent.autoName = false
-        persist(agent)
-      })
-      .catch(() => {})
+    if (text.trim()) entitle(agent, text)
   }
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
   else agents.current[project] = agent.id
-  userMessage(agent, text)
+  if (text.trim()) userMessage(agent, text)
+  else {
+    agent.status = 'done'
+    agent.since = Date.now()
+  }
   persist(agent)
   try {
     await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null })
@@ -450,13 +450,25 @@ export async function create(project: string, name: string, options: Options, te
   return agent.id
 }
 
-export async function send(id: string, text: string, comments: Comment[] = []) {
+function entitle(agent: Agent, text: string) {
+  invoke<string>('suggest_title', { text })
+    .then((title) => {
+      if (!agent.autoName) return
+      agent.name = title
+      agent.autoName = false
+      persist(agent)
+    })
+    .catch(() => {})
+}
+
+export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = []) {
   const agent = find(id)
   if (!agent) return
-  userMessage(agent, text, comments)
+  if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
+  userMessage(agent, text, comments, files)
   persist(agent)
   try {
-    await invoke('send_message', { id, text: prompt(text, comments) })
+    await invoke('send_message', { id, text: prompt(text, comments), files })
   } catch (e) {
     fail(agent, String(e))
   }

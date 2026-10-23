@@ -1,5 +1,6 @@
 use crate::claude::{self, Event, Options, Session};
 use serde::Serialize;
+use serde_json::Value;
 use std::collections::HashMap;
 use std::io::ErrorKind;
 use std::path::PathBuf;
@@ -135,10 +136,16 @@ impl Agents {
         list.get(id)?.session_id.lock().unwrap().clone()
     }
 
-    pub fn send(&self, app: &AppHandle, program: &str, id: &str, text: &str) -> Result<(), String> {
+    pub fn send(
+        &self,
+        app: &AppHandle,
+        program: &str,
+        id: &str,
+        content: Value,
+    ) -> Result<(), String> {
         let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Unknown agent.")?;
-        send(app, program, id, agent, text)
+        send(app, program, id, agent, content)
     }
 
     pub fn set_options(&self, id: &str, options: Options) -> Result<(), String> {
@@ -243,7 +250,7 @@ fn send(
     program: &str,
     id: &str,
     agent: &mut Agent,
-    text: &str,
+    content: Value,
 ) -> Result<(), String> {
     if agent.stale && !agent.session.as_ref().is_some_and(Session::busy) {
         if let Some(session) = agent.session.take() {
@@ -254,7 +261,7 @@ fn send(
     if !agent.session.as_ref().is_some_and(Session::alive) {
         spawn(app, program, id, agent)?;
     }
-    let sent = agent.session.as_mut().unwrap().send(text);
+    let sent = agent.session.as_mut().unwrap().send_content(content);
     if sent.is_err() {
         agent.session = None;
     }

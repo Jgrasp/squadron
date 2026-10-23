@@ -1,6 +1,8 @@
 pub mod agents;
+pub mod attach;
 pub mod claude;
 pub mod editors;
+pub mod forge;
 pub mod git;
 pub mod permissions;
 pub mod pilot;
@@ -519,6 +521,110 @@ async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
 }
 
 #[tauri::command]
+async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
+    forge::pull(&dir).await
+}
+
+#[tauri::command]
+async fn pull_lists(dir: PathBuf) -> Result<forge::Lists, String> {
+    forge::lists(&dir).await
+}
+
+#[tauri::command]
+async fn changed_files(dir: PathBuf, base: String) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::changed_files(&dir, &base))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn review_checkout(
+    app: AppHandle,
+    project: PathBuf,
+    number: u64,
+    branch: String,
+    base: String,
+) -> Result<PathBuf, String> {
+    let name = project
+        .file_name()
+        .map(|n| n.to_string_lossy().into_owned())
+        .unwrap_or_default();
+    let into = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("reviews")
+        .join(format!("{name}-{number}"));
+    std::fs::create_dir_all(into.parent().unwrap()).map_err(|e| e.to_string())?;
+    tauri::async_runtime::spawn_blocking(move || {
+        git::review_checkout(&project, &into, &branch, &base).map(|_| into)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn pull_changes(
+    dir: PathBuf,
+    base: String,
+    branch: String,
+    head: String,
+) -> Result<git::Pulled, String> {
+    tauri::async_runtime::spawn_blocking(move || git::pull_changes(&dir, &base, &branch, &head))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn pull_remarks(dir: PathBuf, number: u64) -> Result<Vec<forge::Remark>, String> {
+    forge::remarks(&dir, number).await
+}
+
+#[tauri::command]
+async fn pull_reply(
+    dir: PathBuf,
+    number: u64,
+    to: u64,
+    kind: String,
+    body: String,
+) -> Result<(), String> {
+    forge::reply(&dir, number, to, kind, body).await
+}
+
+#[tauri::command]
+async fn post_remarks(
+    dir: PathBuf,
+    number: u64,
+    head: String,
+    drafts: Vec<forge::Draft>,
+    summary: String,
+    verdict: String,
+) -> Result<forge::Posted, String> {
+    forge::post(&dir, number, head, drafts, summary, verdict).await
+}
+
+#[tauri::command]
+async fn forge_accounts() -> forge::Accounts {
+    tauri::async_runtime::spawn_blocking(forge::accounts)
+        .await
+        .unwrap_or(forge::Accounts {
+            bitbucket: None,
+            bitbucket_user: false,
+            github: None,
+        })
+}
+
+#[tauri::command]
+async fn bitbucket_sign_in(email: String, token: String) -> Result<(), String> {
+    forge::sign_in(email.trim().to_string(), token.trim().to_string()).await
+}
+
+#[tauri::command]
+fn bitbucket_sign_out() -> Result<(), String> {
+    forge::sign_out()
+}
+
+#[tauri::command]
 fn subagent_log(session: String, task: String) -> Result<Option<String>, String> {
     let safe =
         |id: &str| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
@@ -592,7 +698,10 @@ fn create_agent(
     if let Some(name) = worktree {
         agents.new_worktree(&id, &name)?;
     }
-    agents.send(&app, &settings.claude(), &id, &text)
+    if text.trim().is_empty() {
+        return Ok(());
+    }
+    agents.send(&app, &settings.claude(), &id, serde_json::json!(text))
 }
 
 #[tauri::command]
@@ -737,10 +846,21 @@ fn save_agent(files: State<AgentFiles>, id: String, data: String) -> Result<(), 
 }
 
 #[tauri::command]
-fn delete_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String> {
-    match std::fs::remove_file(files.path(&id)?) {
+fn delete_agent_file(app: AppHandle, files: State<AgentFiles>, id: String) -> Result<(), String> {
+    let path = files.path(&id)?;
+    let gone = std::fs::read_to_string(&path).unwrap_or_default();
+    match std::fs::remove_file(path) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
-        _ => Ok(()),
+        _ => {
+            forget_attachments(&app, &files.0, &gone);
+            Ok(())
+        }
+    }
+}
+
+fn forget_attachments(app: &AppHandle, agents: &Path, gone: &str) {
+    if let Ok(data) = app.path().app_data_dir() {
+        attach::forget(&data.join("attachments"), agents, gone);
     }
 }
 
@@ -761,8 +881,12 @@ fn restore_archived(files: State<AgentFiles>, id: String) -> Result<String, Stri
 }
 
 #[tauri::command]
-fn delete_archived(files: State<AgentFiles>, id: String) -> Result<(), String> {
-    std::fs::remove_file(files.archived(&id)?).map_err(|e| e.to_string())
+fn delete_archived(app: AppHandle, files: State<AgentFiles>, id: String) -> Result<(), String> {
+    let path = files.archived(&id)?;
+    let gone = std::fs::read_to_string(&path).unwrap_or_default();
+    std::fs::remove_file(path).map_err(|e| e.to_string())?;
+    forget_attachments(&app, &files.0, &gone);
+    Ok(())
 }
 
 #[tauri::command]
@@ -812,8 +936,74 @@ fn send_message(
     settings: State<Settings>,
     id: String,
     text: String,
+    files: Option<Vec<PathBuf>>,
 ) -> Result<(), String> {
-    agents.send(&app, &settings.claude(), &id, &text)
+    let content = attach::content(&text, &files.unwrap_or_default())?;
+    agents.send(&app, &settings.claude(), &id, content)
+}
+
+#[tauri::command]
+fn save_attachment(app: AppHandle, name: String, data: String) -> Result<PathBuf, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    attach::save(&dir.join("attachments"), &name, &data)
+}
+
+#[tauri::command]
+async fn paste_image(
+    app: AppHandle,
+    window: tauri::WebviewWindow,
+) -> Result<Option<PathBuf>, String> {
+    let folder = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("attachments")
+        .join(uuid::Uuid::new_v4().simple().to_string());
+    #[cfg(target_os = "linux")]
+    {
+        let (tx, rx) = tokio::sync::oneshot::channel();
+        window
+            .run_on_main_thread(move || {
+                let clipboard = gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD);
+                clipboard.request_image(move |_, image| {
+                    let saved = image.map(|pixbuf| {
+                        let file = folder.join("screenshot.png");
+                        std::fs::create_dir_all(&folder)
+                            .map_err(|e| e.to_string())
+                            .and_then(|_| {
+                                pixbuf.savev(&file, "png", &[]).map_err(|e| e.to_string())
+                            })
+                            .map(|_| file)
+                    });
+                    let _ = tx.send(saved);
+                });
+            })
+            .map_err(|e| e.to_string())?;
+        rx.await.unwrap_or(None).transpose()
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, folder);
+        Ok(None)
+    }
+}
+
+#[tauri::command]
+fn open_attachment(path: PathBuf) -> Result<(), String> {
+    use std::os::unix::fs::PermissionsExt;
+    let meta = std::fs::metadata(&path).map_err(|_| "The file is gone.")?;
+    let launcher = path.extension().is_some_and(|e| e == "desktop");
+    if !meta.is_file() || meta.permissions().mode() & 0o111 != 0 || launcher {
+        return Err("Squadron only opens documents and images from here.".into());
+    }
+    tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn attachment_preview(path: PathBuf) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || attach::preview(&path))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -954,6 +1144,17 @@ pub fn run() {
             open_with,
             git_changes,
             git_patch,
+            pull_request,
+            pull_lists,
+            review_checkout,
+            changed_files,
+            pull_changes,
+            pull_remarks,
+            pull_reply,
+            post_remarks,
+            forge_accounts,
+            bitbucket_sign_in,
+            bitbucket_sign_out,
             subagent_log,
             get_settings,
             set_settings,
@@ -973,6 +1174,10 @@ pub fn run() {
             add_cost,
             day_cost,
             send_message,
+            save_attachment,
+            attachment_preview,
+            open_attachment,
+            paste_image,
             interrupt_agent,
             reload_agent,
             archive_agent
@@ -997,6 +1202,17 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            let (store, agents) = (
+                app.path().app_data_dir()?.join("attachments"),
+                config.join("agents"),
+            );
+            std::thread::spawn(move || {
+                attach::sweep(
+                    &store,
+                    &agents,
+                    std::time::Duration::from_secs(7 * 24 * 3600),
+                )
+            });
             app.manage(LayoutFile(config.join("layout.json")));
             let file = config.join("usage.json");
             let days = std::fs::read_to_string(&file)

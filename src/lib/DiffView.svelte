@@ -12,6 +12,7 @@
     open,
     marked = [],
     editor,
+    below,
   }: {
     hunks: Hunk[]
     split?: boolean
@@ -20,6 +21,7 @@
     open?: Pick<Line, 'side' | 'number'> | null
     marked?: (Pick<Line, 'side' | 'number'> & { note: string })[]
     editor?: Snippet
+    below?: Snippet<[Line]>
   } = $props()
 
   const at = (side: Line['side'], number?: number) => open?.side === side && open.number === number
@@ -70,6 +72,8 @@
         {#if at('old', row.left?.kind === 'del' ? row.left.number : undefined) || at('new', row.right?.number)}
           {@render editor?.()}
         {/if}
+        {#if row.left?.kind === 'del'}{@render below?.({ side: 'old', number: row.left.number, text: row.left.text })}{/if}
+        {#if row.right}{@render below?.({ side: 'new', number: row.right.number, text: row.right.text })}{/if}
       {/if}
     {/each}
   {:else}
@@ -91,6 +95,7 @@
         {#if row.kind === 'del' ? at('old', row.old) : at('new', row.new)}
           {@render editor?.()}
         {/if}
+        {@render below?.(row.kind === 'del' ? { side: 'old', number: row.old!, text: row.text } : { side: 'new', number: row.new!, text: row.text })}
       {/if}
     {/each}
   {/if}

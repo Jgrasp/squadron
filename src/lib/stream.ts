@@ -56,12 +56,14 @@ export type Subagent = {
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
-export type Comment = { path: string; line: number; removed: boolean; code: string; note: string }
+export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
 export function prompt(text: string, comments: Comment[] = []) {
-  const blocks = comments.map((c) => `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}`)
+  const blocks = comments.map((c) =>
+    c.path ? `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}` : `On the whole pull request:\n${c.note}`,
+  )
   return [...blocks, text].filter(Boolean).join('\n\n')
 }
 
@@ -77,7 +79,7 @@ export type Goal = {
 }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number; comments?: Comment[]; remote?: boolean }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean }
   | { kind: 'agent'; blocks: Block[]; uuid?: string }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
@@ -130,6 +132,7 @@ export type Agent = {
   goal: Goal | null
   worktree: { path: string; branch: string } | null
   pinned?: boolean
+  review?: { project: string; number: number; base?: string }
 }
 
 type Json = Record<string, any>
@@ -204,8 +207,34 @@ export function argument(agent: Agent, call: Pick<ToolCall, 'name' | 'input'>): 
   }
 }
 
-export function userMessage(agent: Agent, text: string, comments: Comment[] = []) {
-  agent.entries.push({ kind: 'user', text, at: Date.now(), ...(comments.length ? { comments } : {}) })
+const file = (input: Record<string, unknown>) => String(input.file_path ?? input.notebook_path ?? '').split('/').at(-1) || 'a file'
+
+export function doing(call: Pick<ToolCall, 'name' | 'input'>) {
+  const input = call.input
+  if (call.name === 'Bash') {
+    const described = String(input.description ?? '').split('\n')[0].trim()
+    return described && described.length <= 90 && !/&&|\|\||[|;`]|\$\(/.test(described) ? described : 'Running a command'
+  }
+  if (call.name === 'Read') return `Reading ${file(input)}`
+  if (['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(call.name)) return `Editing ${file(input)}`
+  if (['Grep', 'Glob', 'LS'].includes(call.name)) return 'Searching the code'
+  if (['WebFetch', 'WebSearch'].includes(call.name)) return 'Looking it up on the web'
+  if (call.name === 'Agent' || call.name === 'Task') return 'Starting a subagent'
+  return `Using ${call.name.split('__').at(-1)}`
+}
+
+export function activity(agent: Agent) {
+  const last = agent.entries.at(-1)
+  const block = last?.kind === 'agent' ? last.blocks.at(-1) : undefined
+  const call = block?.type === 'tools' ? block.calls.at(-1) : undefined
+  if (call && !call.result && !INTERNAL.includes(call.name)) return doing(call)
+  if (block?.type === 'thinking' && block.ms === undefined) return 'Thinking…'
+  if (block?.type === 'text') return 'Writing…'
+  return agent.action
+}
+
+export function userMessage(agent: Agent, text: string, comments: Comment[] = [], files: string[] = []) {
+  agent.entries.push({ kind: 'user', text, at: Date.now(), ...(comments.length ? { comments } : {}), ...(files.length ? { files } : {}) })
   agent.attention = ''
   if (!agent.alive) agent.processCost = 0
   agent.status = 'working'
@@ -409,7 +438,7 @@ function assistant(agent: Agent, d: Json) {
         if (last?.type === 'tools' && !sub) last.calls.push(added)
         else blocks().push({ type: 'tools', calls: [added], ...at })
       }
-      const action = `${c.name} ${argument(agent, { name: c.name, input: c.input })}`.trim()
+      const action = doing({ name: c.name, input: c.input })
       if (sub) sub.last = action
       else if (INTERNAL.includes(c.name)) track(agent, c)
       else act(agent, action)
@@ -476,9 +505,16 @@ function relaunched(agent: Agent, text: string) {
   })
 }
 
+export const notice = (text: string) => /^<task-notification>\s*([\s\S]*?)\s*<\/task-notification>$/.exec(text.trim())?.[1]
+
 function remoteMessage(agent: Agent, d: Json) {
   const text = textOf(d.message?.content).trim()
   if (!text) return
+  const inside = notice(text)
+  if (inside !== undefined) {
+    agent.entries.push({ kind: 'note', at: d.timestamp ? Date.parse(d.timestamp) : Date.now(), command: 'notice', text: inside })
+    return
+  }
   userMessage(agent, text)
   const entry = agent.entries.at(-1)
   if (entry?.kind === 'user') {

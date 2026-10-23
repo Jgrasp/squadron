@@ -251,7 +251,7 @@ mockIPC(
       case 'create_agent':
         projectOf.set(a.id, a.project)
         emit('agent-line', { id: a.id, line: JSON.stringify(catalog) })
-        return replay(a.id, a.text)
+        return a.text.trim() ? replay(a.id, a.text) : undefined
       case 'send_message':
         return replay(a.id, a.text)
       case 'interrupt_agent': {
@@ -378,6 +378,99 @@ mockIPC(
       case 'plugin:window|set_focus':
         if (label === 'main') popup?.focus()
         return
+      case 'pull_request':
+        return a.dir.includes('orbit')
+          ? {
+              host: 'bitbucket',
+              number: 2108,
+              title: 'feat(segments): channel-aware segment resolver',
+              description: '## Result\n\n- The resolver takes the channel into account\n- `ResolverTest` covers a missing channel\n\n## Tests\n\n```bash\nvendor/bin/phpunit tests/Segmentation\n```',
+              url: 'https://bitbucket.org/orbit/orbit/pull-requests/2108',
+              state: 'open',
+              draft: false,
+              approvals: 1,
+              changes_requested: false,
+              comments: 3,
+              checks: 'passing',
+              branch: 'feat/orbit',
+              base: 'main',
+              head: 'b'.repeat(40),
+              author: 'Quentin Briais',
+              updated: new Date().toISOString(),
+              reviewed: null,
+              conflicts: false,
+              reviewers: [
+                { name: 'Sébastien Leprovost', avatar: '', verdict: 'approved' },
+                { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: 'waiting' },
+              ],
+            }
+          : null
+      case 'save_attachment':
+        files.set(`/attachments/${a.name}`, `data:image/png;base64,${a.data}`)
+        return `/attachments/${a.name}`
+      case 'attachment_preview':
+        if (files.has(a.path)) return files.get(a.path)
+        throw 'Not an image.'
+      case 'open_attachment':
+        return
+      case 'review_checkout':
+        return `/home/demo/.local/share/squadron/reviews/orbit-${a.number}`
+      case 'pull_lists': {
+        if (!a.dir.includes('orbit')) throw 'The project is not on Bitbucket or GitHub.'
+        const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
+          host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
+          approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
+          updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, conflicts: false,
+          reviewers: [
+            { name: 'Sébastien Leprovost', avatar: '', verdict: number % 2 ? 'approved' : 'waiting' },
+            { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: number === 2101 ? 'changes_requested' : 'waiting' },
+            { name: 'Loris Marino', avatar: '', verdict: 'waiting' },
+          ],
+          ...extra,
+        })
+        return {
+          review: [
+            pull(2093, 'Remove the old GfK import and its patches', 'Amandine T.', 'dev/T21', { comments: 2 }),
+            pull(2098, 'Lower the autovacuum thresholds of sale', 'Amandine T.', 'dev/T19', { checks: 'passing' }),
+            pull(2071, 'Export segments as CSV', 'Lucas M.', 'dev/T12', { reviewed: 'approved', approvals: 1 }),
+          ],
+          mine: [
+            pull(2108, 'feat(segments): channel-aware segment resolver', 'Quentin Briais', 'feat/orbit', { approvals: 1, comments: 3, checks: 'passing' }),
+            pull(2101, 'Faster price index rebuild', 'Quentin Briais', 'dev/T17', { changes_requested: true, checks: 'failing', comments: 5 }),
+          ],
+        }
+      }
+      case 'forge_accounts':
+        return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, github: 'octo' }
+      case 'bitbucket_sign_in':
+        if (a.token === 'bad') throw 'Bitbucket refused this email and token.'
+        localStorage.setItem('bitbucket', a.email)
+        return
+      case 'bitbucket_sign_out':
+        localStorage.removeItem('bitbucket')
+        return
+      case 'pull_changes':
+        return new Promise((resolve) => setTimeout(resolve, 1500)).then(() => ({
+          changes: {
+            from: 'c'.repeat(40),
+            now: 'b'.repeat(40),
+            files: [
+              { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 6, del: 2 },
+              { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
+            ],
+          },
+          ahead: 1,
+        }))
+      case 'pull_remarks':
+        return [
+          { id: 1, author: 'Amandine T.', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z', kind: 'line' },
+          { id: 2, author: 'Quentin Briais', body: 'The CLI import has none.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: 1, at: '2026-10-23T09:20:00Z' },
+          { id: 3, author: 'Amandine T.', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
+        ]
+      case 'pull_reply':
+        return
+      case 'post_remarks':
+        return { done: (args as { drafts: unknown[] }).drafts.length, error: null }
       case 'git_changes':
         if (a.project.includes('nova')) throw 'not a git repository'
         return {

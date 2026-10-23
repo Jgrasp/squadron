@@ -67,8 +67,101 @@ fn diff(dir: &Path, args: &[&str]) -> Result<String, String> {
 }
 
 pub fn changes(dir: &Path) -> Result<Changes, String> {
-    let from = head(dir);
-    let now = snapshot(dir)?;
+    between(dir, head(dir), snapshot(dir)?)
+}
+
+pub fn origin(dir: &Path) -> Option<String> {
+    run(git(dir).args(["remote", "get-url", "origin"]))
+        .ok()
+        .map(|url| url.trim().to_string())
+}
+
+fn commit(dir: &Path, rev: &str) -> Option<String> {
+    run(git(dir).args([
+        "rev-parse",
+        "--verify",
+        "--quiet",
+        &format!("{rev}^{{commit}}"),
+    ]))
+    .ok()
+    .map(|sha| sha.trim().to_string())
+}
+
+fn fetch(dir: &Path, branches: &[&str]) {
+    let _ = run(git(dir)
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("SSH_ASKPASS_REQUIRE", "never")
+        .args(["fetch", "--quiet", "--no-tags", "origin"])
+        .args(branches));
+}
+
+#[derive(Serialize)]
+pub struct Pulled {
+    pub changes: Changes,
+    pub ahead: u32,
+}
+
+pub fn pull_changes(dir: &Path, base: &str, branch: &str, head: &str) -> Result<Pulled, String> {
+    let valid = |name: &str| !name.is_empty() && !name.starts_with('-');
+    if !valid(base) || !valid(branch) || !head.bytes().all(|b| b.is_ascii_hexdigit()) {
+        return Err("Unknown branch.".into());
+    }
+    fetch(dir, &[base, branch]);
+    let head = commit(dir, head).ok_or("The pull request commit is not on this computer.")?;
+    let target = commit(dir, &format!("origin/{base}"))
+        .ok_or_else(|| format!("origin/{base} is not on this computer."))?;
+    let from = run(git(dir).args(["merge-base", &target, &head]))?
+        .trim()
+        .to_string();
+    let ahead = run(git(dir).args(["rev-list", "--count", &format!("{head}..HEAD")]))
+        .ok()
+        .and_then(|n| n.trim().parse().ok())
+        .unwrap_or(0);
+    Ok(Pulled {
+        changes: between(dir, from, head)?,
+        ahead,
+    })
+}
+
+pub fn changed_files(dir: &Path, base: &str) -> Result<Vec<String>, String> {
+    if base.is_empty() || base.starts_with('-') {
+        return Err("Unknown branch.".into());
+    }
+    let names = diff(
+        dir,
+        &["--name-only", "-z", &format!("origin/{base}...HEAD")],
+    )?;
+    Ok(names
+        .split('\0')
+        .filter(|n| !n.is_empty())
+        .map(str::to_string)
+        .collect())
+}
+
+pub fn review_checkout(
+    project: &Path,
+    into: &Path,
+    branch: &str,
+    base: &str,
+) -> Result<(), String> {
+    if [branch, base]
+        .iter()
+        .any(|b| b.is_empty() || b.starts_with('-'))
+    {
+        return Err("Unknown branch.".into());
+    }
+    fetch(project, &[branch, base]);
+    let target = format!("origin/{branch}");
+    if into.join(".git").exists() {
+        run(git(into).args(["checkout", "--quiet", "--detach", &target]))?;
+    } else {
+        let into = into.to_string_lossy();
+        run(git(project).args(["worktree", "add", "--quiet", "--detach", &into, &target]))?;
+    }
+    Ok(())
+}
+
+fn between(dir: &Path, from: String, now: String) -> Result<Changes, String> {
     let names = diff(dir, &["--name-status", "-z", &from, &now])?;
     let stats = diff(dir, &["--numstat", "-z", &from, &now])?;
     let mut counts = std::collections::HashMap::new();

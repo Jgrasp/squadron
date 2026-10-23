@@ -8,7 +8,7 @@
   import { ago, cost, meta, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
-  import { projects, toggleBoard } from './projects.svelte'
+  import { projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
@@ -16,7 +16,12 @@
   import SubagentsPanel from './SubagentsPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
+  import Attachment from './Attachment.svelte'
+  import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
+  import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
+  import { lookUp, needsYou, openReview, progress, pulls, reviews, stateLabel } from './pulls.svelte'
+  import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
@@ -36,6 +41,7 @@
   let column: HTMLElement
   let stuck = $state(true)
   let diffFile = $state('')
+  let diffSource = $state<'local' | 'pull'>('local')
   let proposal = $state<Proposal | null>(null)
 
   $effect(() => {
@@ -83,7 +89,21 @@
       })
   })
 
+  const pull = $derived(pulls[workdir(agent)] ?? null)
+  $effect(() => {
+    void agent.turns
+    lookUp(workdir(agent))
+  })
+
   let comments = $state<Comment[]>([])
+
+  function sendReview(summary: string, list: Comment[]) {
+    const message = summary || `Review of pull request #${pull?.number}`
+    stuck = true
+    setPanel(agent.project, null)
+    if (!reply(agent, prompt(message, list))) send(agent.id, message, list)
+  }
+
   let tuning = $state<Options | null>(null)
 
   $effect(() => {
@@ -109,11 +129,12 @@
       (id) =>
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'branch' || branch) &&
+        (id !== 'pull' || pull || agent.review) &&
         (id !== 'tasks' || agent.tasks.length) &&
         (id !== 'turns' || agent.turns),
     ),
   )
-  const CHIPS = ['remote', 'branch', 'subagents']
+  const CHIPS = ['remote', 'branch', 'pull', 'subagents']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
@@ -288,17 +309,98 @@
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
   }
 
+  let attachments = $state<string[]>([])
+  let dropping = $state(false)
+  let attachError = $state('')
+
+  const attach = (paths: string[]) => (attachments = [...attachments, ...paths.filter((p) => !attachments.includes(p))])
+
+  async function browseFiles() {
+    const chosen = await chooseFiles({ multiple: true })
+    if (chosen) attach(Array.isArray(chosen) ? chosen : [chosen])
+  }
+
+  function base64(file: Blob) {
+    return new Promise<string>((done, fail) => {
+      const reader = new FileReader()
+      reader.onload = () => done(String(reader.result).split(',')[1] ?? '')
+      reader.onerror = () => fail(reader.error)
+      reader.readAsDataURL(file)
+    })
+  }
+
+  let pasting = 0
+
+  async function systemImage() {
+    const path = await invoke<string | null>('paste_image').catch((e) => ((attachError = String(e)), null))
+    if (path) attach([path])
+  }
+
+  function pasteKey(event: KeyboardEvent) {
+    if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return
+    const mine = ++pasting
+    setTimeout(() => mine === pasting && systemImage(), 120)
+  }
+
+  async function pasted(event: ClipboardEvent) {
+    pasting++
+    const data = event.clipboardData
+    const images = [...(data?.items ?? [])]
+      .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
+      .map((item) => item.getAsFile())
+      .filter((file): file is File => !!file)
+    if (!images.length) {
+      if (!data?.getData('text/plain')) systemImage()
+      return
+    }
+    if (!data?.getData('text/plain')) event.preventDefault()
+    attachError = ''
+    for (const image of images) {
+      const name = image.name && image.name !== 'image.png' ? image.name : `screenshot-${new Date().toISOString().slice(0, 19).replace(/[:T]/g, '-')}.${image.type.split('/')[1] || 'png'}`
+      try {
+        attach([await invoke<string>('save_attachment', { name, data: await base64(image) })])
+      } catch (e) {
+        attachError = String(e)
+      }
+    }
+  }
+
+  $effect(() => {
+    let stop: (() => void) | undefined
+    let gone = false
+    getCurrentWebview()
+      .onDragDropEvent(({ payload }) => {
+        if (payload.type === 'over' || payload.type === 'enter') dropping = true
+        else if (payload.type === 'leave') dropping = false
+        else if (payload.type === 'drop') {
+          dropping = false
+          attach(payload.paths)
+          composer?.focus()
+        }
+      })
+      .then((unlisten) => (gone ? unlisten() : (stop = unlisten)))
+      .catch(() => {})
+    return () => {
+      gone = true
+      stop?.()
+    }
+  })
+
   function submit(event?: Event) {
     event?.preventDefault()
     const message = text.trim()
     const attached = $state.snapshot(comments)
-    if (!message && !attached.length) return
+    const joined = $state.snapshot(attachments)
+    if (!message && !attached.length && !joined.length) return
     text = ''
     recall = -1
     stuck = true
-    if (!attached.length && !agent.asks.length && local(message)) return
+    if (!attached.length && !joined.length && !agent.asks.length && local(message)) return
     comments = []
-    if (!reply(agent, prompt(message, attached))) send(agent.id, message, attached)
+    if (!reply(agent, prompt(message, attached))) {
+      attachments = []
+      send(agent.id, message, attached, joined)
+    }
   }
 
   function show(area: HTMLTextAreaElement, value: string) {
@@ -428,7 +530,7 @@
       </button>
     {/snippet}
     {#snippet diffTool()}
-      <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes ({hint('diff')})" onclick={() => toggle('diff')}>
+      <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes ({hint('diff')})" onclick={() => ((diffSource = 'local'), toggle('diff'))}>
         <Icon name="diff" />
         {#if !panel}
           Diff
@@ -436,6 +538,13 @@
             <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
           {/if}
         {/if}
+      </button>
+    {/snippet}
+    {#snippet pullsTool()}
+      <button class="btn btn-ghost" aria-label="Pull requests" title="Pull requests you review and you wrote" onclick={togglePulls}>
+        <Icon name="pull" />
+        {#if !panel}Pull requests{/if}
+        {#if needsYou(agent.project)}<span class="count">{needsYou(agent.project)}</span>{/if}
       </button>
     {/snippet}
     {#snippet kanbanTool()}
@@ -446,7 +555,7 @@
     {/snippet}
       {#each ui.customizing ? all('agent.tools') : shown('agent.tools') as id (id)}
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
-            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : kanbanTool)()}
+            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : kanbanTool)()}
             {#if ui.customizing}
               <button class="eye" data-keep aria-label="{hidden('agent.tools', id) ? 'Show' : 'Hide'} {labelOf('agent.tools', id)}" onclick={() => toggleItem('agent.tools', id)}>
                 <Icon name={hidden('agent.tools', id) ? 'eye-off' : 'eye'} size={12} />
@@ -515,6 +624,32 @@
                 <Icon name="branch" size={15} /><span class="mono">{branch}</span>
                 {#if agent.worktree}<span class="tag">worktree</span>{/if}
               </span>
+            {:else if id === 'pull' && agent.review}
+              {@const drafts = reviews[`${agent.review.project}#${agent.review.number}`]?.length ?? 0}
+              <button
+                class="chip pull"
+                title="Open the review of pull request #{agent.review.number}, where {agent.name} drops its remarks"
+                onclick={() => agent.review && openReview(agent.review.project, agent.review.number)}
+              >
+                <Icon name="pull" size={15} />Reviewing <span class="mono">#{agent.review.number}</span>
+                <span class="fact">{drafts} remark{drafts === 1 ? '' : 's'} in your review</span><span class="go" aria-hidden="true">›</span>
+              </button>
+            {:else if id === 'pull' && pull}
+              <button
+                class="chip pull"
+                aria-pressed={panel === 'diff' && diffSource === 'pull'}
+                title="{pull.title} · review it in the Diff panel"
+                onclick={() => ((diffSource = 'pull'), setPanel(agent.project, 'diff'))}
+              >
+                <Icon name="pull" size={15} /><span class="mono">#{pull.number}</span>
+                <span class="state {pull.draft && pull.state === 'open' ? 'draft' : pull.state}">{stateLabel(pull)}</span>
+                {#if pull.reviewers.length}<Reviewers reviewers={pull.reviewers} size={20} />{/if}
+                {#if pull.changes_requested}<span class="fact bad">Changes requested</span>
+                {:else if pull.reviewers.length || pull.approvals}<span class="fact good">{progress(pull)}</span>{/if}
+                {#if pull.conflicts}<span class="fact bad">Conflicts</span>{/if}
+                {#if pull.checks}<span class="checks {pull.checks}" title="Builds {pull.checks}"></span>{/if}
+                {#if pull.comments}<span class="fact">{pull.comments} comment{pull.comments > 1 ? 's' : ''}</span>{/if}
+              </button>
             {:else}
               <button
                 class="chip subagents {running > 0 ? `effect-${settings.tab_effect}` : ''}"
@@ -588,11 +723,22 @@
       {/if}
     </div>
 
+    {#if dropping}<div class="dropzone" aria-hidden="true">Drop to attach to your message to {agent.name}</div>{/if}
     <form class="composer" onsubmit={submit}>
+      {#if attachments.length || attachError}
+        <div class="attached files" aria-label="Files sent with your message">
+          {#each attachments as file, i (file)}<Attachment path={file} onremove={() => attachments.splice(i, 1)} />{/each}
+          {#if attachError}<span class="attach-error" role="alert">{attachError}</span>{/if}
+        </div>
+      {/if}
       {#if comments.length}
         <div class="attached" aria-label="Comments on the diff, sent with your message">
           {#each comments as comment, i (i)}
-            <CommentChip {comment} onopen={() => ((target = comment), openDiff(comment.path))} onremove={() => comments.splice(i, 1)} />
+            <CommentChip
+              {comment}
+              onopen={() => ((target = comment), (diffSource = comment.pull ? 'pull' : 'local'), openDiff(comment.path))}
+              onremove={() => comments.splice(i, 1)}
+            />
           {/each}
         </div>
       {/if}
@@ -638,7 +784,12 @@
       {/if}
       <div class="bar">
         <label for="composer" class="sr-only">Message to the agent</label>
-        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={keys}></textarea>
+        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (pasteKey(e), keys(e))} onpaste={pasted}></textarea>
+        <button type="button" class="btn-icon" aria-label="Attach files" title="Attach files or screenshots, or paste and drop them here" onclick={browseFiles}>
+          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+            ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
+          >
+        </button>
         {#if busy}
           <button type="button" class="btn-icon" aria-label="Interrupt" title="Interrupt ({hint('interrupt')})" onclick={() => interrupt(agent.id)}>
             <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
@@ -671,7 +822,7 @@
             </div>
           {/if}
         </div>
-        <button class="btn btn-primary send" disabled={!text.trim() && !comments.length}>
+        <button class="btn btn-primary send" disabled={!text.trim() && !comments.length && !attachments.length}>
           {pending === 'AskUserQuestion' ? 'Answer' : pending === 'ExitPlanMode' ? 'Send feedback' : pending ? 'Deny' : 'Send'}
         </button>
       </div>
@@ -679,7 +830,19 @@
   </section>
 
   {#if panel === 'diff'}
-    <DiffPanel {agent} {changes} {proposal} bind:file={diffFile} bind:comments bind:target onclose={() => setPanel(agent.project, null)} />
+    <DiffPanel
+      {agent}
+      {changes}
+      {proposal}
+      {pull}
+      bind:mode={diffSource}
+      onreview={sendReview}
+      onhand={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}` : quote), composer.focus())}
+      bind:file={diffFile}
+      bind:comments
+      bind:target
+      onclose={() => setPanel(agent.project, null)}
+    />
   {:else if panel === 'editor'}
     <EditorPanel {agent} {changes} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'terminal'}
@@ -705,6 +868,7 @@
   }
 
   .conversation {
+    position: relative;
     flex: 1;
     min-width: 360px;
     display: flex;
@@ -1015,6 +1179,73 @@
 
   .chip.branch:hover {
     background: var(--menu);
+  }
+
+  .count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 11px/18px var(--sans);
+    text-align: center;
+  }
+
+  .chip.pull {
+    gap: 8px;
+  }
+
+  .chip.pull .state {
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .chip.pull .state.open {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+  }
+
+  .chip.pull .state.merged {
+    background: rgba(185, 163, 240, 0.16);
+    color: #cdbcf7;
+  }
+
+  .chip.pull :is(.state.declined, .state.closed) {
+    background: var(--err-bg);
+    color: var(--err-text);
+  }
+
+  .chip.pull .fact {
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .chip.pull .fact.good {
+    color: var(--ok-text);
+  }
+
+  .chip.pull .fact.bad {
+    color: var(--err-text);
+  }
+
+  .checks {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-faint);
+  }
+
+  .checks.passing {
+    background: var(--ok);
+  }
+
+  .checks.failing {
+    background: var(--err);
   }
 
   .chip.worktree,
@@ -1419,7 +1650,37 @@
     margin: 0 auto 8px;
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
+  }
+
+
+
+  .attached.files {
+    gap: 12px;
+    padding-top: 8px;
+  }
+
+  .attach-error {
+    flex-basis: 100%;
+    font-size: 12.5px;
+    color: var(--err-text);
+  }
+
+  .dropzone {
+    position: absolute;
+    inset: 0;
+    z-index: 30;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px dashed var(--accent);
+    border-radius: 8px;
+    background: rgba(26, 21, 19, 0.82);
+    color: var(--text-strong);
+    font-size: 16px;
+    font-weight: 600;
+    pointer-events: none;
   }
 
   .bar {

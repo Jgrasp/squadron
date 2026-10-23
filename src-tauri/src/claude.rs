@@ -10,6 +10,8 @@ use std::thread;
 
 pub const TESTED_VERSION: &str = "2.1.304";
 
+const PROMPT: &str = "You run inside Squadron, a desktop app that shows your replies as Markdown. When the user wants text to copy or paste (a message, a pull request or ticket description, a document, a config snippet), write it in your reply inside a fenced code block with its language, ```markdown for prose, then go on with the rest of your answer. Squadron shows each block with a Copy button. Write such text to a file only when the user asks for a file.";
+
 const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 const MODES: [&str; 4] = ["default", "acceptEdits", "plan", "auto"];
 
@@ -99,6 +101,8 @@ pub fn command(
             &options.effort,
             "--permission-mode",
             &options.mode,
+            "--append-system-prompt",
+            PROMPT,
         ]);
     if let Some(id) = resume {
         cmd.args(["--resume", id]);
@@ -207,10 +211,14 @@ impl Session {
     }
 
     pub fn send(&mut self, text: &str) -> io::Result<()> {
+        self.send_content(json!(text))
+    }
+
+    pub fn send_content(&mut self, content: Value) -> io::Result<()> {
         let uuid = uuid::Uuid::new_v4().to_string();
         self.sent.lock().unwrap().insert(uuid.clone());
         let message =
-            json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": text}});
+            json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": content}});
         writeln!(self.stdin, "{message}")?;
         self.stdin.flush()?;
         self.busy.store(true, Ordering::SeqCst);

@@ -5,6 +5,8 @@
 <svg class="icon" width={size} height={size} viewBox="0 0 24 24" aria-hidden="true">
   {#if name === 'editor'}
     <path d="M8 6l-6 6 6 6M16 6l6 6-6 6" />
+  {:else if name === 'pull'}
+    <circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4M13 3l-3 3 3 3" />
   {:else if name === 'terminal'}
     <path d="M4 17l6-6-6-6M12 19h8" />
   {:else if name === 'diff'}
