@@ -13,7 +13,7 @@ A desktop app to drive several Claude Code agents side by side: one tab per proj
    ./squadron_*_amd64.AppImage
    ```
 
-Squadron checks for updates on start. When one is out, the status bar shows **Update**: one click downloads it, installs it and restarts.
+Squadron checks for updates every ten minutes. When one is out, the status bar shows **Update**: one click downloads it, installs it and restarts.
 
 ## Develop
 
@@ -26,4 +26,4 @@ pnpm tauri dev
 
 ## Release
 
-`scripts/release.sh <version> [notes]` builds a signed AppImage, publishes the source and the release on GitHub, and the apps already installed pick it up. It needs the signing key in `~/.tauri/squadron.key`.
+`scripts/release.sh <version> [notes]` sets the version, publishes the source and pushes the `v<version>` tag. GitHub Actions then builds the signed AppImage and the release, and the apps already installed pick it up within ten minutes. The signing key lives in the repository secret `TAURI_SIGNING_PRIVATE_KEY`.

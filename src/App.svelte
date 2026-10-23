@@ -76,7 +76,7 @@
       archiveIdle()
       setInterval(() => (rescan(), archiveIdle()), 15_000)
       lookForUpdate()
-      setInterval(lookForUpdate, 6 * 3600_000)
+      setInterval(lookForUpdate, 10 * 60_000)
     })
 
   $effect(() => {
