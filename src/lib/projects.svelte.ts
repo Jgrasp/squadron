@@ -34,8 +34,8 @@ export async function load() {
   set(await invoke<Project[]>('list_projects'))
 }
 
-export async function add(path: string, name: string) {
-  set(await invoke<Project[]>('add_project', { path, name }))
+export async function add(path: string, name: string, color = '') {
+  set(await invoke<Project[]>('add_project', { path, name, color: color || null }))
   projects.current = path
 }
 

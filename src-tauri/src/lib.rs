@@ -94,16 +94,23 @@ fn add_project(
     projects: State<Projects>,
     path: PathBuf,
     name: String,
+    color: Option<String>,
 ) -> Result<Vec<Folder>, String> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err("Give the project a name.".into());
     }
+    let color = color
+        .filter(|c| {
+            c.len() == 7 && c.starts_with('#') && c[1..].bytes().all(|b| b.is_ascii_hexdigit())
+        })
+        .unwrap_or_default();
     projects.update(|list| {
         check_new_folder(list, &path)?;
         list.push(Project {
             name,
             path,
+            color,
             ..Default::default()
         });
         Ok(())
