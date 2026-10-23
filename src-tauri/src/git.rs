@@ -99,9 +99,16 @@ fn fetch(dir: &Path, branches: &[&str]) {
 pub struct Pulled {
     pub changes: Changes,
     pub ahead: u32,
+    pub added: u32,
 }
 
-pub fn pull_changes(dir: &Path, base: &str, branch: &str, head: &str) -> Result<Pulled, String> {
+pub fn pull_changes(
+    dir: &Path,
+    base: &str,
+    branch: &str,
+    head: &str,
+    since: Option<&str>,
+) -> Result<Pulled, String> {
     let valid = |name: &str| !name.is_empty() && !name.starts_with('-');
     if !valid(base) || !valid(branch) || !head.bytes().all(|b| b.is_ascii_hexdigit()) {
         return Err("Unknown branch.".into());
@@ -110,9 +117,41 @@ pub fn pull_changes(dir: &Path, base: &str, branch: &str, head: &str) -> Result<
     let head = commit(dir, head).ok_or("The pull request commit is not on this computer.")?;
     let target = commit(dir, &format!("origin/{base}"))
         .ok_or_else(|| format!("origin/{base} is not on this computer."))?;
-    let from = run(git(dir).args(["merge-base", &target, &head]))?
+    let mut from = run(git(dir).args(["merge-base", &target, &head]))?
         .trim()
         .to_string();
+    let mut added = 0;
+    if let Some(since) = since {
+        let reviewed = if since.bytes().all(|b| b.is_ascii_hexdigit()) {
+            commit(dir, since)
+        } else if since
+            .bytes()
+            .all(|b| b.is_ascii_alphanumeric() || b"-:.+".contains(&b))
+        {
+            run(git(dir).args([
+                "rev-list",
+                "-1",
+                "--first-parent",
+                &format!("--before={since}"),
+                &head,
+            ]))
+            .ok()
+            .map(|sha| sha.trim().to_string())
+            .filter(|sha| !sha.is_empty())
+        } else {
+            None
+        };
+        let kept = reviewed
+            .filter(|sha| run(git(dir).args(["merge-base", "--is-ancestor", sha, &head])).is_ok());
+        let reviewed = kept.ok_or(
+            "The commit you reviewed is no longer in the branch: it was rewritten. Here is the whole pull request.",
+        )?;
+        added = run(git(dir).args(["rev-list", "--count", &format!("{reviewed}..{head}")]))
+            .ok()
+            .and_then(|n| n.trim().parse().ok())
+            .unwrap_or(0);
+        from = reviewed;
+    }
     let ahead = run(git(dir).args(["rev-list", "--count", &format!("{head}..HEAD")]))
         .ok()
         .and_then(|n| n.trim().parse().ok())
@@ -120,6 +159,7 @@ pub fn pull_changes(dir: &Path, base: &str, branch: &str, head: &str) -> Result<
     Ok(Pulled {
         changes: between(dir, from, head)?,
         ahead,
+        added,
     })
 }
 

@@ -11,7 +11,7 @@
   import { ask } from '@tauri-apps/plugin-dialog'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { hostName, post, reviews, type Pull, type Remark } from './pulls.svelte'
+  import { hostName, markReviewed, post, reviews, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
 
@@ -30,6 +30,7 @@
     onposted,
     reviewer = null,
     onagent,
+    since = null,
     onclose,
   }: {
     agent: Agent | null
@@ -46,14 +47,17 @@
     onposted?: () => void
     reviewer?: Agent | null
     onagent?: () => Promise<unknown>
+    since?: string | null
     onclose: () => void
   } = $props()
 
   const folder = $derived(dir ?? workdir(agent!))
   const reviewing = $derived(mode === 'pull' && !!pull)
   const reviewKey = $derived(agent?.id ?? `${folder}#${pull?.number}`)
-  const keyOf = (p: Pull) => `${p.number}:${p.head}`
-  let pulled = $state<{ key: string; changes: Changes; ahead: number } | null>(null)
+  let onlyNew = $state(untrack(() => !!since))
+  let sinceError = $state('')
+  const keyOf = (p: Pull) => `${p.number}:${p.head}:${onlyNew ? since : ''}`
+  let pulled = $state<{ key: string; changes: Changes; ahead: number; added: number } | null>(null)
   let pullError = $state('')
   let attempt = $state(0)
 
@@ -64,9 +68,14 @@
     if (untrack(() => pulled?.key) === key) return
     pullError = ''
     const { base, branch, head } = pull
-    invoke<{ changes: Changes; ahead: number }>('pull_changes', { dir: folder, base, branch, head })
+    const from = onlyNew ? since : null
+    invoke<{ changes: Changes; ahead: number; added: number }>('pull_changes', { dir: folder, base, branch, head, since: from })
       .then((result) => (pulled = { key, ...result }))
-      .catch((e) => (pullError = String(e)))
+      .catch((e) => {
+        if (!from) return (pullError = String(e))
+        sinceError = String(e)
+        onlyNew = false
+      })
   })
 
   let remarks = $state<Remark[]>([])
@@ -229,11 +238,11 @@
 
   type Patch = { hunks: Hunk[]; status: string; binary: boolean }
   let patches = $state<Record<string, Patch | { error: string } | 'loading'>>({})
-  const patchOf = (path: string) => patches[`${source?.now}:${path}`]
+  const patchOf = (path: string) => patches[`${source?.from}:${source?.now}:${path}`]
 
   function loadPatch(path: string) {
     if (!source || patchOf(path)) return
-    const key = `${source.now}:${path}`
+    const key = `${source.from}:${source.now}:${path}`
     const status = source.files.find((f) => f.path === path)?.status ?? ''
     patches[key] = 'loading'
     invoke<string>('git_patch', { project: folder, from: source.from, now: source.now, path })
@@ -423,6 +432,7 @@
     summary = ''
     verdict = ''
     finishing = false
+    if (!agent) markReviewed(folder, pull)
     onposted?.()
   }
 
@@ -455,7 +465,9 @@
 <SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title="Diff" {onclose}>
   {#snippet sub()}
     {#if reviewing && pull}
-      PR #{pull.number} · {pull.branch} → {pull.base}{source ? ` · ${files.length} file${files.length > 1 ? 's' : ''}` : ''}
+      PR #{pull.number} · {pull.branch} → {pull.base}{source ? ` · ${files.length} file${files.length > 1 ? 's' : ''}` : ''}{onlyNew && pulled
+        ? ` · ${pulled.added} new commit${pulled.added === 1 ? '' : 's'} since your review`
+        : ''}
     {:else if changes}
       {files.length} uncommitted file{files.length > 1 ? 's' : ''} · {mine} edited by {agent?.name}
     {:else}
@@ -472,6 +484,12 @@
     >
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
     </button>
+    {#if reviewing && since}
+      <div class="modes" role="group" aria-label="What to review">
+        <button aria-pressed={onlyNew} onclick={() => ((onlyNew = true), (sinceError = ''))}>Since your review</button>
+        <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>All changes</button>
+      </div>
+    {/if}
     {#if pull && agent}
       <div class="modes" role="group" aria-label="What to compare">
         <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>Changes</button>
@@ -565,6 +583,9 @@
         </div>
       </div>
     {/if}
+  {/if}
+  {#if reviewing && sinceError}
+    <p class="ahead" role="note">{sinceError}</p>
   {/if}
   {#if reviewing && agent && pulled && pulled.ahead > 0 && source}
     <p class="ahead" role="note">
@@ -692,6 +713,7 @@
                     hunks={patch.hunks}
                     split={layout.split}
                     oncomment={(line) => openAt(f.path, line)}
+                    commentRemoved={!onlyNew}
                     marked={markedFor(f.path)}
                     open={commenting?.path === f.path ? commenting : null}
                     {editor}
@@ -758,7 +780,9 @@
     <div class="foot">
       <span>
         {reviewing && pull
-          ? `What the pull request changes, compared to ${pull.base}`
+          ? onlyNew
+            ? 'What changed since your review; removed lines are commented from All changes'
+            : `What the pull request changes, compared to ${pull.base}`
           : changes
             ? 'What is not committed yet, compared to the last commit'
             : 'Diff since the agent first touched the file'}

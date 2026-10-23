@@ -432,7 +432,7 @@ mockIPC(
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
           host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
-          updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, conflicts: false,
+          updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, conflicts: false, reviewed_head: null, reviewed_at: null, head_at: null,
           reviewers: [
             { name: 'Sébastien Leprovost', avatar: '', verdict: number % 2 ? 'approved' : 'waiting' },
             { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: number === 2101 ? 'changes_requested' : 'waiting' },
@@ -444,7 +444,7 @@ mockIPC(
           review: [
             pull(2093, 'Remove the old GfK import and its patches', 'Amandine T.', 'dev/T21', { comments: 2 }),
             pull(2098, 'Lower the autovacuum thresholds of sale', 'Amandine T.', 'dev/T19', { checks: 'passing' }),
-            pull(2071, 'Export segments as CSV', 'Lucas M.', 'dev/T12', { reviewed: 'approved', approvals: 1 }),
+            pull(2071, 'Export segments as CSV', 'Lucas M.', 'dev/T12', { reviewed: 'approved', approvals: 1, reviewed_head: 'e'.repeat(40) }),
           ],
           mine: [
             pull(2108, 'feat(segments): channel-aware segment resolver', 'Quentin Briais', 'feat/orbit', { approvals: 1, comments: 3, checks: 'passing' }),
@@ -473,6 +473,7 @@ mockIPC(
             ],
           },
           ahead: 1,
+          added: a.since ? 2 : 0,
         }))
       case 'pull_remarks':
         return [

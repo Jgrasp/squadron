@@ -75,6 +75,9 @@ pub struct Pull {
     pub author: String,
     pub updated: String,
     pub reviewed: Option<String>,
+    pub reviewed_head: Option<String>,
+    pub reviewed_at: Option<String>,
+    pub head_at: Option<String>,
     pub reviewers: Vec<Reviewer>,
     pub conflicts: bool,
 }
@@ -408,13 +411,23 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                 .unwrap_or_default();
                 mine.push(bitbucket_pull(pull, &statuses, &me));
             }
-            Ok(Lists {
-                review: found[0]
-                    .iter()
-                    .map(|p| bitbucket_pull(p, &Value::Null, &me))
-                    .collect(),
-                mine,
-            })
+            let mut review = Vec::new();
+            for found in &found[0] {
+                let mut pull = bitbucket_pull(found, &Value::Null, &me);
+                if pull.reviewed_at.is_some() {
+                    pull.head_at = bitbucket(
+                        Method::GET,
+                        &format!("/repositories/{}/commit/{}", repo.slug, pull.head),
+                        &[("fields", "date")],
+                        None,
+                    )
+                    .await
+                    .ok()
+                    .and_then(|c| c["date"].as_str().map(str::to_string));
+                }
+                review.push(pull);
+            }
+            Ok(Lists { review, mine })
         }
         Host::GitHub => {
             blocking(move || {
@@ -453,6 +466,24 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                     if !review.iter().any(|p| p.number == pull.number) {
                         review.push(pull);
                     }
+                }
+                for pull in review.iter_mut().filter(|p| p.reviewed.is_some()) {
+                    let jq = format!(
+                        "[.[] | select(.user.login == \"{me}\")] | last | .commit_id // empty"
+                    );
+                    pull.reviewed_head = gh(
+                        &[
+                            "api",
+                            &format!("repos/{}/pulls/{}/reviews", repo.slug, pull.number),
+                            "--paginate",
+                            "--jq",
+                            &jq,
+                        ],
+                        None,
+                    )
+                    .ok()
+                    .map(|sha| sha.trim().to_string())
+                    .filter(|sha| !sha.is_empty());
                 }
                 Ok(Lists {
                     review,
@@ -536,6 +567,13 @@ fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
             .map(bitbucket_verdict)
             .filter(|v| *v != "waiting")
             .map(str::to_string),
+        reviewed_head: None,
+        reviewed_at: people
+            .iter()
+            .find(|p| !me.is_empty() && p["user"]["uuid"] == me)
+            .and_then(|p| p["participated_on"].as_str())
+            .map(str::to_string),
+        head_at: None,
         reviewers,
         conflicts: false,
     }
@@ -590,6 +628,13 @@ fn github_pull(found: &Value, me: &str) -> Pull {
                 Some("COMMENTED") => Some("commented".into()),
                 _ => None,
             }),
+        reviewed_head: None,
+        reviewed_at: reviews
+            .iter()
+            .find(|r| !me.is_empty() && r["author"]["login"] == me)
+            .and_then(|r| r["submittedAt"].as_str())
+            .map(str::to_string),
+        head_at: None,
         reviewers: github_reviewers(found),
         conflicts: found["mergeable"] == "CONFLICTING",
     }
@@ -930,6 +975,9 @@ mod tests {
                 author: "Quentin Briais".into(),
                 updated: "2026-10-23T09:27:57+00:00".into(),
                 reviewed: Some("changes_requested".into()),
+                reviewed_head: None,
+                reviewed_at: None,
+                head_at: None,
                 reviewers: vec![
                     Reviewer {
                         name: "Ann".into(),
@@ -1110,7 +1158,7 @@ mod tests {
     fn real_bitbucket_pull_request_diff_matches_bitbucket() {
         let dir = Path::new("/home/jgrasp/Projects/Symfony/fileas");
         let pulled =
-            git::pull_changes(dir, "feature/FIL-671", "dev/FIL-671", "1094c23e6813").unwrap();
+            git::pull_changes(dir, "feature/FIL-671", "dev/FIL-671", "1094c23e6813", None).unwrap();
         assert_eq!(pulled.changes.files.len(), 60);
         assert_eq!(
             pulled
@@ -1121,6 +1169,42 @@ mod tests {
                 .sum::<u32>(),
             2856
         );
+        let parent = String::from_utf8(
+            std::process::Command::new("git")
+                .current_dir(dir)
+                .args(["rev-parse", "1094c23e6813~1"])
+                .output()
+                .unwrap()
+                .stdout,
+        )
+        .unwrap();
+        let since = git::pull_changes(
+            dir,
+            "feature/FIL-671",
+            "dev/FIL-671",
+            "1094c23e6813",
+            Some(parent.trim()),
+        )
+        .unwrap();
+        assert_eq!(since.added, 1);
+        assert!(since.changes.files.len() < pulled.changes.files.len());
+        let rewritten = git::pull_changes(
+            dir,
+            "feature/FIL-671",
+            "dev/FIL-671",
+            "1094c23e6813",
+            Some("21782a2a10b2"),
+        );
+        assert!(rewritten.is_err());
+        let by_time = git::pull_changes(
+            dir,
+            "feature/FIL-671",
+            "dev/FIL-671",
+            "1094c23e6813",
+            Some("2026-10-23T12:00:00Z"),
+        )
+        .unwrap();
+        assert_eq!((by_time.added, by_time.changes.files.len()), (0, 0));
     }
 
     #[test]

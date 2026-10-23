@@ -3,7 +3,7 @@
   import { agents, clock, find, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { hostName, lists, lookUpLists, progress, pulls, reopen, reviewWithAgent, standing, type Pull } from './pulls.svelte'
+  import { hostName, lists, lookUpLists, moved, progress, pulls, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
   import { workdir, type Comment } from './stream'
@@ -29,8 +29,8 @@
     const agent = find(await reviewWithAgent(project.path, pull))
     if (agent) show(agent)
   }
-  const waiting = $derived(found?.review.filter((p) => !p.reviewed) ?? [])
-  const reviewed = $derived(found?.review.filter((p) => p.reviewed) ?? [])
+  const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
+  const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
 
   async function refresh() {
     refreshing = true
@@ -51,7 +51,9 @@
   }
 
   const verdict = (pull: Pull) =>
-    pull.reviewed === 'approved'
+    pull.reviewed && moved(project.path, pull)
+      ? 'New changes since your review'
+      : pull.reviewed === 'approved'
       ? 'You approved'
       : pull.reviewed === 'changes_requested'
         ? 'You asked for changes'
@@ -86,13 +88,13 @@
       <section>
         <h2>To review <span class="n">{found.review.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
-          <article class:done={!!pull.reviewed}>
-            <span class="verdict {pull.reviewed ?? 'waiting'}">{verdict(pull)}</span>
+          <article class:done={!waitsFor(project.path, pull)}>
+            <span class="verdict {waitsFor(project.path, pull) ? 'waiting' : pull.reviewed}">{verdict(pull)}</span>
             {@render about(pull)}
             <div class="actions">
               <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
               <button
-                class="btn {pull.reviewed ? 'btn-secondary' : 'btn-primary'}"
+                class="btn {waitsFor(project.path, pull) ? 'btn-primary' : 'btn-secondary'}"
                 aria-pressed={opened?.number === pull.number}
                 onclick={() => ((opened = opened?.number === pull.number ? null : pull), (file = ''))}
               >
@@ -131,6 +133,7 @@
       dir={project.path}
       changes={null}
       pull={opened}
+      since={opened.reviewed && moved(project.path, opened) ? sinceOf(project.path, opened) : null}
       mode="pull"
       bind:file
       bind:comments={notes}

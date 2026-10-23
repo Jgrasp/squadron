@@ -22,6 +22,9 @@ export type Pull = {
   author: string
   updated: string
   reviewed: 'approved' | 'changes_requested' | 'commented' | null
+  reviewed_head: string | null
+  reviewed_at: string | null
+  head_at: string | null
   reviewers: Reviewer[]
   conflicts: boolean
 }
@@ -95,9 +98,42 @@ export async function lookUpLists(project: string, force = false) {
   }
 }
 
+export const reviewedHeads = $state<Record<string, string>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.reviewed') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+export function markReviewed(dir: string, pull: Pull) {
+  reviewedHeads[`${dir}#${pull.number}`] = pull.head
+  try {
+    localStorage.setItem('squadron.reviewed', JSON.stringify(reviewedHeads))
+  } catch {}
+}
+
+const same = (a: string, b: string) => a.startsWith(b) || b.startsWith(a)
+
+export function sinceOf(dir: string, pull: Pull) {
+  return reviewedHeads[`${dir}#${pull.number}`] ?? pull.reviewed_head ?? pull.reviewed_at
+}
+
+export function moved(dir: string, pull: Pull) {
+  const local = reviewedHeads[`${dir}#${pull.number}`]
+  if (local) return !same(local, pull.head)
+  if (pull.reviewed_head) return !same(pull.reviewed_head, pull.head)
+  if (pull.reviewed_at && pull.head_at) return Date.parse(pull.head_at) > Date.parse(pull.reviewed_at)
+  return false
+}
+
+export const waitsFor = (dir: string, pull: Pull) => !pull.reviewed || moved(dir, pull)
+
 export const needsYou = (project: string) => {
   const found = lists[project]
-  return found ? found.review.filter((p) => !p.reviewed).length + found.mine.filter((p) => p.changes_requested).length : 0
+  return found ? found.review.filter((p) => waitsFor(project, p)).length + found.mine.filter((p) => p.changes_requested).length : 0
 }
 const checked: Record<string, number> = {}
 
