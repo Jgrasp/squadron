@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { agents, create, persist } from './agents.svelte'
+import { projects } from './projects.svelte'
 import { settings } from './settings.svelte'
 import { workdir, type Comment } from './stream'
 
@@ -45,6 +46,15 @@ export type Remark = { id: number; author: string; body: string; path: string | 
 
 export const pulls = $state<Record<string, Pull | null>>({})
 export const reviews = $state<Record<string, Comment[]>>({})
+export const reopen = $state<{ number: number | null }>({ number: null })
+
+export function openReview(project: string, number: number) {
+  reopen.number = number
+  projects.overview = false
+  projects.board = false
+  projects.current = project
+  projects.pulls = true
+}
 export const lists = $state<Record<string, Lists>>({})
 const listed: Record<string, number> = {}
 

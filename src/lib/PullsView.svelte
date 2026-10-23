@@ -1,9 +1,9 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { agents, clock, show } from './agents.svelte'
+  import { agents, clock, find, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { hostName, lists, lookUpLists, progress, pulls, reviewWithAgent, standing, type Pull } from './pulls.svelte'
+  import { hostName, lists, lookUpLists, progress, pulls, reopen, reviewWithAgent, standing, type Pull } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
   import { workdir, type Comment } from './stream'
@@ -16,6 +16,19 @@
   let notes = $state<Comment[]>([])
   let target = $state<Comment | null>(null)
   const found = $derived(lists[project.path])
+
+  $effect(() => {
+    const wanted = reopen.number
+    const match = wanted !== null && found && [...found.review, ...found.mine].find((p) => p.number === wanted)
+    if (!match) return
+    opened = match
+    reopen.number = null
+  })
+
+  async function askAgent(pull: Pull) {
+    const agent = find(await reviewWithAgent(project.path, pull))
+    if (agent) show(agent)
+  }
   const waiting = $derived(found?.review.filter((p) => !p.reviewed) ?? [])
   const reviewed = $derived(found?.review.filter((p) => p.reviewed) ?? [])
 
@@ -120,7 +133,7 @@
       onreview={() => {}}
       onposted={() => ((opened = null), lookUpLists(project.path, true))}
       reviewer={agents.list.find((a) => a.review?.project === project.path && a.review.number === opened?.number) ?? null}
-      onagent={() => reviewWithAgent(project.path, opened!)}
+      onagent={() => askAgent(opened!)}
       onclose={() => (opened = null)}
     />
   {/key}

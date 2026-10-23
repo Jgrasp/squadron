@@ -17,7 +17,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUp, needsYou, progress, pulls, stateLabel } from './pulls.svelte'
+  import { lookUp, needsYou, openReview, progress, pulls, reviews, stateLabel } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
@@ -126,7 +126,7 @@
       (id) =>
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'branch' || branch) &&
-        (id !== 'pull' || pull) &&
+        (id !== 'pull' || pull || agent.review) &&
         (id !== 'tasks' || agent.tasks.length) &&
         (id !== 'turns' || agent.turns),
     ),
@@ -540,6 +540,16 @@
                 <Icon name="branch" size={15} /><span class="mono">{branch}</span>
                 {#if agent.worktree}<span class="tag">worktree</span>{/if}
               </span>
+            {:else if id === 'pull' && agent.review}
+              {@const drafts = reviews[`${agent.review.project}#${agent.review.number}`]?.length ?? 0}
+              <button
+                class="chip pull"
+                title="Open the review of pull request #{agent.review.number}, where {agent.name} drops its remarks"
+                onclick={() => agent.review && openReview(agent.review.project, agent.review.number)}
+              >
+                <Icon name="pull" size={15} />Reviewing <span class="mono">#{agent.review.number}</span>
+                <span class="fact">{drafts} remark{drafts === 1 ? '' : 's'} in your review</span><span class="go" aria-hidden="true">›</span>
+              </button>
             {:else if id === 'pull' && pull}
               <button
                 class="chip pull"
