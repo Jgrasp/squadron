@@ -55,7 +55,24 @@ export type Remark = {
 }
 
 export const pulls = $state<Record<string, Pull | null>>({})
-export const reviews = $state<Record<string, Comment[]>>({})
+export const reviews = $state<Record<string, Comment[]>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.reviews') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+$effect.root(() => {
+  $effect(() => {
+    const kept = Object.fromEntries(Object.entries($state.snapshot(reviews)).filter(([, list]) => list.length))
+    try {
+      localStorage.setItem('squadron.reviews', JSON.stringify(kept))
+    } catch {}
+  })
+})
 export const reopen = $state<{ number: number | null }>({ number: null })
 
 export function openReview(project: string, number: number) {

@@ -199,7 +199,8 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const text = !path || removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
     const key = `${caller.review.project}#${caller.review.number}`
     reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
-    return `Added to the user's review of pull request #${caller.review.number} (${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''} so far).`
+    const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
+    return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
   },
 
   get_layout: () =>
