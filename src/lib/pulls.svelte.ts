@@ -38,10 +38,10 @@ export function progress(pull: Pull) {
 }
 
 export function standing(pull: Pull): [string, string] {
-  if (pull.changes_requested) return ['changes_requested', 'Changes requested']
-  if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['approved', 'Approved']
-  if (pull.draft) return ['draft', 'Draft']
-  return ['open', 'In review']
+  if (pull.changes_requested) return ['act-fix', 'Changes requested']
+  if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['act-merge', 'Approved']
+  if (pull.draft) return ['quiet', 'Draft']
+  return ['wait', 'In review']
 }
 
 export type Lists = { review: Pull[]; mine: Pull[]; error: string }

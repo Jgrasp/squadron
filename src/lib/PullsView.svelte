@@ -51,16 +51,13 @@
     return `${Math.floor(min / 1440)} days ago`
   }
 
-  const verdict = (pull: Pull) =>
-    pull.reviewed && moved(project.path, pull)
-      ? 'New changes since your review'
-      : pull.reviewed === 'approved'
-      ? 'You approved'
-      : pull.reviewed === 'changes_requested'
-        ? 'You asked for changes'
-        : pull.reviewed === 'commented'
-          ? 'You commented'
-          : 'Waiting for you'
+  function verdict(pull: Pull): [string, string] {
+    if (!pull.reviewed) return ['act-review', 'Waiting for you']
+    if (moved(project.path, pull)) return ['act-recheck', 'New changes']
+    if (pull.reviewed === 'approved') return ['done-ok', 'You approved']
+    if (pull.reviewed === 'changes_requested') return ['wait-bad', 'You asked for changes']
+    return ['quiet', 'You commented']
+  }
 </script>
 
 <div class="page">
@@ -90,7 +87,7 @@
         <h2>To review <span class="n">{found.review.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
           <article class:done={!waitsFor(project.path, pull)}>
-            <span class="verdict {waitsFor(project.path, pull) ? 'waiting' : pull.reviewed}">{verdict(pull)}</span>
+            <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
             <div class="actions">
               <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
@@ -151,8 +148,9 @@
 </div>
 
 {#snippet about(pull: Pull)}
+  <span class="author" title="By {pull.author}"><Avatar name={pull.author} src={pull.author_avatar} size={30} /></span>
   <div class="about">
-    <span class="title"><span title={pull.author}><Avatar name={pull.author} src={pull.author_avatar} size={22} /></span><strong>{pull.title}</strong></span>
+    <strong>{pull.title}</strong>
     <span class="meta">
       <span class="mono">#{pull.number}</span> · {pull.author} · <span class="mono">{pull.branch} → {pull.base}</span> · updated {since(pull.updated)}
     </span>
@@ -286,7 +284,7 @@
 
   article {
     display: grid;
-    grid-template-columns: 170px minmax(0, 1fr) auto auto;
+    grid-template-columns: 170px auto minmax(0, 1fr) auto auto;
     align-items: center;
     gap: 16px;
     padding: 12px 14px;
@@ -309,20 +307,39 @@
     font-weight: 600;
   }
 
-  .verdict.waiting {
+  .verdict.act-review {
     background: var(--accent);
     color: var(--accent-ink);
   }
 
-  .verdict.approved,
-  .verdict.open {
+  .verdict.act-recheck {
+    background: #60a5fa;
+    color: #0d1726;
+  }
+
+  .verdict.act-fix {
+    background: var(--err);
+    color: var(--err-ink);
+  }
+
+  .verdict.act-merge {
+    background: var(--ok);
+    color: var(--ink);
+  }
+
+  .verdict.done-ok {
     background: var(--ok-bg);
     color: var(--ok-text);
   }
 
-  .verdict.changes_requested {
+  .verdict.wait-bad {
     background: var(--err-bg);
     color: var(--err-text);
+  }
+
+  .verdict.wait {
+    background: rgba(96, 165, 250, 0.14);
+    color: #a9cdfb;
   }
 
   .about {
@@ -332,18 +349,14 @@
     gap: 3px;
   }
 
-  .title {
-    min-width: 0;
-    display: flex;
-    align-items: center;
-    gap: 8px;
-  }
-
-  .title strong {
-    min-width: 0;
+  .about strong {
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .author {
+    display: flex;
   }
 
   .meta {
@@ -447,16 +460,22 @@
     }
 
     article {
-      grid-template-columns: minmax(0, 1fr) auto;
-      gap: 6px 12px;
+      grid-template-columns: auto minmax(0, 1fr) auto;
+      gap: 6px 10px;
     }
 
     .verdict {
+      grid-column: 1 / span 2;
+    }
+
+    .author {
       grid-column: 1;
+      grid-row: 2;
     }
 
     .about {
-      grid-column: 1;
+      grid-column: 2;
+      grid-row: 2;
     }
 
     .facts,
@@ -465,7 +484,7 @@
     }
 
     .actions {
-      grid-column: 2;
+      grid-column: 3;
       grid-row: 1 / span 2;
     }
   }
