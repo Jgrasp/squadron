@@ -123,9 +123,23 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (!agent) return
   const d = JSON.parse(payload.line)
   const before = agent.cost
-  const place = agent.worktree?.path
+  const previous = agent.worktree
   apply(agent, d)
-  if (agent.worktree?.path !== place) invoke('set_workdir', { id: agent.id, dir: agent.worktree?.path ?? null }).catch(() => {})
+  const next = agent.worktree
+  if (next?.path !== previous?.path) {
+    if (!next) invoke('set_workdir', { id: agent.id, dir: null }).catch(() => {})
+    else
+      invoke<string | null>('git_branch', { path: next.path })
+        .then((branch) => {
+          if (!next.branch) next.branch = branch ?? ''
+          return invoke('set_workdir', { id: agent.id, dir: next.path })
+        })
+        .catch(() => {
+          if (agent.worktree !== next) return
+          agent.worktree = previous
+          persist(agent)
+        })
+  }
   if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
   if (agent.goal?.state === 'active' && agent.goal.relaunches >= GOAL_RELAUNCHES) {
