@@ -1,10 +1,12 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { untrack } from 'svelte'
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
   import { layout, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
+  import { hostName, type Pull } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
 
@@ -15,6 +17,8 @@
     file = $bindable(),
     comments = $bindable(),
     target = $bindable(),
+    pull = null,
+    mode = $bindable(),
     onclose,
   }: {
     agent: Agent
@@ -23,18 +27,40 @@
     file: string
     comments: Comment[]
     target: Comment | null
+    pull?: Pull | null
+    mode: 'local' | 'pull'
     onclose: () => void
   } = $props()
+
+  const reviewing = $derived(mode === 'pull' && !!pull)
+  const keyOf = (p: Pull) => `${p.number}:${p.head}`
+  let pulled = $state<{ key: string; changes: Changes; ahead: number } | null>(null)
+  let pullError = $state('')
+
+  $effect(() => {
+    if (!reviewing || !pull) return
+    const key = keyOf(pull)
+    if (untrack(() => pulled?.key) === key) return
+    pullError = ''
+    const { base, branch, head } = pull
+    invoke<{ changes: Changes; ahead: number }>('pull_changes', { dir: workdir(agent), base, branch, head })
+      .then((result) => (pulled = { key, ...result }))
+      .catch((e) => (pullError = String(e)))
+  })
+
+  const source = $derived(reviewing ? (pull && pulled?.key === keyOf(pull) ? pulled.changes : null) : changes)
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
 
   const edited = $derived(changedFiles(calls(agent)).map((f) => ({ ...f, path: relative(agent, f.path) })))
   const found = $derived(
-    changes
-      ? changes.files
+    source
+      ? source.files
           .map((f) => ({ path: f.path, add: f.add ?? 0, del: f.del ?? 0, edits: edited.find((e) => e.path === f.path)?.calls.length ?? 0 }))
           .sort((a, b) => Number(b.edits > 0) - Number(a.edits > 0))
-      : edited.map((f) => ({ path: f.path, add: f.add, del: f.del, edits: f.calls.length })),
+      : reviewing
+        ? []
+        : edited.map((f) => ({ path: f.path, add: f.add, del: f.del, edits: f.calls.length })),
   )
   const files = $derived(
     proposal && !found.some((f) => f.path === proposal.path) ? [{ path: proposal.path, add: 0, del: 0, edits: 0 }, ...found] : found,
@@ -50,7 +76,7 @@
   $effect(() => {
     const path = selected?.path
     if (!path) return
-    const git = changes && { from: changes.from, now: changes.now, status: changes.files.find((f) => f.path === path)?.status ?? '' }
+    const git = source && { from: source.from, now: source.now, status: source.files.find((f) => f.path === path)?.status ?? '' }
     const baseline = edited.find((f) => f.path === path)?.baseline ?? null
     void selected.edits
     const run = ++loads
@@ -90,11 +116,12 @@
   let commenting = $state<(Line & { path: string }) | null>(null)
   let note = $state('')
 
+  const here = (c: Comment) => (c.pull ?? null) === (reviewing ? pull!.number : null)
   const indexOf = (path: string, line: Pick<Line, 'side' | 'number'>) =>
-    comments.findIndex((c) => c.path === path && c.line === line.number && c.removed === (line.side === 'old'))
+    comments.findIndex((c) => here(c) && c.path === path && c.line === line.number && c.removed === (line.side === 'old'))
   const existing = $derived(commenting ? indexOf(commenting.path, commenting) : -1)
   const marked = $derived(
-    comments.filter((c) => c.path === selected?.path).map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
+    comments.filter((c) => here(c) && c.path === selected?.path).map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
   )
 
   function open(line: Line) {
@@ -116,7 +143,7 @@
     if (!commenting || !note.trim()) return
     const { path, side, number, text } = commenting
     if (existing >= 0) comments[existing].note = note.trim()
-    else comments.push({ path, line: number, removed: side === 'old', code: text, note: note.trim() })
+    else comments.push({ path, line: number, removed: side === 'old', code: text, note: note.trim(), ...(reviewing ? { pull: pull!.number } : {}) })
     commenting = null
   }
 
@@ -128,25 +155,40 @@
 
 <SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title="Diff" {onclose}>
   {#snippet sub()}
-    {#if changes}
+    {#if reviewing && pull}
+      PR #{pull.number} · {pull.branch} → {pull.base}{source ? ` · ${files.length} file${files.length > 1 ? 's' : ''}` : ''}
+    {:else if changes}
       {files.length} uncommitted file{files.length > 1 ? 's' : ''} · {mine} edited by {agent.name}
     {:else}
       Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
     {/if}
   {/snippet}
   {#snippet actions()}
+    {#if pull}
+      <div class="modes" role="group" aria-label="What to compare">
+        <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>Changes</button>
+        <button aria-pressed={reviewing} onclick={() => (mode = 'pull')}>PR #{pull.number}</button>
+      </div>
+    {/if}
     <div class="modes" role="group" aria-label="Diff layout">
       <button aria-pressed={!layout.split} onclick={() => setSplit(false)}>Unified</button>
       <button aria-pressed={layout.split} onclick={() => setSplit(true)}>Split</button>
     </div>
   {/snippet}
-  {#if files.length}
+  {#if reviewing && pulled && pulled.ahead > 0 && source}
+    <p class="ahead" role="note">
+      {pulled.ahead} commit{pulled.ahead > 1 ? 's' : ''} of the branch {pulled.ahead > 1 ? 'are' : 'is'} not pushed to the pull request yet: lines can differ from {hostName(pull!)}.
+    </p>
+  {/if}
+  {#if reviewing && !source}
+    <p class="empty pad">{pullError || `Reading pull request #${pull!.number}…`}</p>
+  {:else if files.length}
     <div class="tabs" role="tablist" aria-label="Changed files">
       {#each files as f (f.path)}
         <button
           role="tab"
           aria-selected={f === selected}
-          class:other={!f.edits}
+          class:other={!f.edits && !reviewing}
           title={f.edits ? f.path : `${f.path} · not edited by ${agent.name}`}
           onclick={() => (file = f.path)}
         >
@@ -163,7 +205,7 @@
               <span class="badge" class:new={shown.status === 'NEW'} class:gone={shown.status === 'DELETED'} class:proposed={proposing}>{shown.status}</span>
             {/if}
             <span class="path">{selected.path}</span>
-            <span class="by"
+            <span class="by" hidden={reviewing}
               >{proposing
                 ? `Proposed by ${agent.name} · not applied yet`
                 : selected.edits
@@ -195,9 +237,17 @@
 
     <div class="foot">
       <span>
-        {changes ? 'What is not committed yet, compared to the last commit' : 'Diff since the agent first touched the file'}
+        {reviewing && pull
+          ? `What the pull request changes, compared to ${pull.base}`
+          : changes
+            ? 'What is not committed yet, compared to the last commit'
+            : 'Diff since the agent first touched the file'}
       </span>
-      <OpenWith project={workdir(agent)} path={selected.path} up />
+      {#if reviewing && pull}
+        <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+      {:else}
+        <OpenWith project={workdir(agent)} path={selected.path} up />
+      {/if}
     </div>
   {:else}
     <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent.name} has not changed any file yet.`}</p>
@@ -226,7 +276,9 @@
       {#if existing >= 0}
         <button type="button" class="btn btn-danger" onclick={remove}>Delete</button>
       {/if}
-      <span class="hint">{existing >= 0 ? 'In your next message' : 'Added to your next message'} · <kbd>Ctrl ↵</kbd></span>
+      <span class="hint"
+        >{existing >= 0 ? 'In your next message' : 'Added to your next message'}{reviewing ? ', or posted on the pull request from there' : ''} · <kbd>Ctrl ↵</kbd></span
+      >
       <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
       <button class="btn btn-primary" disabled={!note.trim()}>{existing >= 0 ? 'Save' : 'Add comment'}</button>
     </div>
@@ -253,6 +305,16 @@
     background: var(--surface-4);
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .ahead {
+    flex: none;
+    margin: 0;
+    padding: 8px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--wait-bg);
+    color: var(--accent-soft);
+    font-size: 12.5px;
   }
 
   .tabs {

@@ -58,7 +58,7 @@ export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'Too
 
 export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
-export type Comment = { path: string; line: number; removed: boolean; code: string; note: string }
+export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
 export function prompt(text: string, comments: Comment[] = []) {
   const blocks = comments.map((c) => `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}`)

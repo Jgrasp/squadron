@@ -17,7 +17,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import { hostName, lookUp, pulls, stateLabel } from './pulls.svelte'
+  import { lookUp, pulls, stateLabel } from './pulls.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
@@ -37,6 +37,7 @@
   let column: HTMLElement
   let stuck = $state(true)
   let diffFile = $state('')
+  let diffSource = $state<'local' | 'pull'>('local')
   let proposal = $state<Proposal | null>(null)
 
   $effect(() => {
@@ -436,7 +437,7 @@
       </button>
     {/snippet}
     {#snippet diffTool()}
-      <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes ({hint('diff')})" onclick={() => toggle('diff')}>
+      <button class="btn btn-ghost" aria-label="Diff" aria-pressed={panel === 'diff'} title="See the agent’s changes ({hint('diff')})" onclick={() => ((diffSource = 'local'), toggle('diff'))}>
         <Icon name="diff" />
         {#if !panel}
           Diff
@@ -526,8 +527,9 @@
             {:else if id === 'pull' && pull}
               <button
                 class="chip pull"
-                title="{pull.title} · open it on {hostName(pull)}"
-                onclick={() => invoke('open_link', { url: pull.url })}
+                aria-pressed={panel === 'diff' && diffSource === 'pull'}
+                title="{pull.title} · review it in the Diff panel"
+                onclick={() => ((diffSource = 'pull'), setPanel(agent.project, 'diff'))}
               >
                 <Icon name="pull" size={15} /><span class="mono">#{pull.number}</span>
                 <span class="state {pull.draft && pull.state === 'open' ? 'draft' : pull.state}">{stateLabel(pull)}</span>
@@ -613,7 +615,11 @@
       {#if comments.length}
         <div class="attached" aria-label="Comments on the diff, sent with your message">
           {#each comments as comment, i (i)}
-            <CommentChip {comment} onopen={() => ((target = comment), openDiff(comment.path))} onremove={() => comments.splice(i, 1)} />
+            <CommentChip
+              {comment}
+              onopen={() => ((target = comment), (diffSource = comment.pull ? 'pull' : 'local'), openDiff(comment.path))}
+              onremove={() => comments.splice(i, 1)}
+            />
           {/each}
         </div>
       {/if}
@@ -700,7 +706,17 @@
   </section>
 
   {#if panel === 'diff'}
-    <DiffPanel {agent} {changes} {proposal} bind:file={diffFile} bind:comments bind:target onclose={() => setPanel(agent.project, null)} />
+    <DiffPanel
+      {agent}
+      {changes}
+      {proposal}
+      {pull}
+      bind:mode={diffSource}
+      bind:file={diffFile}
+      bind:comments
+      bind:target
+      onclose={() => setPanel(agent.project, null)}
+    />
   {:else if panel === 'editor'}
     <EditorPanel {agent} {changes} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'terminal'}
