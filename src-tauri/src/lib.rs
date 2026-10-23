@@ -1113,6 +1113,13 @@ pub fn run() {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::remove_var(leaked) };
     }
+    #[cfg(debug_assertions)]
+    if let Some(data) = std::env::var_os("XDG_DATA_HOME")
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
+    {
+        let _ = std::fs::remove_dir_all(data.join("dev.squadron.desktop/WebKitCache"));
+    }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
