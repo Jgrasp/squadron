@@ -101,7 +101,20 @@ fn user_text(line: &Value) -> Option<String> {
         _ => return None,
     };
     let text = text.trim();
-    (!text.is_empty() && !text.starts_with('<')).then(|| text.to_string())
+    let technical = [
+        "<command-",
+        "<local-command",
+        "<task-notification",
+        "<system-reminder",
+        "<bash-",
+        "<user-prompt-submit",
+    ];
+    (!text.is_empty() && !technical.iter().any(|tag| text.starts_with(tag))).then(|| {
+        text.replace("</pasted_content>", "")
+            .split_once('>')
+            .filter(|_| text.starts_with("<pasted_content"))
+            .map_or(text.to_string(), |(_, rest)| rest.trim().to_string())
+    })
 }
 
 fn read(file: &Path) -> Option<(String, String)> {
@@ -260,6 +273,12 @@ mod tests {
             ("Export fix", "/home/me/agence/orbit.app")
         );
         assert_eq!(read(&worktree.join("bbbb-2.jsonl")).unwrap().0, "Plan T70");
+        let pasted = main.join("eeee-5.jsonl");
+        fs::write(&pasted, line(serde_json::json!({"type": "user", "message": {"content": "<pasted_content id=\"x\">\nTask T5F: migrate the permissions\n</pasted_content>"}}))).unwrap();
+        assert_eq!(
+            read(&pasted).unwrap().0,
+            "Task T5F: migrate the permissions"
+        );
         assert_eq!(read(&main.join("cccc-3.jsonl")), None);
         assert!(!valid("../etc/passwd") && valid("271982a4-ba81-4f9b-ac49-2c87f1ef6e88"));
     }
@@ -286,6 +305,11 @@ mod tests {
             found
                 .iter()
                 .any(|f| f.id == "271982a4-ba81-4f9b-ac49-2c87f1ef6e88")
+        );
+        assert!(
+            found
+                .iter()
+                .any(|f| f.id == "f8323701-6f0f-4443-a94b-ab9530cc9d68" && f.title.contains("T5F"))
         );
     }
 }

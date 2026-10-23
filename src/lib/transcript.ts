@@ -19,6 +19,8 @@ const textOf = (content: unknown): string =>
           .join('\n')
       : ''
 
+const technical = /^<(command-|local-command|task-notification|system-reminder|bash-|user-prompt-submit)/
+
 const clip = (text: string) => (text.length > LIMIT ? `${text.slice(0, LIMIT)}…` : text)
 
 export function entriesOf(transcript: string): Entry[] {
@@ -46,7 +48,7 @@ export function entriesOf(transcript: string): Entry[] {
         if (call) call.result = { text: clip(textOf(part.content)), error: !!part.is_error }
       }
       const said = textOf(content).trim()
-      if (said && !line.isSynthetic && !said.startsWith('<') && !parts.some((p) => p.type === 'tool_result')) {
+      if (said && !line.isSynthetic && !technical.test(said) && !parts.some((p) => p.type === 'tool_result')) {
         entries.push({ kind: 'user', text: said, at: at(line) })
         reply = null
       }
