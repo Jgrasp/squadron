@@ -843,9 +843,9 @@
       onclose={() => setPanel(agent.project, null)}
     />
   {:else if panel === 'editor'}
-    <EditorPanel {agent} {changes} onclose={() => setPanel(agent.project, null)} />
+    <EditorPanel project={agent.project} {changes} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'terminal'}
-    <TerminalPanel {agent} onsend={excerpt} onclose={() => setPanel(agent.project, null)} />
+    <TerminalPanel dir={workdir(agent)} to={agent.name} onsend={excerpt} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'subagents' && agent.subagents.length}
     <SubagentsPanel
       {agent}

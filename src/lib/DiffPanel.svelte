@@ -469,9 +469,11 @@
         ? ` · ${pulled.added} new commit${pulled.added === 1 ? '' : 's'} since your review`
         : ''}
     {:else if changes}
-      {files.length} uncommitted file{files.length > 1 ? 's' : ''} · {mine} edited by {agent?.name}
+      {files.length} uncommitted file{files.length > 1 ? 's' : ''}{agent ? ` · ${mine} edited by ${agent.name}` : ''}
+    {:else if agent}
+      Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
     {:else}
-      Changes by {agent?.name} · {files.length} file{files.length > 1 ? 's' : ''}
+      No Git repository
     {/if}
   {/snippet}
   {#snippet actions()}
@@ -613,7 +615,7 @@
         <button
           role="tab"
           aria-selected={reviewing ? f.path === spot : f === selected}
-          class:other={!f.edits && !reviewing}
+          class:other={!f.edits && !reviewing && !!agent}
           title={f.edits || !agent ? f.path : `${f.path} · not edited by ${agent.name}`}
           onclick={() => (reviewing ? scrollToFile(f.path) : (file = f.path))}
         >
@@ -628,7 +630,7 @@
     <div class="columns">
     {#if layout.fileTree}
       <ChangedFiles
-        files={files.map((f) => ({ ...f, other: !f.edits && !reviewing, talks: reviewing ? talks(f.path) : 0, drafts: reviewing ? draftsIn(f.path) : 0 }))}
+        files={files.map((f) => ({ ...f, other: !f.edits && !reviewing && !!agent, talks: reviewing ? talks(f.path) : 0, drafts: reviewing ? draftsIn(f.path) : 0 }))}
         selected={reviewing ? spot : selected?.path}
         onpick={(path) => (reviewing ? scrollToFile(path) : (file = path))}
       />
@@ -733,7 +735,7 @@
               <span class="badge" class:new={shown.status === 'NEW'} class:gone={shown.status === 'DELETED'} class:proposed={proposing}>{shown.status}</span>
             {/if}
             <span class="path">{selected.path}</span>
-            <span class="by" hidden={reviewing}
+            <span class="by" hidden={reviewing || !agent}
               >{proposing
                 ? `Proposed by ${agent?.name} · not applied yet`
                 : selected.edits
@@ -763,7 +765,7 @@
             <DiffView
               hunks={shown.hunks}
               split={layout.split}
-              oncomment={proposing ? undefined : open}
+              oncomment={proposing || (!agent && !reviewing) ? undefined : open}
               {marked}
               open={commenting?.path === selected.path ? commenting : null}
               {editor}
@@ -794,7 +796,7 @@
       {/if}
     </div>
   {:else}
-    <p class="empty pad">{changes ? 'Nothing changed in the folder.' : `${agent?.name} has not changed any file yet.`}</p>
+    <p class="empty pad">{changes ? 'Nothing changed in the folder.' : agent ? `${agent.name} has not changed any file yet.` : 'No Git repository here: there is nothing to compare.'}</p>
   {/if}
 </SidePanel>
 

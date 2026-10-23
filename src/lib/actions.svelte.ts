@@ -41,6 +41,6 @@ export function run(action: Action, { project, agent }: Context) {
     case 'editor':
     case 'terminal':
     case 'diff':
-      if (project && agent) setPanel(project.path, layout.panels[project.path] === action ? null : action)
+      if (project?.exists) setPanel(project.path, layout.panels[project.path] === action ? null : action)
   }
 }

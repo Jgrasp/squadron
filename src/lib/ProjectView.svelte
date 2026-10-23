@@ -1,6 +1,7 @@
 <script lang="ts">
   import { ask, open } from '@tauri-apps/plugin-dialog'
   import AgentList from './AgentList.svelte'
+  import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
   import { archiveProject, create, ofProject, selected } from './agents.svelte'
@@ -12,15 +13,43 @@
     MIN_SIDEBAR,
     resizeSidebar,
     setCollapsed,
+    setPanel,
+    type PanelKind,
   } from './layout.svelte'
+  import type { Changes } from './diff'
+  import DiffPanel from './DiffPanel.svelte'
+  import EditorPanel from './EditorPanel.svelte'
+  import Icon from './Icon.svelte'
+  import { needsYou } from './pulls.svelte'
+  import type { Comment } from './stream'
+  import TerminalPanel from './TerminalPanel.svelte'
   import { hint } from './settings.svelte'
   import NewAgent from './NewAgent.svelte'
-  import { load, move, remove, toggleBoard, type Project } from './projects.svelte'
+  import { load, move, remove, toggleBoard, togglePulls, type Project } from './projects.svelte'
 
   let { project }: { project: Project } = $props()
   let error = $state('')
 
   const agent = $derived(selected(project.path))
+  const panel = $derived(layout.panels[project.path] ?? null)
+  const toggle = (kind: PanelKind) => setPanel(project.path, panel === kind ? null : kind)
+  const close = () => setPanel(project.path, null)
+
+  let changes = $state<Changes | null>(null)
+  let diffFile = $state('')
+  let diffMode = $state<'local' | 'pull'>('local')
+  let comments = $state<Comment[]>([])
+  let target = $state<Comment | null>(null)
+  const totals = $derived((changes?.files ?? []).reduce((t, f) => ({ add: t.add + (f.add ?? 0), del: t.del + (f.del ?? 0) }), { add: 0, del: 0 }))
+
+  $effect(() => {
+    if (agent || !project.exists) return
+    void panel
+    const path = project.path
+    invoke<Changes>('git_changes', { project: path })
+      .then((result) => path === project.path && (changes = result))
+      .catch(() => path === project.path && (changes = null))
+  })
 
   async function retire() {
     const running = ofProject(project.path).length
@@ -113,7 +142,8 @@
       <AgentView {agent} />
     {/key}
   {:else}
-    <main class="center">
+    <main class="idle">
+      <div class="center">
       <div class="box">
         <span class="plus" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
@@ -123,10 +153,48 @@
         <div class="row">
           <button class="btn btn-primary big" onclick={() => (ui.creating = true)}>New agent</button>
           <kbd>{hint('newAgent')}</kbd>
-          <button class="btn btn-secondary big" onclick={toggleBoard}>Kanban</button>
-          <kbd>{hint('kanban')}</kbd>
+        </div>
+        <div class="tools" role="group" aria-label="Open a tool">
+          <button class="btn btn-ghost" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
+            <Icon name="editor" />Editor
+          </button>
+          <button class="btn btn-ghost" aria-pressed={panel === 'terminal'} title="A shell in the project folder ({hint('terminal')})" onclick={() => toggle('terminal')}>
+            <Icon name="terminal" />Terminal
+          </button>
+          <button class="btn btn-ghost" aria-pressed={panel === 'diff'} title="What is not committed yet ({hint('diff')})" onclick={() => toggle('diff')}>
+            <Icon name="diff" />Diff
+            {#if totals.add || totals.del}
+              <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
+            {/if}
+          </button>
+          <button class="btn btn-ghost" title="Pull requests you review and you wrote" onclick={togglePulls}>
+            <Icon name="pull" />Pull requests
+            {#if needsYou(project.path)}<span class="count">{needsYou(project.path)}</span>{/if}
+          </button>
+          <button class="btn btn-ghost" title="Kanban ({hint('kanban')})" onclick={toggleBoard}>
+            <Icon name="kanban" />Kanban
+          </button>
         </div>
       </div>
+      </div>
+      {#if panel === 'diff'}
+        <DiffPanel
+          agent={null}
+          dir={project.path}
+          {changes}
+          bind:mode={diffMode}
+          bind:file={diffFile}
+          bind:comments
+          bind:target
+          onhand={() => {}}
+          onreview={() => {}}
+          onclose={close}
+        />
+      {:else if panel === 'editor'}
+        <EditorPanel project={project.path} {changes} onclose={close} />
+      {:else if panel === 'terminal'}
+        <TerminalPanel dir={project.path} onclose={close} />
+      {/if}
     </main>
   {/if}
 </div>
@@ -159,6 +227,13 @@
     outline: none;
   }
 
+  .idle {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    background: var(--bg-main);
+  }
+
   .center {
     flex: 1;
     min-width: 0;
@@ -170,7 +245,7 @@
   }
 
   .box {
-    width: 440px;
+    width: 600px;
     max-width: 100%;
     display: flex;
     flex-direction: column;
@@ -210,6 +285,7 @@
   }
 
   p {
+    max-width: 440px;
     margin: 0;
     color: var(--text-muted);
     line-height: 1.6;
@@ -231,6 +307,45 @@
   kbd {
     font: 12.5px var(--mono);
     color: var(--text-dim);
+  }
+
+  .tools {
+    display: flex;
+    justify-content: center;
+    gap: 4px;
+    flex-wrap: wrap;
+    margin-top: 8px;
+    padding-top: 20px;
+    border-top: 1px solid var(--border);
+  }
+
+  .tools .btn-ghost[aria-pressed='true'] {
+    background: var(--surface-5);
+    box-shadow: inset 0 0 0 1px var(--text-faint);
+    color: var(--text-strong);
+  }
+
+  .mono {
+    font: 12px var(--mono);
+  }
+
+  .add {
+    color: var(--ok);
+  }
+
+  .del {
+    color: var(--err);
+  }
+
+  .count {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 11px/18px var(--sans);
+    text-align: center;
   }
 
   .missing {
