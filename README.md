@@ -4,16 +4,15 @@ A desktop app to drive several Claude Code agents side by side: one tab per proj
 
 ## Install (Linux)
 
-1. Install [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) and log in once in a terminal: `claude auth login`.
-2. Download the latest `squadron_*_amd64.AppImage` from the [releases](https://github.com/Jgrasp/squadron/releases/latest).
-3. Make it executable and start it:
+Install [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) and log in once in a terminal with `claude auth login`. Then:
 
-   ```bash
-   chmod +x squadron_*_amd64.AppImage
-   ./squadron_*_amd64.AppImage
-   ```
+```bash
+curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | bash
+```
 
-Squadron checks for updates every ten minutes. When one is out, the status bar shows **Update**: one click downloads it, installs it and restarts.
+It puts the latest AppImage in `~/.local/bin` and adds Squadron to your applications. Squadron checks for updates every ten minutes: when one is out, the status bar shows **Update**, and one click downloads it, installs it and restarts.
+
+If Squadron does not start, your system may miss FUSE, which AppImages need: `sudo apt install libfuse2t64` on Ubuntu 24.04 and later, `libfuse2` before.
 
 ## Develop
 
