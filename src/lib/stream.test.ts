@@ -11,7 +11,7 @@ import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
 import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?raw'
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
-import { apply, calls, exited, newAgent, prompt, replayLog, subagentOf, userMessage, type Agent, type Entry } from './stream'
+import { apply, calls, exited, fail, newAgent, prompt, replayLog, subagentOf, userMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -131,6 +131,10 @@ describe('stream', () => {
     const error = agent.entries.at(-1)
     expect(agent.status).toBe('error')
     expect(error?.kind === 'error' && error.login).toBe(true)
+    const expired = fresh()
+    fail(expired, 'Failed to authenticate: OAuth session expired and could not be refreshed.')
+    const last = expired.entries.at(-1)
+    expect(last?.kind === 'error' && last.login).toBe(true)
   })
 
   it('turns an unexpected exit into an error', () => {

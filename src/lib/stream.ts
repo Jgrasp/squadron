@@ -545,7 +545,7 @@ export function fail(agent: Agent, message: string) {
   agent.attention = message.split('\n')[0] || 'Error'
   agent.since = Date.now()
   const missing = message === 'claude-not-found'
-  const login = /not logged in|\/login|invalid api key/i.test(message)
+  const login = /not logged in|\/login|invalid api key|failed to authenticate|oauth session expired/i.test(message)
   agent.action = missing ? 'Claude Code not found' : login ? 'Claude Code not logged in' : message.split('\n')[0]
   agent.entries.push({ kind: 'error', at: Date.now(), message, login, missing })
 }

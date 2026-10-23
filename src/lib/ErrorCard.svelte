@@ -53,10 +53,9 @@
       <h2 id="error-{entry.at}">Claude Code is not logged in</h2>
     </div>
     <p>Log in once in a terminal, then retry. Other agents are not affected while their session stays open.</p>
-    <pre><span>$</span> claude
-<span>&gt;</span> /login</pre>
+    <pre><span>$</span> claude auth login</pre>
     <div class="row">
-      <button class="btn btn-primary" onclick={() => copy('claude')}>{copied ? 'Copied' : 'Copy the command'}</button>
+      <button class="btn btn-primary" onclick={() => copy('claude auth login')}>{copied ? 'Copied' : 'Copy the command'}</button>
       <button class="btn btn-danger" onclick={() => retry(agent.id)}>Retry</button>
       <span class="raw">{entry.message}</span>
     </div>
