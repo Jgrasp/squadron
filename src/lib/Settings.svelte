@@ -243,7 +243,7 @@
         {#each effects as [id, title, hint] (id)}
           <button aria-pressed={effect === id} onclick={() => (effect = id)}>
             <span class="sample effect-{id}">
-              <span class="dot" aria-hidden="true"></span>BMC
+              <span class="dot" aria-hidden="true"></span>Orbit
             </span>
             <strong>{title}</strong>
             <span class="hint">{hint}</span>

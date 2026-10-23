@@ -228,21 +228,21 @@ mod tests {
     #[test]
     fn suggests_the_closest_existing_folder() {
         let dir = temp("near");
-        fs::create_dir_all(dir.join("agence/mercure")).unwrap();
-        fs::create_dir_all(dir.join("agence/bmc")).unwrap();
+        fs::create_dir_all(dir.join("agence/hermes")).unwrap();
+        fs::create_dir_all(dir.join("agence/orbit")).unwrap();
         assert_eq!(
-            near(&dir.join("agence/mercur")),
-            Some(dir.join("agence/mercure"))
+            near(&dir.join("agence/herms")),
+            Some(dir.join("agence/hermes"))
         );
         assert_eq!(
-            near(&dir.join("agence/Mercure2/src")),
-            Some(dir.join("agence/mercure"))
+            near(&dir.join("agence/Hermes2/src")),
+            Some(dir.join("agence/hermes"))
         );
         assert_eq!(
             near(&dir.join("agence/something-else")),
             Some(dir.join("agence"))
         );
-        assert_eq!(near(&dir.join("agence/bmc")), None);
+        assert_eq!(near(&dir.join("agence/orbit")), None);
     }
 
     #[test]
@@ -299,8 +299,8 @@ mod tests {
         assert!(load(&file).is_empty());
 
         let projects = vec![Project {
-            name: "bmc".into(),
-            path: "/home/user/bmc".into(),
+            name: "orbit".into(),
+            path: "/home/user/orbit".into(),
             rules: vec!["Bash(git push:*)".into()],
             cards: vec![Card {
                 id: "c1".into(),

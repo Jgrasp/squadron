@@ -347,9 +347,9 @@ mod tests {
             "worktree",
             "add",
             "-q",
-            "/tmp/squadron-wt/BAT-809-T70",
+            "/tmp/squadron-wt/ORB-809-T70",
             "-b",
-            "ia/BAT-809-T70",
+            "ia/ORB-809-T70",
         ]);
     }
 
@@ -359,12 +359,12 @@ mod tests {
         script_worktree();
         let calls = drive(
             "sonnet",
-            "`make worktree TICKET=BAT-809 TACHE=T70` just created the worktree /tmp/squadron-wt/BAT-809-T70 for task T70. Start an agent with haiku that works in it on: fix the admin menu.",
+            "`make worktree TICKET=ORB-809 TACHE=T70` just created the worktree /tmp/squadron-wt/ORB-809-T70 for task T70. Start an agent with haiku that works in it on: fix the admin menu.",
             |call| match call.tool.as_str() {
                 "start_agent" if call.args["prompt"].is_null() => {
                     "Error: The prompt is empty.".to_string()
                 }
-                "start_agent" => "Started agent a-9 in BMC.".to_string(),
+                "start_agent" => "Started agent a-9 in Orbit.".to_string(),
                 _ => "[]".to_string(),
             },
         )
@@ -373,7 +373,7 @@ mod tests {
             .iter()
             .find(|c| c.tool == "start_agent" && !c.args["prompt"].is_null())
             .expect("start_agent called");
-        assert_eq!(start.args["worktree"], "/tmp/squadron-wt/BAT-809-T70");
+        assert_eq!(start.args["worktree"], "/tmp/squadron-wt/ORB-809-T70");
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -382,7 +382,7 @@ mod tests {
         script_worktree();
         let calls = drive(
             "sonnet",
-            "I just ran `make worktree TICKET=BAT-809 TACHE=T70`: it created a git worktree at /tmp/squadron-wt/BAT-809-T70 on the branch ia/BAT-809-T70. From now on you work there. Get ready, nothing else to do yet.",
+            "I just ran `make worktree TICKET=ORB-809 TACHE=T70`: it created a git worktree at /tmp/squadron-wt/ORB-809-T70 on the branch ia/ORB-809-T70. From now on you work there. Get ready, nothing else to do yet.",
             |call| match call.tool.as_str() {
                 "set_worktree" if call.args["path"].as_str().unwrap_or_default().is_empty() => {
                     "Squadron shows the branch of the main checkout again.".to_string()
@@ -396,7 +396,7 @@ mod tests {
             .iter()
             .find(|c| c.tool == "set_worktree")
             .expect("set_worktree called");
-        assert_eq!(set.args["path"], "/tmp/squadron-wt/BAT-809-T70");
+        assert_eq!(set.args["path"], "/tmp/squadron-wt/ORB-809-T70");
     }
 
     #[tokio::test(flavor = "multi_thread")]
@@ -406,8 +406,8 @@ mod tests {
             "sonnet",
             "In Squadron's Kanban, add a task to fix the CSV export of segments. It is done when the export tests pass with their output shown. Then start its agent with haiku.",
             |call| match call.tool.as_str() {
-                "create_card" => "Card c-42 added to the To do column of Fileas.".to_string(),
-                "start_agent" => "Started agent a-9 in Fileas.".to_string(),
+                "create_card" => "Card c-42 added to the To do column of Nova.".to_string(),
+                "start_agent" => "Started agent a-9 in Nova.".to_string(),
                 _ => "[]".to_string(),
             },
         )

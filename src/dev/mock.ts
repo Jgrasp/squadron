@@ -11,9 +11,9 @@ import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
-  { name: 'BMC', path: '/home/quentin/agence/bmc', rules: [] },
-  { name: 'Fileas', path: '/home/quentin/agence/fileas', rules: [] },
-  { name: 'Lumen', path: '/home/quentin/agence/lumen-absent', rules: [] },
+  { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
+  { name: 'Nova', path: '/home/demo/agence/nova', rules: [] },
+  { name: 'Lumen', path: '/home/demo/agence/lumen-absent', rules: [] },
 ]
 
 const label = location.search.includes('board') ? 'board' : 'main'
@@ -22,8 +22,8 @@ channel.onmessage = ({ data }) => data.target === label && emit(data.event, data
 let popup: Window | null = null
 
 if (location.search.includes('many'))
-  for (const name of ['Mercure', 'Atlas', 'Optika', 'Vinéa', 'Kalia', 'Sorbet', 'Néréide', 'Pixel Rando'])
-    projects.push({ name, path: `/home/quentin/agence/${name.toLowerCase()}`, rules: [] })
+  for (const name of ['Hermes', 'Atlas', 'Optika', 'Vinéa', 'Kalia', 'Sorbet', 'Néréide', 'Pixel Rando'])
+    projects.push({ name, path: `/home/demo/agence/${name.toLowerCase()}`, rules: [] })
 
 const COLORS = ['#A78BFA', '#2DD4BF', '#F472B6', '#60A5FA', '#A3E635', '#FACC15']
 
@@ -34,8 +34,8 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   cards,
   color,
   exists: !path.includes('absent'),
-  git: !path.includes('fileas'),
-  branch: path.includes('fileas') ? null : 'feat/T15-segmentation',
+  git: !path.includes('nova'),
+  branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
 const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived }))
@@ -49,7 +49,7 @@ let editorApps: unknown[] = []
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
   edit: ['Edit', { file_path: 'src/Segmentation/ChannelSegmentResolver.php', old_string: 'resolve(CustomerInterface $customer)', new_string: 'resolve(\n        CustomerInterface $customer,\n        ?ChannelInterface $channel = null,\n    )' }],
-  mcp: ['mcp__github__create_pull_request', { owner: 'agence', repo: 'bmc', base: 'develop', head: 'feat/BAT-809', title: 'BAT-809 · Pilotage des batchs', draft: true }],
+  mcp: ['mcp__github__create_pull_request', { owner: 'agence', repo: 'orbit', base: 'develop', head: 'feat/ORB-809', title: 'ORB-809 · Pilotage des batchs', draft: true }],
   plan: ['ExitPlanMode', { plan: '# Segment CSV export\n\n1. Add the `export_csv` action to the grid.\n2. Create `SegmentCsvExporter`.\n3. Test the exporter.' }],
   questions: ['AskUserQuestion', { questions: [
     { question: 'Which CSV separator?', header: 'Separator', multiSelect: false, options: [{ label: 'Semicolon (Recommended)', description: 'French Excel' }, { label: 'Comma' }, { label: 'Tab' }] },
@@ -200,7 +200,7 @@ const replies = new Map<string, (result: string) => void>()
 const files = new Map<string, string>()
 let terminal = 0
 let line = ''
-const prompt = '\x1b[38;2;154;214;203mquentin\x1b[0m \x1b[2m~/agence/bmc\x1b[0m \x1b[38;2;201;166;255mfeat/T15-segmentation*\x1b[0m\r\n\x1b[38;2;224;138;91m❯\x1b[0m '
+const prompt = '\x1b[38;2;154;214;203mdemo\x1b[0m \x1b[2m~/agence/orbit\x1b[0m \x1b[38;2;201;166;255mfeat/T15-segmentation*\x1b[0m\r\n\x1b[38;2;224;138;91m❯\x1b[0m '
 
 if (location.search.includes('stress'))
   setTimeout(async () => {
@@ -379,7 +379,7 @@ mockIPC(
         if (label === 'main') popup?.focus()
         return
       case 'git_changes':
-        if (a.project.includes('fileas')) throw 'not a git repository'
+        if (a.project.includes('nova')) throw 'not a git repository'
         return {
           from: 'a'.repeat(40),
           now: 'b'.repeat(40),
@@ -450,7 +450,7 @@ mockIPC(
         return
       case 'detect_editors':
         return [
-          { name: 'Zed', command: '/home/quentin/.local/zed.app/bin/zed {project} {file}' },
+          { name: 'Zed', command: '/home/demo/.local/zed.app/bin/zed {project} {file}' },
           { name: 'PhpStorm', command: '/opt/phpstorm/bin/phpstorm.sh {project}' },
         ]
       case 'open_with':
@@ -459,7 +459,7 @@ mockIPC(
       case 'term_close':
         return
       case 'plugin:dialog|open':
-        return '/home/quentin/agence/mercure'
+        return '/home/demo/agence/hermes'
       case 'plugin:dialog|ask':
         return true
       case 'plugin:dialog|message':
