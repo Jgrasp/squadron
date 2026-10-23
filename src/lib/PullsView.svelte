@@ -4,6 +4,7 @@
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
   import { hostName, lists, lookUpLists, moved, progress, pulls, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
+  import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
   import { workdir, type Comment } from './stream'
@@ -151,7 +152,7 @@
 
 {#snippet about(pull: Pull)}
   <div class="about">
-    <strong>{pull.title}</strong>
+    <span class="title"><span title={pull.author}><Avatar name={pull.author} src={pull.author_avatar} size={22} /></span><strong>{pull.title}</strong></span>
     <span class="meta">
       <span class="mono">#{pull.number}</span> · {pull.author} · <span class="mono">{pull.branch} → {pull.base}</span> · updated {since(pull.updated)}
     </span>
@@ -331,7 +332,15 @@
     gap: 3px;
   }
 
-  .about strong {
+  .title {
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .title strong {
+    min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;

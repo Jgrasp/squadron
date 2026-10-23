@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Avatar from './Avatar.svelte'
   import type { Reviewer } from './pulls.svelte'
 
   let { reviewers, size = 24 }: { reviewers: Reviewer[]; size?: number } = $props()
@@ -9,25 +10,12 @@
     commented: 'commented',
     waiting: 'has not reviewed yet',
   }
-  const initials = (name: string) =>
-    name
-      .split(/\s+/)
-      .slice(0, 2)
-      .map((w) => w[0]?.toUpperCase() ?? '')
-      .join('')
-  let broken = $state<string[]>([])
 </script>
 
 <span class="reviewers" style:--size="{size}px">
   {#each reviewers as r (r.name)}
     <span class="who {r.verdict}" title="{r.name} · {SAID[r.verdict] ?? r.verdict}" role="img" aria-label="{r.name} {SAID[r.verdict] ?? r.verdict}">
-      <span class="face">
-        {#if r.avatar && !broken.includes(r.avatar)}
-          <img src={r.avatar} alt="" referrerpolicy="no-referrer" onerror={() => broken.push(r.avatar)} />
-        {:else}
-          {initials(r.name)}
-        {/if}
-      </span>
+      <span class="face"><Avatar name={r.name} src={r.avatar} {size} /></span>
       {#if r.verdict !== 'waiting'}
         <span class="mark" aria-hidden="true">
           {#if r.verdict === 'approved'}
@@ -57,23 +45,9 @@
   }
 
   .face {
-    width: 100%;
-    height: 100%;
     display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
     border-radius: 50%;
-    background: var(--surface-4);
     box-shadow: 0 0 0 2px var(--bg-main);
-    color: var(--text-2);
-    font: 700 calc(var(--size) * 0.4) / 1 var(--sans);
-  }
-
-  .face img {
-    width: 100%;
-    height: 100%;
-    object-fit: cover;
   }
 
   .waiting .face {

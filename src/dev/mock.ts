@@ -396,6 +396,7 @@ mockIPC(
               base: 'main',
               head: 'b'.repeat(40),
               author: 'Quentin Briais',
+              author_avatar: '',
               updated: new Date().toISOString(),
               reviewed: null,
               conflicts: false,
@@ -432,7 +433,7 @@ mockIPC(
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
           host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
-          updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, conflicts: false, reviewed_head: null, reviewed_at: null, head_at: null,
+          updated: new Date(Date.now() - number * 3_600_000).toISOString(), author_avatar: '', reviewed: null, conflicts: false, reviewed_head: null, reviewed_at: null, head_at: null,
           reviewers: [
             { name: 'Sébastien Leprovost', avatar: '', verdict: number % 2 ? 'approved' : 'waiting' },
             { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: number === 2101 ? 'changes_requested' : 'waiting' },

@@ -232,6 +232,9 @@
     <div class="who">
       <span class="square" aria-hidden="true"></span>
       <strong title={project.name}>{project.name}</strong>
+      <button class="fold collapse" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+      </button>
     </div>
     <div class="under">
     <small class:bad={!project.exists}>
@@ -278,9 +281,6 @@
       </span>
       <button class="fold" aria-label="Archived agents" title="Archived agents of {project.name}" onclick={() => (showArchived = true)}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" /></svg>
-      </button>
-      <button class="fold" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
       <button
         class="fold"
@@ -467,6 +467,10 @@
     display: flex;
     align-items: center;
     gap: 10px;
+  }
+
+  .collapse {
+    margin-left: auto;
   }
 
   .who strong {

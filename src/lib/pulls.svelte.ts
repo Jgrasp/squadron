@@ -20,6 +20,7 @@ export type Pull = {
   base: string
   head: string
   author: string
+  author_avatar: string
   updated: string
   reviewed: 'approved' | 'changes_requested' | 'commented' | null
   reviewed_head: string | null

@@ -10,7 +10,7 @@ const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
 const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting.";
 const NO_USER_SCOPE: &str =
     "Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.";
-const BITBUCKET_FIELDS: &str = "values.id,values.title,values.description,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.participated_on,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
+const BITBUCKET_FIELDS: &str = "values.id,values.title,values.description,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.author.links.avatar.href,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.participated_on,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
 const GITHUB_FIELDS: &str = "number,title,body,url,state,isDraft,reviewDecision,latestReviews,reviewRequests,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt,mergeable";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -73,6 +73,7 @@ pub struct Pull {
     pub base: String,
     pub head: String,
     pub author: String,
+    pub author_avatar: String,
     pub updated: String,
     pub reviewed: Option<String>,
     pub reviewed_head: Option<String>,
@@ -560,6 +561,7 @@ fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
         base: text(&found["destination"]["branch"]["name"]),
         head: text(&found["source"]["commit"]["hash"]),
         author: text(&found["author"]["display_name"]),
+        author_avatar: text(&found["author"]["links"]["avatar"]["href"]),
         updated: text(&found["updated_on"]),
         reviewed: people
             .iter()
@@ -618,6 +620,10 @@ fn github_pull(found: &Value, me: &str) -> Pull {
         base: text(&found["baseRefName"]),
         head: text(&found["headRefOid"]),
         author: text(&found["author"]["login"]),
+        author_avatar: found["author"]["login"]
+            .as_str()
+            .map(|login| format!("https://avatars.githubusercontent.com/{login}?s=64"))
+            .unwrap_or_default(),
         updated: text(&found["updatedAt"]),
         reviewed: reviews
             .iter()
@@ -973,6 +979,7 @@ mod tests {
                 base: "feature/FIL-671".into(),
                 head: "1094c23e6813".into(),
                 author: "Quentin Briais".into(),
+                author_avatar: String::new(),
                 updated: "2026-10-23T09:27:57+00:00".into(),
                 reviewed: Some("changes_requested".into()),
                 reviewed_head: None,
