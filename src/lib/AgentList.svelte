@@ -245,7 +245,7 @@
     </small>
     <div class="actions">
       <button class="new" disabled={!project.exists} onclick={onnew} title="New agent ({hint('newAgent')})">+ Agent</button>
-      <span class="anchor" data-menu>
+      <span class="anchor loose" data-menu>
         <button class="fold" class:own aria-label="Sort the agents" aria-haspopup="menu" aria-expanded={sorting} title={own ? `Sorted for ${project.name}` : 'Sort the agents'} onclick={openSort}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
         </button>
@@ -371,10 +371,16 @@
     position: relative;
   }
 
+  .anchor.loose {
+    position: static;
+  }
+
   .menu.sort {
     position: absolute;
-    top: 36px;
-    right: 0;
+    top: calc(100% - 4px);
+    left: 4px;
+    width: max-content;
+    min-width: 230px;
   }
 
   .menu [aria-checked='true'] {
@@ -449,6 +455,7 @@
   }
 
   .head {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 8px;
