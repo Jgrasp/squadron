@@ -2,10 +2,11 @@ name: Release
 
 on:
   push:
-    tags: ['v*']
+    branches: [main]
 
 jobs:
   appimage:
+    if: startsWith(github.event.head_commit.message, 'Squadron ')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -33,8 +34,8 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         with:
-          tagName: ${{ github.ref_name }}
-          releaseName: Squadron ${{ github.ref_name }}
+          tagName: v__VERSION__
+          releaseName: Squadron v__VERSION__
           releaseBody: ${{ github.event.head_commit.message }}
           args: --bundles deb,appimage
           includeUpdaterJson: true
