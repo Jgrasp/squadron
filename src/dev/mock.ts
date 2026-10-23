@@ -394,6 +394,14 @@ mockIPC(
               branch: 'feat/orbit',
               base: 'main',
               head: 'b'.repeat(40),
+              author: 'Quentin Briais',
+              updated: new Date().toISOString(),
+              reviewed: null,
+              conflicts: false,
+              reviewers: [
+                { name: 'Sébastien Leprovost', avatar: '', verdict: 'approved' },
+                { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: 'waiting' },
+              ],
             }
           : null
       case 'review_checkout':
@@ -403,7 +411,13 @@ mockIPC(
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
           host: 'bitbucket', number, title, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
-          updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, ...extra,
+          updated: new Date(Date.now() - number * 3_600_000).toISOString(), reviewed: null, conflicts: false,
+          reviewers: [
+            { name: 'Sébastien Leprovost', avatar: '', verdict: number % 2 ? 'approved' : 'waiting' },
+            { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: number === 2101 ? 'changes_requested' : 'waiting' },
+            { name: 'Loris Marino', avatar: '', verdict: 'waiting' },
+          ],
+          ...extra,
         })
         return {
           review: [

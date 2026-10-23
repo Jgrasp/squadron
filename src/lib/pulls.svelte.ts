@@ -20,6 +20,22 @@ export type Pull = {
   author: string
   updated: string
   reviewed: 'approved' | 'changes_requested' | null
+  reviewers: Reviewer[]
+  conflicts: boolean
+}
+
+export type Reviewer = { name: string; avatar: string; verdict: 'approved' | 'changes_requested' | 'commented' | 'waiting' }
+
+export function progress(pull: Pull) {
+  const approved = pull.reviewers.filter((r) => r.verdict === 'approved').length
+  return pull.reviewers.length ? `${approved}/${pull.reviewers.length} approved` : pull.approvals ? `${pull.approvals} approved` : 'No reviewer'
+}
+
+export function standing(pull: Pull): [string, string] {
+  if (pull.changes_requested) return ['changes_requested', 'Changes requested']
+  if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['approved', 'Approved']
+  if (pull.draft) return ['draft', 'Draft']
+  return ['open', 'In review']
 }
 
 export type Lists = { review: Pull[]; mine: Pull[]; error: string }

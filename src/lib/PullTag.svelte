@@ -1,12 +1,11 @@
 <script lang="ts">
-  import { pulls, stateLabel } from './pulls.svelte'
+  import { progress, pulls, stateLabel } from './pulls.svelte'
   import { workdir, type Agent } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
   const pull = $derived(pulls[workdir(agent)])
-  const review = (p: NonNullable<typeof pull>) =>
-    p.changes_requested ? 'changes requested' : p.approvals ? `${p.approvals} approval${p.approvals > 1 ? 's' : ''}` : ''
+  const review = (p: NonNullable<typeof pull>) => (p.changes_requested ? 'changes requested' : p.reviewers.length || p.approvals ? progress(p) : '')
 </script>
 
 {#if pull?.state === 'open'}

@@ -3,7 +3,8 @@
   import { agents, clock, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { hostName, lists, lookUpLists, pulls, reviewWithAgent, stateLabel, type Pull } from './pulls.svelte'
+  import { hostName, lists, lookUpLists, progress, pulls, reviewWithAgent, standing, type Pull } from './pulls.svelte'
+  import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
   import { workdir, type Comment } from './stream'
 
@@ -90,9 +91,7 @@
         {#each found.mine as pull (pull.number)}
           {@const agent = agentOn(pull)}
           <article>
-            <span class="verdict {pull.changes_requested ? 'changes_requested' : pull.approvals ? 'approved' : pull.draft ? 'draft' : 'open'}">
-              {pull.changes_requested ? 'Changes requested' : pull.approvals ? `${pull.approvals} approval${pull.approvals > 1 ? 's' : ''}` : stateLabel(pull)}
-            </span>
+            <span class="verdict {standing(pull)[0]}">{standing(pull)[1]}</span>
             {@render about(pull)}
             <div class="actions">
               {#if agent}<button class="btn btn-secondary" title="The agent working on {pull.branch}" onclick={() => show(agent)}>{agent.name}</button>{/if}
@@ -136,7 +135,18 @@
     </span>
   </div>
   <span class="facts">
-    {#if pull.checks}<span class="checks {pull.checks}" title="Builds {pull.checks}"></span>{/if}
+    {#if pull.conflicts}<span class="tag bad" title="The branch conflicts with {pull.base}">Conflicts</span>{/if}
+    {#if pull.checks}
+      <span class="tag {pull.checks}" title="Builds and checks of the last commit"
+        ><span class="checks {pull.checks}" aria-hidden="true"></span>{pull.checks === 'passing' ? 'Builds pass' : pull.checks === 'failing' ? 'Builds fail' : 'Building'}</span
+      >
+    {/if}
+    {#if pull.reviewers.length || pull.approvals}
+      <span class="review" title="{progress(pull)}">
+        <Reviewers reviewers={pull.reviewers} />
+        <span class="count">{progress(pull)}</span>
+      </span>
+    {/if}
     {#if pull.comments}
       <span class="talk" title="{pull.comments} comment{pull.comments > 1 ? 's' : ''}"
         ><svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>{pull.comments}</span
@@ -323,6 +333,36 @@
     gap: 10px;
     font-size: 12.5px;
     color: var(--text-dim);
+  }
+
+  .tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 8px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .tag.failing,
+  .tag.bad {
+    background: var(--err-bg);
+    color: var(--err-text);
+  }
+
+  .review {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+  }
+
+  .count {
+    font-size: 12px;
+    color: var(--text-2);
   }
 
   .talk {

@@ -17,7 +17,8 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUp, needsYou, pulls, stateLabel } from './pulls.svelte'
+  import { lookUp, needsYou, progress, pulls, stateLabel } from './pulls.svelte'
+  import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
@@ -548,8 +549,10 @@
               >
                 <Icon name="pull" size={15} /><span class="mono">#{pull.number}</span>
                 <span class="state {pull.draft && pull.state === 'open' ? 'draft' : pull.state}">{stateLabel(pull)}</span>
+                {#if pull.reviewers.length}<Reviewers reviewers={pull.reviewers} size={20} />{/if}
                 {#if pull.changes_requested}<span class="fact bad">Changes requested</span>
-                {:else if pull.approvals}<span class="fact good">{pull.approvals} approval{pull.approvals > 1 ? 's' : ''}</span>{/if}
+                {:else if pull.reviewers.length || pull.approvals}<span class="fact good">{progress(pull)}</span>{/if}
+                {#if pull.conflicts}<span class="fact bad">Conflicts</span>{/if}
                 {#if pull.checks}<span class="checks {pull.checks}" title="Builds {pull.checks}"></span>{/if}
                 {#if pull.comments}<span class="fact">{pull.comments} comment{pull.comments > 1 ? 's' : ''}</span>{/if}
               </button>

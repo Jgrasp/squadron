@@ -10,8 +10,8 @@ const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
 const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting.";
 const NO_USER_SCOPE: &str =
     "Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.";
-const BITBUCKET_FIELDS: &str = "values.id,values.title,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.updated_on,values.participants.approved,values.participants.state,values.participants.user.uuid";
-const GITHUB_FIELDS: &str = "number,title,url,state,isDraft,reviewDecision,latestReviews,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt";
+const BITBUCKET_FIELDS: &str = "values.id,values.title,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
+const GITHUB_FIELDS: &str = "number,title,url,state,isDraft,reviewDecision,latestReviews,reviewRequests,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt,mergeable";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Host {
@@ -74,6 +74,15 @@ pub struct Pull {
     pub author: String,
     pub updated: String,
     pub reviewed: Option<String>,
+    pub reviewers: Vec<Reviewer>,
+    pub conflicts: bool,
+}
+
+#[derive(Debug, Default, PartialEq, Serialize)]
+pub struct Reviewer {
+    pub name: String,
+    pub avatar: String,
+    pub verdict: String,
 }
 
 #[derive(Serialize)]
@@ -453,11 +462,45 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
     }
 }
 
+fn bitbucket_verdict(person: &Value) -> &'static str {
+    match (person["approved"] == true, person["state"].as_str()) {
+        (true, _) => "approved",
+        (_, Some("changes_requested")) => "changes_requested",
+        _ => "waiting",
+    }
+}
+
 fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
     let people = found["participants"]
         .as_array()
         .map(Vec::as_slice)
         .unwrap_or_default();
+    let asked = found["reviewers"]
+        .as_array()
+        .map(Vec::as_slice)
+        .unwrap_or_default();
+    let mut reviewers: Vec<Reviewer> = asked
+        .iter()
+        .map(|user| Reviewer {
+            name: text(&user["display_name"]),
+            avatar: text(&user["links"]["avatar"]["href"]),
+            verdict: people
+                .iter()
+                .find(|p| p["user"]["uuid"] == user["uuid"])
+                .map_or("waiting", bitbucket_verdict)
+                .into(),
+        })
+        .collect();
+    for p in people {
+        let listed = asked.iter().any(|u| u["uuid"] == p["user"]["uuid"]);
+        if !listed && (p["role"] == "REVIEWER" || bitbucket_verdict(p) != "waiting") {
+            reviewers.push(Reviewer {
+                name: text(&p["user"]["display_name"]),
+                avatar: text(&p["user"]["links"]["avatar"]["href"]),
+                verdict: bitbucket_verdict(p).into(),
+            });
+        }
+    }
     let states = statuses["values"]
         .as_array()
         .into_iter()
@@ -486,11 +529,11 @@ fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
         reviewed: people
             .iter()
             .find(|p| !me.is_empty() && p["user"]["uuid"] == me)
-            .and_then(|p| match (p["approved"] == true, p["state"].as_str()) {
-                (true, _) => Some("approved".into()),
-                (_, Some("changes_requested")) => Some("changes_requested".into()),
-                _ => None,
-            }),
+            .map(bitbucket_verdict)
+            .filter(|v| *v != "waiting")
+            .map(str::to_string),
+        reviewers,
+        conflicts: false,
     }
 }
 
@@ -541,7 +584,46 @@ fn github_pull(found: &Value, me: &str) -> Pull {
                 Some("CHANGES_REQUESTED") => Some("changes_requested".into()),
                 _ => None,
             }),
+        reviewers: github_reviewers(found),
+        conflicts: found["mergeable"] == "CONFLICTING",
     }
+}
+
+fn github_reviewers(found: &Value) -> Vec<Reviewer> {
+    let avatar = |login: &str| format!("https://avatars.githubusercontent.com/{login}?s=64");
+    let mut list: Vec<Reviewer> = Vec::new();
+    for review in found["latestReviews"].as_array().into_iter().flatten() {
+        let login = text(&review["author"]["login"]);
+        let verdict = match review["state"].as_str() {
+            Some("APPROVED") => "approved",
+            Some("CHANGES_REQUESTED") => "changes_requested",
+            Some("COMMENTED") => "commented",
+            _ => continue,
+        };
+        list.push(Reviewer {
+            avatar: avatar(&login),
+            name: login,
+            verdict: verdict.into(),
+        });
+    }
+    for asked in found["reviewRequests"].as_array().into_iter().flatten() {
+        let login = asked["login"].as_str().unwrap_or_default();
+        let name = asked["name"]
+            .as_str()
+            .filter(|n| !n.is_empty())
+            .unwrap_or(login);
+        list.retain(|r| r.name != login);
+        list.push(Reviewer {
+            name: name.into(),
+            avatar: if login.is_empty() {
+                String::new()
+            } else {
+                avatar(login)
+            },
+            verdict: "waiting".into(),
+        });
+    }
+    list
 }
 
 pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
@@ -764,7 +846,12 @@ mod tests {
             "source": { "branch": { "name": "dev/FIL-671" }, "commit": { "hash": "1094c23e6813" } },
             "destination": { "branch": { "name": "feature/FIL-671" } },
             "author": { "display_name": "Quentin Briais" }, "updated_on": "2026-10-23T09:27:57+00:00",
-            "participants": [{ "approved": true, "state": "approved", "user": { "uuid": "{a}" } }, { "approved": false, "state": "changes_requested", "user": { "uuid": "{me}" } }, { "approved": false, "state": null, "user": { "uuid": "{b}" } }]
+            "reviewers": [{ "uuid": "{a}", "display_name": "Ann", "links": { "avatar": { "href": "https://a/ann.png" } } }, { "uuid": "{me}", "display_name": "Me", "links": { "avatar": { "href": "https://a/me.png" } } }, { "uuid": "{c}", "display_name": "Carl", "links": { "avatar": { "href": "https://a/carl.png" } } }],
+            "participants": [
+                { "approved": true, "state": "approved", "role": "REVIEWER", "user": { "uuid": "{a}", "display_name": "Ann" } },
+                { "approved": false, "state": "changes_requested", "role": "REVIEWER", "user": { "uuid": "{me}", "display_name": "Me" } },
+                { "approved": false, "state": null, "role": "PARTICIPANT", "user": { "uuid": "{b}", "display_name": "Bob" } }
+            ]
         });
         let statuses = json!({ "values": [{ "state": "SUCCESSFUL" }, { "state": "INPROGRESS" }] });
         assert_eq!(
@@ -786,6 +873,24 @@ mod tests {
                 author: "Quentin Briais".into(),
                 updated: "2026-10-23T09:27:57+00:00".into(),
                 reviewed: Some("changes_requested".into()),
+                reviewers: vec![
+                    Reviewer {
+                        name: "Ann".into(),
+                        avatar: "https://a/ann.png".into(),
+                        verdict: "approved".into()
+                    },
+                    Reviewer {
+                        name: "Me".into(),
+                        avatar: "https://a/me.png".into(),
+                        verdict: "changes_requested".into()
+                    },
+                    Reviewer {
+                        name: "Carl".into(),
+                        avatar: "https://a/carl.png".into(),
+                        verdict: "waiting".into()
+                    },
+                ],
+                conflicts: false,
             }
         );
         assert_eq!(bitbucket_pull(&found, &Value::Null, "{b}").checks, None);
@@ -816,6 +921,26 @@ mod tests {
             github_pull(&found, "ann").reviewed.as_deref(),
             Some("approved")
         );
+        let asked = json!({
+            "latestReviews": [{ "state": "APPROVED", "author": { "login": "ann" } }, { "state": "CHANGES_REQUESTED", "author": { "login": "bob" } }],
+            "reviewRequests": [{ "__typename": "User", "login": "bob", "name": "Bob B." }, { "__typename": "Team", "name": "core" }],
+            "mergeable": "CONFLICTING"
+        });
+        let requested = github_pull(&asked, "");
+        let seen: Vec<_> = requested
+            .reviewers
+            .iter()
+            .map(|r| (r.name.as_str(), r.verdict.as_str(), r.avatar.is_empty()))
+            .collect();
+        assert_eq!(
+            seen,
+            [
+                ("ann", "approved", false),
+                ("Bob B.", "waiting", false),
+                ("core", "waiting", true)
+            ]
+        );
+        assert!(requested.conflicts);
         assert_eq!(
             (
                 pull.state.as_str(),
