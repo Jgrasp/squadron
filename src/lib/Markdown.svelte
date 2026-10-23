@@ -2,6 +2,11 @@
   import MarkdownIt from 'markdown-it'
 
   const md = new MarkdownIt({ html: false, linkify: true }).disable('image')
+  const fence = md.renderer.rules.fence!
+  md.renderer.rules.fence = (tokens, idx, options, env, self) => {
+    const lang = md.utils.escapeHtml(tokens[idx].info.trim().split(/\s+/)[0] || 'text')
+    return `<div class="code"><div class="code-head"><span>${lang}</span><button type="button" class="copy" data-copy>Copy</button></div>${fence(tokens, idx, options, env, self)}</div>`
+  }
 </script>
 
 <script lang="ts">
@@ -36,14 +41,64 @@
   })
 
   const html = $derived(md.render(streaming ? text.slice(0, shown) : text))
+
+  function copy(event: MouseEvent) {
+    const button = (event.target as HTMLElement).closest<HTMLButtonElement>('[data-copy]')
+    const code = button?.closest('.code')?.querySelector('pre')?.textContent
+    if (!button || code === undefined || code === null) return
+    navigator.clipboard.writeText(code.replace(/\n$/, ''))
+    button.textContent = 'Copied'
+    setTimeout(() => (button.textContent = 'Copy'), 1500)
+  }
 </script>
 
-<div class="prose" class:streaming>{@html html}</div>
+<!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+<div class="prose" class:streaming onclick={copy}>{@html html}</div>
 
 <style>
   .prose {
     line-height: 1.65;
     overflow-wrap: anywhere;
+  }
+
+  .prose :global(.code) {
+    margin: 0 0 10px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+    overflow: hidden;
+  }
+
+  .prose :global(.code-head) {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 4px 6px 4px 12px;
+    border-bottom: 1px solid var(--border);
+    font: 11.5px var(--mono);
+    color: var(--text-faint);
+  }
+
+  .prose :global(.copy) {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 4px;
+    font: 600 11.5px var(--sans);
+    color: var(--text-2);
+  }
+
+  .prose :global(.copy:hover) {
+    background: var(--surface-5);
+    color: var(--text-strong);
+  }
+
+  .prose :global(.code pre) {
+    margin: 0;
+    max-height: 420px;
+    overflow: auto;
+    border-radius: 0;
+    background: transparent;
+    box-shadow: none;
   }
 
   .prose :global(> :first-child) {
