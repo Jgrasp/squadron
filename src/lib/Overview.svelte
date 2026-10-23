@@ -3,6 +3,7 @@
   import { ago, cost, modelLabel } from './format'
   import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
+  import PullTag from './PullTag.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
 
@@ -107,6 +108,7 @@
               <td>
                 <span class="who">{agent.name}</span>
                 <span class="opts">{modelLabel(agent.options.model)} · {agent.options.effort}</span>
+                <PullTag {agent} />
               </td>
               <td class="last">{last(agent)}</td>
               <td>

@@ -6,6 +6,7 @@
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
   import AboutSquadron from './AboutSquadron.svelte'
+  import CodeHosting from './CodeHosting.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
   import ArchivedAgents from './ArchivedAgents.svelte'
   import { account } from './catalogs.svelte'
@@ -43,6 +44,7 @@
       [
         ['claude', 'Claude Code'],
         ['editors', 'Editors'],
+        ['hosting', 'Code hosting'],
       ],
     ],
     [
@@ -168,6 +170,8 @@
       <ArchivedAgents />
     {:else if tab === 'about'}
       <AboutSquadron />
+    {:else if tab === 'hosting'}
+      <CodeHosting />
     {:else if tab === 'defaults'}
       <p class="intro">Used to fill in the New agent dialog.</p>
       <OptionsFields bind:options={defaults} />
@@ -316,7 +320,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['rules', 'layout', 'projects', 'archived', 'about'].includes(tab)}
+  {#if !['rules', 'layout', 'projects', 'archived', 'about', 'hosting'].includes(tab)}
     <footer>
       {#if saved}<span class="good">Saved</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>Close</button>

@@ -378,6 +378,53 @@ mockIPC(
       case 'plugin:window|set_focus':
         if (label === 'main') popup?.focus()
         return
+      case 'pull_request':
+        return a.dir.includes('orbit')
+          ? {
+              host: 'bitbucket',
+              number: 2108,
+              title: 'feat(segments): channel-aware segment resolver',
+              url: 'https://bitbucket.org/orbit/orbit/pull-requests/2108',
+              state: 'open',
+              draft: false,
+              approvals: 1,
+              changes_requested: false,
+              comments: 3,
+              checks: 'passing',
+              branch: 'feat/orbit',
+              base: 'main',
+              head: 'b'.repeat(40),
+            }
+          : null
+      case 'forge_accounts':
+        return { bitbucket: localStorage.getItem('bitbucket'), github: 'octo' }
+      case 'bitbucket_sign_in':
+        if (a.token === 'bad') throw 'Bitbucket refused this email and token.'
+        localStorage.setItem('bitbucket', a.email)
+        return
+      case 'bitbucket_sign_out':
+        localStorage.removeItem('bitbucket')
+        return
+      case 'pull_changes':
+        return {
+          changes: {
+            from: 'c'.repeat(40),
+            now: 'b'.repeat(40),
+            files: [
+              { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 6, del: 2 },
+              { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
+            ],
+          },
+          ahead: 1,
+        }
+      case 'pull_remarks':
+        return [
+          { id: 1, author: 'Amandine T.', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z' },
+          { id: 2, author: 'Quentin Briais', body: 'The CLI import has none.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: 1, at: '2026-10-23T09:20:00Z' },
+          { id: 3, author: 'Amandine T.', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
+        ]
+      case 'post_remarks':
+        return
       case 'git_changes':
         if (a.project.includes('nova')) throw 'not a git repository'
         return {

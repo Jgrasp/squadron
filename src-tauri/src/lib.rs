@@ -1,6 +1,7 @@
 pub mod agents;
 pub mod claude;
 pub mod editors;
+pub mod forge;
 pub mod git;
 pub mod permissions;
 pub mod pilot;
@@ -519,6 +520,58 @@ async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
 }
 
 #[tauri::command]
+async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
+    forge::pull(&dir).await
+}
+
+#[tauri::command]
+async fn pull_changes(
+    dir: PathBuf,
+    base: String,
+    branch: String,
+    head: String,
+) -> Result<git::Pulled, String> {
+    tauri::async_runtime::spawn_blocking(move || git::pull_changes(&dir, &base, &branch, &head))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn pull_remarks(dir: PathBuf, number: u64) -> Result<Vec<forge::Remark>, String> {
+    forge::remarks(&dir, number).await
+}
+
+#[tauri::command]
+async fn post_remarks(
+    dir: PathBuf,
+    number: u64,
+    head: String,
+    drafts: Vec<forge::Draft>,
+) -> Result<(), String> {
+    forge::post(&dir, number, head, drafts).await
+}
+
+#[tauri::command]
+async fn forge_accounts() -> forge::Accounts {
+    tauri::async_runtime::spawn_blocking(forge::accounts)
+        .await
+        .unwrap_or(forge::Accounts {
+            bitbucket: None,
+            github: None,
+        })
+}
+
+#[tauri::command]
+async fn bitbucket_sign_in(email: String, token: String) -> Result<(), String> {
+    forge::sign_in(email.trim().to_string(), token.trim().to_string()).await
+}
+
+#[tauri::command]
+fn bitbucket_sign_out() -> Result<(), String> {
+    forge::sign_out()
+}
+
+#[tauri::command]
 fn subagent_log(session: String, task: String) -> Result<Option<String>, String> {
     let safe =
         |id: &str| !id.is_empty() && id.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-');
@@ -954,6 +1007,13 @@ pub fn run() {
             open_with,
             git_changes,
             git_patch,
+            pull_request,
+            pull_changes,
+            pull_remarks,
+            post_remarks,
+            forge_accounts,
+            bitbucket_sign_in,
+            bitbucket_sign_out,
             subagent_log,
             get_settings,
             set_settings,

@@ -6,6 +6,7 @@
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
+  import PullTag from './PullTag.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
   import { asking, count, LOOKS, summary } from './subagents'
@@ -135,6 +136,7 @@
     <span class="cost">{cost(agent.cost)}</span>
   </span>
   <span class="state">{label(agent)}</span>
+  <PullTag {agent} />
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
   {:else if agent.status === 'waiting'}

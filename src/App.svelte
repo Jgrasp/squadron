@@ -21,6 +21,7 @@
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate } from './lib/update.svelte'
+  import { lookUpAll } from './lib/pulls.svelte'
   import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
@@ -78,6 +79,8 @@
       setInterval(() => (rescan(), archiveIdle()), 15_000)
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)
+      lookUpAll()
+      setInterval(() => lookUpAll(), 3 * 60_000)
     })
 
   $effect(() => {

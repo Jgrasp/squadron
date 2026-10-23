@@ -17,6 +17,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import CommentChip from './CommentChip.svelte'
   import OptionsFields from './OptionsFields.svelte'
+  import { hostName, lookUp, pulls, stateLabel } from './pulls.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
@@ -83,6 +84,12 @@
       })
   })
 
+  const pull = $derived(pulls[workdir(agent)] ?? null)
+  $effect(() => {
+    void agent.turns
+    lookUp(workdir(agent))
+  })
+
   let comments = $state<Comment[]>([])
   let tuning = $state<Options | null>(null)
 
@@ -109,11 +116,12 @@
       (id) =>
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'branch' || branch) &&
+        (id !== 'pull' || pull) &&
         (id !== 'tasks' || agent.tasks.length) &&
         (id !== 'turns' || agent.turns),
     ),
   )
-  const CHIPS = ['remote', 'branch', 'subagents']
+  const CHIPS = ['remote', 'branch', 'pull', 'subagents']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
@@ -515,6 +523,19 @@
                 <Icon name="branch" size={15} /><span class="mono">{branch}</span>
                 {#if agent.worktree}<span class="tag">worktree</span>{/if}
               </span>
+            {:else if id === 'pull' && pull}
+              <button
+                class="chip pull"
+                title="{pull.title} · open it on {hostName(pull)}"
+                onclick={() => invoke('open_link', { url: pull.url })}
+              >
+                <Icon name="pull" size={15} /><span class="mono">#{pull.number}</span>
+                <span class="state {pull.draft && pull.state === 'open' ? 'draft' : pull.state}">{stateLabel(pull)}</span>
+                {#if pull.changes_requested}<span class="fact bad">Changes requested</span>
+                {:else if pull.approvals}<span class="fact good">{pull.approvals} approval{pull.approvals > 1 ? 's' : ''}</span>{/if}
+                {#if pull.checks}<span class="checks {pull.checks}" title="Builds {pull.checks}"></span>{/if}
+                {#if pull.comments}<span class="fact">{pull.comments} comment{pull.comments > 1 ? 's' : ''}</span>{/if}
+              </button>
             {:else}
               <button
                 class="chip subagents {running > 0 ? `effect-${settings.tab_effect}` : ''}"
@@ -1015,6 +1036,62 @@
 
   .chip.branch:hover {
     background: var(--menu);
+  }
+
+  .chip.pull {
+    gap: 8px;
+  }
+
+  .chip.pull .state {
+    padding: 2px 7px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .chip.pull .state.open {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+  }
+
+  .chip.pull .state.merged {
+    background: rgba(185, 163, 240, 0.16);
+    color: #cdbcf7;
+  }
+
+  .chip.pull :is(.state.declined, .state.closed) {
+    background: var(--err-bg);
+    color: var(--err-text);
+  }
+
+  .chip.pull .fact {
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .chip.pull .fact.good {
+    color: var(--ok-text);
+  }
+
+  .chip.pull .fact.bad {
+    color: var(--err-text);
+  }
+
+  .checks {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--text-faint);
+  }
+
+  .checks.passing {
+    background: var(--ok);
+  }
+
+  .checks.failing {
+    background: var(--err);
   }
 
   .chip.worktree,
