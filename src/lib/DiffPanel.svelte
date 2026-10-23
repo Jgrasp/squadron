@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { untrack } from 'svelte'
   import { parsePatch, structuredPatch } from 'diff'
-  import { changedFiles, type Changes, type Hunk, type Proposal } from './diff'
+  import { changedFiles, rows, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
   import ChangedFiles from './ChangedFiles.svelte'
   import { layout, setFileTree, setSplit } from './layout.svelte'
@@ -249,6 +249,32 @@
     commenting = null
   }
 
+  let listing = $state(false)
+  const draftsIn = (path: string) => review.filter((c) => c.path === path).length
+  const shownLines = $derived(
+    shown ? new Set(rows(shown.hunks).flatMap((r) => (r.kind === 'head' ? [] : r.kind === 'del' ? [`old:${r.old}`] : [`new:${r.new}`]))) : null,
+  )
+  const outside = $derived(
+    reviewing && selected && shown && shownLines
+      ? [...review, ...comments.filter(here)].filter((c) => c.path === selected.path && !shownLines.has(`${c.removed ? 'old' : 'new'}:${c.line}`))
+      : [],
+  )
+
+  $effect(() => {
+    if (reviewing && review.length && !untrack(() => file)) file = review[0].path
+  })
+
+  function goTo(c: Comment) {
+    file = c.path
+    target = c
+    listing = false
+  }
+
+  function drop(c: Comment) {
+    if (review.includes(c)) reviews[reviewKey] = review.filter((x) => x !== c)
+    else comments.splice(comments.indexOf(c), 1)
+  }
+
   let starting = $state(false)
 
   async function askAgent() {
@@ -353,7 +379,12 @@
     <div class="review-bar" class:idle={!review.length}>
       <span class="pulse" aria-hidden="true"></span>
       <span class="what">
-        {#if review.length}<strong>Review in progress</strong> · {review.length} comment{review.length > 1 ? 's' : ''}{:else}<strong>Your review</strong> · comment the lines, then finish{/if}
+        {#if review.length}
+          <strong>Review in progress</strong> ·
+          <button class="count-toggle" aria-expanded={listing} onclick={() => (listing = !listing)}
+            >{review.length} comment{review.length > 1 ? 's' : ''} <span aria-hidden="true">{listing ? '▴' : '▾'}</span></button
+          >
+        {:else}<strong>Your review</strong> · comment the lines, then finish{/if}
       </span>
       {#if postError && !commenting}<span class="bad" role="alert">{postError}</span>{/if}
       {#if reviewer}
@@ -373,6 +404,19 @@
       {#if review.length}<button class="btn btn-secondary" onclick={discard}>Discard</button>{/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>Finish review</button>
     </div>
+    {#if listing && review.length}
+      <ul class="drafts-list">
+        {#each review as c, i (i)}
+          <li>
+            <button class="go" onclick={() => goTo(c)}>
+              <span class="where">{c.path}:{c.line}{c.removed ? ' · removed line' : ''}</span>
+              <span class="note">{c.note}</span>
+            </button>
+            <button class="drop" aria-label="Delete the comment on {c.path} line {c.line}" title="Delete" onclick={() => drop(c)}>×</button>
+          </li>
+        {/each}
+      </ul>
+    {/if}
     {#if finishing}
       <div class="finish">
         <label for="review-summary" class="sr-only">Overall comment</label>
@@ -444,7 +488,7 @@
     <div class="columns">
     {#if layout.fileTree}
       <ChangedFiles
-        files={files.map((f) => ({ ...f, other: !f.edits && !reviewing, talks: reviewing ? talks(f.path) : 0 }))}
+        files={files.map((f) => ({ ...f, other: !f.edits && !reviewing, talks: reviewing ? talks(f.path) : 0, drafts: reviewing ? draftsIn(f.path) : 0 }))}
         selected={selected?.path}
         onpick={(path) => (file = path)}
       />
@@ -471,6 +515,18 @@
                   : `Not edited by ${agent?.name}`}</span
             >
           </div>
+          {#if outside.length}
+            <div class="outside">
+              <span class="outside-head">Your comments on lines the diff does not show</span>
+              {#each outside as c, i (i)}
+                <div class="outside-item">
+                  <span class="mono">{c.removed ? 'removed ' : ''}line {c.line}</span>
+                  <div class="outside-note"><Markdown text={c.note} /></div>
+                  <button class="drop" aria-label="Delete the comment on line {c.line}" title="Delete" onclick={() => drop(c)}>×</button>
+                </div>
+              {/each}
+            </div>
+          {/if}
           {#if error}
             <p class="empty">{error}</p>
           {:else if !shown}
@@ -736,6 +792,111 @@
     border-bottom: 1px solid var(--border);
     background: var(--wait-bg);
     font-size: 13px;
+  }
+
+  .count-toggle {
+    color: var(--accent-soft);
+    text-decoration: underline;
+    text-underline-offset: 3px;
+  }
+
+  .count-toggle:hover {
+    color: var(--text-strong);
+  }
+
+  .drafts-list {
+    flex: none;
+    max-height: 30vh;
+    overflow-y: auto;
+    margin: 0;
+    padding: 6px 10px;
+    list-style: none;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-1);
+  }
+
+  .drafts-list li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .drafts-list .go {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: baseline;
+    gap: 10px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    text-align: left;
+  }
+
+  .drafts-list .go:hover {
+    background: var(--surface-3);
+  }
+
+  .drafts-list .where {
+    flex: none;
+    font: 12px var(--mono);
+    color: var(--accent-soft);
+  }
+
+  .drafts-list .note {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+
+  .drop {
+    flex: none;
+    width: 26px;
+    height: 26px;
+    border-radius: 4px;
+    color: var(--text-dim);
+    font-size: 16px;
+  }
+
+  .drop:hover {
+    background: var(--err-bg);
+    color: var(--err-text);
+  }
+
+  .outside {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 10px 12px;
+    border-bottom: 1px solid var(--border);
+    background: var(--wait-bg);
+  }
+
+  .outside-head {
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent-soft);
+  }
+
+  .outside-item {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-size: 13px;
+  }
+
+  .outside-item .mono {
+    flex: none;
+    padding-top: 2px;
+    font: 12px var(--mono);
+    color: var(--text-dim);
+  }
+
+  .outside-note {
+    flex: 1;
+    min-width: 0;
   }
 
   .agent-link {

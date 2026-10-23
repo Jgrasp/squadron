@@ -84,7 +84,7 @@ struct SetWorktree {
 struct ReviewComment {
     /// The file, relative to the repository root, as the diff shows it.
     path: String,
-    /// The line in the new version of the file, or in the old version when removed is true.
+    /// A line the diff shows, changed or in its context: its number in the new version of the file, or in the old version when removed is true.
     line: u32,
     /// True when the comment is about a line the pull request removes.
     removed: Option<bool>,

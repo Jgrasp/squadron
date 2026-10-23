@@ -102,7 +102,7 @@ export async function reviewWithAgent(project: string, pull: Pull) {
   const prompt = [
     `Review pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
     `This folder is a checkout of the pull request branch: git diff origin/${pull.base}...HEAD shows what it changes. Read the code around the changes too.`,
-    'Do not change any file. For each problem worth raising, call add_review_comment with the file, the line in the new version (or the removed line with removed: true) and a short comment: what is wrong and what to do. Leave out style nitpicks.',
+    'Do not change any file. For each problem worth raising, call add_review_comment with the file, a line the diff shows (changed or within its context: the line in the new version, or the removed line with removed: true) and a short comment: what is wrong and what to do. Leave out style nitpicks.',
     'End with a short summary of the pull request and of your main concerns.',
   ].join('\n\n')
   const id = await create(project, `Review #${pull.number}`, { ...settings.defaults }, prompt, { dir })

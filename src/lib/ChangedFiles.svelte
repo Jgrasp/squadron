@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type TreeFile = { path: string; add: number; del: number; other?: boolean; talks?: number }
+  export type TreeFile = { path: string; add: number; del: number; other?: boolean; talks?: number; drafts?: number }
 
   type Node = { name: string; path: string; dirs: Node[]; files: TreeFile[] }
 
@@ -60,6 +60,11 @@
   {#each node.files as file (file.path)}
     <button class="file" class:other={file.other} style:--depth={depth} aria-current={file.path === selected ? 'true' : undefined} title={file.path} onclick={() => onpick(file.path)}>
       <span class="name">{file.path.split('/').pop()}</span>
+      {#if file.drafts}
+        <span class="drafts" title="{file.drafts} comment{file.drafts > 1 ? 's' : ''} in your review"
+          ><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>{file.drafts}</span
+        >
+      {/if}
       {#if file.talks}<span class="talks">{file.talks}</span>{/if}
       <span class="add">+{file.add}</span>{#if file.del}<span class="del">−{file.del}</span>{/if}
     </button>
@@ -157,6 +162,22 @@
 
   .del {
     color: var(--err);
+  }
+
+  .drafts {
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    height: 16px;
+    padding: 0 5px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 10.5px/16px var(--sans);
+  }
+
+  .drafts svg {
+    fill: currentColor;
   }
 
   .talks {
