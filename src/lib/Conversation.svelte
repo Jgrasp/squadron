@@ -35,6 +35,19 @@
 
   const reviewing = new SvelteSet<number>()
 
+  let menu = $state<{ index: number; text: string; x: number; y: number } | null>(null)
+
+  function openMenu(event: MouseEvent, index: number, text: string) {
+    event.preventDefault()
+    menu = { index, text, x: event.clientX, y: event.clientY }
+  }
+
+  function copy() {
+    const selected = window.getSelection()?.toString()
+    navigator.clipboard.writeText(selected || menu?.text || '')
+    menu = null
+  }
+
   const names = $derived(namesOf(agent))
 
   const kinds: [string[], string, string][] = [
@@ -112,16 +125,11 @@
 
 {#each agent.entries as entry, i (i)}
   {#if entry.kind === 'user'}
-    <div class="user" data-user={i}>
+    <div class="user" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
       {#if entry.comments}
         <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
       {/if}
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
-      {#if onfork && entry.text && forkPoint(agent, i)}
-        <button class="fork" aria-label="Fork from here" title="Fork from here: a new agent with the conversation before this message, and this message ready to edit" onclick={() => onfork(i)}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="6" cy="5" r="2" /><circle cx="18" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><path d="M6 7v10M18 7c0 6-12 4-12 10" /></svg>
-        </button>
-      {/if}
     </div>
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>Sent via remote control · {time(entry.at)}</span>{/if}
   {:else if entry.kind === 'agent'}
@@ -281,7 +289,45 @@
   </span>
 {/if}
 
+<svelte:window onclick={() => (menu = null)} onkeydown={(e) => e.key === 'Escape' && (menu = null)} />
+
+{#if menu}
+  {@const index = menu.index}
+  <div class="menu" role="menu" aria-label="Message actions" style:left="{menu.x}px" style:top="{menu.y}px">
+    {#if onfork && forkPoint(agent, index)}
+      <button role="menuitem" onclick={() => (onfork(index), (menu = null))}>Fork from here</button>
+    {/if}
+    <button role="menuitem" onclick={copy}>Copy</button>
+  </div>
+{/if}
+
 <style>
+  .menu {
+    position: fixed;
+    z-index: 20;
+    min-width: 180px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .menu button {
+    height: 32px;
+    padding: 0 10px;
+    border-radius: 4px;
+    text-align: left;
+  }
+
+  .menu button:hover {
+    background: var(--menu-hover);
+  }
+
   .user {
     align-self: flex-end;
     max-width: 540px;
@@ -293,48 +339,6 @@
     overflow-wrap: anywhere;
   }
 
-  .user {
-    position: relative;
-  }
-
-  .fork {
-    position: absolute;
-    right: 100%;
-    bottom: 0;
-    display: grid;
-    place-items: center;
-    width: 30px;
-    height: 30px;
-    margin-right: 8px;
-    border-radius: 50%;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    color: var(--text-muted);
-    opacity: 0;
-    transition: opacity 0.12s;
-  }
-
-  .fork::before {
-    content: '';
-    position: absolute;
-    inset: 0 -8px 0 0;
-  }
-
-  .fork svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-  }
-
-  .user:hover .fork,
-  .fork:focus-visible {
-    opacity: 1;
-  }
-
-  .fork:hover {
-    background: var(--surface-5);
-    color: var(--text-strong);
-  }
 
   .via {
     align-self: flex-end;
