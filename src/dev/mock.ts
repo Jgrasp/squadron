@@ -424,7 +424,7 @@ mockIPC(
           { id: 3, author: 'Amandine T.', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
         ]
       case 'post_remarks':
-        return
+        return { done: (args as { drafts: unknown[] }).drafts.length, error: null }
       case 'git_changes':
         if (a.project.includes('nova')) throw 'not a git repository'
         return {

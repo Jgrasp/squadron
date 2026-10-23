@@ -92,6 +92,28 @@
   })
 
   let comments = $state<Comment[]>([])
+  let posting = $state(false)
+  let postError = $state('')
+  const postable = $derived(pull ? comments.filter((c) => c.pull === pull.number) : [])
+
+  async function postToPull() {
+    if (!pull || !postable.length) return
+    const sending = [...postable]
+    posting = true
+    postError = ''
+    try {
+      const drafts = sending.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
+      const { done, error } = await invoke<{ done: number; error: string | null }>('post_remarks', { dir: workdir(agent), number: pull.number, head: pull.head, drafts })
+      comments = comments.filter((c) => !sending.slice(0, done).includes(c))
+      if (error) postError = done ? `${done} posted, then: ${error}` : error
+      lookUp(workdir(agent), true)
+    } catch (e) {
+      postError = String(e)
+    } finally {
+      posting = false
+    }
+  }
+
   let tuning = $state<Options | null>(null)
 
   $effect(() => {
@@ -621,6 +643,12 @@
               onremove={() => comments.splice(i, 1)}
             />
           {/each}
+          {#if pull && postable.length}
+            <button type="button" class="post" disabled={posting} title="Post {postable.length > 1 ? 'these comments' : 'this comment'} on the pull request instead of sending {postable.length > 1 ? 'them' : 'it'} to {agent.name}" onclick={postToPull}>
+              <Icon name="pull" size={13} />{posting ? 'Posting…' : `Post ${postable.length} on PR #${pull.number}`}
+            </button>
+          {/if}
+          {#if postError}<span class="post-error" role="alert">{postError}</span>{/if}
         </div>
       {/if}
       {#if suggestions.length || guide}
@@ -1512,7 +1540,32 @@
     margin: 0 auto 8px;
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
+  }
+
+  .post {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--ok-bg);
+    box-shadow: inset 0 0 0 1px var(--ok-line);
+    color: var(--ok-text);
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .post:hover:not(:disabled) {
+    background: #24403b;
+  }
+
+  .post-error {
+    flex-basis: 100%;
+    font-size: 12.5px;
+    color: var(--err-text);
   }
 
   .bar {

@@ -90,6 +90,12 @@ pub struct Draft {
 }
 
 #[derive(Serialize)]
+pub struct Posted {
+    pub done: usize,
+    pub error: Option<String>,
+}
+
+#[derive(Serialize)]
 pub struct Accounts {
     pub bitbucket: Option<String>,
     pub github: Option<String>,
@@ -461,22 +467,37 @@ fn github_remark(found: &Value) -> Remark {
     }
 }
 
-pub async fn post(dir: &Path, number: u64, head: String, drafts: Vec<Draft>) -> Result<(), String> {
+pub async fn post(
+    dir: &Path,
+    number: u64,
+    head: String,
+    drafts: Vec<Draft>,
+) -> Result<Posted, String> {
     let repo = repo_of(dir)?;
     match repo.host {
         Host::Bitbucket => {
-            for draft in drafts {
+            let total = drafts.len();
+            for (done, draft) in drafts.into_iter().enumerate() {
                 let mut inline = json!({ "path": draft.path });
                 inline[if draft.removed { "from" } else { "to" }] = json!(draft.line);
-                bitbucket(
+                let sent = bitbucket(
                     Method::POST,
                     &format!("/repositories/{}/pullrequests/{number}/comments", repo.slug),
                     &[],
                     Some(json!({ "content": { "raw": draft.body }, "inline": inline })),
                 )
-                .await?;
+                .await;
+                if let Err(error) = sent {
+                    return Ok(Posted {
+                        done,
+                        error: Some(error),
+                    });
+                }
             }
-            Ok(())
+            Ok(Posted {
+                done: total,
+                error: None,
+            })
         }
         Host::GitHub => blocking(move || {
             let comments: Vec<Value> = drafts
@@ -484,11 +505,14 @@ pub async fn post(dir: &Path, number: u64, head: String, drafts: Vec<Draft>) -> 
                 .map(|d| json!({ "path": d.path, "line": d.line, "side": if d.removed { "LEFT" } else { "RIGHT" }, "body": d.body }))
                 .collect();
             let review = json!({ "commit_id": head, "event": "COMMENT", "comments": comments });
-            gh(
+            let sent = gh(
                 &["api", "-X", "POST", &format!("repos/{}/pulls/{number}/reviews", repo.slug), "--input", "-"],
                 Some(&review.to_string()),
-            )
-            .map(|_| ())
+            );
+            Ok(Posted {
+                done: if sent.is_ok() { drafts.len() } else { 0 },
+                error: sent.err(),
+            })
         })
         .await,
     }

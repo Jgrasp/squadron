@@ -547,7 +547,7 @@ async fn post_remarks(
     number: u64,
     head: String,
     drafts: Vec<forge::Draft>,
-) -> Result<(), String> {
+) -> Result<forge::Posted, String> {
     forge::post(&dir, number, head, drafts).await
 }
 
