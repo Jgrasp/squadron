@@ -1,8 +1,8 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core'
   import { emitTo, listen } from '@tauri-apps/api/event'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { getCurrentWindow } from '@tauri-apps/api/window'
-  import { openUrl } from '@tauri-apps/plugin-opener'
   import AddProject from './lib/AddProject.svelte'
   import EmptyProjects from './lib/EmptyProjects.svelte'
   import Header from './lib/Header.svelte'
@@ -102,7 +102,7 @@
     const href = link?.getAttribute('href')
     if (!href || href.startsWith('#')) return
     event.preventDefault()
-    if (/^https?:\/\//.test(href)) openUrl(href)
+    if (/^https?:\/\//.test(href)) invoke('open_link', { url: href })
   }
 
   const SCOPED = ['newAgent', 'interrupt', 'editor', 'terminal', 'diff', 'sidebar']

@@ -826,6 +826,35 @@ fn git_branch(path: PathBuf) -> Result<Option<String>, String> {
 }
 
 #[tauri::command]
+fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
+    if !url.starts_with("https://") && !url.starts_with("http://") {
+        return Err("Only web links open from here.".into());
+    }
+    #[cfg(target_os = "linux")]
+    {
+        let parent = window.clone();
+        window
+            .run_on_main_thread(move || {
+                let shown = parent
+                    .gtk_window()
+                    .map_err(|e| e.to_string())
+                    .and_then(|w| {
+                        gtk::show_uri_on_window(Some(&w), &url, 0).map_err(|e| e.to_string())
+                    });
+                if let Err(e) = shown {
+                    log::error!("{url} did not open: {e}");
+                }
+            })
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = window;
+        tauri_plugin_opener::open_url(url, None::<&str>).map_err(|e| e.to_string())
+    }
+}
+
+#[tauri::command]
 fn stop_turn(agents: State<Agents>, id: String) -> Result<(), String> {
     agents.stop_turn(&id)
 }
@@ -864,6 +893,7 @@ pub fn run() {
         .invoke_handler(tauri::generate_handler![
             system_load,
             stop_turn,
+            open_link,
             git_branch,
             set_workdir,
             agent_ids,

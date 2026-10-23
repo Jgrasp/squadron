@@ -262,6 +262,9 @@ mockIPC(
         emit('agent-exit', { id: a.id, stderr: '' })
         return
       }
+      case 'open_link':
+        window.open(a.url, '_blank')
+        return
       case 'set_workdir':
         return
       case 'git_branch':

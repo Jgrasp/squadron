@@ -1,7 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
-  import { openUrl } from '@tauri-apps/plugin-opener'
   import { archive, clock, drafts, fork, interrupt, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
@@ -489,7 +488,7 @@
                       <button
                         role="menuitem"
                         disabled={!agent.remote.url}
-                        onclick={() => (agent.remote?.url && openUrl(agent.remote.url), (remoteOpen = false))}
+                        onclick={() => (agent.remote?.url && invoke('open_link', { url: agent.remote.url }), (remoteOpen = false))}
                       >
                         Open in claude.ai
                       </button>

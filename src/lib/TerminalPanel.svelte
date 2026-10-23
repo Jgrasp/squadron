@@ -1,6 +1,5 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { openUrl } from '@tauri-apps/plugin-opener'
   import { FitAddon } from '@xterm/addon-fit'
   import { Terminal } from '@xterm/xterm'
   import '@xterm/xterm/css/xterm.css'
@@ -65,7 +64,7 @@
         lineHeight: 1.3,
         cursorBlink: true,
         theme: THEME,
-        linkHandler: { activate: (_, uri) => /^https?:\/\//.test(uri) && openUrl(uri) },
+        linkHandler: { activate: (_, url) => /^https?:\/\//.test(url) && invoke('open_link', { url }) },
       })
       fit = new FitAddon()
       created.loadAddon(fit)
