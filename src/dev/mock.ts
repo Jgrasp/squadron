@@ -468,6 +468,7 @@ mockIPC(
             now: 'b'.repeat(40),
             files: [
               { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 6, del: 2 },
+              ...['Export', 'Import', 'Pricing', 'Stock', 'Channel', 'Customer', 'Order'].map((name) => ({ path: `src/${name}/${name}Service.php`, status: 'M', add: 6, del: 2 })),
               { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
             ],
           },
