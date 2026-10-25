@@ -17,7 +17,7 @@
   <span class="triangle" aria-hidden="true"></span>
   <span>
     <strong>Squadron</strong>
-    <small>Version {version || '…'} · {navigator.platform.toLowerCase().includes('linux') ? 'Linux' : navigator.platform}</small>
+    <small>Version {version || '…'} · {navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux'}</small>
   </span>
 </div>
 <p>Squadron runs several Claude Code agents per project, shows their conversations side by side and tells you when one of them needs you.</p>

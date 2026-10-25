@@ -111,7 +111,7 @@
         <div class="menu" role="menu" aria-label="Squadron menu">
           <div class="about">
             <span class="triangle big" aria-hidden="true"></span>
-            <span><strong>Squadron</strong><small>Version {version} · Linux</small></span>
+            <span><strong>Squadron</strong><small>Version {version} · {navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux'}</small></span>
           </div>
           {#each shown('menu.squadron') as id (id)}
             <button
