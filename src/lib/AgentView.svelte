@@ -515,7 +515,7 @@
           {/if}
         </span>
       </div>
-      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={{ enabled: ui.customizing, onplace: (id, index) => place('agent.tools', id, index) }}>
+      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={{ enabled: true, onplace: (id, index) => place('agent.tools', id, index, ui.customizing ? all('agent.tools') : shown('agent.tools')) }}>
     {#snippet editorTool()}
       <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
         <Icon name="editor" />
@@ -564,10 +564,16 @@
         {/each}
       </div>
       {#if chips.length}
-        <div class="context" role="group" aria-label="Session context" style:--project={projects.list.find((p) => p.path === agent.project)?.color}>
+        <div
+          class="context"
+          role="group"
+          aria-label="Session context"
+          style:--project={projects.list.find((p) => p.path === agent.project)?.color}
+          use:sortable={{ enabled: chips.length > 1, onplace: (id, index) => place('agent.info', id, index, chips) }}
+        >
           {#each chips as id (id)}
             {#if id === 'remote'}
-              <span class="anchor" data-remote-menu>
+              <span class="anchor" data-remote-menu data-item={id}>
                 <button
                   class="chip {agent.remote ? `on effect-${settings.tab_effect}` : ''}"
                   aria-haspopup="menu"
@@ -581,7 +587,7 @@
                   <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {#if remoteOpen}
-                  <div class="remote-menu" class:short={!agent.remote} role="menu" aria-label="Remote control">
+                  <div class="remote-menu" class:short={!agent.remote} role="menu" aria-label="Remote control" data-keep>
                     {#if agent.remote}
                       <span class="about">
                         <strong>Remote control on</strong>
@@ -617,6 +623,7 @@
             {:else if id === 'branch'}
               <span
                 class="chip branch"
+                data-item={id}
                 class:worktree={!!agent.worktree}
                 title={agent.worktree ? `Works in the worktree ${agent.worktree.path}` : 'Branch of the project checkout'}
               >
@@ -627,6 +634,7 @@
               {@const drafts = reviews[`${agent.review.project}#${agent.review.number}`]?.length ?? 0}
               <button
                 class="chip pull"
+                data-item={id}
                 title="Open the review of pull request #{agent.review.number}, where {agent.name} drops its remarks"
                 onclick={() => agent.review && openReview(agent.review.project, agent.review.number)}
               >
@@ -636,6 +644,7 @@
             {:else if id === 'pull' && pull}
               <button
                 class="chip pull"
+                data-item={id}
                 aria-pressed={panel === 'diff' && diffSource === 'pull'}
                 title="{pull.title} · review it in the Diff panel"
                 onclick={() => ((diffSource = 'pull'), setPanel(agent.project, 'diff'))}
@@ -656,6 +665,7 @@
                 title="{running ? `${running} working · ` : ''}{tokens(agent.subagents.reduce((t, s) => t + s.tokens, 0))} tokens in subagents · {panel === 'subagents'
                   ? 'close'
                   : 'open'} the panel"
+                data-item={id}
                 onclick={() => toggle('subagents')}
               >
                 <Icon name="subagents" size={16} />{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}<span class="go" aria-hidden="true">›</span>
@@ -903,7 +913,8 @@
     pointer-events: none;
   }
 
-  .customizing .item:global(.dragging) {
+  .tools .item:global(.dragging),
+  .context > :global(.dragging) {
     z-index: 2;
     cursor: grabbing;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
