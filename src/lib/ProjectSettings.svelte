@@ -4,10 +4,16 @@
   import { shelve, unshelve } from './agents.svelte'
   import ColorPick from './ColorPick.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
+  import { saveSettings, settings, type TabOrder } from './settings.svelte'
 
 
   let error = $state('')
   const list = $derived(ordered())
+  const ORDERS: [TabOrder, string, string][] = [
+    ['manual', 'By hand', 'The order you set with the arrows below'],
+    ['name', 'Name', 'Alphabetical order'],
+    ['activity', 'Last activity', 'The project whose agents moved last comes first'],
+  ]
   const movable = (index: number, by: number) => list[index + by]?.pinned === list[index].pinned
 
   async function act(work: () => Promise<unknown>) {
@@ -36,13 +42,24 @@
   <p class="intro">Pinned projects always keep their tab, first in the bar. The others follow this order and move to the + menu when the bar is full.</p>
   <button class="btn btn-primary" onclick={() => (ui.adding = '')}>+ Add a project</button>
 </div>
+<span class="label">Tab order</span>
+<div class="orders" role="group" aria-label="Tab order">
+  {#each ORDERS as [id, title, detail] (id)}
+    <button aria-pressed={settings.tab_order === id} onclick={() => act(() => saveSettings({ ...$state.snapshot(settings), tab_order: id }))}>
+      <strong>{title}</strong>
+      <span class="hint">{detail}</span>
+    </button>
+  {/each}
+</div>
 <ul class="projects">
   {#each list as project, i (project.path)}
     <li style:--project={project.color}>
-      <span class="order">
-        <button aria-label="Move {project.name} up" disabled={!movable(i, -1)} onclick={() => shift(i, -1)}>↑</button>
-        <button aria-label="Move {project.name} down" disabled={!movable(i, 1)} onclick={() => shift(i, 1)}>↓</button>
-      </span>
+      {#if settings.tab_order === 'manual'}
+        <span class="order">
+          <button aria-label="Move {project.name} up" disabled={!movable(i, -1)} onclick={() => shift(i, -1)}>↑</button>
+          <button aria-label="Move {project.name} down" disabled={!movable(i, 1)} onclick={() => shift(i, 1)}>↓</button>
+        </span>
+      {/if}
       <span class="main">
         <span class="line">
           <span class="square" aria-hidden="true"></span>
@@ -104,6 +121,45 @@
     margin: 0;
     color: var(--text-muted);
     line-height: 1.5;
+  }
+
+  .label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .orders {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .orders button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 14px;
+    border-radius: 4px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    text-align: left;
+  }
+
+  .orders button[aria-pressed='true'] {
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 2px var(--text);
+  }
+
+  .orders strong {
+    font-weight: 600;
+  }
+
+  .orders .hint {
+    font-size: 12.5px;
+    color: var(--text-dim);
   }
 
   .projects {
