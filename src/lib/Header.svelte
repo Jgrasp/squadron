@@ -7,9 +7,9 @@
   import { checkNow } from './update.svelte'
   import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
-  import { detailOf, labelOf, shown } from './layout-slots.svelte'
-  import { hint, settings } from './settings.svelte'
-  import { editProject, ordered, projects } from './projects.svelte'
+  import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
+  import { hint, saveSettings, settings } from './settings.svelte'
+  import { editProject, ordered, orderProjects, projects } from './projects.svelte'
 
   let { onadd }: { onadd: () => void } = $props()
 
@@ -50,6 +50,17 @@
   const found = $derived(
     hidden.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase())),
   )
+
+  let dropped = $state(false)
+
+  function drop(path: string, index: number) {
+    const order = visible.map((p) => p.path).filter((p) => p !== path)
+    order.splice(index, 0, path)
+    dropped = true
+    requestAnimationFrame(() => (dropped = false))
+    if (settings.tab_order !== 'manual') saveSettings({ ...$state.snapshot(settings), tab_order: 'manual' })
+    orderProjects([...order, ...tabs.map((p) => p.path).filter((p) => !order.includes(p))])
+  }
 
   function choose(path: string) {
     projects.overview = false
@@ -120,7 +131,7 @@
     </div>
   </div>
 
-  <nav aria-label="Projects">
+  <nav aria-label="Projects" use:sortable={{ enabled: visible.length > 1, onplace: drop }}>
     <button
       class="tab overview"
       aria-current={projects.overview ? 'page' : undefined}
@@ -136,7 +147,8 @@
     <span class="divider" aria-hidden="true"></span>
     {#each visible as project (project.path)}
       <button
-        animate:flip={{ duration: 260 }}
+        animate:flip={{ duration: dropped ? 0 : 260 }}
+        data-item={project.path}
         class="tab {ofProject(project.path).some((a) => a.status === 'working') ? `effect-${settings.tab_effect}` : ''}"
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         style:--project={project.color}
@@ -472,6 +484,11 @@
     border-radius: 4px;
     color: var(--text-muted);
     white-space: nowrap;
+  }
+
+  .tab:global(.dragging) {
+    z-index: 2;
+    cursor: grabbing;
   }
 
   .tab:hover {

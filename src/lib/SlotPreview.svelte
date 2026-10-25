@@ -19,7 +19,7 @@
   }
 </script>
 
-<div class="preview" class:bar class:menu={!bar} role="list" aria-label={SLOTS[slot].title} bind:this={box} use:sortable={{ slot, enabled: true }}>
+<div class="preview" class:bar class:menu={!bar} role="list" aria-label={SLOTS[slot].title} bind:this={box} use:sortable={{ enabled: true, onplace: (id, index) => place(slot, id, index) }}>
   {#each all(slot) as id, i (id)}
     {@const off = hidden(slot, id)}
     {@const locked = SLOTS[slot].locked?.includes(id)}

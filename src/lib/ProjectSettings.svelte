@@ -10,7 +10,7 @@
   let error = $state('')
   const list = $derived(ordered())
   const ORDERS: [TabOrder, string, string][] = [
-    ['manual', 'By hand', 'The order you set with the arrows below'],
+    ['manual', 'By hand', 'The order you set by dragging the tabs, or with the arrows below'],
     ['name', 'Name', 'Alphabetical order'],
     ['activity', 'Last activity', 'The project whose agents moved last comes first'],
   ]

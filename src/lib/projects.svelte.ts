@@ -55,6 +55,8 @@ export async function editProject(path: string, changes: { name?: string; color?
 }
 
 export async function orderProjects(paths: string[]) {
+  const rank = (p: Project) => (paths.includes(p.path) ? paths.indexOf(p.path) : paths.length)
+  projects.list = [...projects.list].sort((a, b) => rank(a) - rank(b))
   set(await invoke<Project[]>('order_projects', { paths }))
 }
 

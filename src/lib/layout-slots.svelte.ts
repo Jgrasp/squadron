@@ -57,7 +57,9 @@ export function reset(slot?: Slot) {
 
 export const detailOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)?.[2] ?? ''
 
-export function sortable(node: HTMLElement, options: { slot: Slot; enabled: boolean }) {
+type Sortable = { enabled: boolean; onplace: (id: string, index: number) => void }
+
+export function sortable(node: HTMLElement, options: Sortable) {
   let opts = options
   function down(event: PointerEvent) {
     const target = event.target as HTMLElement
@@ -97,7 +99,7 @@ export function sortable(node: HTMLElement, options: { slot: Slot; enabled: bool
         el.style.transition = 'none'
         el.style.transform = ''
       }
-      if (to !== from) place(opts.slot, item.dataset.item!, to)
+      if (to !== from) opts.onplace(item.dataset.item!, to)
       requestAnimationFrame(() => items.forEach((el) => (el.style.transition = '')))
     }
     item.addEventListener('pointermove', move)
@@ -106,7 +108,7 @@ export function sortable(node: HTMLElement, options: { slot: Slot; enabled: bool
   }
   node.addEventListener('pointerdown', down)
   return {
-    update: (next: { slot: Slot; enabled: boolean }) => (opts = next),
+    update: (next: Sortable) => (opts = next),
     destroy: () => node.removeEventListener('pointerdown', down),
   }
 }

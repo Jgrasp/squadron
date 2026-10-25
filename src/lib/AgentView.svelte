@@ -10,7 +10,7 @@
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
-  import { all, detailOf, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
+  import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
   import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
@@ -515,7 +515,7 @@
           {/if}
         </span>
       </div>
-      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={{ slot: 'agent.tools', enabled: ui.customizing }}>
+      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={{ enabled: ui.customizing, onplace: (id, index) => place('agent.tools', id, index) }}>
     {#snippet editorTool()}
       <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
         <Icon name="editor" />
