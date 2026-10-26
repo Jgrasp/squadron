@@ -92,7 +92,7 @@
   <svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
 {/snippet}
 
-<header data-tauri-drag-region bind:clientWidth={headerWidth}>
+<header data-tauri-drag-region bind:clientWidth={headerWidth} class:build-dev={import.meta.env.DEV}>
   <div class="start" data-tauri-drag-region>
     <div class="anchor" data-menu>
       <button
@@ -476,11 +476,19 @@
     background: var(--bg-tabs);
   }
 
+  .build-dev {
+    --dev: #5db5e7;
+  }
+
+  .build-dev .triangle {
+    background: var(--dev);
+  }
+
   .dev {
     padding: 1px 6px;
     border-radius: 4px;
-    background: var(--accent);
-    color: var(--accent-ink);
+    background: var(--dev);
+    color: #0d1b24;
     font: 700 10.5px/16px var(--mono);
     text-transform: uppercase;
   }
