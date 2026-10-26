@@ -216,7 +216,7 @@ export default {
   effortLow: 'Faible',
   effortMedium: 'Moyen',
   effortHigh: 'Élevé',
-  effortXhigh: 'Très élevé',
+  effortXhigh: 'Extra',
   effortMax: 'Max',
   permissionMode: 'Mode d’autorisation',
   modeDefault: 'Tout demander',

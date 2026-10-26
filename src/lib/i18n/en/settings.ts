@@ -214,7 +214,7 @@ export default {
   effortLow: 'Low',
   effortMedium: 'Medium',
   effortHigh: 'High',
-  effortXhigh: 'Extra high',
+  effortXhigh: 'Extra',
   effortMax: 'Max',
   permissionMode: 'Permission mode',
   modeDefault: 'Ask for everything',
