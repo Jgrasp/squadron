@@ -360,6 +360,11 @@ fn remote_control(
 }
 
 #[tauri::command]
+fn context_usage(agents: State<Agents>, id: String) -> Result<(), String> {
+    agents.context_usage(&id)
+}
+
+#[tauri::command]
 fn set_agent_options(
     agents: State<Agents>,
     id: String,
@@ -1247,6 +1252,7 @@ pub fn run() {
             pilot_reply,
             set_agent_options,
             remote_control,
+            context_usage,
             cancel_permissions,
             read_project_file,
             write_project_file,

@@ -8,6 +8,7 @@
   import { ago, effortLabel, modeLabel, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
+  import ContextGauge from './ContextGauge.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
@@ -540,7 +541,7 @@
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
               {:else if id === 'context'}
-                <span class="mono">{t('agent.contextTokens', { tokens: tokens(agent.tokens) })}</span>
+                <ContextGauge {agent} />
               {:else if id === 'turns'}
                 <span class="mono">{t('agent.turns', { count: agent.turns })}</span>
               {:else if id === 'tasks'}

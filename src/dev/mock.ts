@@ -565,6 +565,12 @@ mockIPC(
       }
       case 'set_agent_options':
         return
+      case 'context_usage':
+        setTimeout(() => {
+          const response = { totalTokens: Number(localStorage.getItem('context-demo') ?? 65_000), maxTokens: 1_000_000, autoCompactThreshold: 967_000, isAutoCompactEnabled: true }
+          emit('agent-line', { id: a.id, line: JSON.stringify({ type: 'control_response', response: { subtype: 'success', response } }) })
+        }, 50)
+        return
       case 'remote_control':
         if ((args as { enabled: boolean }).enabled)
           for (const line of [

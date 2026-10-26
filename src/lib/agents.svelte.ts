@@ -11,6 +11,8 @@ import { t } from './i18n/index.svelte'
 import {
   apply,
   argument,
+  commandEcho,
+  commandOutput,
   subagentOf,
   INTERNAL,
   READ_ONLY,
@@ -149,7 +151,8 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
     invoke('send_message', { id: agent.id, text: '/goal clear' })
   }
   if (d.subtype === 'init' && agent.worktree && !agent.worktree.branch) branchOf(agent)
-  if (d.type === 'result' || d.subtype === 'init') persist(agent)
+  if (d.type === 'result' || d.subtype === 'init' || d.subtype === 'compact_boundary') invoke('context_usage', { id: agent.id }).catch(() => {})
+  if (d.type === 'result' || d.subtype === 'init' || d.response?.response?.maxTokens) persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
 })
@@ -238,7 +241,11 @@ async function adopt(data: Agent) {
   }
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
-  agent.entries = agent.entries.map((e) => (e.kind === 'user' && notice(e.text) !== undefined ? { kind: 'note', at: e.at, command: 'notice', text: notice(e.text)! } : e))
+  agent.entries = agent.entries.flatMap((e): Entry[] => {
+    if (e.kind !== 'user') return [e]
+    const text = commandEcho(e.text) ? commandOutput(e.text) : notice(e.text)
+    return text === undefined ? [e] : text ? [{ kind: 'note', at: e.at, command: 'notice', text }] : []
+  })
   agents.list.push(agent)
   await invoke('restore_agent', {
     id: agent.id,
