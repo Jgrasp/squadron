@@ -90,6 +90,7 @@ export default {
   actionInterrupt: 'Interrompre l’agent',
   actionBack: 'Revenir à la vue précédente',
   actionForward: 'Aller à la vue suivante',
+  actionSearch: 'Rechercher un agent ou une conversation',
   actionQuit: 'Quitter Squadron',
   keyShift: 'Maj',
   keyEscape: 'Échap',

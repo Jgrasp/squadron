@@ -1632,6 +1632,7 @@
   }
 
   .settings .model {
+    white-space: nowrap;
     padding: 1px 7px;
     border-radius: 4px;
     background: var(--surface-3);

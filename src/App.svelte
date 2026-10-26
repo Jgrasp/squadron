@@ -8,6 +8,7 @@
   import Header from './lib/Header.svelte'
   import ProjectView from './lib/ProjectView.svelte'
   import Settings from './lib/SettingsDialog.svelte'
+  import Spotlight from './lib/Spotlight.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, create, find, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
@@ -161,6 +162,10 @@
 
 {#if ui.adding !== null}
   <AddProject path={ui.adding} onclose={() => (ui.adding = null)} />
+{/if}
+
+{#if ui.searching}
+  <Spotlight onclose={() => (ui.searching = false)} />
 {/if}
 
 <style>
