@@ -55,6 +55,12 @@ describe('worktree', () => {
     replay(agent, lines.slice(1).join('\n'))
     expect(agent.worktree).toBeNull()
   })
+
+  it('ignores a session resumed in a folder the agent only went into with cd', () => {
+    const agent = fresh()
+    apply(agent, { type: 'system', subtype: 'init', session_id: 's', cwd: '/project/.worktrees/T7C' })
+    expect(agent.worktree).toBeNull()
+  })
 })
 
 describe('goal', () => {
