@@ -15,7 +15,8 @@
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { saveSettings, settings, type App, type TabEffect } from './settings.svelte'
+  import { saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
+  import { chime } from './chime'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
   type Tab = SettingsTab
@@ -66,6 +67,12 @@
   let defaults = $state({ ...settings.defaults })
   let claude = $state(settings.claude)
   let effect = $state<TabEffect>(settings.tab_effect)
+  let ring = $state<TabRing>(settings.tab_ring)
+  const RINGS: [TabRing, string, string][] = [
+    ['off', 'Still', 'Only the count on the tab'],
+    ['shake', 'Shake', 'The tab rings like a phone, a short shake every 2.4 s'],
+    ['sound', 'Shake and chime', 'A short chime too, each time an agent starts waiting'],
+  ]
   let pilot = $state(settings.pilot)
   let pilotAll = $state(settings.pilot_all)
   let archiveAfter = $state(settings.archive_after_days)
@@ -125,7 +132,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -260,6 +267,18 @@
           <button aria-pressed={effect === id} onclick={() => (effect = id)}>
             <span class="sample effect-{id}">
               <span class="dot" aria-hidden="true"></span>Orbit
+            </span>
+            <strong>{title}</strong>
+            <span class="hint">{hint}</span>
+          </button>
+        {/each}
+      </div>
+      <span class="label">When an agent waits for you</span>
+      <div class="effects three" role="group" aria-label="When an agent waits for you">
+        {#each RINGS as [id, title, hint] (id)}
+          <button aria-pressed={ring === id} onclick={() => ((ring = id), id === 'sound' && chime())}>
+            <span class="sample" class:ring={id !== 'off'}>
+              <span class="dot" aria-hidden="true"></span>Orbit<span class="badge">1</span>
             </span>
             <strong>{title}</strong>
             <span class="hint">{hint}</span>
@@ -693,6 +712,20 @@
     height: 9px;
     border-radius: 2px;
     background: var(--accent);
+  }
+
+  .sample .badge {
+    height: 20px;
+    min-width: 20px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 11.5px;
+    font-weight: 700;
   }
 
   footer {

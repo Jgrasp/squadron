@@ -4,6 +4,8 @@ import type { Options } from './stream'
 
 export type TabEffect = 'pulse' | 'snake'
 
+export type TabRing = 'off' | 'shake' | 'sound'
+
 export type TabOrder = 'manual' | 'name' | 'activity'
 
 export type App = { name: string; command: string }
@@ -12,6 +14,7 @@ export type Config = {
   claude: string
   defaults: Options
   tab_effect: TabEffect
+  tab_ring: TabRing
   tab_order: TabOrder
   keys: Record<string, string>
   editors: App[]
@@ -26,6 +29,7 @@ export const settings = $state<Config>({
   claude: 'claude',
   defaults: { model: 'opus', effort: 'high', mode: 'default' },
   tab_effect: 'pulse',
+  tab_ring: 'shake',
   tab_order: 'manual',
   keys: {},
   editors: [],

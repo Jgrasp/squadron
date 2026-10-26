@@ -3,7 +3,7 @@ import { mount } from 'svelte'
 import './app.css'
 
 document.addEventListener('animationstart', (event) => {
-  if (event.animationName !== 'snake' && event.animationName !== 'pulse') return
+  if (!['snake', 'pulse', 'ring'].includes(event.animationName)) return
   for (const a of (event.target as Element).getAnimations({ subtree: true })) if (a instanceof CSSAnimation && a.animationName === event.animationName) a.startTime = 0
 })
 

@@ -252,6 +252,7 @@ struct Config {
     claude: String,
     defaults: claude::Options,
     tab_effect: String,
+    tab_ring: String,
     tab_order: String,
     keys: std::collections::BTreeMap<String, String>,
     editors: Vec<editors::App>,
@@ -272,6 +273,7 @@ impl Default for Config {
                 mode: "default".into(),
             },
             tab_effect: "pulse".into(),
+            tab_ring: "shake".into(),
             tab_order: "manual".into(),
             keys: Default::default(),
             editors: Vec::new(),
@@ -304,6 +306,9 @@ impl Settings {
         config.defaults.check()?;
         if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
+        }
+        if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
+            return Err(format!("Unknown tab ring: {}", config.tab_ring));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
