@@ -4,9 +4,11 @@ use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::Path;
 use std::process::{ChildStdin, Command, Stdio};
-use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::thread;
+
+pub static COMPACT_WINDOW: AtomicU32 = AtomicU32::new(0);
 
 pub const TESTED_VERSION: &str = "2.1.304";
 
@@ -104,6 +106,10 @@ pub fn command(
             "--append-system-prompt",
             PROMPT,
         ]);
+    let window = COMPACT_WINDOW.load(Ordering::Relaxed);
+    if window > 0 {
+        cmd.env("CLAUDE_CODE_AUTO_COMPACT_WINDOW", window.to_string());
+    }
     if let Some(id) = resume {
         cmd.args(["--resume", id]);
         if fork {

@@ -23,6 +23,7 @@ export type Config = {
   pilot: boolean
   pilot_all: boolean
   archive_after_days: number
+  compact_window: number
   steps: 'grouped' | 'detailed'
   thinking: 'hidden' | 'duration' | 'summary' | 'shown'
   language: Language
@@ -39,6 +40,7 @@ export const settings = $state<Config>({
   pilot: true,
   pilot_all: false,
   archive_after_days: 0,
+  compact_window: 0,
   steps: 'grouped',
   thinking: 'duration',
   language: 'system',

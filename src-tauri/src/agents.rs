@@ -52,6 +52,12 @@ impl Agents {
         self.pilot.store(on, Ordering::Relaxed);
     }
 
+    pub fn refresh_all(&self) {
+        for agent in self.list.lock().unwrap().values_mut() {
+            agent.stale |= agent.session.as_ref().is_some_and(Session::alive);
+        }
+    }
+
     fn mcp(&self, id: &str) -> Option<String> {
         let endpoint = self.endpoint.lock().unwrap();
         let (port, token) = endpoint.as_ref()?;

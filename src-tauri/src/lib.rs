@@ -18,6 +18,7 @@ use projects::{Card, Folder, Project};
 use serde::Serialize;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
+use std::sync::atomic::Ordering;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 use terminal::Terminals;
 
@@ -259,6 +260,7 @@ struct Config {
     pilot: bool,
     pilot_all: bool,
     archive_after_days: u32,
+    compact_window: u32,
     steps: String,
     thinking: String,
     language: String,
@@ -281,6 +283,7 @@ impl Default for Config {
             pilot: true,
             pilot_all: false,
             archive_after_days: 0,
+            compact_window: 0,
             steps: "grouped".into(),
             thinking: "duration".into(),
             language: "system".into(),
@@ -294,6 +297,7 @@ impl Settings {
             .ok()
             .and_then(|text| serde_json::from_str::<Config>(&text).ok())
             .unwrap_or_default();
+        claude::COMPACT_WINDOW.store(config.compact_window, Ordering::Relaxed);
         Self {
             file,
             config: Mutex::new(config),
@@ -315,6 +319,9 @@ impl Settings {
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
         }
+        if config.compact_window != 0 && !(100_000..=1_000_000).contains(&config.compact_window) {
+            return Err(format!("Unknown compaction window: {}", config.compact_window));
+        }
         config.keys.retain(|_, value| !value.trim().is_empty());
         config
             .editors
@@ -328,6 +335,7 @@ impl Settings {
         }
         let text = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
         std::fs::write(&self.file, text).map_err(|e| e.to_string())?;
+        claude::COMPACT_WINDOW.store(config.compact_window, Ordering::Relaxed);
         *self.config.lock().unwrap() = config;
         Ok(())
     }
@@ -345,6 +353,10 @@ fn set_settings(
     config: Config,
 ) -> Result<(), String> {
     agents.set_pilot(config.pilot);
+    let window = settings.config.lock().unwrap().compact_window;
+    if config.compact_window != window {
+        agents.refresh_all();
+    }
     settings.save(config)
 }
 

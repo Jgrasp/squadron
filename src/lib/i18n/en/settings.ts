@@ -69,6 +69,10 @@ export default {
   agentsAndSquadron: 'Agents and Squadron',
   archiveIdle: 'Archive idle agents',
   archiveIdleHint: 'An agent that is done, interrupted or stopped on an error for that long goes to the archived agents. Working agents and agents waiting for you stay.',
+  compactWindow: 'Compact conversations automatically',
+  compactDefault: 'When Claude Code decides (about 967k with a 1M window)',
+  compactAround: 'Around {tokens} tokens',
+  compactWindowHint: 'Each message re-reads the whole conversation: the bigger it is, the more every step costs. A lower size costs less but the agent keeps fewer details. Applies from the next message of each agent.',
   pilot: 'Agents can drive Squadron',
   pilotHint:
     'They see the projects and agents, start new agents, add and move cards, and change the layout. They never answer or approve anything in your place. Read only actions run freely; the others ask you first, like any tool.',
