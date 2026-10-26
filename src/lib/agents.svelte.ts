@@ -114,6 +114,20 @@ export function waiting(project: string) {
   return agents.list.filter((a) => a.project === project && a.attention).length
 }
 
+export function unread(project: string) {
+  return agents.list.filter((a) => a.project === project && a.unread && !a.attention).length
+}
+
+export const onScreen = (agent: Agent) =>
+  !projects.overview && !projects.board && !projects.pulls && projects.current === agent.project && selected(agent.project)?.id === agent.id
+
+export function markUnread(id: string, value: boolean) {
+  const agent = find(id)
+  if (!agent || !!agent.unread === value) return
+  agent.unread = value
+  persist(agent)
+}
+
 export function selected(project: string) {
   const list = ofProject(project)
   return list.find((a) => a.id === agents.current[project]) ?? list[0]
@@ -125,7 +139,9 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const d = JSON.parse(payload.line)
   const before = agent.cost
   const previous = agent.worktree
+  const was = agent.status
   apply(agent, d)
+  if (was !== 'done' && agent.status === 'done' && !onScreen(agent)) markUnread(agent.id, true)
   const next = agent.worktree
   if (next?.path !== previous?.path) {
     if (!next) invoke('set_workdir', { id: agent.id, dir: null }).catch(() => {})

@@ -275,4 +275,8 @@ export default {
   pilotStartTitle: 'Lancer un agent',
   pilotStartOk: 'Le lancer',
   pilotStartRefuse: 'Refuser',
+  markRead: 'Marquer comme lu',
+  markUnread: 'Marquer comme non lu',
+  unread: 'Terminé, pas encore ouvert',
+  agentsUnread: { one: '{count} agent terminé, pas encore ouvert', other: '{count} agents terminés, pas encore ouverts' },
 } satisfies Catalog['shell']

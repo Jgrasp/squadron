@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, keepDraft, note, reload, remote, rename, reply, send, setOptions } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, note, reload, remote, rename, reply, send, setOptions, onScreen } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -29,6 +29,11 @@
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
 
   let { agent }: { agent: Agent } = $props()
+
+  const seen = $derived(onScreen(agent))
+  $effect(() => {
+    if (seen) untrack(() => markUnread(agent.id, false))
+  })
 
   const saved = untrack(() => drafts[agent.id])
   let text = $state(saved?.text ?? '')

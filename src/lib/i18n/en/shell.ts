@@ -273,4 +273,8 @@ export default {
   pilotStartTitle: 'Start an agent',
   pilotStartOk: 'Start it',
   pilotStartRefuse: 'Refuse',
+  markRead: 'Mark as read',
+  markUnread: 'Mark as unread',
+  unread: 'Finished, not opened yet',
+  agentsUnread: { one: '{count} agent finished, not opened yet', other: '{count} agents finished, not opened yet' },
 }

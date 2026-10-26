@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
-  import { ofProject, shelve, todayCost, waiting, waitingAgents } from './agents.svelte'
+  import { ofProject, shelve, todayCost, unread, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
   import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
@@ -98,6 +98,12 @@
   onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false), (context = null))}
 />
 
+{#snippet finished(count: number)}
+  <span class="badge done" role="img" aria-label={t('shell.agentsUnread', { count })} title={t('shell.agentsUnread', { count })}
+    ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L19 7" /></svg>{count}</span
+  >
+{/snippet}
+
 {#snippet pin()}
   <svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
 {/snippet}
@@ -170,7 +176,7 @@
         <span class="dot" aria-hidden="true"></span>
         {project.name}
         {#if project.pinned}{@render pin()}{/if}
-        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if needsYou(project.path)}<span
+        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if needsYou(project.path)}<span
             class="badge pulls"
             role="img"
             aria-label={t('shell.pullsWaitingForYou', { count: needsYou(project.path) })}
@@ -204,6 +210,7 @@
           {#if hidden.some((p) => waiting(p.path))}
             <span class="badge">{hidden.reduce((n, p) => n + waiting(p.path), 0)}</span>
           {/if}
+          {#if hidden.some((p) => unread(p.path))}{@render finished(hidden.reduce((n, p) => n + unread(p.path), 0))}{/if}
           {#if hidden.some((p) => failed(p.path))}<span class="badge error" role="img" aria-label={t('shell.someAgentsInError')}>!</span>{/if}
           <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
             ><path d="M6 9l6 6 6-6" /></svg
@@ -221,7 +228,7 @@
               <span class="entry">
                 <button role="menuitem" style:--project={project.color} onclick={() => choose(project.path)}>
                   <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
-                  {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
+                  {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if failed(project.path)}<span
                       class="badge error"
                       role="img"
                       aria-label={t('shell.agentsInError', { count: failed(project.path) })}
@@ -634,6 +641,21 @@
     fill: none;
     stroke: currentColor;
     stroke-width: 2.4;
+  }
+
+  .badge.done {
+    gap: 3px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--ok);
+    color: var(--ok);
+  }
+
+  .badge.done svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .badge.error {
