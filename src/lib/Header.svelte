@@ -103,6 +103,7 @@
       >
         <span class="triangle" aria-hidden="true"></span>
         <span class="wordmark">Squadron</span>
+        {#if import.meta.env.DEV}<span class="dev">dev</span>{/if}
         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
           ><path d="M6 9l6 6 6-6" /></svg
         >
@@ -473,6 +474,15 @@
     padding: 4px;
     border-radius: 6px;
     background: var(--bg-tabs);
+  }
+
+  .dev {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 10.5px/16px var(--mono);
+    text-transform: uppercase;
   }
 
   .tab {

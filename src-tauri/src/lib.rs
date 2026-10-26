@@ -21,6 +21,9 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 use terminal::Terminals;
 
+const RELEASE_ID: &str = "dev.squadron.desktop";
+const DEV_ID: &str = "dev.squadron.desktop.dev";
+
 struct Projects {
     file: PathBuf,
     list: Mutex<Vec<Project>>,
@@ -1175,7 +1178,7 @@ pub fn run() {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
     {
-        let _ = std::fs::remove_dir_all(data.join("dev.squadron.desktop/WebKitCache"));
+        let _ = std::fs::remove_dir_all(data.join(DEV_ID).join("WebKitCache"));
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -1264,6 +1267,9 @@ pub fn run() {
             archive_agent
         ])
         .setup(|app| {
+            if cfg!(debug_assertions) && app.config().identifier != DEV_ID {
+                return Err("Start the dev build with `pnpm app`: it keeps its own data, apart from the installed Squadron.".into());
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -1272,6 +1278,14 @@ pub fn run() {
                 )?;
             }
             let config = app.path().app_config_dir()?;
+            if cfg!(debug_assertions) && !config.exists() {
+                std::fs::create_dir_all(&config)?;
+                if let Some(release) = config.parent().map(|p| p.join(RELEASE_ID)) {
+                    for name in ["projects.json", "settings.json", "layout.json"] {
+                        let _ = std::fs::copy(release.join(name), config.join(name));
+                    }
+                }
+            }
             let file = config.join("projects.json");
             let mut list = projects::load(&file);
             if projects::paint(&mut list) {
