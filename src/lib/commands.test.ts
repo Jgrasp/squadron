@@ -30,6 +30,9 @@ describe('commands', () => {
     expect(versionsOf('haiku', models).map((m) => m.value)).toEqual(['haiku', 'claude-haiku-4-5-20251001'])
     expect(modelName('claude-opus-4-7', models)).toEqual('Opus 4.7')
     expect(modelName('sonnet', [])).toEqual('Sonnet')
+    expect(modelName('claude-opus-5-5', [])).toEqual('Opus 5.5')
+    expect(modelName('claude-haiku-4-5-20251001', [])).toEqual('Haiku 4.5')
+    expect(modelName('claude-fable-5-1[1m]', [])).toEqual('Fable 5.1 (1M)')
   })
 
   it('offers the models of the session for /model', () => {

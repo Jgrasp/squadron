@@ -12,5 +12,4 @@ export default {
   modeAcceptEdits: 'accepter les modifications',
   modePlan: 'plan',
   modeAuto: 'auto',
-  meta: '{model} · effort {effort} · {mode}',
 } satisfies Catalog['format']

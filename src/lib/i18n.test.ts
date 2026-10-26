@@ -21,7 +21,7 @@ describe('i18n', () => {
 
   it('splits a message around its values', () => {
     const snippet = (() => {}) as never
-    expect(parts('format.meta', { model: 'Opus', effort: 'high', mode: snippet })).toEqual(['Opus', ' · effort ', 'high', ' · ', snippet])
+    expect(parts('agent.messageOf', { n: 1, total: 2, time: snippet })).toEqual(['Message ', '1', ' of ', '2', ' · ', snippet])
   })
 
   it('ignores an unknown language', () => {

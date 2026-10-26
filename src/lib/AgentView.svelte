@@ -5,7 +5,7 @@
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
-  import { ago, meta, modelLabel, time, tokens } from './format'
+  import { ago, effortLabel, modeLabel, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
@@ -535,7 +535,8 @@
             <span class="info">
               {#if id === 'options'}
                 <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title={t('agent.changeOptions')} onclick={() => (tuning = tuning ? null : { ...agent.options })}>
-                  {meta(agent)}
+                  <span class="model">{modelLabel(agent.options.model)} · {effortLabel(agent.options.effort)}</span>
+                  {modeLabel(agent.options.mode)}
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
               {:else if id === 'context'}
@@ -1628,6 +1629,14 @@
     border-radius: 3px;
     color: var(--text-muted);
     font-size: 12px;
+  }
+
+  .settings .model {
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-strong);
+    font-weight: 600;
   }
 
   .settings:hover,
