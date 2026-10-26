@@ -79,6 +79,7 @@
     ['hidden', 'Hidden'],
     ['duration', 'How long'],
     ['summary', 'With its summary'],
+    ['shown', 'In the conversation'],
   ]
   const AGES: [number, string][] = [
     [0, 'Never'],
@@ -276,7 +277,7 @@
         {/each}
       </div>
       <span class="label">Thinking</span>
-      <div class="effects three" role="group" aria-label="Thinking">
+      <div class="effects" role="group" aria-label="Thinking">
         {#each THINKING as [id, title] (id)}
           <button aria-pressed={thinking === id} onclick={() => (thinking = id)}><strong>{title}</strong></button>
         {/each}

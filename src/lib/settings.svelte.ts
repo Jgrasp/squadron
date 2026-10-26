@@ -19,7 +19,7 @@ export type Config = {
   pilot_all: boolean
   archive_after_days: number
   steps: 'grouped' | 'detailed'
-  thinking: 'hidden' | 'duration' | 'summary'
+  thinking: 'hidden' | 'duration' | 'summary' | 'shown'
 }
 
 export const settings = $state<Config>({
