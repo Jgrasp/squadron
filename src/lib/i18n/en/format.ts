@@ -10,5 +10,4 @@ export default {
   modeAcceptEdits: 'accept edits',
   modePlan: 'plan',
   modeAuto: 'auto',
-  meta: '{model} · effort {effort} · {mode}',
 }

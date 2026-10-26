@@ -52,6 +52,8 @@ export default {
   nobodyWaits: 'Personne n’attend votre relecture dans {project}.',
   yours: 'Les vôtres',
   agentWorkingOn: 'L’agent qui travaille sur {branch}',
+  goToAgent: 'Aller à {name}',
+  moreActions: 'Plus d’actions',
   noPullsOfYours: 'Vous n’avez aucune pull request ouverte dans {project}.',
   by: 'Par {author}',
   updated: 'mise à jour {when}',

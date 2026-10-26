@@ -73,7 +73,7 @@ export function sortable(node: HTMLElement, options: Sortable) {
   function down(event: PointerEvent) {
     const target = event.target as HTMLElement
     const item = target.closest<HTMLElement>('[data-item]')
-    if (!opts.enabled || event.button !== 0 || !item || !node.contains(item) || target.closest('[data-keep]')) return
+    if (!opts.enabled || event.button !== 0 || event.ctrlKey || event.metaKey || event.shiftKey || !item || !node.contains(item) || target.closest('[data-keep]')) return
     const items = [...node.querySelectorAll<HTMLElement>('[data-item]')]
     const from = items.indexOf(item)
     const row = getComputedStyle(node).flexDirection.startsWith('row')

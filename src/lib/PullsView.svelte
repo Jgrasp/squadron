@@ -58,6 +58,18 @@
     }
   }
 
+  let menu = $state('')
+
+  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean }
+
+  const openOn = (pull: Pull): Choice => ({ label: t('review.openOn', { host: hostName(pull) }), run: () => invoke('open_link', { url: pull.url }) })
+  const merging = (pull: Pull): Choice[] =>
+    pull.mergeable ? [{ label: busy?.number === pull.number && busy.doing === 'merge' ? t('review.merging') : t('review.merge'), title: t('review.mergeInto', { base: pull.base }), run: () => mergeIt(pull) }] : []
+  const approving = (pull: Pull): Choice[] =>
+    approvable(pull)
+      ? [{ label: busy?.number === pull.number && busy.doing === 'approve' ? t('review.approving') : t('review.verdictApprove'), run: () => act(pull, 'approve', () => approve(project.path, pull)) }]
+      : []
+
   const approvable = (pull: Pull) => pull.reviewed !== 'approved' || moved(project.path, pull)
 
   async function mergeIt(pull: Pull) {
@@ -96,6 +108,8 @@
     return ['quiet', t('review.youCommented')]
   }
 </script>
+
+<svelte:window onclick={(e) => menu && !(e.target as HTMLElement).closest('[data-menu]') && (menu = '')} onkeydown={(e) => e.key === 'Escape' && menu && (menu = '')} />
 
 <div class="page">
 <main>
@@ -156,22 +170,13 @@
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
-            <div class="actions">
-              <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>{t('review.openOn', { host: hostName(pull) })}</button>
-              {#if approvable(pull)}
-                <button class="btn btn-secondary" disabled={!!busy} onclick={() => act(pull, 'approve', () => approve(project.path, pull))}>
-                  {busy?.number === pull.number && busy.doing === 'approve' ? t('review.approving') : t('review.verdictApprove')}
-                </button>
-              {/if}
-              {@render merging(pull, 'btn-secondary')}
-              <button
-                class="btn {waitsFor(project.path, pull) ? 'btn-primary' : 'btn-secondary'}"
-                aria-pressed={opened?.number === pull.number}
-                onclick={() => ((opened = opened?.number === pull.number ? null : pull), (file = ''))}
-              >
-                {t('review.review')}
-              </button>
-            </div>
+            {@render split(
+              `review-${pull.number}`,
+              { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) },
+              waitsFor(project.path, pull),
+              [openOn(pull), ...approving(pull), ...merging(pull)],
+              opened?.number === pull.number,
+            )}
           </article>
         {:else}
           <p class="empty">{t('review.nobodyWaits', { project: project.name })}</p>
@@ -182,14 +187,15 @@
         <h2>{t('review.yours')} <span class="n">{found.mine.length}</span></h2>
         {#each found.mine as pull (pull.number)}
           {@const agent = agentOn(pull)}
+          {@const others = agent ? [{ label: t('review.goToAgent', { name: agent.name }), title: t('review.agentWorkingOn', { branch: pull.branch }), run: () => show(agent) }] : []}
           <article>
             <span class="verdict {standing(pull)[0]}">{standing(pull)[1]}</span>
             {@render about(pull)}
-            <div class="actions">
-              {#if agent}<button class="btn btn-secondary" title={t('review.agentWorkingOn', { branch: pull.branch })} onclick={() => show(agent)}>{agent.name}</button>{/if}
-              <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>{t('review.openOn', { host: hostName(pull) })}</button>
-              {@render merging(pull, 'btn-primary')}
-            </div>
+            {#if pull.mergeable}
+              {@render split(`mine-${pull.number}`, merging(pull)[0], true, [openOn(pull), ...others])}
+            {:else}
+              {@render split(`mine-${pull.number}`, openOn(pull), false, others)}
+            {/if}
           </article>
         {:else}
           <p class="empty">{t('review.noPullsOfYours', { project: project.name })}</p>
@@ -221,12 +227,31 @@
 {/if}
 </div>
 
-{#snippet merging(pull: Pull, kind: string)}
-  {#if pull.mergeable}
-    <button class="btn {kind}" title={t('review.mergeInto', { base: pull.base })} disabled={!!busy} onclick={() => mergeIt(pull)}>
-      {busy?.number === pull.number && busy.doing === 'merge' ? t('review.merging') : t('review.merge')}
+{#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean)}
+  <div class="split" data-menu>
+    <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={!!busy && !main.always} onclick={() => ((menu = ''), main.run())}>
+      {main.label}
     </button>
-  {/if}
+    {#if more.length}
+      <button
+        class="btn {primary ? 'btn-primary' : 'btn-secondary'} more"
+        aria-label={t('review.moreActions')}
+        title={t('review.moreActions')}
+        aria-haspopup="menu"
+        aria-expanded={menu === key}
+        onclick={() => (menu = menu === key ? '' : key)}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+    {/if}
+    {#if menu === key}
+      <div class="choices" role="menu" aria-label={t('review.moreActions')}>
+        {#each more as choice (choice.label)}
+          <button role="menuitem" title={choice.title} disabled={!!busy} onclick={() => ((menu = ''), choice.run())}>{choice.label}</button>
+        {/each}
+      </div>
+    {/if}
+  </div>
 {/snippet}
 
 {#snippet about(pull: Pull)}
@@ -398,7 +423,6 @@
     display: flex;
     flex-direction: column;
     gap: 6px;
-    max-width: 1100px;
   }
 
   h2 {
@@ -576,25 +600,71 @@
     background: var(--err);
   }
 
-  .actions {
-    display: flex;
-    gap: 8px;
+  .split {
+    position: relative;
+    display: inline-flex;
+    justify-self: end;
   }
 
-  .actions .btn {
+  .split .btn {
     height: 32px;
     padding: 0 12px;
+    white-space: nowrap;
+  }
+
+  .main:not(.alone) {
+    border-radius: 4px 0 0 4px;
+  }
+
+  .more {
+    width: 30px;
+    margin-left: 1px;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .split .more {
+    padding: 0;
+  }
+
+  .more svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .choices {
+    position: absolute;
+    top: 38px;
+    right: 0;
+    z-index: 30;
+    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .choices button {
+    padding: 8px 10px;
+    border-radius: 4px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .choices button:hover:not(:disabled) {
+    background: var(--menu-hover);
   }
 
   .empty {
     margin: 0;
     color: var(--text-dim);
-  }
-
-  @container (max-width: 1000px) {
-    .open {
-      display: none;
-    }
   }
 
   @container (max-width: 760px) {
@@ -623,12 +693,11 @@
       grid-row: 2;
     }
 
-    .facts,
-    .open {
+    .facts {
       display: none;
     }
 
-    .actions {
+    .split {
       grid-column: 3;
       grid-row: 1 / span 2;
     }

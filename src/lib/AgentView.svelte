@@ -5,9 +5,10 @@
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
-  import { ago, meta, modelLabel, time, tokens } from './format'
+  import { ago, effortLabel, modeLabel, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
+  import ContextGauge from './ContextGauge.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
@@ -427,12 +428,19 @@
     }
   })
 
-  function submit(event?: Event) {
+  let chilly = $state('')
+
+  function submit(event?: Event, forced = false) {
     event?.preventDefault()
     const message = text.trim()
     const attached = $state.snapshot(comments)
     const joined = $state.snapshot(attachments)
     if (!message && !attached.length && !joined.length) return
+    if (!forced && !busy && !agent.asks.length && !message.startsWith('/') && agent.tokens >= 200_000 && Date.now() - agent.since > 3_600_000) {
+      chilly = agent.id
+      return
+    }
+    chilly = ''
     text = ''
     recall = -1
     stuck = true
@@ -535,11 +543,12 @@
             <span class="info">
               {#if id === 'options'}
                 <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title={t('agent.changeOptions')} onclick={() => (tuning = tuning ? null : { ...agent.options })}>
-                  {meta(agent)}
+                  <span class="model">{modelLabel(agent.options.model)} · {effortLabel(agent.options.effort)}</span>
+                  {modeLabel(agent.options.mode)}
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
               {:else if id === 'context'}
-                <span class="mono">{t('agent.contextTokens', { tokens: tokens(agent.tokens) })}</span>
+                <ContextGauge {agent} />
               {:else if id === 'turns'}
                 <span class="mono">{t('agent.turns', { count: agent.turns })}</span>
               {:else if id === 'tasks'}
@@ -783,6 +792,16 @@
 
     {#if dropping}<div class="dropzone" aria-hidden="true">{t('agent.dropToAttach', { agent: agent.name })}</div>{/if}
     <form class="composer" onsubmit={submit}>
+      {#if chilly === agent.id}
+        <div class="chilly" role="alert">
+          <p><strong>{t('agent.coldTitle', { tokens: tokens(agent.tokens), idle: ago(agent.since, Date.now()) })}</strong> {t('agent.coldDetail')}</p>
+          <div class="actions">
+            <button type="button" class="btn btn-primary" onclick={async () => (await send(agent.id, '/compact'), submit(undefined, true))}>{t('agent.compactThenSend')}</button>
+            <button type="button" class="btn btn-secondary" onclick={() => submit(undefined, true)}>{t('agent.sendAnyway')}</button>
+            <button type="button" class="close" aria-label={t('common.cancel')} title={t('common.cancel')} onclick={() => (chilly = '')}>×</button>
+          </div>
+        </div>
+      {/if}
       {#if attachments.length || attachError}
         <div class="attached files" aria-label={t('agent.filesSent')}>
           {#each attachments as file, i (file)}<Attachment path={file} onremove={() => attachments.splice(i, 1)} />{/each}
@@ -1630,6 +1649,15 @@
     font-size: 12px;
   }
 
+  .settings .model {
+    white-space: nowrap;
+    padding: 1px 7px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
   .settings:hover,
   .settings[aria-expanded='true'] {
     background: var(--surface-3);
@@ -1729,6 +1757,56 @@
     flex: none;
     padding: 12px 20px 18px;
     border-top: 1px solid var(--border);
+  }
+
+  .chilly {
+    max-width: 740px;
+    margin: 0 auto 8px;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 16px;
+    padding: 10px 10px 10px 14px;
+    border-radius: 6px;
+    background: var(--wait-bg);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    font-size: 13px;
+    color: var(--wait-text-2);
+  }
+
+  .chilly p {
+    flex: 1 1 320px;
+    margin: 0;
+    line-height: 1.45;
+  }
+
+  .chilly strong {
+    color: var(--wait-text);
+  }
+
+  .chilly .actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .chilly .btn {
+    height: 30px;
+    padding: 0 12px;
+  }
+
+  .chilly .close {
+    width: 28px;
+    height: 28px;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--wait-muted);
+  }
+
+  .chilly .close:hover {
+    background: var(--wait-btn);
+    color: var(--wait-text);
   }
 
   .attached {

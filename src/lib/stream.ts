@@ -137,6 +137,7 @@ export type Agent = {
   progress?: { done: number; total: number; message: string; place: 'above' | 'below' } | null
   pinned?: boolean
   unread?: boolean
+  context?: { max: number; threshold: number | null }
   review?: { project: string; number: number; base?: string }
   imported?: string
   infoPanel?: { html: string; height: number; hidden?: boolean }
@@ -367,7 +368,7 @@ export function apply(agent: Agent, d: Json) {
         if (d.session_id !== agent.sessionId) agent.forkOf = agent.forkAt = null
         agent.sessionId = d.session_id
       }
-      if (d.subtype === 'init' && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/') && agent.worktree?.path !== d.cwd)
+      if (d.subtype === 'init' && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/.claude/worktrees/') && agent.worktree?.path !== d.cwd)
         agent.worktree = { path: d.cwd, branch: '' }
       if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
         agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))
@@ -394,6 +395,11 @@ export function apply(agent: Agent, d: Json) {
       }
       return
     case 'control_response':
+      if (typeof d.response?.response?.maxTokens === 'number') {
+        const r = d.response.response
+        agent.context = { max: r.maxTokens, threshold: r.isAutoCompactEnabled && r.autoCompactThreshold ? r.autoCompactThreshold : null }
+        agent.tokens = r.totalTokens ?? agent.tokens
+      }
       if (d.response?.response?.session_url)
         agent.remote = { ...agent.remote, state: agent.remote?.state ?? 'ready', url: d.response.response.session_url, since: agent.remote?.since ?? Date.now() }
       return
@@ -550,6 +556,13 @@ function relaunched(agent: Agent, text: string) {
 
 export const notice = (text: string) => /^<task-notification>\s*([\s\S]*?)\s*<\/task-notification>$/.exec(text.trim())?.[1]
 
+export const commandEcho = (text: string) => /^<(local-command-|command-name>|command-message>)/.test(text.trim())
+
+export function commandOutput(text: string) {
+  const out = /^<local-command-(?:stdout|stderr)>([\s\S]*?)<\/local-command-(?:stdout|stderr)>$/.exec(text.trim())?.[1].trim()
+  return out && !out.startsWith('Compacted') ? out : ''
+}
+
 function remoteMessage(agent: Agent, d: Json) {
   if (d.origin?.handback) {
     const sub = agent.subagents.find((s) => s.task === d.origin.senderTaskId)
@@ -558,11 +571,9 @@ function remoteMessage(agent: Agent, d: Json) {
   }
   const text = textOf(d.message?.content).trim()
   if (!text) return
-  const inside = notice(text)
-  if (inside !== undefined) {
-    agent.entries.push({ kind: 'note', at: d.timestamp ? Date.parse(d.timestamp) : Date.now(), command: 'notice', text: inside })
-    return
-  }
+  const inside = commandEcho(text) ? commandOutput(text) : notice(text)
+  if (inside) agent.entries.push({ kind: 'note', at: d.timestamp ? Date.parse(d.timestamp) : Date.now(), command: 'notice', text: inside })
+  if (inside !== undefined) return
   userMessage(agent, text)
   const entry = agent.entries.at(-1)
   if (entry?.kind === 'user') {

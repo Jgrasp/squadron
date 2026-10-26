@@ -52,6 +52,12 @@ impl Agents {
         self.pilot.store(on, Ordering::Relaxed);
     }
 
+    pub fn refresh_all(&self) {
+        for agent in self.list.lock().unwrap().values_mut() {
+            agent.stale |= agent.session.as_ref().is_some_and(Session::alive);
+        }
+    }
+
     fn mcp(&self, id: &str) -> Option<String> {
         let endpoint = self.endpoint.lock().unwrap();
         let (port, token) = endpoint.as_ref()?;
@@ -198,6 +204,16 @@ impl Agents {
         let list = self.list.lock().unwrap();
         match list.get(id).and_then(|a| a.session.as_ref()) {
             Some(session) => session.interrupt().map_err(|e| e.to_string()),
+            None => Ok(()),
+        }
+    }
+
+    pub fn context_usage(&self, id: &str) -> Result<(), String> {
+        let mut list = self.list.lock().unwrap();
+        match list.get_mut(id).and_then(|a| a.session.as_mut()).filter(|s| s.alive()) {
+            Some(session) => session
+                .control(serde_json::json!({"subtype": "get_context_usage"}))
+                .map_err(|e| e.to_string()),
             None => Ok(()),
         }
     }

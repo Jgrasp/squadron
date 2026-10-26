@@ -1,6 +1,6 @@
 import { t, type Key } from './i18n/index.svelte'
 
-export type Action = 'newAgent' | 'jump' | 'kanban' | 'editor' | 'terminal' | 'diff' | 'sidebar' | 'interrupt' | 'back' | 'forward' | 'quit'
+export type Action = 'newAgent' | 'jump' | 'kanban' | 'editor' | 'terminal' | 'diff' | 'sidebar' | 'interrupt' | 'back' | 'forward' | 'search' | 'quit'
 
 export const ACTIONS: [Action, Key, string][] = [
   ['newAgent', 'common.newAgent', 'Ctrl+N'],
@@ -13,6 +13,7 @@ export const ACTIONS: [Action, Key, string][] = [
   ['interrupt', 'settings.actionInterrupt', 'Escape'],
   ['back', 'settings.actionBack', 'Alt+ArrowLeft'],
   ['forward', 'settings.actionForward', 'Alt+ArrowRight'],
+  ['search', 'settings.actionSearch', 'Ctrl+Space'],
   ['quit', 'settings.actionQuit', 'Ctrl+Q'],
 ]
 

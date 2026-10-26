@@ -18,7 +18,7 @@ export type SettingsTab =
   | 'layout'
   | 'about'
 
-export const ui = $state({ creating: false, customizing: false, settings: null as SettingsTab | null, adding: null as string | null })
+export const ui = $state({ creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, adding: null as string | null })
 
 export type Context = { project?: Project; agent?: Agent }
 
@@ -38,6 +38,9 @@ export function run(action: Action, { project, agent }: Context) {
       return
     case 'interrupt':
       return agent && interrupt(agent.id)
+    case 'search':
+      ui.searching = true
+      return
     case 'back':
       return history.back()
     case 'forward':

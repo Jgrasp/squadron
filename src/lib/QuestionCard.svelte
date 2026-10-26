@@ -40,6 +40,14 @@
 
 <svelte:window onkeydown={keys} />
 
+{#snippet choice(option: Option)}
+  <span class="text">
+    <span class="label">{clean(option.label)}</span>
+    {#if option.description}<span>{option.description}</span>{/if}
+  </span>
+  {#if recommended(option.label)}<span class="badge">{t('common.recommended')}</span>{/if}
+{/snippet}
+
 <section class="card" aria-label={t('agent.agentQuestion')}>
   <div class="head">
     <span class="icon" aria-hidden="true">?</span>
@@ -63,16 +71,16 @@
     <span class="hint">{t('agent.oneClickHint')}</span>
   {:else}
     {#each questions as q, n (q.question)}
-      <fieldset class:current={!picked[q.question]?.length && questions.findIndex((x) => !picked[x.question]?.length) === n}>
-        <legend>
+      <div class="question" role="group" aria-label={q.question} class:current={!picked[q.question]?.length && questions.findIndex((x) => !picked[x.question]?.length) === n}>
+        <div class="legend">
           <span>{n + 1} · {q.question}</span>
           {#if picked[q.question]?.length}
             <span class="ok">{t('agent.answered')}</span>
           {:else if q.multiSelect}
             <span class="multi">{t('agent.severalChoices')}</span>
           {/if}
-        </legend>
-        <div class="choices" class:grid={q.multiSelect}>
+        </div>
+        <div class="choices" class:grid={q.multiSelect} class:described={q.options.some((o) => o.description)}>
           {#each q.options as option (option.label)}
             {#if q.multiSelect}
               <label class:on={picked[q.question]?.includes(option.label)}>
@@ -81,20 +89,19 @@
                   checked={picked[q.question]?.includes(option.label)}
                   onchange={() => choose(q, option.label)}
                 />
-                {clean(option.label)}
+                {@render choice(option)}
               </label>
             {:else}
               <button
                 aria-pressed={picked[q.question]?.includes(option.label)}
-                title={option.description}
                 onclick={() => choose(q, option.label)}
               >
-                {clean(option.label)}
+                {@render choice(option)}
               </button>
             {/if}
           {/each}
         </div>
-      </fieldset>
+      </div>
     {/each}
     <div class="footer">
       <button class="btn send" aria-disabled={done < questions.length} onclick={send}>{t('agent.sendAnswers')}</button>
@@ -210,7 +217,7 @@
     color: var(--wait-muted);
   }
 
-  fieldset {
+  .question {
     margin: 0;
     padding: 12px 14px;
     border: none;
@@ -221,14 +228,12 @@
     gap: 8px;
   }
 
-  fieldset.current {
+  .question.current {
     background: var(--option);
     box-shadow: inset 0 0 0 1px #a55e37;
   }
 
-  legend {
-    float: left;
-    width: 100%;
+  .legend {
     padding: 0 0 4px;
     display: flex;
     justify-content: space-between;
@@ -257,6 +262,31 @@
   .choices.grid {
     display: grid;
     grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .choices.described {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(240px, 1fr));
+  }
+
+  .choices.described button,
+  .choices.described label {
+    align-items: flex-start;
+    padding: 9px 12px;
+    text-align: left;
+  }
+
+  .choices.described input {
+    margin-top: 2px;
+  }
+
+  .choices .label {
+    color: inherit;
+    font-size: inherit;
+  }
+
+  .choices .text span:not(.label) {
+    font-weight: 400;
   }
 
   .choices button,

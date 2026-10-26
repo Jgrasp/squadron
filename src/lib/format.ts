@@ -49,9 +49,6 @@ const EFFORTS: Record<string, Key> = {
 
 export const effortLabel = (effort: string) => (EFFORTS[effort] ? t(EFFORTS[effort]) : effort)
 
-export const meta = (agent: Agent) =>
-  t('format.meta', { model: modelLabel(agent.options.model), effort: effortLabel(agent.options.effort), mode: modeLabel(agent.options.mode) })
-
 export function short(name: string) {
   const words = name.split(/\s+/).filter(Boolean)
   const id = words.find((w) => /\d/.test(w))

@@ -16,8 +16,15 @@ export function familyOf(value: string, models: Model[]) {
 
 export const versionsOf = (family: string, models: Model[]) => models.filter((m) => m.value !== 'default' && familyOf(m.value, models) === family)
 
-export const modelName = (value: string, models: Model[]) =>
-  models.find((m) => m.value === value)?.displayName ?? value[0].toUpperCase() + value.slice(1)
+const MODEL_ID = /^claude-([a-z]+)-(\d+)-(\d+)(?:-\d{8})?(\[1m\])?$/
+
+export function modelName(value: string, models: Model[]) {
+  const known = models.find((m) => m.value === value)?.displayName
+  if (known) return known
+  const id = MODEL_ID.exec(value)
+  if (id) return `${id[1][0].toUpperCase()}${id[1].slice(1)} ${id[2]}.${id[3]}${id[4] ? ' (1M)' : ''}`
+  return value[0].toUpperCase() + value.slice(1)
+}
 
 export type Catalog = { commands: Command[]; models: Model[]; styles: string[] }
 

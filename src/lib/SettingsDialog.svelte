@@ -17,6 +17,7 @@
   import { SLOTS, type Slot } from './slots'
   import { saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
   import { chime } from './chime'
+  import { tokens } from './format'
   import { errorText, LANGUAGES, list, systemLocale, t, type Key } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
@@ -81,6 +82,8 @@
   let pilot = $state(settings.pilot)
   let pilotAll = $state(settings.pilot_all)
   let archiveAfter = $state(settings.archive_after_days)
+  let compactWindow = $state(settings.compact_window)
+  const WINDOWS = [0, 600_000, 400_000, 200_000]
   let steps = $state(settings.steps)
   let thinking = $state(settings.thinking)
   let language = $state(settings.language)
@@ -138,7 +141,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking, language })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, compact_window: compactWindow, steps, thinking, language })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -308,6 +311,11 @@
         {#each AGES as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
       </select>
       <p class="intro">{t('settings.archiveIdleHint')}</p>
+      <label for="compact-window">{t('settings.compactWindow')}</label>
+      <select id="compact-window" class="field" bind:value={compactWindow}>
+        {#each WINDOWS as size (size)}<option value={size}>{size ? t('settings.compactAround', { tokens: tokens(size) }) : t('settings.compactDefault')}</option>{/each}
+      </select>
+      <p class="intro">{t('settings.compactWindowHint')}</p>
       <label class="check">
         <input type="checkbox" bind:checked={pilot} />
         <span>

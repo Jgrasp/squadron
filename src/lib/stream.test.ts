@@ -55,6 +55,12 @@ describe('worktree', () => {
     replay(agent, lines.slice(1).join('\n'))
     expect(agent.worktree).toBeNull()
   })
+
+  it('ignores a session resumed in a folder the agent only went into with cd', () => {
+    const agent = fresh()
+    apply(agent, { type: 'system', subtype: 'init', session_id: 's', cwd: '/project/.worktrees/T7C' })
+    expect(agent.worktree).toBeNull()
+  })
 })
 
 describe('goal', () => {
@@ -216,6 +222,16 @@ describe('stream', () => {
     apply(agent, { type: 'system', subtype: 'compact_boundary', compact_metadata: { pre_tokens: 46530, post_tokens: 14200 } })
     expect(agent.entries.at(-1)).toMatchObject({ kind: 'compacted', before: 46530, after: 14200 })
     expect(agent.tokens).toBe(14200)
+    const count = agent.entries.length
+    apply(agent, { type: 'user', isReplay: true, message: { role: 'user', content: '<local-command-stdout>Compacted PostCompact [sh hook.sh] completed successfully: {}</local-command-stdout>' } })
+    expect(agent.entries.length).toBe(count)
+    apply(agent, { type: 'user', isReplay: true, message: { role: 'user', content: '<local-command-stdout>Set model to Haiku</local-command-stdout>' } })
+    expect(agent.entries.at(-1)).toMatchObject({ kind: 'note', command: 'notice', text: 'Set model to Haiku' })
+    apply(agent, { type: 'control_response', response: { subtype: 'success', request_id: 'squadron-1', response: { totalTokens: 31042, maxTokens: 1000000, autoCompactThreshold: 967000, isAutoCompactEnabled: true } } })
+    expect(agent.context).toEqual({ max: 1000000, threshold: 967000 })
+    expect(agent.tokens).toBe(31042)
+    apply(agent, { type: 'control_response', response: { subtype: 'success', response: { totalTokens: 31042, maxTokens: 200000, autoCompactThreshold: 167000, isAutoCompactEnabled: false } } })
+    expect(agent.context).toEqual({ max: 200000, threshold: null })
     apply(agent, { type: 'conversation_reset', trigger: 'clear' })
     expect(agent.entries.at(-1)?.kind).toBe('cleared')
     apply(agent, { type: 'system', subtype: 'bridge_state', state: 'ready' })

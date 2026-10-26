@@ -12,7 +12,7 @@
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
   import { asking, count, tally } from './subagents'
-  import { t, type Key } from './i18n/index.svelte'
+  import { list as join, t, type Key } from './i18n/index.svelte'
 
   let {
     project,
@@ -104,6 +104,65 @@
   })
   const pinned = $derived(list.filter((a) => a.pinned).length)
 
+  let chosen = $state<string[]>([])
+  let anchor = ''
+  const picked = $derived(list.filter((a) => chosen.includes(a.id)))
+
+  $effect(() => {
+    void project.path
+    chosen = []
+  })
+
+  function sweep(event: PointerEvent, agent: Agent) {
+    if (event.button !== 0 || !(event.ctrlKey || event.metaKey || event.shiftKey)) return
+    event.preventDefault()
+    const ids = list.map((a) => a.id)
+    const base = [...chosen]
+    const extend = event.shiftKey && ids.includes(anchor)
+    const from = ids.indexOf(extend ? anchor : agent.id)
+    const adding = extend || !chosen.includes(agent.id)
+    if (!extend) anchor = agent.id
+    const apply = (to: number) => {
+      const range = ids.slice(Math.min(from, to), Math.max(from, to) + 1)
+      chosen = adding ? [...new Set([...base, ...range])] : base.filter((id) => !range.includes(id))
+    }
+    apply(ids.indexOf(agent.id))
+    const move = (e: PointerEvent) => {
+      const item = document.elementFromPoint(e.clientX, e.clientY)?.closest<HTMLElement>('.list [data-item]')
+      if (item && ids.includes(item.dataset.item!)) apply(ids.indexOf(item.dataset.item!))
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  function openAgent(event: MouseEvent, agent: Agent) {
+    if (event.ctrlKey || event.metaKey || event.shiftKey) return
+    chosen = []
+    agents.current[project.path] = agent.id
+  }
+
+  async function bulk(action: (id: string) => unknown) {
+    const done = Promise.all(picked.map((a) => action(a.id)))
+    chosen = []
+    await done
+  }
+
+  async function eraseAll() {
+    const names = picked.map((a) => a.name)
+    const sure = await ask(t('shell.deleteAgentsAsk', { count: names.length, names: join(names) }), {
+      title: t('shell.deleteAgentsTitle', { count: names.length }),
+      kind: 'warning',
+      okLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
+    })
+    if (sure) bulk(remove)
+  }
+
+
   function drop(id: string, index: number) {
     const ids = list.map((a) => a.id).filter((a) => a !== id)
     ids.splice(index, 0, id)
@@ -153,7 +212,7 @@
     {/if}
   </span>
   <span class="state">{label(agent)}</span>
-  <PullTag {agent} />
+  <PullTag {agent} gutter />
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
   {:else if agent.status === 'waiting'}
@@ -332,10 +391,13 @@
         {:else}
           <button
             class="agent {look(agent)}"
+            class:picked={chosen.includes(agent.id)}
             data-item={agent.id}
             aria-current={agent.id === current?.id ? 'true' : undefined}
+            aria-pressed={chosen.length ? chosen.includes(agent.id) : undefined}
             title={t('shell.renameHint')}
-            onclick={() => (agents.current[project.path] = agent.id)}
+            onpointerdown={(e) => sweep(e, agent)}
+            onclick={(e) => openAgent(e, agent)}
             ondblclick={() => startRename(agent)}
             oncontextmenu={(e) => open(agent, e)}
             onkeydown={(e) => e.key === 'F2' && startRename(agent)}
@@ -345,6 +407,18 @@
         {/if}
       {/each}
     </div>
+    {#if picked.length}
+      {@const pinAll = picked.some((a) => !a.pinned)}
+      {@const readAll = picked.some((a) => a.unread)}
+      <div class="bulk" role="toolbar" aria-label={t('shell.bulkActions')}>
+        <span class="selection">{t('shell.selectedCount', { count: picked.length })}</span>
+        <button onclick={() => ((value) => bulk((id) => pin(id, value)))(pinAll)}>{pinAll ? t('shell.pinToTop') : t('shell.unpin')}</button>
+        <button onclick={() => ((value) => bulk((id) => markUnread(id, value)))(!readAll)}>{readAll ? t('shell.markRead') : t('shell.markUnread')}</button>
+        <button onclick={() => bulk((id) => archive(id))}>{t('common.archive')}</button>
+        <button class="danger" onclick={eraseAll}>{t('common.deleteEllipsis')}</button>
+        <button class="clear" aria-label={t('shell.clearSelection')} title={t('shell.clearSelection')} onclick={() => (chosen = [])}>×</button>
+      </div>
+    {/if}
   {:else}
     <div class="empty">
       <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"
@@ -593,6 +667,53 @@
   .agent[aria-current='true'] {
     background: var(--surface-1);
     box-shadow: 0 0 0 1px var(--border-strong);
+  }
+
+  .agent.picked {
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 2px var(--accent-soft);
+  }
+
+  .bulk {
+    flex: none;
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 4px;
+    margin: 8px 0 0;
+    padding: 6px 8px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .bulk .selection {
+    flex: 1 0 100%;
+    padding: 0 2px 2px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--text-dim);
+  }
+
+  .bulk button {
+    height: 26px;
+    padding: 0 8px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .bulk button:hover {
+    background: var(--surface-4);
+    color: var(--text);
+  }
+
+  .bulk .danger {
+    color: var(--err-text);
+  }
+
+  .bulk .clear {
+    margin-left: auto;
   }
 
   .agent.waiting {
