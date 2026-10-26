@@ -3,10 +3,11 @@
   import { tick } from 'svelte'
   import { clock } from './agents.svelte'
   import { tokens } from './format'
+  import { date, t, type Key } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
   import PermissionCard from './PermissionCard.svelte'
   import { argument, replayLog, subagentOf, type Agent, type Subagent, type ToolCall } from './stream'
-  import { asking, LABEL, lookOf } from './subagents'
+  import { asking, label, lookOf } from './subagents'
 
   let {
     agent,
@@ -24,11 +25,11 @@
     onsize: (size: 'panel' | 'wide' | 'screen') => void
   } = $props()
 
-  const SIZES = [
-    ['panel', 'Panel', 'Next to the conversation'],
-    ['wide', 'Wide', 'Up to the agent list'],
-    ['screen', 'Full screen', 'Full screen (F) · Esc to come back'],
-  ] as const
+  const SIZES: ['panel' | 'wide' | 'screen', Key, Key][] = [
+    ['panel', 'conversation.sizePanel', 'conversation.sizePanelHint'],
+    ['wide', 'conversation.sizeWide', 'conversation.sizeWideHint'],
+    ['screen', 'conversation.sizeScreen', 'conversation.sizeScreenHint'],
+  ]
 
   type Item = { kind: 'text'; at?: number; text: string } | { kind: 'thinking'; at?: number; text?: string; ms?: number } | { kind: 'tool'; at?: number; call: ToolCall }
 
@@ -55,11 +56,8 @@
   const shown = $derived(items.filter((i) => filter === 'all' || (filter === 'tools' ? i.kind === 'tool' : i.kind === 'thinking')))
 
   const two = (n: number) => String(n).padStart(2, '0')
-  const clockTime = (at?: number) => {
-    if (!at) return ''
-    const d = new Date(at)
-    return `${two(d.getHours())}:${two(d.getMinutes())}:${two(d.getSeconds())}`
-  }
+  const clockTime = (at?: number) => (at ? date(at, { hour: '2-digit', minute: '2-digit', second: '2-digit', hour12: false }) : '')
+  const capital = (text: string) => text.charAt(0).toUpperCase() + text.slice(1)
   const span = (ms: number) => {
     const s = Math.max(0, Math.round(ms / 1000))
     return `${Math.floor(s / 60)}:${two(s % 60)}`
@@ -103,17 +101,17 @@
   const result = (call: ToolCall) => {
     const text = call.result?.text.trim() ?? ''
     const lines = text ? text.split('\n').length : 0
-    return call.result?.error ? 'Error' : !call.result ? '…' : !lines ? 'No output' : lines === 1 && text.length < 60 ? text : `${lines} line${lines > 1 ? 's' : ''}`
+    return call.result?.error ? t('conversation.error') : !call.result ? '…' : !lines ? t('conversation.noOutput') : lines === 1 && text.length < 60 ? text : t('conversation.lines', { count: lines })
   }
 
   async function copy() {
-    const lines = [`#${sub.num} ${sub.name}`, `Prompt: ${sub.prompt}`]
+    const lines = [`#${sub.num} ${sub.name}`, t('conversation.copyPrompt', { prompt: sub.prompt })]
     for (const i of items) {
       if (i.kind === 'text') lines.push(`${clockTime(i.at)} ${i.text}`)
-      else if (i.kind === 'thinking') lines.push(`${clockTime(i.at)} (thinking) ${i.text ?? ''}`)
+      else if (i.kind === 'thinking') lines.push(`${clockTime(i.at)} ${t('conversation.copyThinking', { text: i.text ?? '' })}`)
       else lines.push(`${clockTime(i.at)} ${i.call.name} ${argument(agent, i.call)}\n${i.call.result?.text ?? ''}`)
     }
-    if (sub.result) lines.push(`Result: ${sub.result}`)
+    if (sub.result) lines.push(t('conversation.copyResult', { result: sub.result }))
     await navigator.clipboard.writeText(lines.join('\n'))
     copied = true
     setTimeout(() => (copied = false), 1500)
@@ -123,34 +121,34 @@
 <svelte:window onkeydown={keys} onkeydowncapture={leave} />
 
 <div class="nav">
-  <button class="back" onclick={() => onview(null)}>‹ All subagents</button>
+  <button class="back" onclick={() => onview(null)}>{t('conversation.allSubagents')}</button>
   <span class="grow"></span>
-  <div class="sizes" role="group" aria-label="Size of the view">
-    {#each SIZES as [id, label, title] (id)}
-      <button aria-pressed={size === id} {title} onclick={() => onsize(id)}>{label}</button>
+  <div class="sizes" role="group" aria-label={t('conversation.viewSize')}>
+    {#each SIZES as [id, name, hint] (id)}
+      <button aria-pressed={size === id} title={t(hint)} onclick={() => onsize(id)}>{t(name)}</button>
     {/each}
   </div>
-  <div class="steps" role="group" aria-label="Move between subagents">
-    <button disabled={!previous} title={previous ? `Previous subagent · #${previous.num} ${previous.name} (K)` : ''} onclick={() => previous && onview(previous.id)}>‹ {previous ? `#${previous.num}` : ''}</button>
-    <button disabled={!next} title={next ? `Next subagent · #${next.num} ${next.name} (J)` : ''} onclick={() => next && onview(next.id)}>{next ? `#${next.num}` : ''} ›</button>
+  <div class="steps" role="group" aria-label={t('conversation.moveBetween')}>
+    <button disabled={!previous} title={previous ? t('conversation.previousSubagent', { num: previous.num, name: previous.name }) : ''} onclick={() => previous && onview(previous.id)}>‹ {previous ? `#${previous.num}` : ''}</button>
+    <button disabled={!next} title={next ? t('conversation.nextSubagent', { num: next.num, name: next.name }) : ''} onclick={() => next && onview(next.id)}>{next ? `#${next.num}` : ''} ›</button>
   </div>
 </div>
 
 <div class="head">
   <h3><span class="num">#{sub.num}</span> {sub.name}</h3>
   <span class="state {look}">
-    <span class="dot"></span>{LABEL[look][0].toUpperCase() + LABEL[look].slice(1)}{look === 'running' || look === 'waiting' ? ` · for ${span(lasted)}` : ''}
+    <span class="dot"></span>{look === 'running' || look === 'waiting' ? t('conversation.stateFor', { state: capital(label(look)), time: span(lasted) }) : capital(label(look))}
   </span>
-  <span class="meta">{[sub.type, model, sub.started && `started at ${clockTime(sub.started)}`, span(lasted), `${tokens(sub.tokens)} tokens`].filter(Boolean).join(' · ')}</span>
+  <span class="meta">{[sub.type, model, sub.started && t('conversation.startedAt', { time: clockTime(sub.started) }), span(lasted), t('conversation.tokens', { n: tokens(sub.tokens) })].filter(Boolean).join(' · ')}</span>
   <div class="bar">
-    <div class="filters" role="group" aria-label="Filter the log">
-      <button aria-pressed={filter === 'all'} onclick={() => (filter = 'all')}>All · {items.length}</button>
-      <button aria-pressed={filter === 'tools'} onclick={() => (filter = 'tools')}>Tools · {items.filter((i) => i.kind === 'tool').length}</button>
-      <button aria-pressed={filter === 'thinking'} onclick={() => (filter = 'thinking')}>Thinking · {items.filter((i) => i.kind === 'thinking').length}</button>
+    <div class="filters" role="group" aria-label={t('conversation.filterLog')}>
+      <button aria-pressed={filter === 'all'} onclick={() => (filter = 'all')}>{t('conversation.filterAll', { count: items.length })}</button>
+      <button aria-pressed={filter === 'tools'} onclick={() => (filter = 'tools')}>{t('conversation.filterTools', { count: items.filter((i) => i.kind === 'tool').length })}</button>
+      <button aria-pressed={filter === 'thinking'} onclick={() => (filter = 'thinking')}>{t('conversation.filterThinking', { count: items.filter((i) => i.kind === 'thinking').length })}</button>
     </div>
     <span class="grow"></span>
-    <label class="follow"><input type="checkbox" bind:checked={follow} /> Follow live</label>
-    <button class="copy" onclick={copy}>{copied ? 'Copied' : 'Copy log'}</button>
+    <label class="follow"><input type="checkbox" bind:checked={follow} /> {t('conversation.followLive')}</label>
+    <button class="copy" onclick={copy}>{copied ? t('common.copied') : t('conversation.copyLog')}</button>
   </div>
 </div>
 
@@ -159,7 +157,7 @@
     <span class="at">{clockTime(sub.started)}</span>
     <div class="what">
       <button class="prompt-head" aria-expanded={promptOpen} onclick={() => (promptOpen = !promptOpen)}>
-        Prompt received from {agent.name} <span class="toggle">{promptOpen ? 'Fold' : 'Unfold ›'}</span>
+        {t('conversation.promptFrom', { name: agent.name })} <span class="toggle">{promptOpen ? t('conversation.fold') : t('conversation.unfold')}</span>
       </button>
       <p class="prompt" class:open={promptOpen}>{sub.prompt}</p>
     </div>
@@ -172,7 +170,7 @@
         {#if item.kind === 'text'}
           <Markdown text={item.text} />
         {:else if item.kind === 'thinking'}
-          <p class="thinking">{item.text || (item.ms ? `Thought for ${Math.round(item.ms / 1000)} s` : 'Thinking…')}</p>
+          <p class="thinking">{item.text || (item.ms ? t('conversation.thoughtSeconds', { count: Math.round(item.ms / 1000) }) : t('conversation.thinking'))}</p>
         {:else}
           {@const output = item.call.result?.text.trim() ?? ''}
           <details class="tool" class:failed={item.call.result?.error}>
@@ -181,7 +179,7 @@
               <span class="arg">{argument(agent, item.call)}</span>
               <span class="out">{result(item.call)}{output ? ' ⌄' : ''}</span>
             </summary>
-            {#if output}<pre>{output.split('\n').slice(0, 60).join('\n')}{output.split('\n').length > 60 ? `\n… ${output.split('\n').length - 60} more lines` : ''}</pre>{/if}
+            {#if output}<pre>{output.split('\n').slice(0, 60).join('\n')}{output.split('\n').length > 60 ? `\n${t('conversation.moreLines', { count: output.split('\n').length - 60 })}` : ''}</pre>{/if}
           </details>
         {/if}
       </div>
@@ -196,20 +194,20 @@
   {/if}
 
   <div class="result">
-    <strong>Result</strong>
+    <strong>{t('conversation.result')}</strong>
     {#if sub.result}
       <Markdown text={sub.result} />
     {:else if sub.status === 'stopped'}
-      <p>Stopped before handing back a result.</p>
+      <p>{t('conversation.stoppedNoResult')}</p>
     {:else}
-      <p>Not handed back yet. It goes back to {agent.name} at the end.</p>
+      <p>{t('conversation.notHandedBack', { name: agent.name })}</p>
     {/if}
   </div>
 </div>
 
 <div class="foot">
-  <span>You don't write to a subagent. To steer it, write to {agent.name}.</span>
-  <button class="btn btn-secondary" onclick={() => onquote(`#${sub.num} ${sub.name}`)}>Quote #{sub.num} in the message</button>
+  <span>{t('conversation.noWriting', { name: agent.name })}</span>
+  <button class="btn btn-secondary" onclick={() => onquote(`#${sub.num} ${sub.name}`)}>{t('conversation.quote', { num: sub.num })}</button>
 </div>
 
 <style>

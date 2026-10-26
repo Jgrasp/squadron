@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { pairs, rows, type Hunk } from './diff'
+  import { t } from './i18n/index.svelte'
 
   export type Line = { side: 'old' | 'new'; number: number; text: string }
 
@@ -37,11 +38,11 @@
 {#snippet plus(line: Line)}
   {@const note = noteAt(line.side, line.number)}
   {#if note !== undefined}
-    <button class="plus bubble effect-snake" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
+    <button class="plus bubble effect-snake" aria-label={t('review.editCommentOnLine', { line: String(line.number) })} title={note} onclick={() => oncomment?.(line)}>
       <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
     </button>
   {:else if oncomment && (commentRemoved || line.side === 'new')}
-    <button class="plus" aria-label="Comment line {line.number}" title="Comment this line" onclick={() => oncomment(line)}>+</button>
+    <button class="plus" aria-label={t('review.commentLine', { line: String(line.number) })} title={t('review.commentThisLine')} onclick={() => oncomment(line)}>+</button>
   {/if}
 {/snippet}
 
@@ -101,7 +102,7 @@
     {/each}
   {/if}
   {#if total > limit}
-    <div class="head">… {total - limit} more lines</div>
+    <div class="head">{t('review.moreLines', { count: total - limit })}</div>
   {/if}
 </div>
 

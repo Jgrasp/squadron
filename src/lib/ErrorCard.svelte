@@ -3,6 +3,8 @@
   import { open } from '@tauri-apps/plugin-dialog'
   import { reload, retry } from './agents.svelte'
   import { time } from './format'
+  import { t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
   import type { Agent, Entry } from './stream'
 
   let { agent, entry }: { agent: Agent; entry: Extract<Entry, { kind: 'error' }> } = $props()
@@ -33,30 +35,30 @@
       <span class="icon" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 24 24"><path d="M4 17l6-6-6-6M12 19h8" /></svg>
       </span>
-      <h2 id="error-{entry.at}">Claude Code not found</h2>
+      <h2 id="error-{entry.at}">{t('agent.claudeNotFound')}</h2>
     </div>
-    <p>Squadron starts every agent with the <code>claude</code> command. It is not in your session PATH.</p>
-    <label for="path-{entry.at}">Executable path</label>
+    <p><Trans k="agent.claudeNotInPath">{#snippet command()}<code>claude</code>{/snippet}</Trans></p>
+    <label for="path-{entry.at}">{t('agent.executablePath')}</label>
     <div class="row">
       <input id="path-{entry.at}" class="field" bind:value={path} placeholder="/home/user/.local/bin/claude" spellcheck="false" />
-      <button class="btn btn-danger" onclick={browse}>Browse…</button>
+      <button class="btn btn-danger" onclick={browse}>{t('common.browse')}</button>
     </div>
     <div class="row">
-      <button class="btn btn-primary" onclick={useClaude}>Retry</button>
-      <a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noreferrer">Install Claude Code</a>
+      <button class="btn btn-primary" onclick={useClaude}>{t('common.retry')}</button>
+      <a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noreferrer">{t('agent.installClaudeCode')}</a>
     </div>
   {:else if entry.login}
     <div class="title">
       <span class="icon" aria-hidden="true">
         <svg width="16" height="16" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2" /><path d="M8 11V7a4 4 0 0 1 8 0v4" /></svg>
       </span>
-      <h2 id="error-{entry.at}">Claude Code is not logged in</h2>
+      <h2 id="error-{entry.at}">{t('agent.notLoggedIn')}</h2>
     </div>
-    <p>Log in once in a terminal, then retry. Other agents are not affected while their session stays open.</p>
+    <p>{t('agent.loginHint')}</p>
     <pre><span>$</span> claude auth login</pre>
     <div class="row">
-      <button class="btn btn-primary" onclick={() => copy('claude auth login')}>{copied ? 'Copied' : 'Copy the command'}</button>
-      <button class="btn btn-danger" onclick={() => retry(agent.id)}>Retry</button>
+      <button class="btn btn-primary" onclick={() => copy('claude auth login')}>{copied ? t('common.copied') : t('agent.copyCommand')}</button>
+      <button class="btn btn-danger" onclick={() => retry(agent.id)}>{t('common.retry')}</button>
       <span class="raw">{entry.message}</span>
     </div>
   {:else}
@@ -65,15 +67,15 @@
         <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg>
       </span>
       <span class="head">
-        <h2 id="error-{entry.at}">The session stopped</h2>
+        <h2 id="error-{entry.at}">{t('agent.sessionStopped')}</h2>
         <small>{time(entry.at)}</small>
       </span>
     </div>
     <pre>{entry.message}</pre>
-    <p>Changes already made are kept. Reload restarts the session with the whole conversation.</p>
+    <p>{t('agent.sessionStoppedHint')}</p>
     <div class="row">
-      <button class="btn btn-primary" onclick={() => reload(agent.id)}>Reload</button>
-      <button class="btn btn-danger" onclick={() => copy(entry.message)}>{copied ? 'Copied' : 'Copy the error'}</button>
+      <button class="btn btn-primary" onclick={() => reload(agent.id)}>{t('common.reload')}</button>
+      <button class="btn btn-danger" onclick={() => copy(entry.message)}>{copied ? t('common.copied') : t('agent.copyError')}</button>
     </div>
   {/if}
 </section>

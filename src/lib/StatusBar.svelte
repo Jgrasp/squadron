@@ -4,6 +4,7 @@
   import { clock, limits, type Limit } from './agents.svelte'
   import { time } from './format'
   import { install, update } from './update.svelte'
+  import { date, number, t, type Key } from './i18n/index.svelte'
 
   type Load = { cpu: number; used: number; total: number }
 
@@ -16,20 +17,19 @@
     return () => clearInterval(timer)
   })
 
-  const gb = (bytes: number) => (bytes / 2 ** 30).toFixed(1)
+  const gb = (bytes: number) => number(bytes / 2 ** 30, { minimumFractionDigits: 1, maximumFractionDigits: 1 })
+  const percent = (ratio: number) => number(ratio, { style: 'percent', maximumFractionDigits: 0 })
   const level = (ratio: number) => (ratio >= 0.9 ? 'high' : ratio >= 0.75 ? 'warm' : '')
 
-  function resets(at: number) {
-    const date = new Date(at)
-    const soon = Math.abs(at - clock.now) < 20 * 3600_000
-    return soon ? time(at) : `${date.toLocaleDateString('en-GB', { weekday: 'short' })} ${time(at)}`
+  function resets(at: number, soon: Key, later: Key) {
+    return Math.abs(at - clock.now) < 20 * 3600_000 ? t(soon, { time: time(at) }) : t(later, { day: date(at, { weekday: 'short' }), time: time(at) })
   }
 
   const windows = $derived(
     (
       [
-        ['Session', 'Current 5-hour window of your Claude plan', limits.five_hour],
-        ['Week', 'Current 7-day window of your Claude plan', limits.seven_day],
+        [t('shell.limitSession'), t('shell.limitSessionHint'), limits.five_hour],
+        [t('shell.limitWeek'), t('shell.limitWeekHint'), limits.seven_day],
       ] as [string, string, Limit | undefined][]
     ).filter((w): w is [string, string, Limit] => !!w[2]),
   )
@@ -41,21 +41,21 @@
 
 <footer class="status">
   {#if load}
-    <span class="item" title="Processor load">
-      CPU {@render meter(load.cpu / 100)}<span class="mono">{Math.round(load.cpu)}%</span>
+    <span class="item" title={t('shell.processorLoad')}>
+      {t('shell.cpu')} {@render meter(load.cpu / 100)}<span class="mono">{percent(load.cpu / 100)}</span>
     </span>
-    <span class="item" title="Memory in use">
-      Memory {@render meter(load.used / load.total)}<span class="mono">{gb(load.used)} / {gb(load.total)} GB</span>
+    <span class="item" title={t('shell.memoryInUse')}>
+      {t('shell.memory')} {@render meter(load.used / load.total)}<span class="mono">{t('shell.gigabytes', { used: gb(load.used), total: gb(load.total) })}</span>
     </span>
   {/if}
   {#if update.found}
-    <button class="update" title={update.error || `Download ${update.found.version}, install it and restart Squadron`} onclick={install}>
+    <button class="update" title={update.error || t('shell.updateTitle', { version: update.found.version })} onclick={install}>
       {#if update.progress !== null}
-        Downloading {update.found.version}… {Math.round(update.progress * 100)}%
+        {t('shell.downloading', { version: update.found.version, percent: percent(update.progress) })}
       {:else if update.error}
-        Update failed · retry
+        {t('shell.updateFailed')}
       {:else}
-        Squadron {update.found.version} is available · Update
+        {t('shell.updateAvailable', { version: update.found.version })}
       {/if}
     </button>
   {/if}
@@ -65,14 +65,14 @@
     <span class="item" title={hint}>
       {label}
       {#if at > clock.now}
-        {@render meter(limit.utilization)}<span class="mono">{Math.round(limit.utilization * 100)}%</span>
-        <span class="reset">resets {resets(at)}</span>
+        {@render meter(limit.utilization)}<span class="mono">{percent(limit.utilization)}</span>
+        <span class="reset">{resets(at, 'shell.resetsTime', 'shell.resetsDay')}</span>
       {:else}
-        <span class="reset">reset at {resets(at)}</span>
+        <span class="reset">{resets(at, 'shell.resetAtTime', 'shell.resetAtDay')}</span>
       {/if}
     </span>
   {:else}
-    <span class="item reset">Plan usage shows up once an agent has run</span>
+    <span class="item reset">{t('shell.planUsageEmpty')}</span>
   {/each}
 </footer>
 

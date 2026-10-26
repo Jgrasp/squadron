@@ -1,14 +1,15 @@
 <script lang="ts">
   import { ui } from './actions.svelte'
   import { reset } from './layout-slots.svelte'
+  import { t } from './i18n/index.svelte'
 </script>
 
 <div class="bar" role="status">
   <span class="dot" aria-hidden="true"></span>
-  <span class="text">Customizing the layout · drag the buttons to reorder them, click the eye to hide one. Menus are arranged in Settings › Layout.</span>
-  <button class="btn btn-secondary" onclick={() => reset()}>Reset all</button>
-  <button class="btn btn-secondary" onclick={() => ((ui.customizing = false), (ui.settings = 'layout'))}>Layout settings</button>
-  <button class="btn btn-primary" onclick={() => (ui.customizing = false)}>Done</button>
+  <span class="text">{t('settings.customizing')}</span>
+  <button class="btn btn-secondary" onclick={() => reset()}>{t('settings.resetAll')}</button>
+  <button class="btn btn-secondary" onclick={() => ((ui.customizing = false), (ui.settings = 'layout'))}>{t('settings.layoutSettings')}</button>
+  <button class="btn btn-primary" onclick={() => (ui.customizing = false)}>{t('settings.done')}</button>
 </div>
 
 <style>

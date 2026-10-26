@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ask } from '@tauri-apps/plugin-dialog'
-  import { agents, archive, clock, fork, ofProject, pin, remove, rename, waiting, waitingDetail } from './agents.svelte'
+  import { agents, archive, clock, fork, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
   import { ago, cost, short } from './format'
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
@@ -12,6 +12,7 @@
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
   import { asking, count, LOOKS, summary } from './subagents'
+  import { t, type Key } from './i18n/index.svelte'
 
   let {
     project,
@@ -47,11 +48,11 @@
 
   async function erase(agent: Agent) {
     menu = null
-    const sure = await ask(`Delete “${agent.name}”? Its conversation leaves Squadron for good; it cannot be restored like an archived agent.`, {
-      title: 'Delete agent',
+    const sure = await ask(t('shell.deleteAgentAsk', { name: agent.name }), {
+      title: t('shell.deleteAgentTitle'),
       kind: 'warning',
-      okLabel: 'Delete',
-      cancelLabel: 'Cancel',
+      okLabel: t('common.delete'),
+      cancelLabel: t('common.cancel'),
     })
     if (sure) remove(agent.id)
   }
@@ -63,11 +64,11 @@
     hovered = { agent, top: rect.top - 6, left: rect.right + 12 }
   }
 
-  const SORTS: [AgentSort['by'], string][] = [
-    ['none', 'By hand'],
-    ['updated', 'Last activity'],
-    ['created', 'Creation date'],
-    ['name', 'Name'],
+  const SORTS: [AgentSort['by'], Key][] = [
+    ['none', 'shell.sortByHand'],
+    ['updated', 'shell.sortLastActivity'],
+    ['created', 'shell.sortCreated'],
+    ['name', 'common.name'],
   ]
 
   let sorting = $state(false)
@@ -115,19 +116,19 @@
   const look = (agent: Agent) => (blocked(agent) ? 'waiting' : agent.status)
 
   function label(agent: Agent) {
-    if (blocked(agent)) return 'Waiting for you'
-    if (!agent.entries.length) return 'Ready for your first message'
+    if (blocked(agent)) return t('shell.waitingForYou')
+    if (!agent.entries.length) return t('shell.readyForFirst')
     switch (agent.status) {
       case 'working':
         return activity(agent)
       case 'done':
-        return `Done ${ago(agent.since, clock.now)}`
+        return t('shell.doneAgo', { ago: ago(agent.since, clock.now) })
       case 'interrupted':
-        return 'Interrupted · waiting for your instruction'
+        return t('shell.interruptedWaiting')
       case 'waiting':
-        return agent.action
+        return agent.asks[0] ? waitingFor(agent.asks[0]) : agent.action
       case 'error':
-        return 'Error · session stopped'
+        return t('shell.errorStopped')
     }
   }
 </script>
@@ -139,7 +140,7 @@
       <!-- svelte-ignore a11y_autofocus -->
       <input
         class="rename"
-        aria-label="Agent name"
+        aria-label={t('shell.agentName')}
         bind:value={newName}
         autofocus
         onkeydown={(e) => (e.key === 'Enter' ? finishRename(true) : e.key === 'Escape' && finishRename(false))}
@@ -147,7 +148,7 @@
       />
     {:else}
       <span class="name">{agent.name}</span>
-      {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
+      {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
     {/if}
     <span class="cost">{cost(agent.cost)}</span>
   </span>
@@ -164,7 +165,7 @@
     {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
     <span class="progress">
       <span class="bar" aria-hidden="true"><span style:width="{(done / agent.tasks.length) * 100}%"></span></span>
-      <span class="count">{done}/{agent.tasks.length} tasks</span>
+      <span class="count">{t('shell.tasksDone', { done, total: agent.tasks.length })}</span>
     </span>
   {/if}
   {#if agent.subagents.length}
@@ -188,11 +189,11 @@
 
 {#if menu}
   {@const agent = menu.agent}
-  <div class="menu" role="menu" aria-label="{agent.name} actions" data-menu style:left="{menu.x}px" style:top="{menu.y}px">
-    <button role="menuitem" onclick={() => ((pinned) => act((id) => pin(id, pinned)))(!agent.pinned)}>{agent.pinned ? 'Unpin' : 'Pin to the top'}</button>
-    <button role="menuitem" disabled={!agent.sessionId} onclick={() => act(fork)}>Fork</button>
-    <button role="menuitem" onclick={() => act(archive)}>Archive conversation</button>
-    <button role="menuitem" class="danger" onclick={() => erase(agent)}>Delete…</button>
+  <div class="menu" role="menu" aria-label={t('shell.actionsOf', { name: agent.name })} data-menu style:left="{menu.x}px" style:top="{menu.y}px">
+    <button role="menuitem" onclick={() => ((pinned) => act((id) => pin(id, pinned)))(!agent.pinned)}>{agent.pinned ? t('shell.unpin') : t('shell.pinToTop')}</button>
+    <button role="menuitem" disabled={!agent.sessionId} onclick={() => act(fork)}>{t('shell.fork')}</button>
+    <button role="menuitem" onclick={() => act(archive)}>{t('shell.archiveConversation')}</button>
+    <button role="menuitem" class="danger" onclick={() => erase(agent)}>{t('common.deleteEllipsis')}</button>
   </div>
 {/if}
 
@@ -204,9 +205,9 @@
 {/if}
 
 {#if layout.collapsed}
-  <aside class="folded" aria-label="Project agents, collapsed" style:--project={project.color}>
+  <aside class="folded" aria-label={t('shell.agentsCollapsed')} style:--project={project.color}>
     <span class="square" title={project.name}></span>
-    <button class="add" aria-label="New agent" title="New agent ({hint('newAgent')})" disabled={!project.exists} onclick={onnew}>+</button>
+    <button class="add" aria-label={t('common.newAgent')} title={t('shell.newAgentKey', { key: hint('newAgent') })} disabled={!project.exists} onclick={onnew}>+</button>
     <span class="sep" aria-hidden="true"></span>
     <div class="tiles" use:sortable={{ enabled: list.length > 1, onplace: drop }}>
       {#each list as agent (agent.id)}
@@ -215,7 +216,7 @@
           class="tile {look(agent)}"
           data-item={agent.id}
           aria-current={agent.id === current?.id ? 'true' : undefined}
-          aria-label="{agent.name}, {label(agent)}"
+          aria-label={t('shell.tileLabel', { name: agent.name, state: label(agent) ?? '' })}
           onclick={() => (agents.current[project.path] = agent.id)}
           oncontextmenu={(e) => open(agent, e)}
           onmouseenter={(e) => hover(agent, e)}
@@ -231,7 +232,7 @@
         </button>
       {/each}
     </div>
-    <button class="toggle" aria-label="Expand the agent list" title="Expand the list ({hint('sidebar')})" onclick={toggleSidebar}>
+    <button class="toggle" aria-label={t('shell.expandAgentList')} title={t('shell.expandList', { key: hint('sidebar') })} onclick={toggleSidebar}>
       <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
     </button>
     {#if hovered}
@@ -241,65 +242,65 @@
     {/if}
   </aside>
 {:else}
-<aside aria-label="Project agents" style:width="{layout.sidebar}px" style:--project={project.color}>
+<aside aria-label={t('shell.projectAgents')} style:width="{layout.sidebar}px" style:--project={project.color}>
   <div class="head">
     <div class="who">
       <span class="square" aria-hidden="true"></span>
       <strong title={project.name}>{project.name}</strong>
-      <button class="fold collapse" aria-label="Collapse the agent list" title="Collapse the list ({hint('sidebar')})" onclick={toggleSidebar}>
+      <button class="fold collapse" aria-label={t('shell.collapseAgentList')} title={t('shell.collapseList', { key: hint('sidebar') })} onclick={toggleSidebar}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
       </button>
     </div>
     <div class="under">
     <small class:bad={!project.exists}>
       {#if !project.exists}
-        Folder not found
+        {t('shell.folderNotFound')}
       {:else if list.length}
-        {list.length} agent{list.length > 1 ? 's' : ''}{#if pending}&nbsp;· {pending} waiting for you{/if}
+        {t('shell.agentCount', { count: list.length })}{#if pending}&nbsp;· {t('shell.waitingCount', { count: pending })}{/if}
       {:else}
-        No agents
+        {t('shell.noAgents')}
       {/if}
     </small>
     <div class="actions">
-      <button class="new" disabled={!project.exists} onclick={onnew} title="New agent ({hint('newAgent')})">+ Agent</button>
+      <button class="new" disabled={!project.exists} onclick={onnew} title={t('shell.newAgentKey', { key: hint('newAgent') })}>{t('shell.addAgent')}</button>
       <span class="anchor loose" data-menu>
-        <button class="fold" class:own aria-label="Sort the agents" aria-haspopup="menu" aria-expanded={sorting} title={own ? `Sorted for ${project.name}` : 'Sort the agents'} onclick={openSort}>
+        <button class="fold" class:own aria-label={t('shell.sortAgents')} aria-haspopup="menu" aria-expanded={sorting} title={own ? t('shell.sortedFor', { name: project.name }) : t('shell.sortAgents')} onclick={openSort}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4v16M3 16l4 4 4-4M17 20V4M13 8l4-4 4 4" /></svg>
         </button>
         {#if sorting}
-          <div class="menu sort" role="menu" aria-label="Sort the agents">
-            <div class="scope" role="group" aria-label="Applies to">
-              <button aria-pressed={scope === 'all'} onclick={() => (scope = 'all')}>All projects</button>
+          <div class="menu sort" role="menu" aria-label={t('shell.sortAgents')}>
+            <div class="scope" role="group" aria-label={t('shell.appliesTo')}>
+              <button aria-pressed={scope === 'all'} onclick={() => (scope = 'all')}>{t('shell.allProjects')}</button>
               <button aria-pressed={scope === 'project'} onclick={() => (scope = 'project')}>{project.name}</button>
             </div>
             {#each SORTS as [by, label] (by)}
-              <button role="menuitemradio" aria-checked={shownSort.by === by} onclick={() => setSort(scope === 'project' ? project.path : null, { by })}>{label}</button>
+              <button role="menuitemradio" aria-checked={shownSort.by === by} onclick={() => setSort(scope === 'project' ? project.path : null, { by })}>{t(label)}</button>
             {/each}
             {#if shownSort.by !== 'none'}
               <span class="line-sep" aria-hidden="true"></span>
               <button role="menuitemradio" aria-checked={!shownSort.desc} onclick={() => setSort(scope === 'project' ? project.path : null, { desc: false })}
-                >{shownSort.by === 'name' ? 'A to Z' : 'Oldest first'}</button
+                >{shownSort.by === 'name' ? t('shell.aToZ') : t('shell.oldestFirst')}</button
               >
               <button role="menuitemradio" aria-checked={shownSort.desc} onclick={() => setSort(scope === 'project' ? project.path : null, { desc: true })}
-                >{shownSort.by === 'name' ? 'Z to A' : 'Newest first'}</button
+                >{shownSort.by === 'name' ? t('shell.zToA') : t('shell.newestFirst')}</button
               >
             {/if}
             {#if scope === 'project'}
               <span class="line-sep" aria-hidden="true"></span>
               <button role="menuitem" disabled={!own} onclick={() => ((scope = 'all'), resetSort(project.path))}>
-                {own ? 'Use the sorting of all projects' : 'Uses the sorting of all projects'}
+                {own ? t('shell.useSortOfAll') : t('shell.usesSortOfAll')}
               </button>
             {/if}
           </div>
         {/if}
       </span>
-      <button class="fold" aria-label="Archived agents" title="Archived agents of {project.name}" onclick={() => (showArchived = true)}>
+      <button class="fold" aria-label={t('shell.archivedAgents')} title={t('shell.archivedAgentsOf', { name: project.name })} onclick={() => (showArchived = true)}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" /></svg>
       </button>
       <button
         class="fold"
-        aria-label="Import conversations"
-        title="Import conversations of {project.name} from the Claude app or Claude Code"
+        aria-label={t('shell.importConversations')}
+        title={t('shell.importConversationsOf', { name: project.name })}
         disabled={!project.exists}
         onclick={() => (showImport = true)}
       >
@@ -321,7 +322,7 @@
             class="agent {look(agent)}"
             data-item={agent.id}
             aria-current={agent.id === current?.id ? 'true' : undefined}
-            title="Double-click or F2 to rename"
+            title={t('shell.renameHint')}
             onclick={() => (agents.current[project.path] = agent.id)}
             ondblclick={() => startRename(agent)}
             oncontextmenu={(e) => open(agent, e)}
@@ -337,16 +338,14 @@
       <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"
         ><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" stroke-dasharray="3 3" /></svg
       >
-      {project.exists
-        ? `${project.name} agents will show up here, with their state and cost.`
-        : 'You can create agents once the folder is found again.'}
+      {project.exists ? t('shell.agentsShowHere', { name: project.name }) : t('shell.agentsOnceFound')}
     </div>
   {/if}
 
   <div class="info">
     <span class="mono">{home(project.path)}</span>
-    <span>{project.git ? `Git · ${project.branch ?? 'repository'}` : 'No Git repository'}</span>
-    <span>Project cost · {cost(total)}</span>
+    <span>{project.git ? (project.branch !== null ? t('shell.gitBranch', { branch: project.branch }) : t('shell.gitRepository')) : t('shell.noGit')}</span>
+    <span>{t('shell.projectCost', { cost: cost(total) })}</span>
   </div>
 </aside>
 {/if}

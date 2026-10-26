@@ -32,5 +32,7 @@ describe('i18n', () => {
   it('keeps unknown errors as they are', () => {
     setLanguage('fr')
     expect(errorText('boom')).toBe('boom')
+    expect(errorText('Unknown agent.')).toBe('Agent inconnu.')
+    expect(errorText(new Error('This folder is already the Nova project.'))).toBe('Ce dossier est déjà le projet Nova.')
   })
 })

@@ -9,6 +9,7 @@
 <script lang="ts">
   import { message } from '@tauri-apps/plugin-dialog'
   import { settings } from './settings.svelte'
+  import { errorText, t } from './i18n/index.svelte'
 
   let { project, path = '', up = false }: { project: string; path?: string; up?: boolean } = $props()
 
@@ -30,7 +31,7 @@
     try {
       localStorage.setItem('squadron.editor-app', app.name)
     } catch {}
-    invoke('open_with', { command: app.command, project, path }).catch((e) => message(String(e), { title: `Could not open ${app.name}`, kind: 'error' }))
+    invoke('open_with', { command: app.command, project, path }).catch((e) => message(errorText(e), { title: t('shell.couldNotOpen', { name: app.name }), kind: 'error' }))
   }
 </script>
 
@@ -38,14 +39,14 @@
 
 {#if chosen}
   <span class="split" data-open-with>
-    <button class="btn btn-secondary main" class:alone={apps.length < 2} title={chosen.command} onclick={() => run(chosen)}>Open in {chosen.name}</button>
+    <button class="btn btn-secondary main" class:alone={apps.length < 2} title={chosen.command} onclick={() => run(chosen)}>{t('shell.openIn', { name: chosen.name })}</button>
     {#if apps.length > 1}
-      <button class="btn btn-secondary more" aria-label="Choose the app" aria-haspopup="menu" aria-expanded={menu} onclick={() => (menu = !menu)}>
+      <button class="btn btn-secondary more" aria-label={t('shell.chooseApp')} aria-haspopup="menu" aria-expanded={menu} onclick={() => (menu = !menu)}>
         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
       </button>
     {/if}
     {#if menu}
-      <div class="menu" class:up role="menu" aria-label="Open with">
+      <div class="menu" class:up role="menu" aria-label={t('shell.openWith')}>
         {#each apps as app (app.name)}
           <button role="menuitemradio" aria-checked={app === chosen} onclick={() => run(app)}>
             <strong>{app.name}</strong><span>{app.command}</span>
@@ -55,7 +56,7 @@
     {/if}
   </span>
 {:else}
-  <button class="btn btn-secondary main alone" onclick={() => invoke('open_in_editor', { project, path })}>Open in external editor</button>
+  <button class="btn btn-secondary main alone" onclick={() => invoke('open_in_editor', { project, path })}>{t('shell.openInExternal')}</button>
 {/if}
 
 <style>

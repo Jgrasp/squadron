@@ -1,3 +1,5 @@
+import { t } from './i18n/index.svelte'
+
 export type Options = {
   model: string
   effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
@@ -151,7 +153,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     cost: 0,
     tokens: 0,
     turns: 0,
-    action: 'Starting…',
+    action: t('conversation.starting'),
     since: Date.now(),
     live: { input: 0, output: 0, outputDone: 0, started: Date.now() },
     alive: false,
@@ -208,20 +210,21 @@ export function argument(agent: Agent, call: Pick<ToolCall, 'name' | 'input'>): 
   }
 }
 
-const file = (input: Record<string, unknown>) => String(input.file_path ?? input.notebook_path ?? '').split('/').at(-1) || 'a file'
+const file = (input: Record<string, unknown>) => String(input.file_path ?? input.notebook_path ?? '').split('/').at(-1)
 
 export function doing(call: Pick<ToolCall, 'name' | 'input'>) {
   const input = call.input
   if (call.name === 'Bash') {
     const described = String(input.description ?? '').split('\n')[0].trim()
-    return described && described.length <= 90 && !/&&|\|\||[|;`]|\$\(/.test(described) ? described : 'Running a command'
+    return described && described.length <= 90 && !/&&|\|\||[|;`]|\$\(/.test(described) ? described : t('conversation.runningCommand')
   }
-  if (call.name === 'Read') return `Reading ${file(input)}`
-  if (['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(call.name)) return `Editing ${file(input)}`
-  if (['Grep', 'Glob', 'LS'].includes(call.name)) return 'Searching the code'
-  if (['WebFetch', 'WebSearch'].includes(call.name)) return 'Looking it up on the web'
-  if (call.name === 'Agent' || call.name === 'Task') return 'Starting a subagent'
-  return `Using ${call.name.split('__').at(-1)}`
+  const name = file(input)
+  if (call.name === 'Read') return name ? t('conversation.readingFile', { file: name }) : t('conversation.readingAFile')
+  if (['Edit', 'MultiEdit', 'Write', 'NotebookEdit'].includes(call.name)) return name ? t('conversation.editingFile', { file: name }) : t('conversation.editingAFile')
+  if (['Grep', 'Glob', 'LS'].includes(call.name)) return t('conversation.searchingCode')
+  if (['WebFetch', 'WebSearch'].includes(call.name)) return t('conversation.lookingUpWeb')
+  if (call.name === 'Agent' || call.name === 'Task') return t('conversation.startingSubagent')
+  return t('conversation.usingTool', { tool: call.name.split('__').at(-1) ?? '' })
 }
 
 export function activity(agent: Agent) {
@@ -229,8 +232,8 @@ export function activity(agent: Agent) {
   const block = last?.kind === 'agent' ? last.blocks.at(-1) : undefined
   const call = block?.type === 'tools' ? block.calls.at(-1) : undefined
   if (call && !call.result && !INTERNAL.includes(call.name)) return doing(call)
-  if (block?.type === 'thinking' && block.ms === undefined) return 'Thinking…'
-  if (block?.type === 'text') return 'Writing…'
+  if (block?.type === 'thinking' && block.ms === undefined) return t('conversation.thinking')
+  if (block?.type === 'text') return t('conversation.writing')
   return agent.action
 }
 
@@ -246,7 +249,7 @@ export function userMessage(agent: Agent, text: string, comments: Comment[] = []
   agent.attention = ''
   if (!agent.alive) agent.processCost = 0
   agent.status = 'working'
-  agent.action = 'Starting…'
+  agent.action = t('conversation.starting')
   agent.since = Date.now()
   agent.live = { input: 0, output: 0, outputDone: 0, started: Date.now() }
 }
@@ -281,7 +284,7 @@ function subagentEvent(agent: Agent, d: Json) {
       type: String(d.subagent_type ?? ''),
       prompt: String(d.prompt ?? ''),
       status: 'running',
-      last: 'Starting…',
+      last: t('conversation.starting'),
       tokens: 0,
       tools: 0,
       ms: 0,
@@ -344,7 +347,7 @@ export function apply(agent: Agent, d: Json) {
         known.terminal = d.terminal_slash_commands ?? []
       }
       if (d.subtype === 'bridge_state') agent.remote = { ...agent.remote, state: String(d.state), url: agent.remote?.url ?? '', since: agent.remote?.since ?? Date.now() }
-      if (d.subtype === 'status' && d.status === 'compacting') agent.action = 'Compacting the conversation…'
+      if (d.subtype === 'status' && d.status === 'compacting') agent.action = t('conversation.compacting')
       if (d.subtype === 'compact_boundary') {
         const meta = d.compact_metadata ?? {}
         agent.entries.push({ kind: 'compacted', at: Date.now(), before: meta.pre_tokens ?? 0, after: meta.post_tokens ?? 0 })
@@ -354,7 +357,7 @@ export function apply(agent: Agent, d: Json) {
       if (d.subtype === 'notification' && d.key === 'stop-hook-block-cap' && agent.goal?.state === 'active') agent.goal.state = 'stopping'
       if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
       if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
-        agent.attention = String(d.needs_action || d.status_detail || 'Waiting for you')
+        agent.attention = String(d.needs_action || d.status_detail || t('conversation.waitingForYou'))
       if (d.subtype === 'status' && d.status === 'requesting' && agent.status !== 'waiting')
         agent.status = 'working'
       return
@@ -401,10 +404,10 @@ function stream(agent: Agent, d: Json) {
     const entry = agentEntry(agent)
     if (block.type === 'text') {
       entry.blocks.push({ type: 'text', text: '', key })
-      act(agent, 'Writing the reply…')
+      act(agent, t('conversation.writingReply'))
     } else if (block.type === 'thinking') {
       entry.blocks.push({ type: 'thinking' })
-      act(agent, 'Thinking…')
+      act(agent, t('conversation.thinking'))
     } else if (block.type === 'tool_use') {
       const call: ToolCall = { id: block.id, name: block.name, input: {} }
       const last = entry.blocks.at(-1)
@@ -508,8 +511,8 @@ function relaunched(agent: Agent, text: string) {
     kind: 'decision',
     at: Date.now(),
     tone: 'bad',
-    title: 'Goal not met yet',
-    detail: `relaunch ${goal.relaunches} of ${GOAL_RELAUNCHES} · ${goal.reason}`,
+    title: t('conversation.goalNotMet'),
+    detail: t('conversation.relaunchOf', { n: goal.relaunches, total: GOAL_RELAUNCHES, reason: goal.reason }),
   })
 }
 
@@ -564,17 +567,17 @@ function result(agent: Agent, d: Json) {
   if (agent.interrupting) {
     agent.interrupting = false
     agent.status = 'interrupted'
-    agent.action = 'Interrupted · waiting for your instruction'
+    agent.action = t('conversation.interruptedWaiting')
     agent.entries.push({ kind: 'interrupted', at: Date.now(), ...used })
   } else if (d.is_error) {
     const message = String(d.result ?? ((d.errors ?? []).join('\n') || d.subtype))
-    fail(agent, message || 'The session stopped.')
+    fail(agent, message || t('conversation.sessionStopped'))
   } else {
     agent.status = agent.goal?.state === 'sent' ? 'working' : 'done'
-    agent.action = agent.goal?.state === 'sent' ? 'Starting the goal…' : ''
+    agent.action = agent.goal?.state === 'sent' ? t('conversation.startingGoal') : ''
     if (agent.goal?.state === 'active') {
       agent.goal.state = 'met'
-      agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'ok', title: 'Goal met', detail: agent.goal.condition })
+      agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'ok', title: t('conversation.goalMet'), detail: agent.goal.condition })
     }
     if (d.num_turns === 0 && !cost) return
     agent.turns += 1
@@ -586,11 +589,11 @@ export function fail(agent: Agent, message: string) {
   agent.asks = []
   agent.status = 'error'
   agent.interrupting = false
-  agent.attention = message.split('\n')[0] || 'Error'
+  agent.attention = message.split('\n')[0] || t('conversation.error')
   agent.since = Date.now()
   const missing = message === 'claude-not-found'
   const login = /not logged in|\/login|invalid api key|failed to authenticate|oauth session expired/i.test(message)
-  agent.action = missing ? 'Claude Code not found' : login ? 'Claude Code not logged in' : message.split('\n')[0]
+  agent.action = missing ? t('conversation.claudeNotFound') : login ? t('conversation.claudeNotLoggedIn') : message.split('\n')[0]
   agent.entries.push({ kind: 'error', at: Date.now(), message, login, missing })
 }
 
@@ -602,10 +605,10 @@ export function exited(agent: Agent, stderr: string) {
   if (agent.interrupting) {
     agent.interrupting = false
     agent.status = 'interrupted'
-    agent.action = 'Interrupted · waiting for your instruction'
+    agent.action = t('conversation.interruptedWaiting')
     agent.entries.push({ kind: 'interrupted', at: Date.now(), cost: 0, input: 0, output: 0, ms: 0 })
   } else if (agent.status === 'working' || agent.status === 'waiting') {
-    fail(agent, stderr.trim() || 'The session stopped while the agent was replying.')
+    fail(agent, stderr.trim() || t('conversation.sessionStoppedReplying'))
   }
 }
 
@@ -618,6 +621,6 @@ export function reloaded(agent: Agent) {
   agent.interrupting = false
   if (agent.status !== 'done') {
     agent.status = 'done'
-    agent.action = 'Session reloaded'
+    agent.action = t('conversation.sessionReloaded')
   }
 }

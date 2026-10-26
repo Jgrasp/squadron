@@ -6,12 +6,14 @@
   import { tags as t } from '@lezer/highlight'
   import { basicSetup } from 'codemirror'
   import { lineMarks } from './diff'
+  import { t as say } from './i18n/index.svelte'
 
   type Bridge = { change: (key: string, doc: string) => void; save: (key: string, doc: string) => void; cursor: (line: number, col: number) => void }
 
   const states = new Map<string, EditorState>()
   const language = new Compartment()
   const tracking = new Compartment()
+  const phrases = new Compartment()
   let bridge: Bridge | null = null
 
   export function forget(key: string) {
@@ -122,6 +124,38 @@
     ]
   }
 
+  function words() {
+    return EditorState.phrases.of({
+      Find: say('shell.cmFind'),
+      Replace: say('shell.cmReplace'),
+      next: say('shell.cmNext'),
+      previous: say('shell.cmPrevious'),
+      all: say('shell.cmAll'),
+      'match case': say('shell.cmMatchCase'),
+      regexp: say('shell.cmRegexp'),
+      'by word': say('shell.cmByWord'),
+      replace: say('shell.cmReplaceOne'),
+      'replace all': say('shell.cmReplaceAll'),
+      close: say('shell.cmClose'),
+      'current match': say('shell.cmCurrentMatch'),
+      'replaced $ matches': say('shell.cmReplacedMatches'),
+      'replaced match on line $': say('shell.cmReplacedOnLine'),
+      'on line': say('shell.cmOnLine'),
+      'Go to line': say('shell.cmGoToLine'),
+      go: say('shell.cmGo'),
+      'Folded lines': say('shell.cmFoldedLines'),
+      'Unfolded lines': say('shell.cmUnfoldedLines'),
+      'folded code': say('shell.cmFoldedCode'),
+      unfold: say('shell.cmUnfold'),
+      'Fold line': say('shell.cmFoldLine'),
+      'Unfold line': say('shell.cmUnfoldLine'),
+      to: say('shell.cmTo'),
+      Completions: say('shell.cmCompletions'),
+      Diagnostics: say('shell.cmDiagnostics'),
+      'No diagnostics': say('shell.cmNoDiagnostics'),
+    })
+  }
+
   function create(key: string, text: string, base: string | null | undefined) {
     return EditorState.create({
       doc: text,
@@ -131,6 +165,7 @@
         basicSetup,
         theme,
         language.of([]),
+        phrases.of(words()),
         tracking.of(base === undefined ? [] : changes(base)),
         EditorView.updateListener.of((u) => {
           if (u.docChanged) bridge?.change(key, u.state.doc.toString())
@@ -211,6 +246,11 @@
   $effect(() => {
     const value = base
     untrack(() => view?.dispatch({ effects: tracking.reconfigure(value === undefined ? [] : changes(value)) }))
+  })
+
+  $effect(() => {
+    const next = words()
+    untrack(() => view?.dispatch({ effects: phrases.reconfigure(next) }))
   })
 </script>
 

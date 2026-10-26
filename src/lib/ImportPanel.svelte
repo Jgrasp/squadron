@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { agents, importSession, knownSessions, type Elsewhere } from './agents.svelte'
   import Dialog from './Dialog.svelte'
+  import { date, errorText, number, t } from './i18n/index.svelte'
   import type { Project } from './projects.svelte'
 
   let { project, onclose }: { project: Project; onclose: () => void } = $props()
@@ -25,9 +26,13 @@
     ),
   )
   const archivedCount = $derived((found ?? []).filter((f) => f.archived).length)
-  const when = (at: number) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
-  const size = (bytes: number) => (bytes > 1024 * 1024 ? `${(bytes / 1024 / 1024).toFixed(1)} MB` : `${Math.max(1, Math.round(bytes / 1024))} KB`)
-  const place = (f: Elsewhere) => (f.cwd && f.cwd !== project.path ? (f.here ? `in ${f.cwd.split('/').pop()}` : 'folder gone') : '')
+  const when = (at: number) => date(at, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+  const size = (bytes: number) =>
+    bytes > 1024 * 1024
+      ? t('board.megabytes', { n: number(bytes / 1024 / 1024, { minimumFractionDigits: 1, maximumFractionDigits: 1 }) })
+      : t('board.kilobytes', { n: Math.max(1, Math.round(bytes / 1024)) })
+  const place = (f: Elsewhere) =>
+    f.cwd && f.cwd !== project.path ? (f.here ? t('board.inFolder', { folder: f.cwd.split('/').pop() ?? '' }) : t('board.folderGone')) : ''
   const toggle = (id: string) => (chosen = chosen.includes(id) ? chosen.filter((c) => c !== id) : [...chosen, id])
   const allShown = $derived(shown.length > 0 && shown.every((f) => chosen.includes(f.id)))
 
@@ -40,7 +45,7 @@
       try {
         last = (await importSession(project.path, f)).id
       } catch (e) {
-        errors.push(`${f.title}: ${e}`)
+        errors.push(t('board.importError', { title: f.title, error: errorText(e) }))
       }
     }
     importing = null
@@ -52,16 +57,16 @@
   }
 </script>
 
-<Dialog title="Import conversations · {project.name}" full {onclose}>
+<Dialog title={t('board.importTitle', { project: project.name })} full {onclose}>
   <div class="import">
-    <p class="intro">Conversations of {project.name} held in the Claude app or in Claude Code. Each one you import becomes an agent that continues it, in a fork: the original stays untouched.</p>
+    <p class="intro">{t('board.importIntro', { project: project.name })}</p>
     <div class="bar">
-      <input class="field" type="search" placeholder="Filter {found?.length ?? ''} conversations" bind:value={search} />
+      <input class="field" type="search" placeholder={found ? t('board.filterConversations', { count: found.length }) : t('board.filterConversationsLoading')} bind:value={search} />
       {#if archivedCount}
-        <label class="check"><input type="checkbox" bind:checked={hideArchived} /> Hide the {archivedCount} archived in the Claude app</label>
+        <label class="check"><input type="checkbox" bind:checked={hideArchived} /> {t('board.hideArchived', { count: archivedCount })}</label>
       {/if}
       <button class="btn btn-secondary" disabled={!shown.length} onclick={() => (chosen = allShown ? [] : [...new Set([...chosen, ...shown.map((f) => f.id)])])}>
-        {allShown ? 'Unselect all' : 'Select all'}
+        {allShown ? t('board.unselectAll') : t('board.selectAll')}
       </button>
     </div>
     <ul>
@@ -72,23 +77,23 @@
             <span class="what">
               <strong>{f.title}</strong>
               <small>
-                {when(f.updated)} · {size(f.size)} · {f.app ? 'Claude app' : 'Claude Code'}{#if place(f)}&nbsp;· {place(f)}{/if}{#if f.archived}&nbsp;· archived in the app{/if}
+                {when(f.updated)} · {size(f.size)} · {f.app ? t('board.claudeApp') : 'Claude Code'}{#if place(f)}&nbsp;· {place(f)}{/if}{#if f.archived}&nbsp;· {t('board.archivedInApp')}{/if}
               </small>
             </span>
           </label>
         </li>
       {:else}
-        <p class="empty">{found ? 'No other conversation for this project.' : 'Looking for conversations…'}</p>
+        <p class="empty">{found ? t('board.noOtherConversation') : t('board.lookingForConversations')}</p>
       {/each}
     </ul>
     {#if errors.length}
       <div class="bad" role="alert">{#each errors as e (e)}<p>{e}</p>{/each}</div>
     {/if}
     <footer>
-      <span class="count">{chosen.length ? `${chosen.length} selected` : 'Select the conversations to import'}</span>
-      <button class="btn btn-secondary" onclick={onclose}>Cancel</button>
+      <span class="count">{chosen.length ? t('board.selected', { count: chosen.length }) : t('board.selectToImport')}</span>
+      <button class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
       <button class="btn btn-primary" disabled={!chosen.length || importing !== null} onclick={run}>
-        {importing !== null ? `Importing ${importing}/${chosen.length}…` : `Import${chosen.length ? ` ${chosen.length}` : ''}`}
+        {importing !== null ? t('board.importing', { n: importing, total: chosen.length }) : chosen.length ? t('board.importCount', { count: chosen.length }) : t('board.import')}
       </button>
     </footer>
   </div>

@@ -1,16 +1,29 @@
+import { t, type Key } from './i18n/index.svelte'
 import { subagentOf, type Agent, type Subagent } from './stream'
 
 export type Look = 'waiting' | 'error' | 'running' | 'done' | 'stopped'
 
 export const LOOKS: Look[] = ['running', 'waiting', 'error', 'done', 'stopped']
 
-export const LABEL: Record<Look, string> = {
-  running: 'running',
-  waiting: 'waiting for you',
-  error: 'failed',
-  done: 'done',
-  stopped: 'stopped',
+const LABELS: Record<Look, Key> = {
+  running: 'conversation.stateRunning',
+  waiting: 'conversation.stateWaiting',
+  error: 'conversation.stateError',
+  done: 'conversation.stateDone',
+  stopped: 'conversation.stateStopped',
 }
+
+export const label = (look: Look) => t(LABELS[look])
+
+const COUNTS: Record<Look, Key> = {
+  running: 'conversation.countRunning',
+  waiting: 'conversation.countWaiting',
+  error: 'conversation.countError',
+  done: 'conversation.countDone',
+  stopped: 'conversation.countStopped',
+}
+
+export const counted = (look: Look, n: number) => t(COUNTS[look], { count: n })
 
 export function asking(agent: Agent) {
   return new Set(agent.asks.map((a) => subagentOf(agent, a.tool_use_id)?.id).filter(Boolean))
@@ -28,9 +41,9 @@ export function count(subs: Subagent[], waiting: Set<string | undefined>) {
 
 export function summary(subs: Subagent[], waiting: Set<string | undefined>) {
   const c = count(subs, waiting)
-  const parts = [`${subs.length} subagent${subs.length > 1 ? 's' : ''}`]
-  if (c.done) parts.push(`${c.done} done`)
-  else if (c.running) parts.push(`${c.running} running`)
-  if (c.error) parts.push(`${c.error} failed`)
+  const parts = [t('conversation.subagentCount', { count: subs.length })]
+  if (c.done) parts.push(counted('done', c.done))
+  else if (c.running) parts.push(counted('running', c.running))
+  if (c.error) parts.push(counted('error', c.error))
   return parts.join(' · ')
 }

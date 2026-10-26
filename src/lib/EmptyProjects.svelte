@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { t } from './i18n/index.svelte'
+
   let { onadd }: { onadd: () => void } = $props()
 </script>
 
@@ -8,17 +10,14 @@
       <path d="M32 4L60 52H4L32 4Z" fill="none" stroke="var(--accent)" stroke-width="3" stroke-linejoin="round" />
       <path d="M32 24L44 46H20L32 24Z" fill="var(--accent)" opacity="0.35" />
     </svg>
-    <h1>No projects yet</h1>
-    <p>
-      A project is a local folder. Squadron runs your Claude Code agents in it and tells you when one
-      of them needs you. Git is optional.
-    </p>
-    <button class="btn btn-primary" onclick={onadd}>Add a project</button>
+    <h1>{t('board.noProjects')}</h1>
+    <p>{t('board.noProjectsText')}</p>
+    <button class="btn btn-primary" onclick={onadd}>{t('board.addProject')}</button>
     <div class="drop">
       <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"
         ><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg
       >
-      or drop a folder here
+      {t('board.dropFolder')}
     </div>
   </div>
 </main>

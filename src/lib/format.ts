@@ -5,7 +5,7 @@ import type { Agent, Options } from './stream'
 
 export const cost = (usd: number) => {
   const digits = usd > 0 && usd < 0.01 ? 3 : 2
-  return number(usd, { style: 'currency', currency: 'USD', minimumFractionDigits: digits, maximumFractionDigits: digits })
+  return number(usd, { style: 'currency', currency: 'USD', currencyDisplay: 'narrowSymbol', minimumFractionDigits: digits, maximumFractionDigits: digits })
 }
 
 const tenth = (n: number) => number(n, { maximumFractionDigits: 1 })
@@ -39,8 +39,18 @@ const MODES: Record<Options['mode'], Key> = {
 
 export const modeLabel = (mode: Options['mode']) => t(MODES[mode])
 
+const EFFORTS: Record<string, Key> = {
+  low: 'settings.effortLow',
+  medium: 'settings.effortMedium',
+  high: 'settings.effortHigh',
+  xhigh: 'settings.effortXhigh',
+  max: 'settings.effortMax',
+}
+
+export const effortLabel = (effort: string) => (EFFORTS[effort] ? t(EFFORTS[effort]) : effort)
+
 export const meta = (agent: Agent) =>
-  t('format.meta', { model: modelLabel(agent.options.model), effort: agent.options.effort, mode: modeLabel(agent.options.mode) })
+  t('format.meta', { model: modelLabel(agent.options.model), effort: effortLabel(agent.options.effort), mode: modeLabel(agent.options.mode) })
 
 export function short(name: string) {
   const words = name.split(/\s+/).filter(Boolean)

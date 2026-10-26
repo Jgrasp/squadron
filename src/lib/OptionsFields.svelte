@@ -2,6 +2,7 @@
   import { models } from './catalogs.svelte'
   import { families, familyOf, modelName, versionsOf } from './commands'
   import type { Options } from './stream'
+  import { t, type Key } from './i18n/index.svelte'
 
   let { options = $bindable() }: { options: Options } = $props()
 
@@ -9,18 +10,24 @@
   const family = $derived(familyOf(options.model, catalog))
   const versions = $derived(versionsOf(family, catalog))
   const levels = $derived(catalog.find((m) => m.value === options.model)?.supportedEffortLevels)
-  const efforts: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
-  const modes: { value: Options['mode']; title: string; hint: string }[] = [
-    { value: 'default', title: 'Ask for everything', hint: 'Every tool waits for your approval' },
-    { value: 'acceptEdits', title: 'Accept edits', hint: 'Edits go through, commands ask' },
-    { value: 'plan', title: 'Plan', hint: 'Proposes a plan, acts only once approved' },
-    { value: 'auto', title: 'Auto', hint: 'Claude Code decides, and only asks for risky actions' },
+  const efforts: [Options['effort'], Key][] = [
+    ['low', 'settings.effortLow'],
+    ['medium', 'settings.effortMedium'],
+    ['high', 'settings.effortHigh'],
+    ['xhigh', 'settings.effortXhigh'],
+    ['max', 'settings.effortMax'],
+  ]
+  const modes: { value: Options['mode']; title: Key; hint: Key }[] = [
+    { value: 'default', title: 'settings.modeDefault', hint: 'settings.modeDefaultHint' },
+    { value: 'acceptEdits', title: 'settings.modeAcceptEdits', hint: 'settings.modeAcceptEditsHint' },
+    { value: 'plan', title: 'settings.modePlan', hint: 'settings.modePlanHint' },
+    { value: 'auto', title: 'settings.modeAuto', hint: 'settings.modeAutoHint' },
   ]
 </script>
 
 <div class="pair">
   <div class="group">
-    <span id="model" class="label">Model</span>
+    <span id="model" class="label">{t('settings.model')}</span>
     <div class="segments" role="group" aria-labelledby="model">
       {#each families(catalog) as model (model)}
         <button type="button" aria-pressed={family === model} onclick={() => (options.model = model)}>
@@ -29,24 +36,24 @@
       {/each}
     </div>
     {#if versions.length > 1}
-      <select class="field version" aria-label="Version" bind:value={options.model}>
+      <select class="field version" aria-label={t('settings.version')} bind:value={options.model}>
         {#each versions as version, i (version.value)}
-          <option value={version.value}>{i === 0 ? `Latest · ${modelName(version.value, catalog)}` : version.displayName}</option>
+          <option value={version.value}>{i === 0 ? t('settings.latest', { model: modelName(version.value, catalog) }) : version.displayName}</option>
         {/each}
       </select>
     {/if}
   </div>
   <div class="group">
-    <span id="effort" class="label">Effort</span>
+    <span id="effort" class="label">{t('settings.effort')}</span>
     <div class="segments small" role="group" aria-labelledby="effort">
-      {#each efforts as effort (effort)}
+      {#each efforts as [effort, name] (effort)}
         <button
           type="button"
           aria-pressed={options.effort === effort}
           disabled={!!levels && !levels.includes(effort)}
           onclick={() => (options.effort = effort)}
         >
-          {effort}
+          {t(name)}
         </button>
       {/each}
     </div>
@@ -54,12 +61,12 @@
 </div>
 
 <div class="group">
-  <span id="mode" class="label">Permission mode</span>
+  <span id="mode" class="label">{t('settings.permissionMode')}</span>
   <div class="modes" role="group" aria-labelledby="mode">
     {#each modes as mode (mode.value)}
       <button type="button" aria-pressed={options.mode === mode.value} onclick={() => (options.mode = mode.value)}>
-        <strong>{mode.title}</strong>
-        <span>{mode.hint}</span>
+        <strong>{t(mode.title)}</strong>
+        <span>{t(mode.hint)}</span>
       </button>
     {/each}
   </div>

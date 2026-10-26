@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { t } from './i18n/index.svelte'
 
 export type Session = { id: number; project: string; title: string; ended: boolean }
 
@@ -19,7 +20,7 @@ listen<{ id: number; data: string }>('term-out', ({ payload }) => output(payload
 listen<number>('term-exit', ({ payload: id }) => {
   const session = sessions.list.find((s) => s.id === id)
   if (session) session.ended = true
-  output(id, '\r\n\x1b[2m[Process exited]\x1b[0m\r\n')
+  output(id, `\r\n\x1b[2m${t('shell.processExited')}\x1b[0m\r\n`)
 })
 
 export function ofProject(project: string) {
