@@ -19,6 +19,7 @@
 
   let {
     agent,
+    start = 0,
     ondiff,
     onsubagent,
     onsubagents,
@@ -26,6 +27,7 @@
     onfork,
   }: {
     agent: Agent
+    start?: number
     ondiff: (call: ToolCall) => void
     onfork?: (index: number) => void
     onsubagent?: (sub: Subagent) => void
@@ -196,7 +198,8 @@
   {/each}
 {/snippet}
 
-{#each agent.entries as entry, i (i)}
+{#each agent.entries.slice(start) as entry, k (start + k)}
+  {@const i = start + k}
   {#if entry.kind === 'user'}
     <div class="user" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
       {#if entry.comments}
