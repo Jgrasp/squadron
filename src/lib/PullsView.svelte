@@ -26,9 +26,15 @@
     reopen.number = null
   })
 
+  let launched = $state<{ id: string; number: number } | null>(null)
+  const launchedAgent = $derived(launched && find(launched.id))
+
   async function askAgent(pull: Pull) {
-    const agent = find(await reviewWithAgent(project.path, pull))
-    if (agent) show(agent)
+    const before = agents.current[project.path]
+    const id = await reviewWithAgent(project.path, pull)
+    if (before) agents.current[project.path] = before
+    else delete agents.current[project.path]
+    launched = { id, number: pull.number }
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
@@ -71,6 +77,26 @@
     </div>
     <button class="btn btn-secondary" disabled={refreshing} onclick={refresh}>{refreshing ? 'Refreshing…' : 'Refresh'}</button>
   </div>
+
+  {#if launched && launchedAgent}
+    <div class="flash" role="status">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="grow"
+        ><strong>{launchedAgent.name}</strong>
+        {launchedAgent.status === 'working'
+          ? 'is reviewing the pull request: its remarks land in your review.'
+          : launchedAgent.status === 'waiting'
+            ? 'waits for you.'
+            : launchedAgent.status === 'error'
+              ? 'stopped on an error.'
+              : launchedAgent.status === 'interrupted'
+                ? 'was stopped.'
+                : 'has reviewed the pull request: its remarks are in your review.'}</span
+      >
+      <button class="btn btn-secondary" onclick={() => show(launchedAgent)}>Open the conversation</button>
+      <button class="close" aria-label="Hide this message" title="Hide" onclick={() => (launched = null)}>×</button>
+    </div>
+  {/if}
 
   <div class="scroll">
     {#if !found}
@@ -243,6 +269,53 @@
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
+  }
+
+  .flash {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 8px 12px;
+    margin: 0 32px 16px;
+    padding: 8px 8px 8px 14px;
+    border-radius: 6px;
+    background: var(--ok-bg);
+    box-shadow: inset 0 0 0 1px var(--ok-line);
+    font-size: 13px;
+    color: var(--ok-text);
+  }
+
+  .flash .dot {
+    width: 7px;
+    height: 7px;
+    flex: none;
+    border-radius: 4px;
+    background: var(--ok);
+  }
+
+  .flash .grow {
+    flex: 1 1 180px;
+    min-width: 0;
+  }
+
+  .flash strong {
+    color: var(--text-strong);
+  }
+
+  .flash .close {
+    width: 28px;
+    height: 28px;
+    flex: none;
+    border-radius: 4px;
+    font-size: 18px;
+    line-height: 1;
+    color: var(--text-dim);
+  }
+
+  .flash .close:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
   }
 
   .scroll {
