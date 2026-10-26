@@ -4,6 +4,8 @@
   import { allow, deny, toolLabel } from './agents.svelte'
   import { EDITS, type Proposal } from './diff'
   import DiffView from './DiffView.svelte'
+  import { t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
   import { projects } from './projects.svelte'
   import { ruleFor, ruleLabel } from './rules'
   import { argument, relative, subagentOf, type Agent, type Ask, type Subagent } from './stream'
@@ -21,7 +23,7 @@
   const mcp = $derived(ask.tool_name.startsWith('mcp__'))
   const project = $derived(projects.list.find((p) => p.path === agent.project))
   const title = $derived(
-    ask.tool_name === 'Bash' ? 'Run a command?' : edit ? 'Edit a file?' : 'Use a tool?',
+    ask.tool_name === 'Bash' ? t('agent.runCommand') : edit ? t('agent.editFile') : t('agent.useTool'),
   )
   const detail = $derived(argument(agent, { name: ask.tool_name, input: ask.input }))
   const params = $derived(
@@ -30,19 +32,12 @@
       .map(([k, v]) => [k, typeof v === 'string' ? v : JSON.stringify(v)] as const),
   )
   const always = $derived.by(() => {
-    if (edit)
-      return `${agent.name} will edit the project files without asking until its session ends. Bash commands will still ask.`
+    if (edit) return t('agent.alwaysEdit', { agent: agent.name })
     const rule = ruleFor(ask.tool_name, ask.input)
-    if (ask.tool_name === 'Bash')
-      return {
-        code: ruleLabel(rule),
-        text: others
-          ? `in ${project?.name}, for all its agents, including the ${others} other running subagent${others > 1 ? 's' : ''}. They may ask the same.`
-          : `in ${project?.name}, for all its agents.`,
-      }
+    if (ask.tool_name === 'Bash') return { code: ruleLabel(rule) }
     if (rule.startsWith('WebFetch(domain:'))
-      return `${project?.name} agents will read ${rule.slice(16, -1)} without asking.`
-    return `${project?.name} agents will call ${toolLabel(ask.tool_name)} without asking.`
+      return t('agent.alwaysFetch', { project: project?.name ?? '', domain: rule.slice(16, -1) })
+    return t('agent.alwaysTool', { project: project?.name ?? '', tool: toolLabel(ask.tool_name) })
   })
 
   let patch = $state<ReturnType<typeof structuredPatch> | null>(null)
@@ -81,7 +76,7 @@
   })
 </script>
 
-<section class="card" aria-label="Permission request">
+<section class="card" aria-label={t('agent.permissionRequest')}>
   <div class="head">
     <span class="icon" aria-hidden="true">
       {#if ask.tool_name === 'Bash'}
@@ -96,7 +91,7 @@
       <strong>{title}</strong>
       {#if sub}
         <span class="by">
-          Requested by subagent #{sub.num} · {sub.name}{#if onlog}{' · '}<button class="log" onclick={() => onlog(sub)}>open its log</button>{/if}
+          {t('agent.requestedBy', { num: String(sub.num), name: sub.name })}{#if onlog}{' · '}<button class="log" onclick={() => onlog(sub)}>{t('agent.openItsLog')}</button>{/if}
         </span>
       {/if}
       <span class="mono">{edit ? `${ask.tool_name} · ${relative(agent, ask.input.file_path)}` : ask.tool_name === 'Bash' ? `Bash · ${detail}` : toolLabel(ask.tool_name)}</span>
@@ -104,7 +99,7 @@
     {#if edit && patch}
       <span class="mono"><span class="add">+{changes.add}</span> <span class="del">−{changes.del}</span></span>
     {:else if mcp}
-      <span class="tag">MCP server</span>
+      <span class="tag">{t('agent.mcpServer')}</span>
     {/if}
   </div>
 
@@ -126,21 +121,25 @@
   {/if}
 
   <div class="actions">
-    <button class="btn allow" onclick={() => allow(agent, ask)}>Allow</button>
-    <button class="btn always" onclick={() => allow(agent, ask, true)}>Always</button>
-    <button class="btn refuse" onclick={() => deny(agent, ask)}>Deny</button>
+    <button class="btn allow" onclick={() => allow(agent, ask)}>{t('agent.allow')}</button>
+    <button class="btn always" onclick={() => allow(agent, ask, true)}>{t('common.always')}</button>
+    <button class="btn refuse" onclick={() => deny(agent, ask)}>{t('agent.deny')}</button>
     {#if edit && patch && onpreview}
       <button
         class="btn preview"
         onclick={() => patch && onpreview({ ask: ask.id, path: relative(agent, ask.input.file_path ?? ask.input.notebook_path), hunks: patch.hunks })}
       >
-        See in the Diff panel
+        {t('agent.seeInDiffPanel')}
       </button>
     {/if}
   </div>
   <div class="note">
-    <strong>Always</strong>
-    <span>{#if typeof always === 'string'}{always}{:else}Allows <code>{always.code}</code> {always.text}{/if}</span>
+    <strong>{t('common.always')}</strong>
+    <span
+      >{#if typeof always === 'string'}{always}{:else}<Trans k={others ? 'agent.alwaysBashOthers' : 'agent.alwaysBash'} count={others} project={project?.name ?? ''}
+          >{#snippet rule()}<code>{always.code}</code>{/snippet}</Trans
+        >{/if}</span
+    >
   </div>
 </section>
 

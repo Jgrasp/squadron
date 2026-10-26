@@ -1,25 +1,26 @@
 <script lang="ts">
+  import { t } from './i18n/index.svelte'
   import type { Status } from './stream'
 
   let { status }: { status: Status } = $props()
 </script>
 
 {#if status === 'working'}
-  <svg class="spin" width="10" height="10" viewBox="0 0 24 24" role="img" aria-label="Working">
+  <svg class="spin" width="10" height="10" viewBox="0 0 24 24" role="img" aria-label={t('conversation.statusWorking')}>
     <circle cx="12" cy="12" r="9" fill="none" stroke="var(--ok)" stroke-width="4" stroke-dasharray="40 20" />
   </svg>
 {:else if status === 'waiting'}
-  <span class="dot" role="img" aria-label="Waiting"></span>
+  <span class="dot" role="img" aria-label={t('conversation.statusWaiting')}></span>
 {:else if status === 'done'}
-  <svg width="10" height="10" viewBox="0 0 24 24" role="img" aria-label="Done">
+  <svg width="10" height="10" viewBox="0 0 24 24" role="img" aria-label={t('conversation.statusDone')}>
     <path d="M4 12l5 5L20 6" fill="none" stroke="var(--done)" stroke-width="3.5" stroke-linecap="round" stroke-linejoin="round" />
   </svg>
 {:else if status === 'interrupted'}
-  <svg width="10" height="10" viewBox="0 0 24 24" role="img" aria-label="Interrupted">
+  <svg width="10" height="10" viewBox="0 0 24 24" role="img" aria-label={t('conversation.statusInterrupted')}>
     <rect x="5" y="5" width="14" height="14" rx="2" fill="var(--text-2)" />
   </svg>
 {:else}
-  <svg width="10" height="10" viewBox="0 0 24 24" role="img" aria-label="Error">
+  <svg width="10" height="10" viewBox="0 0 24 24" role="img" aria-label={t('conversation.error')}>
     <path d="M5 5l14 14M19 5L5 19" fill="none" stroke="var(--err)" stroke-width="4" stroke-linecap="round" />
   </svg>
 {/if}

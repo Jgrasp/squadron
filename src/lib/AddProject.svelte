@@ -4,6 +4,8 @@
   import { unshelve } from './agents.svelte'
   import Dialog from './Dialog.svelte'
   import ColorPick from './ColorPick.svelte'
+  import { errorText, t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
   import { add, home, inspect, projects, type Inspection } from './projects.svelte'
 
   let { path: initial, onclose }: { path: string; onclose: () => void } = $props()
@@ -17,9 +19,9 @@
 
   const problem = $derived.by(() => {
     if (!info || !path.trim()) return ''
-    if (!info.exists) return "This folder does not exist or cannot be read."
+    if (!info.exists) return t('board.folderMissing')
     if (info.taken_by && info.taken_archived) return ''
-    if (info.taken_by) return `This folder is already the ${info.taken_by} project.`
+    if (info.taken_by) return t('board.folderTaken', { project: info.taken_by })
     return ''
   })
   const revive = $derived(!!info?.taken_by && info.taken_archived)
@@ -52,7 +54,7 @@
       else await add(path.trim(), name, color)
       onclose()
     } catch (e) {
-      error = String(e)
+      error = errorText(e)
       busy = false
     }
   }
@@ -63,23 +65,23 @@
   }
 </script>
 
-<Dialog title="Add a project" {onclose} width={520}>
+<Dialog title={t('board.addProject')} {onclose} width={520}>
   <form onsubmit={submit}>
-    <p class="intro">A project is a local folder where Squadron runs your agents.</p>
+    <p class="intro">{t('board.addProjectIntro')}</p>
     <div class="fields">
       <div class="group">
-        <label for="folder">Project folder</label>
+        <label for="folder">{t('board.projectFolder')}</label>
         <div class="row">
           <input
             id="folder"
             class="field mono"
             bind:value={path}
-            placeholder="/path/to/project"
+            placeholder={t('board.folderPlaceholder')}
             aria-invalid={!!problem}
             aria-describedby="folder-state"
             spellcheck="false"
           />
-          <button type="button" class="btn btn-secondary browse" onclick={browse}>Browse…</button>
+          <button type="button" class="btn btn-secondary browse" onclick={browse}>{t('common.browse')}</button>
         </div>
         <span id="folder-state" class="state">
           {#if problem}
@@ -90,42 +92,42 @@
               {problem}
               {#if info?.taken_by}
                 <button type="button" class="link" onclick={() => goTo(info!.taken_by!)}
-                  >Go to {info.taken_by}</button
+                  >{t('board.goTo', { project: info.taken_by })}</button
                 >
               {:else if info?.near}
-                <span>Closest folder:</span>
+                <span>{t('board.closestFolder')}</span>
                 <button type="button" class="link mono" onclick={() => (path = info!.near!)}>{home(info.near)}</button>
               {/if}
             </span>
           {:else if revive}
-            <span class="good">This folder is the archived project {info?.taken_by}. Adding it unarchives {info?.taken_by} with its agents.</span>
+            <span class="good">{t('board.folderArchived', { project: info?.taken_by ?? '' })}</span>
           {:else if info?.git}
             <span class="good">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
-              Git repository found{#if info.branch}&nbsp;· branch <code>{info.branch}</code>{/if}
+              {#if info.branch}<Trans k="board.gitFoundBranch">{#snippet branch()}<code>{info?.branch}</code>{/snippet}</Trans>{:else}{t('board.gitFound')}{/if}
             </span>
           {:else if info}
-            <span>No Git repository: Squadron works without one too.</span>
+            <span>{t('board.noGit')}</span>
           {/if}
         </span>
       </div>
       <div class="group">
-        <label for="name">Name</label>
+        <label for="name">{t('common.name')}</label>
         <input id="name" class="field" bind:value={name} disabled={!info?.exists || !!info.taken_by} />
-        <span class="state">Filled in from the folder name.</span>
+        <span class="state">{t('board.nameFromFolder')}</span>
       </div>
       {#if !revive}
         <div class="group">
-          <span class="label">Color</span>
-          <ColorPick value={color} label="Color of the project" onpick={(picked) => (color = picked)} />
-          <span class="state">{color ? 'Shows on its tab and its agents.' : 'Left empty, Squadron picks the color least used.'}</span>
+          <span class="label">{t('board.color')}</span>
+          <ColorPick value={color} label={t('board.colorLabel')} onpick={(picked) => (color = picked)} />
+          <span class="state">{color ? t('board.colorChosen') : t('board.colorAuto')}</span>
         </div>
       {/if}
       {#if error}<p class="bad" role="alert">{error}</p>{/if}
     </div>
     <footer>
-      <button type="button" class="btn btn-secondary" onclick={onclose}>Cancel</button>
-      <button class="btn btn-primary" disabled={!ready}>{revive ? `Unarchive ${info?.taken_by}` : 'Add project'}</button>
+      <button type="button" class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
+      <button class="btn btn-primary" disabled={!ready}>{revive ? t('board.unarchive', { project: info?.taken_by ?? '' }) : t('board.addProjectButton')}</button>
     </footer>
   </form>
 </Dialog>

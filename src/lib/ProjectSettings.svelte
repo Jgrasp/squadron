@@ -5,14 +5,14 @@
   import ColorPick from './ColorPick.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
   import { saveSettings, settings, type TabOrder } from './settings.svelte'
-
+  import { errorText, t, type Key } from './i18n/index.svelte'
 
   let error = $state('')
   const list = $derived(ordered())
-  const ORDERS: [TabOrder, string, string][] = [
-    ['manual', 'By hand', 'The order you set by dragging the tabs, or with the arrows below'],
-    ['name', 'Name', 'Alphabetical order'],
-    ['activity', 'Last activity', 'The project whose agents moved last comes first'],
+  const ORDERS: [TabOrder, Key, Key][] = [
+    ['manual', 'settings.orderManual', 'settings.orderManualHint'],
+    ['name', 'common.name', 'settings.orderNameHint'],
+    ['activity', 'settings.orderActivity', 'settings.orderActivityHint'],
   ]
   const movable = (index: number, by: number) => list[index + by]?.pinned === list[index].pinned
 
@@ -21,7 +21,7 @@
     try {
       await work()
     } catch (e) {
-      error = String(e)
+      error = errorText(e)
     }
   }
 
@@ -39,15 +39,15 @@
 </script>
 
 <div class="top">
-  <p class="intro">Pinned projects always keep their tab, first in the bar. The others follow this order and move to the + menu when the bar is full.</p>
-  <button class="btn btn-primary" onclick={() => (ui.adding = '')}>+ Add a project</button>
+  <p class="intro">{t('settings.projectsIntro')}</p>
+  <button class="btn btn-primary" onclick={() => (ui.adding = '')}>{t('settings.addProject')}</button>
 </div>
-<span class="label">Tab order</span>
-<div class="orders" role="group" aria-label="Tab order">
+<span class="label">{t('settings.tabOrder')}</span>
+<div class="orders" role="group" aria-label={t('settings.tabOrder')}>
   {#each ORDERS as [id, title, detail] (id)}
     <button aria-pressed={settings.tab_order === id} onclick={() => act(() => saveSettings({ ...$state.snapshot(settings), tab_order: id }))}>
-      <strong>{title}</strong>
-      <span class="hint">{detail}</span>
+      <strong>{t(title)}</strong>
+      <span class="hint">{t(detail)}</span>
     </button>
   {/each}
 </div>
@@ -56,8 +56,8 @@
     <li style:--project={project.color}>
       {#if settings.tab_order === 'manual'}
         <span class="order">
-          <button aria-label="Move {project.name} up" disabled={!movable(i, -1)} onclick={() => shift(i, -1)}>↑</button>
-          <button aria-label="Move {project.name} down" disabled={!movable(i, 1)} onclick={() => shift(i, 1)}>↓</button>
+          <button aria-label={t('settings.moveUp', { name: project.name })} disabled={!movable(i, -1)} onclick={() => shift(i, -1)}>↑</button>
+          <button aria-label={t('settings.moveDown', { name: project.name })} disabled={!movable(i, 1)} onclick={() => shift(i, 1)}>↓</button>
         </span>
       {/if}
       <span class="main">
@@ -66,27 +66,27 @@
           <input
             class="field"
             value={project.name}
-            aria-label="Name of {project.name}"
+            aria-label={t('settings.nameOf', { name: project.name })}
             onchange={(e) => act(() => editProject(project.path, { name: e.currentTarget.value }))}
           />
           <button class="pin" aria-pressed={project.pinned} onclick={() => act(() => editProject(project.path, { pinned: !project.pinned }))}>
             <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
-            {project.pinned ? 'Pinned' : 'Pin'}
+            {project.pinned ? t('settings.pinned') : t('settings.pin')}
           </button>
         </span>
-        <ColorPick value={project.color} label="Color of {project.name}" onpick={(color) => act(() => editProject(project.path, { color }))} />
+        <ColorPick value={project.color} label={t('settings.colorOf', { name: project.name })} onpick={(color) => act(() => editProject(project.path, { color }))} />
         <span class="folder">
           <code>{home(project.path)}</code>
-          {#if !project.exists}<span class="missing">Folder not found</span>{/if}
-          <button class="link" onclick={() => relocate(project.path)}>Change the folder…</button>
-          <button class="link quiet" onclick={() => act(() => shelve(project))}>Archive…</button>
+          {#if !project.exists}<span class="missing">{t('settings.folderMissing')}</span>{/if}
+          <button class="link" onclick={() => relocate(project.path)}>{t('settings.changeFolder')}</button>
+          <button class="link quiet" onclick={() => act(() => shelve(project))}>{t('settings.archiveEllipsis')}</button>
         </span>
       </span>
     </li>
   {/each}
 </ul>
 {#if projects.archived.length}
-  <h3>Archived projects</h3>
+  <h3>{t('settings.archivedProjects')}</h3>
   <ul class="projects">
     {#each projects.archived as project (project.path)}
       <li class="archived" style:--project={project.color}>
@@ -95,7 +95,7 @@
           <strong>{project.name}</strong>
           <code>{home(project.path)}</code>
         </span>
-        <button class="btn btn-secondary" onclick={() => act(() => unshelve(project.path))}>Unarchive</button>
+        <button class="btn btn-secondary" onclick={() => act(() => unshelve(project.path))}>{t('settings.unarchive')}</button>
       </li>
     {/each}
   </ul>

@@ -1,6 +1,7 @@
 <script lang="ts">
   import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
+  import { t, type Key } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import { home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
@@ -23,27 +24,34 @@
     onpopout?: () => void
   } = $props()
 
-  const LABELS = { working: 'Working', waiting: 'Waiting for you', done: 'Done', interrupted: 'Interrupted', error: 'Error' }
+  const LABELS: Record<string, Key> = {
+    working: 'board.statusWorking',
+    waiting: 'board.statusWaiting',
+    done: 'board.statusDone',
+    interrupted: 'board.statusInterrupted',
+    error: 'board.statusError',
+  }
 
   let editing = $state<{ card: Card; fresh: boolean; options: Options; worktree: string | null } | null>(null)
   let drag = $state<{ id: string; x: number; y: number; over: Column | null; before: string | null } | null>(null)
   let focusId = ''
   let picking = $state(false)
 
-  const GOALS: Record<Goal['state'], string> = {
-    planned: 'armed once you approve the plan',
-    sent: 'armed',
-    active: 'working on it',
-    met: 'met',
-    stopping: 'stopping',
-    partial: `stopped after ${GOAL_RELAUNCHES} relaunches`,
-    cleared: 'cleared',
+  const GOALS: Record<Goal['state'], Key> = {
+    planned: 'board.goalPlanned',
+    sent: 'board.goalSent',
+    active: 'board.goalActive',
+    met: 'board.goalMet',
+    stopping: 'board.goalStopping',
+    partial: 'board.goalPartial',
+    cleared: 'board.goalCleared',
   }
-  const goalLine = (g: Goal) => (g.state === 'active' && g.relaunches ? `relaunch ${g.relaunches} of ${GOAL_RELAUNCHES}` : GOALS[g.state])
+  const goalLine = (g: Goal) =>
+    g.state === 'active' && g.relaunches ? t('board.goalRelaunch', { n: g.relaunches, total: GOAL_RELAUNCHES }) : t(GOALS[g.state], { count: GOAL_RELAUNCHES })
 
   const agentOf = (card: Card) => agents.find((a) => a.id === card.agent)
   const look = (a: Mirror) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status)
-  const label = (a: Mirror) => (a.status === 'waiting' && a.attention.split(' · ')[0]) || LABELS[look(a)]
+  const label = (a: Mirror) => (a.status === 'waiting' && a.attention.split(' · ')[0]) || t(LABELS[look(a)])
   const virtual = $derived(
     agents
       .filter((a) => a.project === project.path && !project.cards.some((c) => c.agent === a.id))
@@ -147,7 +155,7 @@
     <div>
       <div class="heading">
         {#if onclose}
-          <button class="back" aria-label="Back to the conversation" title="Back to the conversation ({hint('kanban')})" onclick={onclose}>
+          <button class="back" aria-label={t('board.backToConversation')} title={t('board.backToConversationHint', { shortcut: hint('kanban') })} onclick={onclose}>
             <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
           </button>
         {/if}
@@ -166,7 +174,7 @@
               <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
             </button>
             {#if picking}
-              <div class="menu" role="menu" aria-label="Projects">
+              <div class="menu" role="menu" aria-label={t('board.projects')}>
                 {#each projects.list as p (p.path)}
                   <button
                     role="menuitemradio"
@@ -182,14 +190,14 @@
           </span>
         {/if}
       </div>
-      <span class="sub">Tasks for you or for an agent. A task with an agent moves when the agent starts or finishes; you can move any task by hand.</span>
+      <span class="sub">{t('board.intro')}</span>
     </div>
     <div class="actions">
-      <button class="btn btn-primary" onclick={() => create()}>+ Task</button>
+      <button class="btn btn-primary" onclick={() => create()}>{t('board.addTaskButton')}</button>
       {#if onpopout}
-        <button class="btn btn-ghost" onclick={onpopout} title="Open the board in its own window">
+        <button class="btn btn-ghost" onclick={onpopout} title={t('board.popOutHint')}>
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
-          Pop out
+          {t('board.popOut')}
         </button>
       {/if}
     </div>
@@ -199,7 +207,7 @@
     {#each COLUMNS as [column, title] (column)}
       {@const list = cards.filter((c) => follow(c, agentOf(c)).column === column)}
       <section data-column={column} class:over={drag?.over === column} aria-labelledby="column-{column}">
-        <h2 id="column-{column}"><span class="dot {column}" aria-hidden="true"></span>{title} <span class="count">{list.length}</span></h2>
+        <h2 id="column-{column}"><span class="dot {column}" aria-hidden="true"></span>{t(title)} <span class="count">{list.length}</span></h2>
         <ul>
           {#each list as card (card.id)}
             {@const agent = agentOf(card)}
@@ -220,12 +228,12 @@
             >
               <strong>{card.title}</strong>
               {#if !agent && card.prompt}<span class="note">{card.prompt}</span>{/if}
-              {#if !agent && card.goal}<span class="goal" title={card.goal}>Done when: {card.goal}</span>{/if}
+              {#if !agent && card.goal}<span class="goal" title={card.goal}>{t('board.cardDoneWhen', { goal: card.goal })}</span>{/if}
               {#if agent}
                 <span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span>
                 {#if agent.detail}<span class="detail">{agent.detail}</span>{/if}
                 {#if agent.goal}
-                  <span class="goal {agent.goal.state}" title={agent.goal.condition}>Goal · {goalLine(agent.goal)}</span>
+                  <span class="goal {agent.goal.state}" title={agent.goal.condition}>{t('board.goalLine', { state: goalLine(agent.goal) })}</span>
                   {#if agent.goal.reason && agent.goal.state !== 'met'}<span class="note">{agent.goal.reason}</span>{/if}
                 {/if}
                 {#if agent.total}
@@ -236,23 +244,23 @@
                 {/if}
                 <span class="buttons">
                   <button class="link" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
-                    {agent.attention ? 'Answer' : 'Open agent'} ›
+                    {agent.attention ? t('board.answer') : t('board.openAgent')} ›
                   </button>
                   {#if column === 'review' && (agent.add || agent.del)}
                     <button class="link diff" onclick={() => actions.diff(agent.id)}>
-                      See the diff <span class="add">+{agent.add}</span>{#if agent.del}<span class="del">−{agent.del}</span>{/if}
+                      {t('board.seeDiff')} <span class="add">+{agent.add}</span>{#if agent.del}<span class="del">−{agent.del}</span>{/if}
                     </button>
                   {/if}
                 </span>
               {:else if column !== 'done'}
                 <button class="link" disabled={!project.exists} onclick={() => edit(card)}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>Start an agent
+                  <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>{t('board.startAnAgent')}
                 </button>
               {/if}
             </li>
           {/each}
           {#if column !== 'done'}
-            <li class="add-row"><button class="new-task" onclick={() => create(column)}>+ Add a task</button></li>
+            <li class="add-row"><button class="new-task" onclick={() => create(column)}>{t('board.addTask')}</button></li>
           {/if}
         </ul>
       </section>
@@ -266,59 +274,59 @@
 
 {#if editing}
   {@const linked = cards.some((c) => c.id === editing?.card.id && c.agent)}
-  <Dialog title={editing.fresh ? 'New task' : 'Task'} width={640} onclose={() => (editing = null)}>
+  <Dialog title={editing.fresh ? t('board.newTask') : t('board.task')} width={640} onclose={() => (editing = null)}>
     <form onsubmit={(e) => submit(e)}>
       <div class="fields">
         <div class="group">
-          <label for="card-title">Title</label>
+          <label for="card-title">{t('common.title')}</label>
           <!-- svelte-ignore a11y_autofocus -->
           <input id="card-title" class="field" bind:value={editing.card.title} autofocus />
         </div>
         <div class="group">
-          <label for="card-prompt">Description</label>
+          <label for="card-prompt">{t('common.description')}</label>
           <textarea
             id="card-prompt"
             class="field"
             rows="4"
             bind:value={editing.card.prompt}
-            placeholder="What needs to be done. The agent gets it as its first message."
+            placeholder={t('board.taskPromptPlaceholder')}
             onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
           ></textarea>
         </div>
         {#if !linked}
           <div class="group">
-            <label for="card-goal">Done when</label>
+            <label for="card-goal">{t('common.doneWhen')}</label>
             <textarea
               id="card-goal"
               class="field"
               rows="2"
               bind:value={editing.card.goal}
-              placeholder="Optional. The agent keeps working until this is true, then the task goes to review. Ask for visible proof: tests run, output shown."
+              placeholder={t('board.taskGoalPlaceholder')}
             ></textarea>
           </div>
           <details class="agent">
-            <summary><span class="chevron" aria-hidden="true">›</span>Agent settings</summary>
+            <summary><span class="chevron" aria-hidden="true">›</span>{t('board.agentSettings')}</summary>
             <div class="options"><OptionsFields bind:options={editing.options} /></div>
           </details>
         {/if}
       </div>
       <footer>
         {#if !editing.fresh && project.cards.some((c) => c.id === editing?.card.id)}
-          <button type="button" class="btn btn-danger" onclick={remove}>Delete</button>
+          <button type="button" class="btn btn-danger" onclick={remove}>{t('common.delete')}</button>
         {/if}
         <span class="spacer"></span>
-        <button type="button" class="btn btn-secondary" onclick={() => (editing = null)}>Cancel</button>
+        <button type="button" class="btn btn-secondary" onclick={() => (editing = null)}>{t('common.cancel')}</button>
         {#if linked}
-          <button class="btn btn-primary" disabled={!editing.card.title.trim()}>Save</button>
+          <button class="btn btn-primary" disabled={!editing.card.title.trim()}>{t('common.save')}</button>
         {:else}
           <button type="button" class="btn btn-secondary" disabled={!editing.card.title.trim()} onclick={(e) => submit(e)}
-            >{editing.fresh ? 'Create task' : 'Save'}</button
+            >{editing.fresh ? t('board.createTask') : t('common.save')}</button
           >
           <button
             type="button"
             class="btn btn-primary"
             disabled={!editing.card.title.trim() || !project.exists}
-            onclick={(e) => submit(e, true)}>{editing.fresh ? 'Create and start agent' : 'Save and start agent'}</button
+            onclick={(e) => submit(e, true)}>{editing.fresh ? t('board.createAndStart') : t('board.saveAndStart')}</button
           >
         {/if}
       </footer>

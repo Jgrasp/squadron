@@ -47,6 +47,7 @@ let tabEffect = 'pulse'
 let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
+let language = 'system'
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -341,13 +342,14 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
         tabOrder = (a as unknown as { config: { tab_order: string } }).config.tab_order
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
+        language = (a as unknown as { config: { language: string } }).config.language
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))

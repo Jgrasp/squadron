@@ -12,6 +12,7 @@
   })
 
   loadSettings()
+  listen('settings-changed', () => loadSettings())
   listen<{ projects: Project[]; current: string; agents: Mirror[] }>('board-state', ({ payload }) => {
     projects.list = payload.projects
     if (!current()) projects.current = payload.current

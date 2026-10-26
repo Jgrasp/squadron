@@ -1,4 +1,7 @@
 <script lang="ts">
+  import { t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
+
   let { name = $bindable(), suggestion }: { name: string | null; suggestion: string } = $props()
 
   const slug = (text: string) =>
@@ -15,12 +18,12 @@
   <label class="check">
     <input type="checkbox" checked={name !== null} onchange={(e) => (name = e.currentTarget.checked ? slug(suggestion) : null)} />
     <span>
-      <strong>Work in a new git worktree</strong>
-      <small>Claude Code creates <span class="mono">.claude/worktrees/{name || '…'}</span> on the branch <span class="mono">worktree-{name || '…'}</span>, and the agent works there.</small>
+      <strong>{t('settings.worktreeNew')}</strong>
+      <small><Trans k="settings.worktreeHint">{#snippet path()}<span class="mono">.claude/worktrees/{name || '…'}</span>{/snippet}{#snippet branch()}<span class="mono">worktree-{name || '…'}</span>{/snippet}</Trans></small>
     </span>
   </label>
   {#if name !== null}
-    <input class="field mono" aria-label="Worktree name" value={name} oninput={(e) => (name = e.currentTarget.value)} onchange={(e) => (name = slug(e.currentTarget.value))} />
+    <input class="field mono" aria-label={t('settings.worktreeName')} value={name} oninput={(e) => (name = e.currentTarget.value)} onchange={(e) => (name = slug(e.currentTarget.value))} />
   {/if}
 </div>
 

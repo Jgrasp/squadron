@@ -261,6 +261,7 @@ struct Config {
     archive_after_days: u32,
     steps: String,
     thinking: String,
+    language: String,
 }
 
 impl Default for Config {
@@ -282,6 +283,7 @@ impl Default for Config {
             archive_after_days: 0,
             steps: "grouped".into(),
             thinking: "duration".into(),
+            language: "system".into(),
         }
     }
 }

@@ -1,20 +1,22 @@
 <script lang="ts">
   import Avatar from './Avatar.svelte'
   import type { Reviewer } from './pulls.svelte'
+  import { t, type Key } from './i18n/index.svelte'
 
   let { reviewers, size = 24 }: { reviewers: Reviewer[]; size?: number } = $props()
 
-  const SAID: Record<string, string> = {
-    approved: 'approved',
-    changes_requested: 'asked for changes',
-    commented: 'commented',
-    waiting: 'has not reviewed yet',
+  const SAID: Record<string, Key> = {
+    approved: 'review.saidApproved',
+    changes_requested: 'review.saidChangesRequested',
+    commented: 'review.saidCommented',
+    waiting: 'review.saidWaiting',
   }
+  const said = (verdict: string) => (SAID[verdict] ? t(SAID[verdict]) : verdict)
 </script>
 
 <span class="reviewers" style:--size="{size}px">
   {#each reviewers as r (r.name)}
-    <span class="who {r.verdict}" title="{r.name} · {SAID[r.verdict] ?? r.verdict}" role="img" aria-label="{r.name} {SAID[r.verdict] ?? r.verdict}">
+    <span class="who {r.verdict}" title={t('review.reviewerTitle', { name: r.name, said: said(r.verdict) })} role="img" aria-label={t('review.reviewerLabel', { name: r.name, said: said(r.verdict) })}>
       <span class="face"><Avatar name={r.name} src={r.avatar} {size} /></span>
       {#if r.verdict !== 'waiting'}
         <span class="mark" aria-hidden="true">

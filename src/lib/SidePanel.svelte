@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { layout, MIN_PANEL, resizePanel, toggleFull, type PanelKind } from './layout.svelte'
+  import { t } from './i18n/index.svelte'
 
   let {
     kind,
@@ -70,11 +71,11 @@
       class="resizer"
       role="separator"
       aria-orientation="vertical"
-      aria-label="Resize the {title.toLowerCase()} panel"
+      aria-label={t('shell.resizePanel', { title: title.toLowerCase() })}
       aria-valuenow={width}
       aria-valuemin={MIN_PANEL}
       tabindex="0"
-      title="Drag to resize, double-click for full screen"
+      title={t('shell.dragToResize')}
       onpointerdown={drag}
       onkeydown={nudge}
       ondblclick={() => toggleFull(kind)}
@@ -88,9 +89,9 @@
     {@render actions?.()}
     <button
       class="icon"
-      aria-label={full ? 'Exit full screen' : 'Full screen'}
+      aria-label={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
       aria-pressed={full}
-      title={full ? 'Exit full screen' : 'Full screen'}
+      title={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
       onclick={() => toggleFull(kind)}
     >
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
@@ -101,7 +102,7 @@
         {/if}
       </svg>
     </button>
-    <button class="icon" aria-label="Close panel" onclick={onclose}>×</button>
+    <button class="icon" aria-label={t('shell.closePanel')} onclick={onclose}>×</button>
   </div>
   {@render children()}
 </section>
