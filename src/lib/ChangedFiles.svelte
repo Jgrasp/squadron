@@ -32,6 +32,8 @@
 </script>
 
 <script lang="ts">
+  import { t } from './i18n/index.svelte'
+
   let { files, selected, onpick }: { files: TreeFile[]; selected: string | undefined; onpick: (path: string) => void } = $props()
 
   let filter = $state('')
@@ -41,8 +43,8 @@
   const toggle = (path: string) => (closed = closed.includes(path) ? closed.filter((p) => p !== path) : [...closed, path])
 </script>
 
-<nav class="tree" aria-label="Changed files">
-  <input class="filter" type="search" placeholder="Filter {files.length} file{files.length > 1 ? 's' : ''}" bind:value={filter} />
+<nav class="tree" aria-label={t('review.changedFiles')}>
+  <input class="filter" type="search" placeholder={t('review.filterFiles', { count: files.length })} bind:value={filter} />
   <div class="list">
     {@render branch(root, 0)}
   </div>
@@ -61,7 +63,7 @@
     <button class="file" class:other={file.other} style:--depth={depth} aria-current={file.path === selected ? 'true' : undefined} title={file.path} onclick={() => onpick(file.path)}>
       <span class="name">{file.path.split('/').pop()}</span>
       {#if file.drafts}
-        <span class="drafts" title="{file.drafts} comment{file.drafts > 1 ? 's' : ''} in your review"
+        <span class="drafts" title={t('review.draftsInReview', { count: file.drafts })}
           ><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>{file.drafts}</span
         >
       {/if}

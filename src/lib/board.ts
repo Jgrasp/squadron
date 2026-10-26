@@ -1,4 +1,5 @@
 import { changedFiles } from './diff'
+import type { Key } from './i18n/index.svelte'
 import { calls, type Agent, type Options } from './stream'
 
 export type Column = 'todo' | 'progress' | 'review' | 'done'
@@ -14,11 +15,11 @@ export type Actions = {
   diff(agent: string): void
 }
 
-export const COLUMNS: [Column, string][] = [
-  ['todo', 'To do'],
-  ['progress', 'In progress'],
-  ['review', 'To review'],
-  ['done', 'Done'],
+export const COLUMNS: [Column, Key][] = [
+  ['todo', 'board.columnTodo'],
+  ['progress', 'board.columnProgress'],
+  ['review', 'board.columnReview'],
+  ['done', 'board.columnDone'],
 ]
 
 export function mirror(a: Agent, detail: string): Mirror {

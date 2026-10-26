@@ -38,6 +38,10 @@ export function run(action: Action, { project, agent }: Context) {
       return
     case 'interrupt':
       return agent && interrupt(agent.id)
+    case 'back':
+      return history.back()
+    case 'forward':
+      return history.forward()
     case 'editor':
     case 'terminal':
     case 'diff':

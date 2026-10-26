@@ -12,6 +12,8 @@
 </script>
 
 <script lang="ts">
+  import { errorText, t } from './i18n/index.svelte'
+
   let { path, onremove, large = false }: { path: string; onremove?: () => void; large?: boolean } = $props()
 
   const name = $derived(path.split('/').pop() ?? path)
@@ -25,12 +27,12 @@
 
   function open() {
     error = ''
-    invoke('open_attachment', { path }).catch((e) => (error = String(e)))
+    invoke('open_attachment', { path }).catch((e) => (error = errorText(e)))
   }
 </script>
 
 <span class="attachment" class:large class:picture={!!src} title={error || path}>
-  <button type="button" class="open" aria-label="Open {name}" onclick={open}>
+  <button type="button" class="open" aria-label={t('agent.openFile', { name })} onclick={open}>
     {#if src}
       <img {src} alt={name} />
     {:else}
@@ -39,7 +41,7 @@
     {/if}
   </button>
   {#if onremove}
-    <button type="button" class="remove" aria-label="Remove {name}" title="Remove" onclick={onremove}>×</button>
+    <button type="button" class="remove" aria-label={t('agent.removeFile', { name })} title={t('common.remove')} onclick={onremove}>×</button>
   {/if}
 </span>
 

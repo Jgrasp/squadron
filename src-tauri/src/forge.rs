@@ -11,7 +11,7 @@ const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting."
 const NO_USER_SCOPE: &str =
     "Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.";
 const BITBUCKET_FIELDS: &str = "values.id,values.title,values.description,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.author.links.avatar.href,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.participated_on,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
-const GITHUB_FIELDS: &str = "number,title,body,url,state,isDraft,reviewDecision,latestReviews,reviewRequests,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt,mergeable";
+const GITHUB_FIELDS: &str = "number,title,body,url,state,isDraft,reviewDecision,latestReviews,reviewRequests,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt,mergeable,mergeStateStatus";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Host {
@@ -81,6 +81,7 @@ pub struct Pull {
     pub head_at: Option<String>,
     pub reviewers: Vec<Reviewer>,
     pub conflicts: bool,
+    pub mergeable: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Serialize)]
@@ -550,6 +551,10 @@ fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
             Some("INPROGRESS") => "pending",
             _ => "fail",
         });
+    let checks = checks(states);
+    let approvals = people.iter().filter(|p| p["approved"] == true).count() as u32;
+    let changes_requested = people.iter().any(|p| p["state"] == "changes_requested");
+    let draft = found["draft"].as_bool().unwrap_or(false);
     Pull {
         host: "bitbucket".into(),
         number: found["id"].as_u64().unwrap_or_default(),
@@ -557,11 +562,16 @@ fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
         description: text(&found["description"]),
         url: text(&found["links"]["html"]["href"]),
         state: text(&found["state"]).to_lowercase(),
-        draft: found["draft"].as_bool().unwrap_or(false),
-        approvals: people.iter().filter(|p| p["approved"] == true).count() as u32,
-        changes_requested: people.iter().any(|p| p["state"] == "changes_requested"),
+        draft,
+        approvals,
+        changes_requested,
         comments: found["comment_count"].as_u64().unwrap_or_default() as u32,
-        checks: checks(states),
+        mergeable: found["state"] == "OPEN"
+            && !draft
+            && !changes_requested
+            && approvals > 0
+            && checks.as_deref().is_none_or(|c| c == "passing"),
+        checks,
         branch: text(&found["source"]["branch"]["name"]),
         base: text(&found["destination"]["branch"]["name"]),
         head: text(&found["source"]["commit"]["hash"]),
@@ -648,6 +658,12 @@ fn github_pull(found: &Value, me: &str) -> Pull {
         head_at: None,
         reviewers: github_reviewers(found),
         conflicts: found["mergeable"] == "CONFLICTING",
+        mergeable: found["state"] == "OPEN"
+            && found["isDraft"] != true
+            && matches!(
+                found["mergeStateStatus"].as_str(),
+                Some("CLEAN" | "HAS_HOOKS" | "UNSTABLE")
+            ),
     }
 }
 
@@ -914,6 +930,54 @@ pub async fn post(
     }
 }
 
+pub async fn merge(dir: &Path, number: u64) -> Result<(), String> {
+    let repo = repo_of(dir)?;
+    match repo.host {
+        Host::Bitbucket => bitbucket(
+            Method::POST,
+            &format!("/repositories/{}/pullrequests/{number}/merge", repo.slug),
+            &[],
+            Some(json!({})),
+        )
+        .await
+        .map(|_| ()),
+        Host::GitHub => {
+            blocking(move || {
+                let method = gh(
+                    &[
+                        "repo",
+                        "view",
+                        &repo.slug,
+                        "--json",
+                        "viewerDefaultMergeMethod",
+                        "--jq",
+                        ".viewerDefaultMergeMethod",
+                    ],
+                    None,
+                )?;
+                let flag = match method.trim() {
+                    "SQUASH" => "--squash",
+                    "REBASE" => "--rebase",
+                    _ => "--merge",
+                };
+                gh(
+                    &[
+                        "pr",
+                        "merge",
+                        &number.to_string(),
+                        "--repo",
+                        &repo.slug,
+                        flag,
+                    ],
+                    None,
+                )
+                .map(|_| ())
+            })
+            .await
+        }
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1008,6 +1072,7 @@ mod tests {
                     },
                 ],
                 conflicts: false,
+                mergeable: false,
             }
         );
         assert_eq!(bitbucket_pull(&found, &Value::Null, "{b}").checks, None);
@@ -1027,6 +1092,10 @@ mod tests {
             Some("approved")
         );
         assert_eq!(bitbucket_pull(&found, &Value::Null, "").reviewed, None);
+        let mut approved = found.clone();
+        approved["participants"][1]["state"] = Value::Null;
+        assert!(bitbucket_pull(&approved, &Value::Null, "").mergeable);
+        assert!(!bitbucket_pull(&approved, &statuses, "").mergeable);
     }
 
     #[test]
@@ -1070,6 +1139,11 @@ mod tests {
             ]
         );
         assert!(requested.conflicts);
+        assert!(!pull.mergeable);
+        let clean = json!({ "state": "OPEN", "isDraft": false, "mergeStateStatus": "CLEAN" });
+        assert!(github_pull(&clean, "").mergeable);
+        let blocked = json!({ "state": "OPEN", "isDraft": false, "mergeStateStatus": "BLOCKED" });
+        assert!(!github_pull(&blocked, "").mergeable);
         assert_eq!(
             (
                 pull.state.as_str(),

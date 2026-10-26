@@ -9,21 +9,21 @@ export type Proposal = { ask: string; path: string; hunks: Hunk[] }
 
 export type Changes = { from: string; now: string; files: { path: string; status: string; add: number | null; del: number | null }[] }
 
-export type Row = { kind: 'head'; text: string } | { kind: 'add' | 'del' | 'same'; old?: number; new?: number; text: string }
+export type Row = { kind: 'head'; text: string; hunk: number } | { kind: 'add' | 'del' | 'same'; old?: number; new?: number; text: string }
 
 export type Cell = { kind: 'add' | 'del' | 'same'; number: number; text: string }
 
-export type Pair = { kind: 'head'; text: string } | { kind: 'pair'; left: Cell | null; right: Cell | null }
+export type Pair = { kind: 'head'; text: string; hunk: number } | { kind: 'pair'; left: Cell | null; right: Cell | null }
 
 export function rows(hunks: Hunk[]): Row[] {
   const out: Row[] = []
-  for (const hunk of hunks) {
+  for (const [index, hunk] of hunks.entries()) {
     let old = hunk.oldStart
     let now = hunk.newStart
     const lines = hunk.lines.filter((l) => !l.startsWith('\\'))
     const oldCount = lines.filter((l) => l[0] !== '+').length
     const newCount = lines.filter((l) => l[0] !== '-').length
-    if (oldCount > 0) out.push({ kind: 'head', text: `@@ -${hunk.oldStart},${oldCount} +${hunk.newStart},${newCount} @@` })
+    if (oldCount > 0) out.push({ kind: 'head', hunk: index, text: `@@ -${hunk.oldStart},${oldCount} +${hunk.newStart},${newCount} @@` })
     for (const line of lines) {
       const text = line.slice(1)
       if (line[0] === '+') out.push({ kind: 'add', new: now++, text })
@@ -59,6 +59,52 @@ export function pairs(hunks: Hunk[]): Pair[] {
   }
   flush()
   return out
+}
+
+export const fileLines = (text: string) => (text.endsWith('\n') ? text.slice(0, -1) : text).split('\n')
+
+function newCount(hunk: Hunk) {
+  return hunk.lines.filter((l) => l[0] !== '-' && l[0] !== '\\').length
+}
+
+export function hidden(hunks: Hunk[], total: number): number[] {
+  const out: number[] = []
+  let end = 0
+  for (const hunk of hunks) {
+    out.push(Math.max(0, hunk.newStart - end - 1))
+    const count = newCount(hunk)
+    end = count ? hunk.newStart + count - 1 : hunk.newStart
+  }
+  out.push(Math.max(0, total - end))
+  return out
+}
+
+export function reveal(hunks: Hunk[], file: string[], gap: number, way: 'up' | 'down', count = Infinity): Hunk[] {
+  if (!hunks.length) return hunks
+  const free = hidden(hunks, file.length)[gap] ?? 0
+  const n = Math.min(count, free)
+  if (!n) return hunks
+  const out = hunks.map((h) => ({ ...h, lines: [...h.lines] }))
+  if ((way === 'up' && gap < out.length) || gap === 0) {
+    const hunk = out[gap]
+    hunk.lines.unshift(...file.slice(hunk.newStart - 1 - n, hunk.newStart - 1).map((l) => ` ${l}`))
+    hunk.newStart -= n
+    hunk.oldStart -= n
+  } else {
+    const hunk = out[gap - 1]
+    const after = hunk.newStart + newCount(hunk) - 1
+    hunk.lines.push(...file.slice(after, after + n).map((l) => ` ${l}`))
+  }
+  if (n === free && gap > 0 && gap < out.length) {
+    out[gap - 1].lines.push(...out[gap].lines)
+    out.splice(gap, 1)
+  }
+  return out
+}
+
+export function everything(hunks: Hunk[], file: string[]): Hunk[] {
+  for (let gap = hunks.length; gap >= 0; gap--) hunks = reveal(hunks, file, gap, gap ? 'down' : 'up')
+  return hunks
 }
 
 export function hunks(call: ToolCall): Hunk[] {

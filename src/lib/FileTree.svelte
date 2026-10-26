@@ -5,6 +5,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import FileTree from './FileTree.svelte'
+  import { errorText, list, t, type Key } from './i18n/index.svelte'
 
   type Entry = { name: string; dir: boolean; gone?: boolean }
 
@@ -49,7 +50,7 @@
     }
     invoke<Entry[]>('list_dir', { project, path })
       .then((list) => ((entries = list), (error = '')))
-      .catch((e) => (error = String(e)))
+      .catch((e) => (error = errorText(e)))
   })
 
   const indent = (extra: number) => `${8 + depth * 12 + extra}px`
@@ -69,10 +70,17 @@
     )
   })
 
+  const CHANGES: Record<Change, [Key, Key, Key]> = {
+    added: ['shell.fileAdded', 'shell.fileAddedBy', 'shell.containsAdded'],
+    modified: ['shell.fileModified', 'shell.fileModifiedBy', 'shell.containsModified'],
+    deleted: ['shell.fileDeleted', 'shell.fileDeletedBy', 'shell.containsDeleted'],
+  }
+
   function title(full: string) {
     const change = status.get(full)
     const by = authors.get(full)
-    return [change && change[0].toUpperCase() + change.slice(1), by && `by ${by.join(', ')}`].filter(Boolean).join(' ') || undefined
+    if (!by?.length) return change && t(CHANGES[change][0])
+    return t(change ? CHANGES[change][1] : 'shell.changedByNames', { names: list(by) })
   }
 </script>
 
@@ -88,7 +96,7 @@
           <span class="caret" aria-hidden="true">{open ? '▾' : '▸'}</span>
           <span class="name">{entry.name}</span>
           {#each ORDER.filter((c) => folders.get(full)?.has(c)) as change (change)}
-            <span class="square {change}" title="Contains {change} files"></span>
+            <span class="square {change}" title={t(CHANGES[change][2])}></span>
           {/each}
         </button>
         {#if open}

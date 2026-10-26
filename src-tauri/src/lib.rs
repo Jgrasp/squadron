@@ -252,6 +252,7 @@ struct Config {
     claude: String,
     defaults: claude::Options,
     tab_effect: String,
+    tab_ring: String,
     tab_order: String,
     keys: std::collections::BTreeMap<String, String>,
     editors: Vec<editors::App>,
@@ -260,6 +261,7 @@ struct Config {
     archive_after_days: u32,
     steps: String,
     thinking: String,
+    language: String,
 }
 
 impl Default for Config {
@@ -272,6 +274,7 @@ impl Default for Config {
                 mode: "default".into(),
             },
             tab_effect: "pulse".into(),
+            tab_ring: "shake".into(),
             tab_order: "manual".into(),
             keys: Default::default(),
             editors: Vec::new(),
@@ -280,6 +283,7 @@ impl Default for Config {
             archive_after_days: 0,
             steps: "grouped".into(),
             thinking: "duration".into(),
+            language: "system".into(),
         }
     }
 }
@@ -304,6 +308,9 @@ impl Settings {
         config.defaults.check()?;
         if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
+        }
+        if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
+            return Err(format!("Unknown tab ring: {}", config.tab_ring));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
@@ -623,6 +630,11 @@ async fn post_remarks(
 }
 
 #[tauri::command]
+async fn merge_pull(dir: PathBuf, number: u64) -> Result<(), String> {
+    forge::merge(&dir, number).await
+}
+
+#[tauri::command]
 async fn forge_accounts() -> forge::Accounts {
     tauri::async_runtime::spawn_blocking(forge::accounts)
         .await
@@ -767,51 +779,9 @@ fn fork_agent(
     }
 }
 
-struct Usage {
-    file: PathBuf,
-    days: Mutex<std::collections::BTreeMap<String, f64>>,
-}
-
-fn check_day(day: &str) -> Result<(), String> {
-    let ok = day.len() == 10
-        && day.chars().enumerate().all(|(i, c)| {
-            if i == 4 || i == 7 {
-                c == '-'
-            } else {
-                c.is_ascii_digit()
-            }
-        });
-    if ok {
-        Ok(())
-    } else {
-        Err("Invalid day.".into())
-    }
-}
-
-#[tauri::command]
-fn add_cost(usage: State<Usage>, day: String, usd: f64) -> Result<f64, String> {
-    check_day(&day)?;
-    if !usd.is_finite() || usd < 0.0 {
-        return Err("Invalid cost.".into());
-    }
-    let mut days = usage.days.lock().unwrap();
-    let total = *days.entry(day).and_modify(|t| *t += usd).or_insert(usd);
-    let text = serde_json::to_string_pretty(&*days).map_err(|e| e.to_string())?;
-    if let Some(dir) = usage.file.parent() {
-        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
-    }
-    std::fs::write(&usage.file, text).map_err(|e| e.to_string())?;
-    Ok(total)
-}
-
 #[tauri::command]
 fn system_load(cpu: State<system::Cpu>) -> Option<system::Load> {
     cpu.load()
-}
-
-#[tauri::command]
-fn day_cost(usage: State<Usage>, day: String) -> f64 {
-    usage.days.lock().unwrap().get(&day).copied().unwrap_or(0.0)
 }
 
 struct AgentFiles(PathBuf);
@@ -1299,6 +1269,7 @@ pub fn run() {
             pull_remarks,
             pull_reply,
             post_remarks,
+            merge_pull,
             forge_accounts,
             bitbucket_sign_in,
             bitbucket_sign_out,
@@ -1318,8 +1289,6 @@ pub fn run() {
             load_agents,
             get_layout,
             set_layout,
-            add_cost,
-            day_cost,
             send_message,
             save_attachment,
             attachment_preview,
@@ -1380,15 +1349,6 @@ pub fn run() {
                 )
             });
             app.manage(LayoutFile(config.join("layout.json")));
-            let file = config.join("usage.json");
-            let days = std::fs::read_to_string(&file)
-                .ok()
-                .and_then(|text| serde_json::from_str(&text).ok())
-                .unwrap_or_default();
-            app.manage(Usage {
-                file,
-                days: Mutex::new(days),
-            });
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {

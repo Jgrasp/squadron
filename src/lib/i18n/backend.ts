@@ -1,0 +1,77 @@
+import type { Locale } from './index.svelte'
+
+type Table = { exact: Record<string, string>; patterns: [RegExp, string][] }
+
+export const backend: Partial<Record<Locale, Table>> = {
+  fr: {
+    exact: {
+      'Add a Bitbucket API token in Settings › Code hosting.': 'Ajoutez un token d’API Bitbucket dans Réglages › Hébergement du code.',
+      'Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.':
+        'Ajoutez la portée read:user:bitbucket au token d’API Bitbucket pour lister vos pull requests.',
+      'Bitbucket refused the API token: add a new one in Settings › Code hosting.':
+        'Bitbucket a refusé le token d’API : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
+      'Bitbucket refused this email and token.': 'Bitbucket a refusé cet e-mail et ce token.',
+      'Empty command.': 'Commande vide.',
+      'File outside the project.': 'Ce fichier est en dehors du projet.',
+      'File too large to show.': 'Fichier trop volumineux pour être affiché.',
+      'Folder outside the project.': 'Ce dossier est en dehors du projet.',
+      'Give the project a name.': 'Donnez un nom au projet.',
+      'Image too large to preview.': 'Image trop volumineuse pour l’aperçu.',
+      'Install the GitHub CLI and run gh auth login to see pull requests.':
+        'Installez la CLI GitHub et lancez gh auth login pour voir les pull requests.',
+      'Invalid agent id.': 'Identifiant d’agent invalide.',
+      'Invalid message id.': 'Identifiant de message invalide.',
+      'Invalid permission answer.': 'Réponse d’autorisation invalide.',
+      'Invalid session or subagent id.': 'Identifiant de session ou de sous-agent invalide.',
+      'Invalid worktree name: use letters, digits, - _ and . only.':
+        'Nom de worktree invalide : utilisez seulement des lettres, des chiffres, - _ et .',
+      'Invalid day.': 'Jour invalide.',
+      'Invalid cost.': 'Coût invalide.',
+      'No Claude Code folder.': 'Aucun dossier Claude Code.',
+      'No default browser.': 'Aucun navigateur par défaut.',
+      'No title suggested.': 'Aucun titre proposé.',
+      'Not a git checkout.': 'Ce n’est pas une copie de travail git.',
+      'Not a text file.': 'Ce n’est pas un fichier texte.',
+      'Not an image.': 'Ce n’est pas une image.',
+      'Only web links open from here.': 'Seuls les liens web s’ouvrent d’ici.',
+      'Request cancelled.': 'Demande annulée.',
+      'Squadron did not answer.': 'Squadron n’a pas répondu.',
+      'Squadron only opens documents and images from here.': 'Squadron n’ouvre d’ici que des documents et des images.',
+      'Terminal closed.': 'Terminal fermé.',
+      'The commit you reviewed is no longer in the branch: it was rewritten. Here is the whole pull request.':
+        'Le commit que vous avez relu n’est plus dans la branche : il a été réécrit. Voici toute la pull request.',
+      'The file is gone.': 'Le fichier n’existe plus.',
+      'The layout must be an object.': 'La disposition doit être un objet.',
+      'The project folder cannot be found.': 'Le dossier du projet est introuvable.',
+      'The project is not on Bitbucket or GitHub.': 'Le projet n’est ni sur Bitbucket ni sur GitHub.',
+      'The project needs a name.': 'Le projet a besoin d’un nom.',
+      'The pull request commit is not on this computer.': 'Le commit de la pull request n’est pas sur cet ordinateur.',
+      'The reply is empty.': 'La réponse est vide.',
+      'This agent has no session to fork yet.': 'Cet agent n’a pas encore de session à dupliquer.',
+      'This conversation is not in the project.': 'Cette conversation n’est pas dans le projet.',
+      'This folder does not exist or cannot be read.': 'Ce dossier n’existe pas ou ne peut pas être lu.',
+      'This request no longer waits for an answer.': 'Cette demande n’attend plus de réponse.',
+      'Unknown agent.': 'Agent inconnu.',
+      'Unknown branch.': 'Branche inconnue.',
+      'Unknown conversation.': 'Conversation inconnue.',
+      'Unknown project.': 'Projet inconnu.',
+      'Unknown revision.': 'Révision inconnue.',
+    },
+    patterns: [
+      [/^Message not delivered to Claude Code: (.*)$/s, 'Message non transmis à Claude Code : $1'],
+      [/^Claude Code could not start: (.*)$/s, 'Claude Code n’a pas pu démarrer : $1'],
+      [/^Unknown model: (.*)$/s, 'Modèle inconnu : $1'],
+      [/^Unknown effort: (.*)$/s, 'Effort inconnu : $1'],
+      [/^Unknown permission mode: (.*)$/s, 'Mode d’autorisation inconnu : $1'],
+      [/^Unknown tab effect: (.*)$/s, 'Effet d’onglet inconnu : $1'],
+      [/^Unknown tab ring: (.*)$/s, 'Sonnerie d’onglet inconnue : $1'],
+      [/^Unknown tab order: (.*)$/s, 'Ordre des onglets inconnu : $1'],
+      [/^Could not start (.*?): (.*)$/s, 'Impossible de lancer $1 : $2'],
+      [/^Could not save: (.*)$/s, 'Enregistrement impossible : $1'],
+      [/^Bitbucket answered (\S+): (.*)$/s, 'Bitbucket a répondu $1 : $2'],
+      [/^This folder is already the (.*) project\.$/s, 'Ce dossier est déjà le projet $1.'],
+      [/^(.*) is not on this computer\.$/s, '$1 n’est pas sur cet ordinateur.'],
+      [/^(.*) is not a git checkout\.$/s, '$1 n’est pas une copie de travail git.'],
+    ],
+  },
+}

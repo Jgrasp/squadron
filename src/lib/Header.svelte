@@ -1,19 +1,28 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
-  import { ofProject, shelve, todayCost, waiting, waitingAgents } from './agents.svelte'
+  import { ofProject, shelve, unread, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
   import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
-  import { cost } from './format'
+  import { chime } from './chime'
   import { ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
   import { editProject, ordered, orderProjects, projects } from './projects.svelte'
+  import { t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
 
   let { onadd }: { onadd: () => void } = $props()
 
   const failed = (path: string) => ofProject(path).filter((a) => a.status === 'error').length
+
+  let heard = new Set<string>()
+  $effect(() => {
+    const asks = waitingAgents().map((a) => `${a.id}:${a.asks[0]?.id}`)
+    if (settings.tab_ring === 'sound' && asks.some((ask) => !heard.has(ask))) chime()
+    heard = new Set(asks)
+  })
 
 
   const appWindow = getCurrentWindow()
@@ -88,8 +97,14 @@
   onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false), (context = null))}
 />
 
+{#snippet finished(count: number)}
+  <span class="badge done" role="img" aria-label={t('shell.agentsUnread', { count })} title={t('shell.agentsUnread', { count })}
+    ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 12l5 5L19 7" /></svg>{count}</span
+  >
+{/snippet}
+
 {#snippet pin()}
-  <svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
+  <svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
 {/snippet}
 
 <header data-tauri-drag-region bind:clientWidth={headerWidth} class:build-dev={import.meta.env.DEV}>
@@ -109,10 +124,10 @@
         >
       </button>
       {#if menuOpen}
-        <div class="menu" role="menu" aria-label="Squadron menu">
+        <div class="menu" role="menu" aria-label={t('shell.squadronMenu')}>
           <div class="about">
             <span class="triangle big" aria-hidden="true"></span>
-            <span><strong>Squadron</strong><small>Version {version} · {navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux'}</small></span>
+            <span><strong>Squadron</strong><small>{t('shell.version', { version, platform: navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux' })}</small></span>
           </div>
           {#each shown('menu.squadron') as id (id)}
             <button
@@ -125,24 +140,24 @@
           {/each}
           <span class="rule" aria-hidden="true"></span>
           <button role="menuitem" onclick={() => appWindow.close()}>
-            <span>Quit</span><kbd>{hint('quit')}</kbd>
+            <span>{t('shell.quit')}</span><kbd>{hint('quit')}</kbd>
           </button>
         </div>
       {/if}
     </div>
   </div>
 
-  <nav aria-label="Projects" use:sortable={{ enabled: visible.length > 1, onplace: drop }}>
+  <nav aria-label={t('shell.projects')} use:sortable={{ enabled: visible.length > 1, onplace: drop }}>
     <button
       class="tab overview"
       aria-current={projects.overview ? 'page' : undefined}
-      title="Overview ({hint('jump')} jumps to the next agent waiting for you)"
+      title={t('shell.overviewTitle', { key: hint('jump') })}
       onclick={() => (projects.overview = true)}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
         ><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg
       >
-      Overview
+      {t('shell.overview')}
       {#if waitingAgents().length}<span class="badge outline">{waitingAgents().length}</span>{/if}
     </button>
     <span class="divider" aria-hidden="true"></span>
@@ -152,6 +167,7 @@
         data-item={project.path}
         class="tab {ofProject(project.path).some((a) => a.status === 'working') ? `effect-${settings.tab_effect}` : ''}"
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
+        class:ring={settings.tab_ring !== 'off' && waiting(project.path) > 0}
         style:--project={project.color}
         onclick={() => ((projects.overview = false), (projects.current = project.path))}
         oncontextmenu={(e) => (e.preventDefault(), (context = { path: project.path, x: e.clientX, y: e.clientY }))}
@@ -159,22 +175,22 @@
         <span class="dot" aria-hidden="true"></span>
         {project.name}
         {#if project.pinned}{@render pin()}{/if}
-        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if needsYou(project.path)}<span
+        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if needsYou(project.path)}<span
             class="badge pulls"
             role="img"
-            aria-label="{needsYou(project.path)} pull request{needsYou(project.path) > 1 ? 's' : ''} waiting for you"
-            title="{needsYou(project.path)} pull request{needsYou(project.path) > 1 ? 's' : ''} waiting for you"
+            aria-label={t('shell.pullsWaitingForYou', { count: needsYou(project.path) })}
+            title={t('shell.pullsWaitingForYou', { count: needsYou(project.path) })}
             ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"
               ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4" /></svg
             >{needsYou(project.path)}</span
           >{/if}{#if failed(project.path)}<span
             class="badge error"
             role="img"
-            aria-label="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error"
-            title="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error">!</span
+            aria-label={t('shell.agentsInError', { count: failed(project.path) })}
+            title={t('shell.agentsInError', { count: failed(project.path) })}>!</span
           >{/if}
         {#if !project.exists}
-          <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label="Folder not found"
+          <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label={t('shell.folderNotFound')}
             ><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg
           >
         {/if}
@@ -184,6 +200,7 @@
       <div class="anchor" data-menu>
         <button
           class="tab more"
+          class:ring={settings.tab_ring !== 'off' && hidden.some((p) => waiting(p.path))}
           aria-haspopup="menu"
           aria-expanded={moreOpen}
           onclick={() => (moreOpen = !moreOpen)}
@@ -192,59 +209,59 @@
           {#if hidden.some((p) => waiting(p.path))}
             <span class="badge">{hidden.reduce((n, p) => n + waiting(p.path), 0)}</span>
           {/if}
-          {#if hidden.some((p) => failed(p.path))}<span class="badge error" role="img" aria-label="Agents in error">!</span>{/if}
+          {#if hidden.some((p) => unread(p.path))}{@render finished(hidden.reduce((n, p) => n + unread(p.path), 0))}{/if}
+          {#if hidden.some((p) => failed(p.path))}<span class="badge error" role="img" aria-label={t('shell.someAgentsInError')}>!</span>{/if}
           <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
             ><path d="M6 9l6 6 6-6" /></svg
           >
         </button>
         {#if moreOpen}
-          <div class="menu right" role="menu" aria-label="Other projects">
+          <div class="menu right" role="menu" aria-label={t('shell.otherProjects')}>
             <label class="search">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
                 ><circle cx="11" cy="11" r="7" /><path d="M20 20l-4-4" /></svg
               >
-              <input bind:value={search} placeholder="Search a project" aria-label="Search a project" />
+              <input bind:value={search} placeholder={t('shell.searchProject')} aria-label={t('shell.searchProject')} />
             </label>
             {#each found as project (project.path)}
               <span class="entry">
                 <button role="menuitem" style:--project={project.color} onclick={() => choose(project.path)}>
                   <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
-                  {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if failed(project.path)}<span
+                  {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if failed(project.path)}<span
                       class="badge error"
                       role="img"
-                      aria-label="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error"
-                      title="{failed(project.path)} agent{failed(project.path) > 1 ? 's' : ''} in error">!</span
+                      aria-label={t('shell.agentsInError', { count: failed(project.path) })}
+                      title={t('shell.agentsInError', { count: failed(project.path) })}>!</span
                     >{/if}
                 </button>
-                <button class="pin" aria-label="Pin {project.name} to the tab bar" title="Pin to the tab bar" onclick={() => editProject(project.path, { pinned: true })}>
+                <button class="pin" aria-label={t('shell.pinNamed', { name: project.name })} title={t('shell.pinToTabBar')} onclick={() => editProject(project.path, { pinned: true })}>
                   <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
                 </button>
               </span>
             {/each}
             <span class="rule" aria-hidden="true"></span>
-            <button role="menuitem" onclick={() => ((moreOpen = false), (ui.settings = 'projects'))}>Reorder and pin tabs…</button>
+            <button role="menuitem" onclick={() => ((moreOpen = false), (ui.settings = 'projects'))}>{t('shell.reorderTabs')}</button>
           </div>
         {/if}
       </div>
     {/if}
-    <button class="add" aria-label="Add a project" title="Add a project" onclick={onadd}>+</button>
+    <button class="add" aria-label={t('shell.addProject')} title={t('shell.addProject')} onclick={onadd}>+</button>
   </nav>
 
   <div class="end" data-tauri-drag-region>
-    <span class="today" title="Cost of today, all agents">Today <span>{cost(todayCost())}</span></span>
-    <button class="win" aria-label="Minimize" onclick={() => appWindow.minimize()}>–</button>
-    <button class="win" aria-label="Maximize" onclick={() => appWindow.toggleMaximize()}>□</button>
-    <button class="win" aria-label="Close" onclick={() => appWindow.close()}>×</button>
+    <button class="win" aria-label={t('shell.minimize')} onclick={() => appWindow.minimize()}>–</button>
+    <button class="win" aria-label={t('shell.maximize')} onclick={() => appWindow.toggleMaximize()}>□</button>
+    <button class="win" aria-label={t('common.close')} onclick={() => appWindow.close()}>×</button>
   </div>
 
   {#if context && target}
-    <div class="menu context" role="menu" aria-label="{target.name} actions" data-menu style:left="{context.x}px" style:top="{context.y}px">
+    <div class="menu context" role="menu" aria-label={t('shell.actionsOf', { name: target.name })} data-menu style:left="{context.x}px" style:top="{context.y}px">
       <button role="menuitem" onclick={() => (editProject(target.path, { pinned: !target.pinned }), (context = null))}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
-        {target.pinned ? 'Unpin from the tab bar' : 'Pin to the tab bar'}
+        {target.pinned ? t('shell.unpinFromTabBar') : t('shell.pinToTabBar')}
       </button>
-      <button role="menuitem" onclick={() => ((context = null), (ui.settings = 'projects'))}>Project settings…</button>
-      <button role="menuitem" onclick={() => (shelve(target), (context = null))}>Archive project…</button>
+      <button role="menuitem" onclick={() => ((context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
+      <button role="menuitem" onclick={() => (shelve(target), (context = null))}>{t('shell.archiveProjectEllipsis')}</button>
     </div>
   {/if}
 
@@ -549,17 +566,6 @@
     color: var(--accent-soft);
   }
 
-  .today {
-    margin-right: 6px;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .today span {
-    font-family: var(--mono);
-    color: var(--text-3);
-  }
-
   .tab:has(.badge) {
     padding-right: 6px;
   }
@@ -622,6 +628,21 @@
     fill: none;
     stroke: currentColor;
     stroke-width: 2.4;
+  }
+
+  .badge.done {
+    gap: 3px;
+    background: transparent;
+    box-shadow: inset 0 0 0 1px var(--ok);
+    color: var(--ok);
+  }
+
+  .badge.done svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .badge.error {

@@ -1,5 +1,6 @@
 <script lang="ts">
   import { answer } from './agents.svelte'
+  import { t } from './i18n/index.svelte'
   import type { Agent, Ask } from './stream'
 
   let { agent, ask }: { agent: Agent; ask: Ask } = $props()
@@ -39,15 +40,15 @@
 
 <svelte:window onkeydown={keys} />
 
-<section class="card" aria-label="Agent question">
+<section class="card" aria-label={t('agent.agentQuestion')}>
   <div class="head">
     <span class="icon" aria-hidden="true">?</span>
-    <span class="title">{simple ? questions[0].question : `${questions.length} question${questions.length > 1 ? 's' : ''} from ${agent.name}`}</span>
-    {#if !simple}<span class="count">{done} of {questions.length} answered</span>{/if}
+    <span class="title">{simple ? questions[0].question : t('agent.questionsFrom', { count: questions.length, agent: agent.name })}</span>
+    {#if !simple}<span class="count">{t('agent.answeredCount', { done, total: questions.length })}</span>{/if}
   </div>
 
   {#if simple}
-    <div class="options" role="group" aria-label="Answer choices">
+    <div class="options" role="group" aria-label={t('agent.answerChoices')}>
       {#each questions[0].options as option, i (option.label)}
         <button class="option" onclick={() => choose(questions[0], option.label)}>
           <span class="key">{i + 1}</span>
@@ -55,20 +56,20 @@
             <strong>{clean(option.label)}</strong>
             {#if option.description}<span>{option.description}</span>{/if}
           </span>
-          {#if recommended(option.label)}<span class="badge">Recommended</span>{/if}
+          {#if recommended(option.label)}<span class="badge">{t('common.recommended')}</span>{/if}
         </button>
       {/each}
     </div>
-    <span class="hint">One click to answer, or write a free answer below.</span>
+    <span class="hint">{t('agent.oneClickHint')}</span>
   {:else}
     {#each questions as q, n (q.question)}
       <fieldset class:current={!picked[q.question]?.length && questions.findIndex((x) => !picked[x.question]?.length) === n}>
         <legend>
           <span>{n + 1} · {q.question}</span>
           {#if picked[q.question]?.length}
-            <span class="ok">Answered</span>
+            <span class="ok">{t('agent.answered')}</span>
           {:else if q.multiSelect}
-            <span class="multi">Several choices allowed</span>
+            <span class="multi">{t('agent.severalChoices')}</span>
           {/if}
         </legend>
         <div class="choices" class:grid={q.multiSelect}>
@@ -96,8 +97,8 @@
       </fieldset>
     {/each}
     <div class="footer">
-      <button class="btn send" aria-disabled={done < questions.length} onclick={send}>Send answers</button>
-      <span class="hint">Answer every question, or write a free answer below.</span>
+      <button class="btn send" aria-disabled={done < questions.length} onclick={send}>{t('agent.sendAnswers')}</button>
+      <span class="hint">{t('agent.answerEveryHint')}</span>
     </div>
   {/if}
 </section>

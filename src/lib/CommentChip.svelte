@@ -1,11 +1,12 @@
 <script lang="ts">
   import type { Comment } from './stream'
+  import { t } from './i18n/index.svelte'
 
   let { comment, light = false, onopen, onremove }: { comment: Comment; light?: boolean; onopen?: () => void; onremove?: () => void } =
     $props()
 
-  const ref = $derived(comment.path ? `${comment.path.split('/').pop()}:${comment.line}` : 'Pull request')
-  const title = $derived(comment.path ? `${comment.path}:${comment.line}${comment.removed ? ' · removed line' : ''}\n${comment.code.trim()}\n\n${comment.note}` : comment.note)
+  const ref = $derived(comment.path ? `${comment.path.split('/').pop()}:${comment.line}` : t('review.pullRequest'))
+  const title = $derived(comment.path ? `${comment.path}:${comment.line}${comment.removed ? ` · ${t('review.removedLine')}` : ''}\n${comment.code.trim()}\n\n${comment.note}` : comment.note)
 </script>
 
 {#snippet body()}
@@ -16,12 +17,12 @@
 
 <span class="chip" class:light {title}>
   {#if onopen}
-    <button type="button" class="open" onclick={onopen} aria-label="Edit the comment on {comment.path} line {comment.line}">{@render body()}</button>
+    <button type="button" class="open" onclick={onopen} aria-label={t('review.editCommentOnLineOf', { path: comment.path, line: String(comment.line) })}>{@render body()}</button>
   {:else}
     {@render body()}
   {/if}
   {#if onremove}
-    <button type="button" class="remove" aria-label="Remove the comment on {ref}" onclick={onremove}>×</button>
+    <button type="button" class="remove" aria-label={t('review.removeCommentOn', { ref })} onclick={onremove}>×</button>
   {/if}
 </span>
 

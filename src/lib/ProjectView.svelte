@@ -26,6 +26,7 @@
   import { hint } from './settings.svelte'
   import NewAgent from './NewAgent.svelte'
   import { load, move, remove, toggleBoard, togglePulls, type Project } from './projects.svelte'
+  import { errorText, t } from './i18n/index.svelte'
 
   let { project }: { project: Project } = $props()
   let error = $state('')
@@ -54,8 +55,8 @@
   async function retire() {
     const running = ofProject(project.path).length
     const confirmed = await ask(
-      `Remove ${project.name} from Squadron? The folder is left untouched.${running ? ` Its ${running} agent${running > 1 ? 's' : ''} will be stopped.` : ''}`,
-      { title: 'Remove project', kind: 'warning', okLabel: 'Remove', cancelLabel: 'Cancel' },
+      running ? t('shell.removeProjectAskAgents', { name: project.name, count: running }) : t('shell.removeProjectAsk', { name: project.name }),
+      { title: t('shell.removeProject'), kind: 'warning', okLabel: t('common.remove'), cancelLabel: t('common.cancel') },
     )
     if (!confirmed) return
     await archiveProject(project.path)
@@ -69,7 +70,7 @@
       await move(project.path, chosen)
       error = ''
     } catch (e) {
-      error = String(e)
+      error = errorText(e)
     }
   }
 
@@ -106,7 +107,7 @@
     class="resizer"
     role="separator"
     aria-orientation="vertical"
-    aria-label="Resize the agent list"
+    aria-label={t('shell.resizeAgentList')}
     aria-valuenow={layout.collapsed ? FOLDED_SIDEBAR : layout.sidebar}
     aria-valuemin={FOLDED_SIDEBAR}
     aria-valuemax={MAX_SIDEBAR}
@@ -122,18 +123,15 @@
           <span class="icon" aria-hidden="true">
             <svg width="16" height="16" viewBox="0 0 24 24"><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg>
           </span>
-          <h1 id="missing">The {project.name} folder cannot be found</h1>
+          <h1 id="missing">{t('shell.folderMissing', { name: project.name })}</h1>
         </div>
         <code>{project.path}</code>
-        <p>
-          It may have been moved, renamed, or it lives on an unmounted disk. Point to its new location
-          to create agents in {project.name}.
-        </p>
+        <p>{t('shell.folderMissingText', { name: project.name })}</p>
         {#if error}<p class="bad">{error}</p>{/if}
         <div class="row">
-          <button class="btn btn-primary" onclick={relocate}>Choose the new location…</button>
-          <button class="btn btn-danger" onclick={load}>Retry</button>
-          <button class="btn btn-danger" onclick={retire}>Remove project</button>
+          <button class="btn btn-primary" onclick={relocate}>{t('shell.chooseNewLocation')}</button>
+          <button class="btn btn-danger" onclick={load}>{t('common.retry')}</button>
+          <button class="btn btn-danger" onclick={retire}>{t('shell.removeProject')}</button>
         </div>
       </section>
     </main>
@@ -148,31 +146,31 @@
         <span class="plus" aria-hidden="true">
           <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
         </span>
-        <h1>Start the first {project.name} agent</h1>
-        <p>Give it a name, pick the model, the effort and the permission mode, then write its first instruction.</p>
+        <h1>{t('shell.startFirstAgent', { name: project.name })}</h1>
+        <p>{t('shell.startFirstAgentText')}</p>
         <div class="row">
-          <button class="btn btn-primary big" onclick={() => (ui.creating = true)}>New agent</button>
+          <button class="btn btn-primary big" onclick={() => (ui.creating = true)}>{t('common.newAgent')}</button>
           <kbd>{hint('newAgent')}</kbd>
         </div>
-        <div class="tools" role="group" aria-label="Open a tool">
-          <button class="btn btn-ghost" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
-            <Icon name="editor" />Editor
+        <div class="tools" role="group" aria-label={t('shell.openTool')}>
+          <button class="btn btn-ghost" aria-pressed={panel === 'editor'} title={t('shell.editorTitle', { key: hint('editor') })} onclick={() => toggle('editor')}>
+            <Icon name="editor" />{t('shell.editor')}
           </button>
-          <button class="btn btn-ghost" aria-pressed={panel === 'terminal'} title="A shell in the project folder ({hint('terminal')})" onclick={() => toggle('terminal')}>
-            <Icon name="terminal" />Terminal
+          <button class="btn btn-ghost" aria-pressed={panel === 'terminal'} title={t('shell.terminalTitle', { key: hint('terminal') })} onclick={() => toggle('terminal')}>
+            <Icon name="terminal" />{t('shell.terminal')}
           </button>
-          <button class="btn btn-ghost" aria-pressed={panel === 'diff'} title="What is not committed yet ({hint('diff')})" onclick={() => toggle('diff')}>
-            <Icon name="diff" />Diff
+          <button class="btn btn-ghost" aria-pressed={panel === 'diff'} title={t('shell.diffTitle', { key: hint('diff') })} onclick={() => toggle('diff')}>
+            <Icon name="diff" />{t('shell.diff')}
             {#if totals.add || totals.del}
               <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
             {/if}
           </button>
-          <button class="btn btn-ghost" title="Pull requests you review and you wrote" onclick={togglePulls}>
-            <Icon name="pull" />Pull requests
+          <button class="btn btn-ghost" title={t('shell.pullsTitle')} onclick={togglePulls}>
+            <Icon name="pull" />{t('shell.pullRequests')}
             {#if needsYou(project.path)}<span class="count">{needsYou(project.path)}</span>{/if}
           </button>
-          <button class="btn btn-ghost" title="Kanban ({hint('kanban')})" onclick={toggleBoard}>
-            <Icon name="kanban" />Kanban
+          <button class="btn btn-ghost" title={t('shell.kanbanTitle', { key: hint('kanban') })} onclick={toggleBoard}>
+            <Icon name="kanban" />{t('shell.kanban')}
           </button>
         </div>
       </div>

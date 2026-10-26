@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from '@tauri-apps/plugin-dialog'
-import { branchOf, create, find, importSession, knownSessions, ofProject, persist, send, type Elsewhere } from './agents.svelte'
+import { branchOf, create, find, importSession, knownSessions, ofProject, persist, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
@@ -11,6 +11,8 @@ import { settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
 import { reviews } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
+import { english, t } from './i18n/index.svelte'
+import { PANEL_MAX_HTML, panelHeight } from './infopanel'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
@@ -46,6 +48,8 @@ function text(agent: Agent, last: number) {
     .slice(-last)
 }
 
+const waitingOf = (a: Agent) => (a.asks[0] ? waitingFor(a.asks[0], english) : a.attention) || undefined
+
 const goalOf = (a: Agent) =>
   a.goal ? { done_when: a.goal.condition, state: a.goal.state, relaunches: a.goal.relaunches || undefined, last_reason: a.goal.reason || undefined } : undefined
 
@@ -58,9 +62,10 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
         id: a.id,
         name: a.name,
         status: a.status,
-        waiting_for_user: a.attention || undefined,
+        waiting_for_user: waitingOf(a),
         doing: a.status === 'working' ? a.action : undefined,
         cost_usd: Math.round(a.cost * 100) / 100,
+        progress: a.progress ? `${a.progress.done}/${a.progress.total}${a.progress.message ? ` · ${a.progress.message}` : ''}` : undefined,
         tasks: a.tasks.length ? `${a.tasks.filter((t) => t.status === 'completed').length}/${a.tasks.length}` : undefined,
         goal: goalOf(a),
       })),
@@ -70,7 +75,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
   read_agent: (_, args) => {
     const agent = find(String(args.agent))
     if (!agent) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
-    return { name: agent.name, status: agent.status, waiting_for_user: agent.attention || undefined, goal: goalOf(agent), messages: text(agent, Number(args.last) || 10) }
+    return { name: agent.name, status: agent.status, waiting_for_user: waitingOf(agent), goal: goalOf(agent), messages: text(agent, Number(args.last) || 10) }
   },
 
   start_agent: async (caller, args) => {
@@ -89,11 +94,11 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const goal = String(args.done_when ?? '').trim() || card?.goal || ''
     if (
       (options.mode === 'acceptEdits' || options.mode === 'auto') &&
-      !(await ask(`${caller.name} wants to start ${name ? `“${name}”` : 'an agent'} in ${project.name} in ${options.mode} mode, which skips some permission requests.`, {
-        title: 'Start an agent',
+      !(await ask(t(name ? 'shell.pilotStartNamed' : 'shell.pilotStartUnnamed', { caller: caller.name, name, project: project.name, mode: options.mode }), {
+        title: t('shell.pilotStartTitle'),
         kind: 'warning',
-        okLabel: 'Start it',
-        cancelLabel: 'Refuse',
+        okLabel: t('shell.pilotStartOk'),
+        cancelLabel: t('shell.pilotStartRefuse'),
       }))
     )
       return `The user refused to start this agent in ${options.mode} mode.`
@@ -153,6 +158,22 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
   },
 
+  set_progress: (caller, args) => {
+    if (args.total === null || args.total === undefined) {
+      caller.progress = null
+      persist(caller)
+      return 'Progress bar removed from your card.'
+    }
+    const total = Number(args.total)
+    const done = Number(args.done ?? 0)
+    if (!Number.isFinite(total) || total <= 0) throw new Error('total must be a number above 0.')
+    if (!Number.isFinite(done) || done < 0 || done > total) throw new Error(`done must be between 0 and ${total}.`)
+    const place = pick<'above' | 'below'>(args.place, ['above', 'below'], 'above', 'place')
+    caller.progress = { done, total, message: String(args.message ?? '').trim(), place }
+    persist(caller)
+    return `Your card shows ${done}/${total}. Call set_progress again as the work moves on, or without total to remove it.`
+  },
+
   message_agent: async (caller, args) => {
     const target = find(String(args.agent ?? ''))
     if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
@@ -203,12 +224,27 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
   },
 
+  set_info_panel: (caller, args) => {
+    const html = String(args.html ?? '').trim()
+    if (!html) {
+      caller.infoPanel = undefined
+      persist(caller)
+      return 'Your panel is removed.'
+    }
+    if (html.length > PANEL_MAX_HTML) throw new Error(`The html is ${html.length} characters long; keep it under ${PANEL_MAX_HTML}.`)
+    const height = panelHeight(args.height)
+    const hidden = caller.infoPanel?.hidden
+    caller.infoPanel = { html, height, hidden }
+    persist(caller)
+    return `Your panel shows under the header of your conversation, ${height}px high.${hidden ? ' The user has hidden it: they see it when they show it again.' : ''}`
+  },
+
   get_layout: () =>
     (Object.keys(SLOTS) as Slot[]).map((slot) => ({
       slot,
-      title: SLOTS[slot].title,
-      where: SLOTS[slot].hint,
-      items: all(slot).map((id) => ({ id, label: labelOf(slot, id), hidden: hidden(slot, id) || undefined })),
+      title: english(SLOTS[slot].title),
+      where: english(SLOTS[slot].hint),
+      items: all(slot).map((id) => ({ id, label: labelOf(slot, id, english), hidden: hidden(slot, id) || undefined })),
       cannot_hide: SLOTS[slot].locked,
     })),
 

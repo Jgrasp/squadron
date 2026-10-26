@@ -24,6 +24,8 @@ describe('shortcuts', () => {
     expect(pressed(key('d', { altKey: true }), { diff: 'Alt+D' })).toBe('diff')
     expect(pressed(key('k', { ctrlKey: true, shiftKey: true }), {})).toBeUndefined()
     expect(binding({}, 'interrupt')).toBe('Escape')
+    expect(pressed(key('ArrowLeft', { altKey: true }), {})).toBe('back')
+    expect(pressed(key('ArrowRight', { altKey: true }), {})).toBe('forward')
   })
 
   it('refuses keys that would fire while typing', () => {

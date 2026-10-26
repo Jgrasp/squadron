@@ -1,9 +1,11 @@
 <script lang="ts">
   import Dialog from './Dialog.svelte'
+  import { t } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import type { Project } from './projects.svelte'
   import { untrack } from 'svelte'
   import { settings } from './settings.svelte'
+  import Trans from './Trans.svelte'
   import type { Options } from './stream'
 
   let {
@@ -34,50 +36,50 @@
   }
 </script>
 
-<Dialog title="New agent" {onclose} width={620}>
+<Dialog title={t('common.newAgent')} {onclose} width={620}>
   {#snippet badge()}
-    <span class="in" style:--project={project.color}><span class="dot" aria-hidden="true"></span>in {project.name}</span>
+    <span class="in" style:--project={project.color}><span class="dot" aria-hidden="true"></span>{t('board.inProject', { project: project.name })}</span>
   {/snippet}
   <form onsubmit={submit}>
     <div class="fields">
       <div class="group">
-        <label for="agent-name">Name</label>
-        <input id="agent-name" class="field" bind:value={name} placeholder="Leave empty to get a title from the first message" />
+        <label for="agent-name">{t('common.name')}</label>
+        <input id="agent-name" class="field" bind:value={name} placeholder={t('board.namePlaceholder')} />
       </div>
 
       <OptionsFields bind:options />
 
       <div class="group">
-        <label for="first-message">First message</label>
+        <label for="first-message">{t('board.firstMessage')}</label>
         <!-- svelte-ignore a11y_autofocus -->
         <textarea
           id="first-message"
           class="field"
           rows="4"
           bind:value={text}
-          placeholder="Optional. You can also write it in the conversation, with screenshots and files."
+          placeholder={t('board.firstMessagePlaceholder')}
           autofocus
           onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
         ></textarea>
       </div>
 
       <div class="group">
-        <label for="done-when">Done when</label>
+        <label for="done-when">{t('common.doneWhen')}</label>
         <textarea
           id="done-when"
           class="field"
           rows="2"
           bind:value={goal}
-          placeholder="Optional. The agent keeps working until this is true. Ask for visible proof: tests run, output shown."
+          placeholder={t('board.agentGoalPlaceholder')}
           onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
         ></textarea>
       </div>
     </div>
 
     <footer>
-      <span class="hint"><kbd>Ctrl ↵</kbd> to start</span>
-      <button type="button" class="btn btn-secondary" onclick={onclose}>Cancel</button>
-      <button class="btn btn-primary" disabled={!ready}>Start agent</button>
+      <span class="hint"><Trans k="board.ctrlEnterToStart">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>
+      <button type="button" class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
+      <button class="btn btn-primary" disabled={!ready}>{t('board.startAgent')}</button>
     </footer>
   </form>
 </Dialog>

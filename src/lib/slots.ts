@@ -1,53 +1,54 @@
+import type { Key } from './i18n/index.svelte'
+
 export type Slot = 'agent.info' | 'agent.tools' | 'agent.menu' | 'menu.squadron'
 
 export type Arrangement = { order?: string[]; hidden?: string[] }
 
-export const SLOTS: Record<Slot, { title: string; hint: string; items: [string, string, string?][]; locked?: string[]; hidden?: string[] }> = {
+export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, Key?][]; locked?: string[]; hidden?: string[] }> = {
   'agent.info': {
-    title: 'Agent header',
-    hint: 'The line under the name of an agent',
+    title: 'settings.slotInfo',
+    hint: 'settings.slotInfoHint',
     items: [
-      ['options', 'Model, effort and mode'],
-      ['remote', 'Remote control', 'Turns it on, and shows when the conversation can be followed from claude.ai'],
-      ['subagents', 'Subagents', 'Shown once the agent has launched subagents'],
-      ['cost', 'Cost'],
-      ['context', 'Context tokens'],
-      ['turns', 'Turns'],
-      ['branch', 'Working branch', 'Green with a worktree, native or declared by the agent'],
-      ['pull', 'Pull request', 'Its state on Bitbucket or GitHub; opens its review in the Diff panel'],
-      ['tasks', 'Task progress'],
+      ['options', 'settings.itemOptions'],
+      ['remote', 'settings.itemRemote', 'settings.itemRemoteInfoHint'],
+      ['subagents', 'settings.itemSubagents', 'settings.itemSubagentsHint'],
+      ['context', 'settings.itemContext'],
+      ['turns', 'settings.itemTurns'],
+      ['branch', 'settings.itemBranch', 'settings.itemBranchHint'],
+      ['pull', 'settings.itemPull', 'settings.itemPullHint'],
+      ['tasks', 'settings.itemTasks'],
     ],
     hidden: ['tasks'],
   },
   'agent.tools': {
-    title: 'Agent tools',
-    hint: 'Buttons at the top right of an agent',
+    title: 'settings.slotTools',
+    hint: 'settings.slotToolsHint',
     items: [
-      ['editor', 'Editor'],
-      ['terminal', 'Terminal'],
-      ['diff', 'Diff'],
-      ['kanban', 'Kanban'],
-      ['pulls', 'Pull requests', 'Those you review and those you wrote'],
+      ['editor', 'settings.itemEditor'],
+      ['terminal', 'settings.itemTerminal'],
+      ['diff', 'settings.itemDiff'],
+      ['kanban', 'settings.itemKanban'],
+      ['pulls', 'settings.itemPulls', 'settings.itemPullsHint'],
     ],
   },
   'agent.menu': {
-    title: 'Agent menu',
-    hint: 'The ⋯ menu next to Send',
+    title: 'settings.slotMenu',
+    hint: 'settings.slotMenuHint',
     items: [
-      ['reload', 'Reload', 'Restarts the session, keeps the conversation'],
-      ['rename', 'Rename', 'Give the agent a clearer name'],
-      ['fork', 'Fork', 'New agent, same context'],
-      ['remote', 'Remote control', 'Follow and answer this conversation from claude.ai or the Claude app'],
-      ['archive', 'Archive', 'Stops the agent and removes it from the list'],
+      ['reload', 'common.reload', 'settings.itemReloadHint'],
+      ['rename', 'common.rename', 'settings.itemRenameHint'],
+      ['fork', 'settings.itemFork', 'settings.itemForkHint'],
+      ['remote', 'settings.itemRemote', 'settings.itemRemoteMenuHint'],
+      ['archive', 'common.archive', 'settings.itemArchiveHint'],
     ],
   },
   'menu.squadron': {
-    title: 'Squadron menu',
-    hint: 'The menu under the Squadron logo',
+    title: 'settings.slotSquadron',
+    hint: 'settings.slotSquadronHint',
     items: [
-      ['settings', 'Settings', 'Projects, agents, tools and interface'],
-      ['updates', 'Check for updates', 'Looks for a new version of Squadron'],
-      ['about', 'About Squadron', 'Version, Claude Code and account'],
+      ['settings', 'settings.title', 'settings.itemSettingsHint'],
+      ['updates', 'settings.itemUpdates', 'settings.itemUpdatesHint'],
+      ['about', 'settings.itemAbout', 'settings.itemAboutHint'],
     ],
     locked: ['settings'],
   },

@@ -1,8 +1,9 @@
 <script lang="ts">
   import { clock } from './agents.svelte'
   import { duration, tokens } from './format'
+  import { t } from './i18n/index.svelte'
   import type { Agent, Subagent } from './stream'
-  import { asking, count, LABEL, lookOf, LOOKS } from './subagents'
+  import { asking, count, counted, label, lookOf, LOOKS } from './subagents'
 
   let {
     agent,
@@ -29,29 +30,29 @@
       subs.find((s) => s.status === 'running') ??
       subs.at(-1),
   )
-  const doing = (s: Subagent) => (s.status === 'done' ? (s.result?.split('\n').find((l) => l.trim()) ?? 'Result handed back') : s.last)
+  const doing = (s: Subagent) => (s.status === 'done' ? (s.result?.split('\n').find((l) => l.trim()) ?? t('conversation.resultHandedBack')) : s.last)
 </script>
 
-<section class="subagents" aria-label="Subagents launched">
+<section class="subagents" aria-label={t('conversation.subagentsLaunched')}>
   <div class="head">
     <span class="icon" aria-hidden="true">
       <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="12" r="2" /><path d="M6 7v10M6 12h10" /></svg>
     </span>
     <span class="what">
-      <strong>{subs.length} subagent{subs.length > 1 ? 's' : ''} launched <span class="type">· {types}</span></strong>
+      <strong>{t('conversation.launchedCount', { count: subs.length })} <span class="type">· {types}</span></strong>
       <span class="names">{subs.map((s) => s.name).join(' · ')}</span>
     </span>
     <span class="mono">{counts.done}/{subs.length} · {duration(span)}</span>
   </div>
 
   {#if subs.length > 1}
-    <div class="grid" role="group" aria-label="Subagent map">
+    <div class="grid" role="group" aria-label={t('conversation.subagentMap')}>
       {#each subs as s (s.id)}
         {@const look = lookOf(s, waiting)}
         <button
           class="cell {look}"
-          aria-label="Subagent #{s.num} · {s.name} · {LABEL[look]}"
-          title="#{s.num} · {s.name} · {LABEL[look]}"
+          aria-label={t('conversation.subagentLabel', { num: s.num, name: s.name, state: label(look) })}
+          title="#{s.num} · {s.name} · {label(look)}"
           aria-pressed={s === selected}
           onclick={() => (picked = s.id)}
         ></button>
@@ -59,10 +60,10 @@
     </div>
     <div class="legend">
       {#each LOOKS as look (look)}
-        {#if counts[look]}<span><span class="dot {look}"></span>{counts[look]} {LABEL[look]}</span>{/if}
+        {#if counts[look]}<span><span class="dot {look}"></span>{counted(look, counts[look])}</span>{/if}
       {/each}
       <span class="grow"></span>
-      <span class="mono">{tokens(total)} tokens</span>
+      <span class="mono">{t('conversation.tokens', { n: tokens(total) })}</span>
     </div>
   {/if}
 
@@ -71,18 +72,18 @@
     <div class="pick">
       <span class="dot {look}"></span>
       <span class="about">
-        <span><strong>#{selected.num} · {selected.name}</strong> <span class="state">· {LABEL[look]}</span></span>
+        <span><strong>#{selected.num} · {selected.name}</strong> <span class="state">· {label(look)}</span></span>
         <span class="last">{doing(selected)}</span>
       </span>
-      {#if subs.length === 1}<span class="mono">{tokens(selected.tokens)} tokens</span>{/if}
-      {#if onopen}<button class="link" onclick={() => onopen(selected)}>Open log →</button>{/if}
+      {#if subs.length === 1}<span class="mono">{t('conversation.tokens', { n: tokens(selected.tokens) })}</span>{/if}
+      {#if onopen}<button class="link" onclick={() => onopen(selected)}>{t('conversation.openLog')}</button>{/if}
     </div>
   {/if}
 
   {#if onpanel && subs.length > 1}
     <div class="foot">
-      <span>Click a square to see the subagent.</span>
-      <button class="btn btn-secondary" onclick={onpanel}>Open the Subagents panel</button>
+      <span>{t('conversation.clickSquare')}</span>
+      <button class="btn btn-secondary" onclick={onpanel}>{t('conversation.openPanel')}</button>
     </div>
   {/if}
 </section>

@@ -6,6 +6,7 @@ import sigint from '../../src-tauri/tests/fixtures/sigint.jsonl?raw'
 import taskList from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
+import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
 type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean }
@@ -46,6 +47,7 @@ let tabEffect = 'pulse'
 let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
+let language = 'system'
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -127,7 +129,7 @@ function replay(id: string, text: string) {
     return
   }
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
-  const stream = text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -151,7 +153,7 @@ function replay(id: string, text: string) {
       emit('permission-request', { id: ask, agent: id, tool_name: 'Bash', input: call.input, tool_use_id: call.id })
       return
     }
-    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') ? 150 : text.includes('swarm') ? 8 : 60))
+    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : 60))
   }
   next()
 }
@@ -327,16 +329,8 @@ mockIPC(
         return localStorage.getItem(`agent:${a.id}`)
       case 'load_agents':
         return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
-      case 'add_cost': {
-        const key = `cost:${a.day}`
-        const total = Number(localStorage.getItem(key) ?? 0) + Number(a.usd)
-        localStorage.setItem(key, String(total))
-        return total
-      }
       case 'system_load':
         return { cpu: 18 + Math.random() * 25, used: 13.6 * 2 ** 30, total: 31.2 * 2 ** 30 }
-      case 'day_cost':
-        return Number(localStorage.getItem(`cost:${a.day}`) ?? 0)
       case 'fork_agent':
       case 'restore_agent':
         projectOf.set(a.id, a.project)
@@ -348,13 +342,14 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
         tabOrder = (a as unknown as { config: { tab_order: string } }).config.tab_order
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
+        language = (a as unknown as { config: { language: string } }).config.language
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
@@ -435,7 +430,7 @@ mockIPC(
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
           host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
-          updated: new Date(Date.now() - number * 3_600_000).toISOString(), author_avatar: '', reviewed: null, conflicts: false, reviewed_head: null, reviewed_at: null, head_at: null,
+          updated: new Date(Date.now() - number * 3_600_000).toISOString(), author_avatar: '', reviewed: null, conflicts: false, mergeable: false, reviewed_head: null, reviewed_at: null, head_at: null,
           reviewers: [
             { name: 'Sébastien Leprovost', avatar: '', verdict: number % 2 ? 'approved' : 'waiting' },
             { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: number === 2101 ? 'changes_requested' : 'waiting' },
@@ -450,7 +445,7 @@ mockIPC(
             pull(2071, 'Export segments as CSV', 'Lucas M.', 'dev/T12', { reviewed: 'approved', approvals: 1, reviewed_head: 'e'.repeat(40) }),
           ],
           mine: [
-            pull(2108, 'feat(segments): channel-aware segment resolver', 'Quentin Briais', 'feat/orbit', { approvals: 1, comments: 3, checks: 'passing' }),
+            pull(2108, 'feat(segments): channel-aware segment resolver', 'Quentin Briais', 'feat/orbit', { approvals: 1, comments: 3, checks: 'passing', mergeable: true }),
             pull(2101, 'Faster price index rebuild', 'Quentin Briais', 'dev/T17', { changes_requested: true, checks: 'failing', comments: 5 }),
           ],
         }
@@ -486,6 +481,8 @@ mockIPC(
         ]
       case 'pull_reply':
         return
+      case 'merge_pull':
+        return
       case 'post_remarks':
         return { done: (args as { drafts: unknown[] }).drafts.length, error: null }
       case 'git_changes':
@@ -519,7 +516,41 @@ mockIPC(
         files.set(a.path, a.text)
         return
       case 'git_file':
-        return a.path.endsWith('.php') ? '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n' : null
+        if (!a.path.endsWith('.php')) return null
+        return [
+          '<?php',
+          '',
+          'declare(strict_types=1);',
+          '',
+          'namespace App\\Segmentation;',
+          '',
+          'use Sylius\\Component\\Channel\\Model\\ChannelInterface;',
+          'use Sylius\\Component\\Customer\\Model\\CustomerInterface;',
+          'final class ChannelSegmentResolver',
+          '{',
+          '    public function resolve(',
+          '        CustomerInterface $customer,',
+          '        ?ChannelInterface $channel = null,',
+          '    ): array',
+          '    {',
+          '        $channel ??= $this->channelContext->getChannel();',
+          '',
+          '        return $this->repository->findForCustomer($customer, $channel);',
+          '    }',
+          '}',
+          '',
+          'final class ChannelSegmentCache',
+          '{',
+          ...['customer', 'channel', 'segment', 'group', 'zone', 'locale', 'currency'].flatMap((name) => [
+            `    public function ${name}(string $key): ?string`,
+            '    {',
+            `        return $this->${name}s[$key] ?? null;`,
+            '    }',
+            '',
+          ]),
+          '}',
+          '',
+        ].join('\n')
       case 'term_open': {
         const id = ++terminal
         setTimeout(() => emit('term-out', { id, data: prompt }), 50)

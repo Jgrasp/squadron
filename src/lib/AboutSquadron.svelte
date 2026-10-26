@@ -6,6 +6,7 @@
   import { projects } from './projects.svelte'
   import { settings } from './settings.svelte'
   import { checkNow, install, update } from './update.svelte'
+  import { t } from './i18n/index.svelte'
 
   let version = $state('')
   let claude = $state('')
@@ -17,27 +18,27 @@
   <span class="triangle" aria-hidden="true"></span>
   <span>
     <strong>Squadron</strong>
-    <small>Version {version || '…'} · {navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux'}</small>
+    <small>{t('settings.versionLine', { version: version || '…', system: navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux' })}</small>
   </span>
 </div>
-<p>Squadron runs several Claude Code agents per project, shows their conversations side by side and tells you when one of them needs you.</p>
+<p>{t('settings.aboutText')}</p>
 <dl>
   <dt>Claude Code</dt>
-  <dd>{claude || 'Not found'}</dd>
-  <dt>Account</dt>
-  <dd>{account.value ? [account.value.email, account.value.organization, account.value.subscriptionType].filter(Boolean).join(' · ') : 'Known once an agent has started'}</dd>
-  <dt>Projects</dt>
+  <dd>{claude || t('settings.notFound')}</dd>
+  <dt>{t('settings.account')}</dt>
+  <dd>{account.value ? [account.value.email, account.value.organization, account.value.subscriptionType].filter(Boolean).join(' · ') : t('settings.accountUnknown')}</dd>
+  <dt>{t('settings.projects')}</dt>
   <dd>{projects.list.length}</dd>
-  <dt>Agents</dt>
+  <dt>{t('settings.agents')}</dt>
   <dd>{agents.list.length}</dd>
-  <dt>Updates</dt>
+  <dt>{t('settings.updates')}</dt>
   <dd class="updates">
     {#if update.found}
-      <span>Squadron {update.found.version} is available</span>
-      <button class="btn btn-primary" disabled={update.progress !== null} onclick={install}>Update</button>
+      <span>{t('settings.updateAvailable', { version: update.found.version })}</span>
+      <button class="btn btn-primary" disabled={update.progress !== null} onclick={install}>{t('settings.update')}</button>
     {:else}
-      <span>Checked every 10 minutes</span>
-      <button class="btn btn-secondary" disabled={update.checking} onclick={checkNow}>{update.checking ? 'Checking…' : 'Check for updates'}</button>
+      <span>{t('settings.checkedEvery', { count: 10 })}</span>
+      <button class="btn btn-secondary" disabled={update.checking} onclick={checkNow}>{update.checking ? t('common.checking') : t('settings.itemUpdates')}</button>
     {/if}
   </dd>
 </dl>

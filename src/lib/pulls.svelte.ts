@@ -3,6 +3,7 @@ import { agents, create, persist } from './agents.svelte'
 import { projects } from './projects.svelte'
 import { settings } from './settings.svelte'
 import { workdir, type Comment } from './stream'
+import { t, type Key } from './i18n/index.svelte'
 
 export type Pull = {
   host: 'bitbucket' | 'github'
@@ -28,20 +29,25 @@ export type Pull = {
   head_at: string | null
   reviewers: Reviewer[]
   conflicts: boolean
+  mergeable: boolean
 }
 
 export type Reviewer = { name: string; avatar: string; verdict: 'approved' | 'changes_requested' | 'commented' | 'waiting' }
 
 export function progress(pull: Pull) {
   const approved = pull.reviewers.filter((r) => r.verdict === 'approved').length
-  return pull.reviewers.length ? `${approved}/${pull.reviewers.length} approved` : pull.approvals ? `${pull.approvals} approved` : 'No reviewer'
+  return pull.reviewers.length
+    ? t('review.approvedOf', { count: approved, total: pull.reviewers.length })
+    : pull.approvals
+      ? t('review.approvedCount', { count: pull.approvals })
+      : t('review.noReviewer')
 }
 
 export function standing(pull: Pull): [string, string] {
-  if (pull.changes_requested) return ['act-fix', 'Changes requested']
-  if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['act-merge', 'Approved']
-  if (pull.draft) return ['quiet', 'Draft']
-  return ['wait', 'In review']
+  if (pull.changes_requested) return ['act-fix', t('review.changesRequested')]
+  if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['act-merge', t('review.approved')]
+  if (pull.draft) return ['quiet', t('review.draft')]
+  return ['wait', t('review.inReview')]
 }
 
 export type Lists = { review: Pull[]; mine: Pull[]; error: string }
@@ -161,6 +167,17 @@ export async function post(dir: string, pull: Pull, list: Comment[], summary = '
   }
 }
 
+export async function approve(dir: string, pull: Pull) {
+  const { error } = await post(dir, pull, [], '', 'approve')
+  if (error) throw error
+  markReviewed(dir, pull)
+}
+
+export async function merge(dir: string, pull: Pull) {
+  await invoke('merge_pull', { dir, number: pull.number })
+  lookUpAll(true)
+}
+
 export async function reviewWithAgent(project: string, pull: Pull) {
   const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base })
   const prompt = [
@@ -169,7 +186,7 @@ export async function reviewWithAgent(project: string, pull: Pull) {
     'Do not change any file. For each problem worth raising, call add_review_comment with the file, a line the diff shows (changed or within its context: the line in the new version, or the removed line with removed: true) and a short comment. When it is about code the diff does not show, put it on the changed line it relates to best, or leave path and line out to comment on the whole pull request: what is wrong and what to do. Leave out style nitpicks.',
     'End with a short summary of the pull request and of your main concerns.',
   ].join('\n\n')
-  const id = await create(project, `Review #${pull.number}`, { ...settings.defaults }, prompt, { dir })
+  const id = await create(project, t('review.agentName', { number: String(pull.number) }), { ...settings.defaults }, prompt, { dir })
   const agent = agents.list.find((a) => a.id === id)
   if (agent) {
     agent.review = { project, number: pull.number, base: pull.base }
@@ -180,4 +197,13 @@ export async function reviewWithAgent(project: string, pull: Pull) {
 
 export const hostName = (pull: Pull) => (pull.host === 'github' ? 'GitHub' : 'Bitbucket')
 
-export const stateLabel = (pull: Pull) => (pull.draft && pull.state === 'open' ? 'Draft' : pull.state[0].toUpperCase() + pull.state.slice(1))
+const STATES: Record<Pull['state'], Key> = {
+  open: 'review.stateOpen',
+  merged: 'review.stateMerged',
+  declined: 'review.stateDeclined',
+  closed: 'review.stateClosed',
+  superseded: 'review.stateSuperseded',
+}
+
+export const stateLabel = (pull: Pull) =>
+  pull.draft && pull.state === 'open' ? t('review.draft') : STATES[pull.state] ? t(STATES[pull.state]) : pull.state[0].toUpperCase() + pull.state.slice(1)

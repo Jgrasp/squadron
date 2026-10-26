@@ -3,9 +3,9 @@
   import { archived, forget, unarchive, type Archived } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import Dialog from './Dialog.svelte'
-  import { cost } from './format'
   import { projects, type Project } from './projects.svelte'
   import { newAgent } from './stream'
+  import { date, errorText, t } from './i18n/index.svelte'
 
   let { project, onclose }: { project: Project; onclose: () => void } = $props()
 
@@ -25,7 +25,7 @@
   const preview = $derived(current && { ...newAgent(current.id, current.project, current.name, current.options), ...current, asks: [], alive: false })
   const messages = (a: Archived) => a.entries.filter((e) => e.kind === 'user').length
   const when = (at?: number) =>
-    at ? new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
+    at ? date(at, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 
   async function restore(a: Archived) {
     error = ''
@@ -36,16 +36,16 @@
       projects.current = a.project
       onclose()
     } catch (e) {
-      error = String(e)
+      error = errorText(e)
     }
   }
 
   async function remove(a: Archived) {
-    const sure = await ask(`Delete “${a.name}” for good? Squadron forgets it; Claude Code keeps the session in its own history.`, {
-      title: 'Delete an archived agent',
+    const sure = await ask(t('shell.deleteArchivedAsk', { name: a.name }), {
+      title: t('shell.deleteArchivedTitle'),
       kind: 'warning',
-      okLabel: 'Delete',
-      cancelLabel: 'Keep it',
+      okLabel: t('common.delete'),
+      cancelLabel: t('shell.keepIt'),
     })
     if (!sure) return
     await forget(a.id)
@@ -53,32 +53,32 @@
   }
 </script>
 
-<Dialog title="Archived agents · {project.name}" full {onclose}>
+<Dialog title={t('shell.archivedAgentsDialog', { name: project.name })} full {onclose}>
   <div class="archive">
     <aside>
-      <input class="field" type="search" placeholder="Search {list?.length ?? ''} archived agents" bind:value={search} />
+      <input class="field" type="search" placeholder={list ? t('shell.searchArchived', { count: list.length }) : t('shell.searchArchivedAll')} bind:value={search} />
       <ul>
         {#each shown as a (a.id)}
           <li>
             <button aria-current={a.id === chosen ? 'true' : undefined} onclick={() => (chosen = a.id)}>
               <strong>{a.name}</strong>
-              <small>Archived {when(a.archived)} · {messages(a)} message{messages(a) > 1 ? 's' : ''}{a.cost ? ` · ${cost(a.cost)}` : ''}</small>
+              <small>{[t('shell.archivedWhen', { when: when(a.archived) }), t('shell.messageCount', { count: messages(a) })].join(' · ')}</small>
             </button>
           </li>
         {/each}
       </ul>
-      {#if list && !list.length}<p class="empty">No archived agents in {project.name}.</p>{/if}
+      {#if list && !list.length}<p class="empty">{t('shell.noArchived', { name: project.name })}</p>{/if}
     </aside>
     <section>
       {#if current && preview}
         <header>
           <div class="who">
             <h2>{current.name}</h2>
-            <small>Last activity {when(current.since)} · archived {when(current.archived)}</small>
+            <small>{t('shell.archivedDates', { since: when(current.since), archived: when(current.archived) })}</small>
           </div>
           {#if error}<span class="bad" role="alert">{error}</span>{/if}
-          <button class="btn btn-danger" onclick={() => remove(current)}>Delete…</button>
-          <button class="btn btn-primary" onclick={() => restore(current)}>Restore</button>
+          <button class="btn btn-danger" onclick={() => remove(current)}>{t('common.deleteEllipsis')}</button>
+          <button class="btn btn-primary" onclick={() => restore(current)}>{t('common.restore')}</button>
         </header>
         <div class="scroller">
           {#key current.id}
@@ -86,7 +86,7 @@
           {/key}
         </div>
       {:else if list}
-        <p class="empty center">Pick an archived agent to read its conversation.</p>
+        <p class="empty center">{t('shell.pickArchived')}</p>
       {/if}
     </section>
   </div>

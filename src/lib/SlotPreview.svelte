@@ -3,6 +3,7 @@
   import Icon from './Icon.svelte'
   import { all, detailOf, hidden, labelOf, place, sortable, toggle } from './layout-slots.svelte'
   import { SLOTS, type Slot } from './slots'
+  import { t } from './i18n/index.svelte'
 
   let { slot }: { slot: Slot } = $props()
 
@@ -19,7 +20,7 @@
   }
 </script>
 
-<div class="preview" class:bar class:menu={!bar} role="list" aria-label={SLOTS[slot].title} bind:this={box} use:sortable={{ enabled: true, onplace: (id, index) => place(slot, id, index) }}>
+<div class="preview" class:bar class:menu={!bar} role="list" aria-label={t(SLOTS[slot].title)} bind:this={box} use:sortable={{ enabled: true, onplace: (id, index) => place(slot, id, index) }}>
   {#each all(slot) as id, i (id)}
     {@const off = hidden(slot, id)}
     {@const locked = SLOTS[slot].locked?.includes(id)}
@@ -30,7 +31,7 @@
       class:off
       data-item={id}
       tabindex="0"
-      aria-label="{labelOf(slot, id)}{off ? ', hidden' : ''}. Drag it, or Alt and the arrows to move it."
+      aria-label={t(off ? 'settings.slotItemHidden' : 'settings.slotItem', { item: labelOf(slot, id) })}
       onkeydown={(e) => keys(e, id, i)}
     >
       {#if bar}
@@ -41,7 +42,7 @@
         <small>{detailOf(slot, id)}</small>
       {/if}
       {#if !locked}
-        <button class="eye" data-keep aria-label="{off ? 'Show' : 'Hide'} {labelOf(slot, id)}" title={off ? 'Show' : 'Hide'} onclick={() => toggle(slot, id)}>
+        <button class="eye" data-keep aria-label={t(off ? 'settings.showItem' : 'settings.hideItem', { item: labelOf(slot, id) })} title={off ? t('settings.show') : t('settings.hide')} onclick={() => toggle(slot, id)}>
           <Icon name={off ? 'eye-off' : 'eye'} size={12} />
         </button>
       {/if}

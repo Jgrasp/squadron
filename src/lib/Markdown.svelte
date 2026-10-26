@@ -3,6 +3,7 @@
   import { languages } from '@codemirror/language-data'
   import { classHighlighter, highlightCode } from '@lezer/highlight'
   import MarkdownIt from 'markdown-it'
+  import { t } from './i18n/index.svelte'
 
   const grammars = new Map<string, Language | null>()
   let loaded = $state(0)
@@ -26,14 +27,14 @@
 
   const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') }).disable('image')
   const fence = md.renderer.rules.fence!
-  const copyButton = `<button type="button" class="copy" data-copy><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>Copy</span></button>`
+  const copyButton = () => `<button type="button" class="copy" data-copy><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>${t('common.copy')}</span></button>`
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const lang = tokens[idx].info.trim().split(/\s+/)[0] || 'text'
     const source = fence(tokens, idx, options, env, self)
     if (lang !== 'markdown' && lang !== 'md')
-      return `<div class="code"><div class="code-head"><span>${md.utils.escapeHtml(lang)}</span>${copyButton}</div>${source}</div>`
-    const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">Preview</button><button type="button" data-view="source" aria-pressed="false">Markdown</button></span>`
-    return `<div class="code"><div class="code-head">${tabs}${copyButton}</div><div class="rendered">${md.render(tokens[idx].content)}</div><div class="source" hidden>${source}</div></div>`
+      return `<div class="code"><div class="code-head"><span>${md.utils.escapeHtml(lang)}</span>${copyButton()}</div>${source}</div>`
+    const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">${t('conversation.preview')}</button><button type="button" data-view="source" aria-pressed="false">${t('conversation.markdown')}</button></span>`
+    return `<div class="code"><div class="code-head">${tabs}${copyButton()}</div><div class="rendered">${md.render(tokens[idx].content)}</div><div class="source" hidden>${source}</div></div>`
   }
 </script>
 
@@ -88,8 +89,8 @@
     if (!button || code === undefined || code === null) return
     navigator.clipboard.writeText(code.replace(/\n$/, ''))
     const label = button.querySelector('span')!
-    label.textContent = 'Copied'
-    setTimeout(() => (label.textContent = 'Copy'), 1500)
+    label.textContent = t('common.copied')
+    setTimeout(() => (label.textContent = t('common.copy')), 1500)
   }
 </script>
 

@@ -7,6 +7,7 @@ import { ask } from '@tauri-apps/plugin-dialog'
 import { matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
+import { t } from './i18n/index.svelte'
 import {
   apply,
   argument,
@@ -20,7 +21,9 @@ import {
   notice,
   prompt,
   reloaded,
+  running,
   userMessage,
+  waitingOn,
   type Agent,
   type Ask,
   type Comment,
@@ -31,26 +34,6 @@ import {
 export const agents = $state({ list: [] as Agent[], current: {} as Record<string, string> })
 
 export const clock = $state({ now: Date.now() })
-
-const dayOf = (at: number) => new Date(at).toLocaleDateString('sv')
-
-export const today = $state({ day: dayOf(Date.now()), usd: 0 })
-
-export function todayCost() {
-  return today.day === dayOf(clock.now) ? today.usd : 0
-}
-
-export async function loadToday() {
-  today.day = dayOf(Date.now())
-  today.usd = await invoke<number>('day_cost', { day: today.day })
-}
-
-async function spend(usd: number) {
-  const day = dayOf(Date.now())
-  const total = await invoke<number>('add_cost', { day, usd })
-  today.day = day
-  today.usd = total
-}
 
 export type Limit = { utilization: number; resetsAt: number }
 
@@ -113,6 +96,20 @@ export function waiting(project: string) {
   return agents.list.filter((a) => a.project === project && a.attention).length
 }
 
+export function unread(project: string) {
+  return agents.list.filter((a) => a.project === project && a.unread && !a.attention).length
+}
+
+export const onScreen = (agent: Agent) =>
+  !projects.overview && !projects.board && !projects.pulls && projects.current === agent.project && selected(agent.project)?.id === agent.id
+
+export function markUnread(id: string, value: boolean) {
+  const agent = find(id)
+  if (!agent || !!agent.unread === value) return
+  agent.unread = value
+  persist(agent)
+}
+
 export function selected(project: string) {
   const list = ofProject(project)
   return list.find((a) => a.id === agents.current[project]) ?? list[0]
@@ -122,9 +119,10 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const agent = find(payload.id)
   if (!agent) return
   const d = JSON.parse(payload.line)
-  const before = agent.cost
   const previous = agent.worktree
+  const was = agent.status
   apply(agent, d)
+  if (was !== 'done' && agent.status === 'done' && !onScreen(agent)) markUnread(agent.id, true)
   const next = agent.worktree
   if (next?.path !== previous?.path) {
     if (!next) invoke('set_workdir', { id: agent.id, dir: null }).catch(() => {})
@@ -140,7 +138,6 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
           persist(agent)
         })
   }
-  if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
   if (agent.goal?.state === 'active' && agent.goal.relaunches >= GOAL_RELAUNCHES) {
     agent.goal.state = 'stopping'
@@ -148,7 +145,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   }
   if (d.type === 'result' && agent.goal?.state === 'stopping') {
     agent.goal.state = 'partial'
-    agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'bad', title: 'Goal stopped', detail: `after ${GOAL_RELAUNCHES} relaunches · ${agent.goal.reason}` })
+    agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'bad', title: t('shell.goalStopped'), detail: t('shell.goalStoppedDetail', { count: GOAL_RELAUNCHES, reason: agent.goal.reason }) })
     invoke('send_message', { id: agent.id, text: '/goal clear' })
   }
   if (d.subtype === 'init' && agent.worktree && !agent.worktree.branch) branchOf(agent)
@@ -167,7 +164,7 @@ export function persist(agent: Agent) {
 function save(agent: Agent, extra: Record<string, unknown> = {}) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
-  const { live, alive, processCost, interrupting, asks, ...kept } = $state.snapshot(agent)
+  const { live, alive, processCost, interrupting, held, asks, ...kept } = $state.snapshot(agent)
   const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
   return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents, ...extra }) })
 }
@@ -237,7 +234,7 @@ async function adopt(data: Agent) {
   }
   if (agent.status === 'working' || agent.status === 'waiting') {
     agent.status = 'interrupted'
-    agent.action = 'Stopped when Squadron closed'
+    agent.action = t('shell.stoppedOnClose')
   }
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
@@ -276,7 +273,7 @@ export async function knownSessions() {
 
 export async function importSession(project: string, found: Elsewhere, name = '') {
   const transcript = await invoke<string>('read_session', { project, id: found.id })
-  const from = found.app ? 'the Claude app' : 'Claude Code'
+  const from = found.app ? t('shell.theClaudeApp') : 'Claude Code'
   const pick = <T extends string>(value: string | null, allowed: readonly T[], fallback: T) => (allowed.includes(value as T) ? (value as T) : fallback)
   const options: Options = {
     model: found.model && /^[a-z0-9][a-z0-9.\-[\]]*$/i.test(found.model) ? found.model : settings.defaults.model,
@@ -285,10 +282,10 @@ export async function importSession(project: string, found: Elsewhere, name = ''
   }
   const entries = entriesOf(transcript)
   const data: Agent = {
-    ...newAgent(crypto.randomUUID(), project, name || found.title || 'Imported conversation', options),
+    ...newAgent(crypto.randomUUID(), project, name || found.title || t('shell.importedConversation'), options),
     entries: [...entries, { kind: 'forked', at: Date.now(), from }],
     status: 'done',
-    action: `Imported from ${from}`,
+    action: t('shell.importedFrom', { from }),
     since: found.updated || Date.now(),
     turns: entries.filter((e) => e.kind === 'user').length,
     sessionId: found.id,
@@ -360,18 +357,19 @@ function waitFor(agent: Agent) {
   const ask = agent.asks[0]
   if (!ask) {
     agent.status = 'working'
-    agent.action = 'Resuming…'
+    agent.action = agent.held ? waitingOn(running(agent)) : t('shell.resuming')
     agent.attention = ''
     return
   }
   agent.status = 'waiting'
-  agent.action =
-    ask.tool_name === 'AskUserQuestion'
-      ? 'Waiting for your answer · Question'
-      : ask.tool_name === 'ExitPlanMode'
-        ? 'Waiting for your approval · Plan'
-        : `Waiting for your approval · ${toolLabel(ask.tool_name).split(' · ')[0]}`
+  agent.action = waitingFor(ask)
   agent.attention = agent.action
+}
+
+export function waitingFor(ask: Ask, say = t) {
+  if (ask.tool_name === 'AskUserQuestion') return say('shell.waitingAnswerQuestion')
+  if (ask.tool_name === 'ExitPlanMode') return say('shell.waitingApprovalPlan')
+  return say('shell.waitingApprovalTool', { tool: toolLabel(ask.tool_name).split(' · ')[0] })
 }
 
 export function waitingDetail(agent: Agent) {
@@ -382,7 +380,7 @@ export function waitingDetail(agent: Agent) {
     return (String(ask.input.plan ?? '').split('\n').find((l) => l.trim()) ?? '').replace(/^#+\s*/, '')
   const sub = subagentOf(agent, ask.tool_use_id)
   const what = ask.tool_name.startsWith('mcp__') ? toolLabel(ask.tool_name) : argument(agent, { name: ask.tool_name, input: ask.input }) || toolLabel(ask.tool_name)
-  return sub ? `subagent #${sub.num} · ${what}` : what
+  return sub ? t('shell.subagentDetail', { num: String(sub.num), what }) : what
 }
 
 function decide(id: string, decision: Record<string, unknown>) {
@@ -404,15 +402,15 @@ export async function allow(agent: Agent, ask: Ask, always = false) {
   let note: string | undefined
   if (always && EDITS.includes(ask.tool_name)) {
     agent.allowEdits = true
-    note = `${agent.name} edits files without asking until its session ends`
+    note = t('shell.editsWithoutAsking', { name: agent.name })
   } else if (always) {
     const rule = ruleFor(ask.tool_name, ask.input)
     await addRule(agent.project, rule)
-    note = `Rule added for ${projects.list.find((p) => p.path === agent.project)?.name}: ${ruleLabel(rule)}`
+    note = t('shell.ruleAdded', { project: projects.list.find((p) => p.path === agent.project)?.name ?? '', rule: ruleLabel(rule) })
   }
   return settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
     tone: 'ok',
-    title: always ? 'Always allowed' : 'Allowed once',
+    title: always ? t('shell.alwaysAllowed') : t('shell.allowedOnce'),
     detail: detailOf(agent, ask),
     note,
   })
@@ -423,7 +421,7 @@ export function deny(agent: Agent, ask: Ask, message = '') {
     agent,
     ask,
     { behavior: 'deny', message: message || 'The user denied this.' },
-    { tone: 'bad', title: 'Denied', detail: detailOf(agent, ask), note: message ? `With your instruction: “${message}”` : undefined },
+    { tone: 'bad', title: t('shell.denied'), detail: detailOf(agent, ask), note: message ? t('shell.withInstruction', { message }) : undefined },
   )
 }
 
@@ -434,7 +432,7 @@ export function answer(agent: Agent, ask: Ask, answers: Record<string, string>) 
     { behavior: 'allow', updatedInput: { ...ask.input, answers } },
     {
       tone: 'ok',
-      title: 'Answered',
+      title: t('shell.answered'),
       detail: Object.entries(answers)
         .map(([q, a]) => `${q} → ${a.replace(/\s*\((recommended|recommandé)\)/gi, '')}`)
         .join(' · '),
@@ -453,13 +451,13 @@ export function plan(agent: Agent, ask: Ask, choice: 'edits' | 'ask' | 'continue
       agent,
       ask,
       { behavior: 'deny', message: remark || 'Keep planning, do not change anything yet.' },
-      { tone: 'bad', title: 'Plan to revise', detail: 'Keep planning', note: remark ? `With your feedback: “${remark}”` : undefined },
+      { tone: 'bad', title: t('shell.planToRevise'), detail: t('shell.keepPlanning'), note: remark ? t('shell.withFeedback', { remark }) : undefined },
     )
   if (choice === 'edits') agent.allowEdits = true
   const approved = settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
     tone: 'ok',
-    title: 'Plan approved',
-    detail: choice === 'edits' ? 'Started in “accept edits”' : 'Started, asking for each edit',
+    title: t('shell.planApproved'),
+    detail: choice === 'edits' ? t('shell.startedAcceptEdits') : t('shell.startedAsking'),
   })
   arm(agent)
   return approved
@@ -488,7 +486,7 @@ type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; 
 
 export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
-  agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || 'New agent', options))
+  agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || t('common.newAgent'), options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
@@ -544,7 +542,7 @@ export async function retry(id: string) {
   const last = agent?.entries.findLast((e) => e.kind === 'user')
   if (!agent || last?.kind !== 'user') return
   agent.status = 'working'
-  agent.action = 'Starting…'
+  agent.action = t('shell.starting')
   try {
     await invoke('send_message', { id, text: prompt(last.text, last.comments) })
   } catch (e) {
@@ -639,7 +637,7 @@ export async function fork(id: string, upTo?: number) {
   const source = find(id)
   const point = upTo === undefined ? { at: undefined } : source && forkPoint(source, upTo)
   if (!source || !point || (upTo === undefined && !source.sessionId)) return
-  const copy = newAgent(crypto.randomUUID(), source.project, `${source.name} (fork)`, $state.snapshot(source.options))
+  const copy = newAgent(crypto.randomUUID(), source.project, t('shell.forkName', { name: source.name }), $state.snapshot(source.options))
   const snapshot = $state.snapshot(source)
   const resumes = upTo === undefined || !!point.at
   copy.entries = [...(upTo === undefined ? snapshot.entries : snapshot.entries.slice(0, upTo)), { kind: 'forked', at: Date.now(), from: source.name }]
@@ -650,7 +648,7 @@ export async function fork(id: string, upTo?: number) {
   copy.forkAt = point.at ?? null
   copy.worktree = resumes ? snapshot.worktree : null
   copy.status = 'done'
-  copy.action = `Forked from ${source.name}`
+  copy.action = t('shell.forkedFrom', { name: source.name })
   const message = upTo === undefined ? undefined : snapshot.entries[upTo]
   if (message?.kind === 'user') keepDraft(copy.id, { text: message.text, files: message.files ?? [], comments: message.comments ?? [] })
   agents.list.push(copy)
@@ -691,8 +689,8 @@ export async function archiveProject(project: string) {
 export async function shelve(project: Project) {
   const count = ofProject(project.path).length
   const sure = await ask(
-    `Archive ${project.name}? ${count ? `Its ${count} agent${count > 1 ? 's' : ''} stop and stay with it. ` : ''}Unarchive it from Settings › Projects to get everything back.`,
-    { title: 'Archive project', kind: 'info', okLabel: 'Archive', cancelLabel: 'Cancel' },
+    count ? t('shell.archiveProjectAskAgents', { name: project.name, count }) : t('shell.archiveProjectAsk', { name: project.name }),
+    { title: t('shell.archiveProject'), kind: 'info', okLabel: t('common.archive'), cancelLabel: t('common.cancel') },
   )
   if (!sure) return
   await Promise.all(ofProject(project.path).map((a) => archive(a.id, { withProject: true })))

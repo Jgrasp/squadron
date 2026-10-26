@@ -6,6 +6,8 @@
   import { home } from './projects.svelte'
   import SidePanel from './SidePanel.svelte'
   import { attach, close, detach, ofProject, sessions, start } from './terminals.svelte'
+  import { t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
 
   let { dir, to, onsend, onclose }: { dir: string; to?: string; onsend?: (text: string) => void; onclose: () => void } = $props()
 
@@ -106,28 +108,28 @@
   }
 </script>
 
-<SidePanel kind="terminal" title="Terminal" {onclose}>
-  {#snippet sub()}Your shell, in <span class="mono">{home(dir)}</span>{/snippet}
+<SidePanel kind="terminal" title={t('shell.terminal')} {onclose}>
+  {#snippet sub()}<Trans k="shell.yourShell">{#snippet path()}<span class="mono">{home(dir)}</span>{/snippet}</Trans>{/snippet}
   {#snippet actions()}
-    <div class="sessions" role="tablist" aria-label="Sessions">
+    <div class="sessions" role="tablist" aria-label={t('shell.sessions')}>
       {#each list as session (session.id)}
         <span class="session" class:ended={session.ended}>
           <button role="tab" aria-selected={session.id === current} title={session.title} onclick={() => (sessions.current[dir] = session.id)}>
             {session.title}
           </button>
-          <button class="quit" aria-label="Close {session.title}" title="Close this session" onclick={() => quit(session.id)}>×</button>
+          <button class="quit" aria-label={t('shell.closeNamed', { name: session.title })} title={t('shell.closeSession')} onclick={() => quit(session.id)}>×</button>
         </span>
       {/each}
-      <button class="new" aria-label="New session" title="New session" onclick={() => term && start(dir, term.cols, term.rows)}>+</button>
+      <button class="new" aria-label={t('shell.newSession')} title={t('shell.newSession')} onclick={() => term && start(dir, term.cols, term.rows)}>+</button>
     </div>
   {/snippet}
   <div class="screen"><div class="host" bind:this={host}></div></div>
   <div class="foot">
     <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
-    <span>Agents do not write in this terminal. Their commands stay in the conversation.</span>
+    <span>{t('shell.terminalNote')}</span>
     {#if to && onsend}
       <button class="btn btn-secondary" disabled={!selection} onclick={() => term && onsend(term.getSelection())}>
-        Send the selection to {to}
+        {t('shell.sendSelection', { name: to })}
       </button>
     {/if}
   </div>

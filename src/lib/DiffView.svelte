@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
-  import { pairs, rows, type Hunk } from './diff'
+  import { everything, fileLines, hidden, pairs, reveal, rows, type Hunk } from './diff'
+  import { t } from './i18n/index.svelte'
 
   export type Line = { side: 'old' | 'new'; number: number; text: string }
 
@@ -14,6 +15,9 @@
     editor,
     below,
     commentRemoved = true,
+    commentRevealed = true,
+    content,
+    whole = false,
   }: {
     hunks: Hunk[]
     split?: boolean
@@ -24,32 +28,83 @@
     editor?: Snippet
     below?: Snippet<[Line]>
     commentRemoved?: boolean
+    commentRevealed?: boolean
+    content?: () => Promise<string | null>
+    whole?: boolean
   } = $props()
+
+  const STEP = 20
+
+  let file = $state<string[] | null>(null)
+  let opened = $derived(hunks)
+  let max = $derived(limit)
+
+  $effect(() => {
+    file = null
+    if (!content) return
+    let live = true
+    content()
+      .then((text) => live && (file = text === null ? null : fileLines(text)))
+      .catch(() => {})
+    return () => (live = false)
+  })
+
+  const view = $derived(whole && file ? everything(opened, file) : opened)
+  const gaps = $derived(file ? hidden(view, file.length) : [])
+  const original = $derived(new Set(rows(hunks).flatMap((r) => (r.kind === 'add' || r.kind === 'same' ? [r.new] : []))))
+  const unfold = (gap: number, way: 'up' | 'down', count = STEP) => file && (opened = reveal(view, file, gap, way, count))
 
   const at = (side: Line['side'], number?: number) => open?.side === side && open.number === number
   const noteAt = (side: Line['side'], number?: number) => marked.find((m) => m.side === side && m.number === number)?.note
 
-  const unified = $derived(split ? [] : rows(hunks))
-  const paired = $derived(split ? pairs(hunks) : [])
+  const unified = $derived(split ? [] : rows(view))
+  const paired = $derived(split ? pairs(view) : [])
   const total = $derived(split ? paired.length : unified.length)
 </script>
 
 {#snippet plus(line: Line)}
   {@const note = noteAt(line.side, line.number)}
   {#if note !== undefined}
-    <button class="plus bubble effect-snake" aria-label="Edit the comment on line {line.number}" title={note} onclick={() => oncomment?.(line)}>
+    <button class="plus bubble effect-snake" aria-label={t('review.editCommentOnLine', { line: String(line.number) })} title={note} onclick={() => oncomment?.(line)}>
       <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
     </button>
-  {:else if oncomment && (commentRemoved || line.side === 'new')}
-    <button class="plus" aria-label="Comment line {line.number}" title="Comment this line" onclick={() => oncomment(line)}>+</button>
+  {:else if oncomment && (commentRemoved || line.side === 'new') && (commentRevealed || line.side === 'old' || original.has(line.number))}
+    <button class="plus" aria-label={t('review.commentLine', { line: String(line.number) })} title={t('review.commentThisLine')} onclick={() => oncomment(line)}>+</button>
   {/if}
+{/snippet}
+
+{#snippet head(gap: number, text = '')}
+  {@const count = gaps[gap] ?? 0}
+  <div class="head">
+    {#if count}
+      <span class="unfold">
+        {#if count <= STEP}
+          <button aria-label={t('review.showHidden', { count })} title={t('review.showHidden', { count })} onclick={() => unfold(gap, 'up', count)}>
+            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9l4-4 4 4M8 15l4 4 4-4" /></svg>
+          </button>
+        {:else}
+          {#if gap > 0}
+            <button aria-label={t('review.showBelow', { count: STEP })} title={t('review.showBelow', { count: STEP })} onclick={() => unfold(gap, 'down')}>
+              <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 4h8M8 11l4 4 4-4M12 7v8" /></svg>
+            </button>
+          {/if}
+          {#if gap < view.length}
+            <button aria-label={t('review.showAbove', { count: STEP })} title={t('review.showAbove', { count: STEP })} onclick={() => unfold(gap, 'up')}>
+              <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 20h8M8 13l4-4 4 4M12 9v8" /></svg>
+            </button>
+          {/if}
+        {/if}
+      </span>
+    {/if}
+    <span>{text || (count ? `${count} more line${count > 1 ? 's' : ''}` : '')}</span>
+  </div>
 {/snippet}
 
 <div class="diff" class:split>
   {#if split}
-    {#each paired.slice(0, limit) as row, i (i)}
+    {#each paired.slice(0, max) as row, i (i)}
       {#if row.kind === 'head'}
-        <div class="head">{row.text}</div>
+        {@render head(row.hunk, row.text)}
       {:else}
         <div class="pair">
           {#each [row.left, row.right] as cell, side (side)}
@@ -78,9 +133,9 @@
       {/if}
     {/each}
   {:else}
-    {#each unified.slice(0, limit) as row, i (i)}
+    {#each unified.slice(0, max) as row, i (i)}
       {#if row.kind === 'head'}
-        <div class="head">{row.text}</div>
+        {@render head(row.hunk, row.text)}
       {:else}
         <div
           class="line {row.kind}"
@@ -100,8 +155,10 @@
       {/if}
     {/each}
   {/if}
-  {#if total > limit}
-    <div class="head">… {total - limit} more lines</div>
+  {#if total > max}
+    <button class="head more" onclick={() => (max += limit)}>{t('review.showMoreLines', { shown: Math.min(limit, total - max), total: total - max })}</button>
+  {:else if gaps[view.length]}
+    {@render head(view.length)}
   {/if}
 </div>
 
@@ -114,8 +171,46 @@
   }
 
   .head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 24px;
     padding: 0 12px;
     color: var(--text-dim);
+    background: var(--surface-1);
+  }
+
+  .unfold {
+    display: flex;
+    gap: 2px;
+    margin-left: -8px;
+  }
+
+  .unfold button {
+    width: 24px;
+    height: 20px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .unfold button:hover,
+  .more:hover {
+    background: var(--surface-3);
+    color: var(--text-strong);
+  }
+
+  .unfold svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.2;
+  }
+
+  .more {
+    width: 100%;
+    font: inherit;
   }
 
   .line,

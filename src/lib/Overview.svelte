@@ -1,12 +1,14 @@
 <script lang="ts">
-  import { agents, clock, ofProject, show, todayCost, waitingAgents, waitingDetail } from './agents.svelte'
-  import { ago, cost, modelLabel } from './format'
+  import { agents, clock, ofProject, show, waitingAgents, waitingDetail } from './agents.svelte'
+  import { ago, effortLabel, modelLabel } from './format'
   import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
   import PullTag from './PullTag.svelte'
   import { lists, needsYou } from './pulls.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
+  import { t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
 
   let finished = $state(true)
 
@@ -27,19 +29,19 @@
   const pending = $derived(waitingAgents().length)
 
   function label(agent: Agent) {
-    if (look(agent) === 'waiting' && agent.status !== 'waiting') return 'Waiting for you'
-    if (!agent.entries.length) return 'Ready for your first message'
+    if (look(agent) === 'waiting' && agent.status !== 'waiting') return t('shell.waitingForYou')
+    if (!agent.entries.length) return t('shell.readyForFirst')
     switch (agent.status) {
       case 'waiting':
-        return agent.asks[0]?.tool_name === 'AskUserQuestion' ? 'Waiting for your answer' : 'Waiting for your approval'
+        return agent.asks[0]?.tool_name === 'AskUserQuestion' ? t('shell.waitingForAnswer') : t('shell.waitingForApproval')
       case 'working':
-        return 'Working'
+        return t('shell.working')
       case 'done':
-        return `Done · ${ago(agent.since, clock.now)}`
+        return t('shell.doneDot', { ago: ago(agent.since, clock.now) })
       case 'interrupted':
-        return 'Interrupted'
+        return t('shell.interrupted')
       case 'error':
-        return 'Error'
+        return t('shell.error')
     }
   }
 
@@ -68,62 +70,60 @@
 <main>
   <div class="top">
     <div>
-      <h1>Overview</h1>
+      <h1>{t('shell.overview')}</h1>
       <span>
-        Agents across all your projects{#if pending}&nbsp;· <strong>{pending} waiting for you</strong>{/if}{#if pullsWaiting}&nbsp;·
-          <strong>{pullsWaiting} pull request{pullsWaiting > 1 ? 's' : ''} for you</strong>{/if}
-        · Today <span class="mono">{cost(todayCost())}</span>
+        {t('shell.acrossProjects')}{#if pending}&nbsp;· <strong>{t('shell.waitingCount', { count: pending })}</strong>{/if}{#if pullsWaiting}&nbsp;·
+          <strong>{t('shell.pullsForYou', { count: pullsWaiting })}</strong>{/if}
       </span>
     </div>
-    <label><input type="checkbox" bind:checked={finished} /> Show finished agents</label>
+    <label><input type="checkbox" bind:checked={finished} /> {t('shell.showFinished')}</label>
   </div>
 
   <div class="scroll">
     <table>
       <thead>
         <tr>
-          <th scope="col">State</th>
-          <th scope="col">Agent</th>
-          <th scope="col">Last action</th>
-          <th scope="col">Progress</th>
-          <th scope="col">Cost</th>
-          <th scope="col"><span class="sr-only">Actions</span></th>
+          <th scope="col">{t('shell.columnState')}</th>
+          <th scope="col">{t('shell.columnAgent')}</th>
+          <th scope="col">{t('shell.columnLastAction')}</th>
+          <th scope="col">{t('shell.columnProgress')}</th>
+          <th scope="col"><span class="sr-only">{t('shell.columnActions')}</span></th>
         </tr>
       </thead>
       {#each groups as group (group.project.path)}
         {@const waiting = group.all.filter((a) => a.attention).length}
         <tbody>
           <tr class="project">
-            <th scope="colgroup" colspan="6">
+            <th scope="colgroup" colspan="5">
               <span class="name"><span class="square" aria-hidden="true" style:background={group.project.color}></span>{group.project.name}</span>
               <span class="path">{home(group.project.path)}</span>
               <span class="meta">
                 {group.all.length
-                  ? `${group.all.length} agent${group.all.length > 1 ? 's' : ''}${waiting ? ` · ${waiting} waiting for you` : ''} · ${cost(group.all.reduce((s, a) => s + a.cost, 0))}`
-                  : 'No agents'}
+                  ? [t('shell.agentCount', { count: group.all.length }), ...(waiting ? [t('shell.waitingCount', { count: waiting })] : [])].join(' · ')
+                  : t('shell.noAgents')}
               </span>
               {#if open_pulls(group.project.path)}
                 {@const waiting = needsYou(group.project.path)}
                 <button
                   class="pulls"
                   class:urgent={waiting > 0}
-                  title="Pull requests you review and you wrote in {group.project.name}"
+                  title={t('shell.pullsOfProject', { name: group.project.name })}
                   onclick={() => openPulls(group.project.path)}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"
                     ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4M13 3l-3 3 3 3" /></svg
                   >
-                  {waiting ? `${waiting} pull request${waiting > 1 ? 's' : ''} for you` : `${open_pulls(group.project.path)} pull request${open_pulls(group.project.path) > 1 ? 's' : ''}`}
+                  {waiting ? t('shell.pullsForYou', { count: waiting }) : t('shell.pullCount', { count: open_pulls(group.project.path) })}
                 </button>
               {/if}
-              <button class="link" onclick={() => open(group.project.path)}>Open project</button>
+              <button class="link" onclick={() => open(group.project.path)}>{t('shell.openProject')}</button>
             </th>
           </tr>
           {#if !group.list.length}
             <tr class="none">
-              <td colspan="6">
-                {group.all.length ? 'No agent running' : 'No agents yet'}
-                <button class="action" disabled={!group.project.exists} onclick={() => (open(group.project.path), (ui.creating = true))}>New agent</button>
+              <td colspan="5">
+                {group.all.length ? t('shell.noAgentRunning') : t('shell.noAgentsYet')}
+                <button class="action" disabled={!group.project.exists} onclick={() => (open(group.project.path), (ui.creating = true))}>{t('common.newAgent')}</button>
               </td>
             </tr>
           {/if}
@@ -133,7 +133,7 @@
               <td><span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span></td>
               <td>
                 <span class="who">{agent.name}</span>
-                <span class="opts">{modelLabel(agent.options.model)} · {agent.options.effort}</span>
+                <span class="opts">{modelLabel(agent.options.model)} · {effortLabel(agent.options.effort)}</span>
                 <PullTag {agent} />
               </td>
               <td class="last">{last(agent)}</td>
@@ -145,10 +145,9 @@
                   </span>
                 {/if}
               </td>
-              <td class="mono">{cost(agent.cost)}</td>
               <td>
                 <button class="action" class:answer={!!agent.attention} onclick={() => show(agent)}>
-                  {agent.attention ? 'Answer' : 'Open'}
+                  {agent.attention ? t('shell.answer') : t('common.open')}
                 </button>
               </td>
             </tr>
@@ -157,7 +156,7 @@
       {/each}
     </table>
     {#if !agents.list.length}
-      <p class="empty">No agents yet. Open a project and start one.</p>
+      <p class="empty">{t('shell.overviewEmpty')}</p>
     {/if}
   </div>
 </main>

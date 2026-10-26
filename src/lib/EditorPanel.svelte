@@ -11,6 +11,7 @@
   import OpenWith from './OpenWith.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative } from './stream'
+  import { errorText, list, t } from './i18n/index.svelte'
 
   let { project: folder, changes, onclose }: { project: string; changes: Changes | null; onclose: () => void } = $props()
 
@@ -54,14 +55,14 @@
     return map
   })
   const active = $derived(ws.files.find((f) => f.path === ws.active))
-  const kind = $derived(active ? (languageOf(active.path.split('/').pop()!)?.name ?? 'Plain text') : '')
+  const kind = $derived(active ? (languageOf(active.path.split('/').pop()!)?.name ?? t('shell.plainText')) : '')
   const authors = $derived(active ? (touched.get(active.path) ?? []) : [])
 
   async function load(file: OpenFile) {
     try {
       file.saved = (await invoke<string | null>('read_project_file', { project, path: file.path })) ?? ''
     } catch (e) {
-      file.error = String(e)
+      file.error = errorText(e)
     }
     file.ready = true
   }
@@ -76,7 +77,7 @@
   }
 
   async function shut(file: OpenFile) {
-    if (file.dirty && !(await ask(`Discard your changes to ${file.path}?`, { title: 'Unsaved changes', kind: 'warning', okLabel: 'Discard', cancelLabel: 'Keep editing' })))
+    if (file.dirty && !(await ask(t('shell.discardAsk', { path: file.path }), { title: t('shell.unsavedChanges'), kind: 'warning', okLabel: t('shell.discard'), cancelLabel: t('shell.keepEditing') })))
       return
     const at = ws.files.indexOf(file)
     ws.files.splice(at, 1)
@@ -104,7 +105,7 @@
       file.dirty = false
       notice = ''
     } catch (e) {
-      notice = `Could not save: ${e}`
+      notice = t('shell.couldNotSave', { error: errorText(e) })
     }
   }
 
@@ -139,15 +140,15 @@
   }
 </script>
 
-<SidePanel kind="editor" title="Editor" {onclose}>
+<SidePanel kind="editor" title={t('shell.editor')} {onclose}>
   {#snippet sub()}
-    {changes ? 'Project files · colors show what is not committed yet' : 'Project files · colors show what the agents changed'}
+    {changes ? t('shell.filesUncommitted') : t('shell.filesChangedByAgents')}
   {/snippet}
   {#snippet actions()}
     <OpenWith {project} path={active?.path ?? ''} />
   {/snippet}
   <div class="body" style:--project={root?.color}>
-    <nav aria-label="Project files">
+    <nav aria-label={t('shell.projectFiles')}>
       <ul>
         <li class="root">▾ {root?.name}</li>
         <FileTree
@@ -166,14 +167,14 @@
 
     <div class="main">
       {#if ws.files.length}
-        <div class="tabs" role="tablist" aria-label="Open files">
+        <div class="tabs" role="tablist" aria-label={t('shell.openFiles')}>
           {#each ws.files as file (file.path)}
             <span class="tab" class:selected={file.path === ws.active}>
               <button role="tab" aria-selected={file.path === ws.active} title={file.path} onclick={() => (ws.active = file.path)}>
                 {file.path.split('/').pop()}
-                {#if file.dirty}<span class="unsaved" aria-label="unsaved"></span>{/if}
+                {#if file.dirty}<span class="unsaved" aria-label={t('shell.unsaved')}></span>{/if}
               </button>
-              <button class="shut" aria-label="Close {file.path}" onclick={() => shut(file)}>×</button>
+              <button class="shut" aria-label={t('shell.closeNamed', { name: file.path })} onclick={() => shut(file)}>×</button>
             </span>
           {/each}
         </div>
@@ -182,17 +183,14 @@
       {#if active && authors.length}
         <div class="notice">
           <span class="dot" aria-hidden="true"></span>
-          <span>
-            Changed by {authors.join(', ')}. Your edits are saved to the file on disk: the agent works from your version the next time it
-            reads it.
-          </span>
+          <span>{t('shell.changedBy', { names: list(authors) })}</span>
         </div>
       {/if}
 
       {#if !active}
-        <p class="empty">Pick a file in the tree.</p>
+        <p class="empty">{t('shell.pickFile')}</p>
       {:else if !active.ready}
-        <p class="empty">Reading the file…</p>
+        <p class="empty">{t('shell.readingFile')}</p>
       {:else if active.error}
         <p class="empty">{active.error}</p>
       {:else}
@@ -212,13 +210,13 @@
         <div class="status">
           <span>{kind}</span>
           <span>UTF-8</span>
-          <span>L{cursor.line}, C{cursor.col}</span>
+          <span>{t('shell.cursor', { line: String(cursor.line), col: String(cursor.col) })}</span>
           <span class="grow">{notice}</span>
           {#if active.base !== undefined}
-            <span class="legend" title="Lines added or changed since the last commit"><span class="added"></span>added</span>
-            <span class="legend" title="Lines removed since the last commit"><span class="removed"></span>removed</span>
+            <span class="legend" title={t('shell.linesAdded')}><span class="added"></span>{t('shell.added')}</span>
+            <span class="legend" title={t('shell.linesRemoved')}><span class="removed"></span>{t('shell.removed')}</span>
           {/if}
-          <span>Ctrl S to save</span>
+          <span>{t('shell.saveHint')}</span>
         </div>
       {/if}
     </div>

@@ -1,14 +1,16 @@
 <script lang="ts">
-  const COLORS = [
-    ['#F472B6', 'Pink'],
-    ['#A78BFA', 'Purple'],
-    ['#2DD4BF', 'Teal'],
-    ['#60A5FA', 'Blue'],
-    ['#FACC15', 'Yellow'],
-    ['#4ADE80', 'Green'],
-    ['#A3E635', 'Lime'],
-    ['#F87171', 'Red'],
-    ['#A8A29E', 'Grey'],
+  import { t, type Key } from './i18n/index.svelte'
+
+  const COLORS: [string, Key][] = [
+    ['#F472B6', 'settings.colorPink'],
+    ['#A78BFA', 'settings.colorPurple'],
+    ['#2DD4BF', 'settings.colorTeal'],
+    ['#60A5FA', 'settings.colorBlue'],
+    ['#FACC15', 'settings.colorYellow'],
+    ['#4ADE80', 'settings.colorGreen'],
+    ['#A3E635', 'settings.colorLime'],
+    ['#F87171', 'settings.colorRed'],
+    ['#A8A29E', 'settings.colorGrey'],
   ]
 
   let { value, label, onpick }: { value: string; label: string; onpick: (color: string) => void } = $props()
@@ -23,13 +25,13 @@
       class="swatch"
       style:background={color}
       style:--ring={color}
-      aria-label={name}
+      aria-label={t(name)}
       aria-pressed={value.toLowerCase() === color.toLowerCase()}
       onclick={() => onpick(color)}
     ></button>
   {/each}
-  <label class="swatch custom" class:on={custom} style:--custom={custom ? value : null} style:--ring={custom ? value : null} title="Custom color">
-    <input type="color" value={value || '#A78BFA'} aria-label="Custom color" onchange={(e) => onpick(e.currentTarget.value.toUpperCase())} />
+  <label class="swatch custom" class:on={custom} style:--custom={custom ? value : null} style:--ring={custom ? value : null} title={t('settings.customColor')}>
+    <input type="color" value={value || '#A78BFA'} aria-label={t('settings.customColor')} onchange={(e) => onpick(e.currentTarget.value.toUpperCase())} />
   </label>
 </span>
 

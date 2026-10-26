@@ -1,10 +1,11 @@
 <script lang="ts">
   import { clock } from './agents.svelte'
-  import { cost, tokens } from './format'
+  import { tokens } from './format'
+  import { t, type Key } from './i18n/index.svelte'
   import SidePanel from './SidePanel.svelte'
   import SubagentLog from './SubagentLog.svelte'
   import type { Agent, Subagent } from './stream'
-  import { asking, count, LABEL, lookOf, type Look } from './subagents'
+  import { asking, count, label, lookOf, type Look } from './subagents'
 
   let {
     agent,
@@ -36,12 +37,12 @@
 
   type Filter = 'all' | Look
 
-  const FILTERS: [Filter, string][] = [
-    ['all', 'All'],
-    ['waiting', 'Waiting'],
-    ['error', 'Failed'],
-    ['running', 'Running'],
-    ['done', 'Done'],
+  const FILTERS: [Filter, Key][] = [
+    ['all', 'conversation.filterAllShort'],
+    ['waiting', 'conversation.filterWaiting'],
+    ['error', 'conversation.filterFailed'],
+    ['running', 'conversation.filterRunning'],
+    ['done', 'conversation.filterDone'],
   ]
 
   let filter = $state<Filter>('all')
@@ -57,9 +58,9 @@
 
   const sections = $derived(
     [
-      { id: 'handle', title: 'To handle', rows: subs.filter((s) => ['waiting', 'error'].includes(lookOf(s, waiting))).sort((a, b) => Number(!waiting.has(a.id)) - Number(!waiting.has(b.id)) || a.num - b.num) },
-      { id: 'running', title: 'Running', rows: subs.filter((s) => lookOf(s, waiting) === 'running') },
-      { id: 'done', title: 'Done', rows: subs.filter((s) => ['done', 'stopped'].includes(lookOf(s, waiting))) },
+      { id: 'handle', title: t('conversation.toHandle'), rows: subs.filter((s) => ['waiting', 'error'].includes(lookOf(s, waiting))).sort((a, b) => Number(!waiting.has(a.id)) - Number(!waiting.has(b.id)) || a.num - b.num) },
+      { id: 'running', title: t('conversation.filterRunning'), rows: subs.filter((s) => lookOf(s, waiting) === 'running') },
+      { id: 'done', title: t('conversation.filterDone'), rows: subs.filter((s) => ['done', 'stopped'].includes(lookOf(s, waiting))) },
     ]
       .map((section) => ({ ...section, rows: section.rows.filter((s) => shows(lookOf(s, waiting))) }))
       .filter((section) => section.rows.length),
@@ -73,7 +74,7 @@
   }
   const doing = (s: Subagent, look: Look) =>
     look === 'waiting'
-      ? `Waiting for you · ${s.last}`
+      ? t('conversation.waitingLast', { last: s.last })
       : s.status === 'done' || s.status === 'error'
         ? (s.result?.split('\n').find((l) => l.trim()) ?? s.last)
         : s.last
@@ -84,9 +85,9 @@
   }
 </script>
 
-<SidePanel kind="subagents" title="Subagents" screen={size === 'screen' && !!open} wide={size === 'wide' && !!open} {onclose}>
+<SidePanel kind="subagents" title={t('conversation.subagents')} screen={size === 'screen' && !!open} wide={size === 'wide' && !!open} {onclose}>
   {#snippet sub()}
-    {#if open}#{open.num} · {open.name}{:else}{subs.length} launched by {agent.name} · {types}{/if}
+    {#if open}#{open.num} · {open.name}{:else}{t('conversation.launchedByName', { count: subs.length, name: agent.name })} · {types}{/if}
   {/snippet}
 
   {#if open}
@@ -94,10 +95,10 @@
   {:else}
 
   <div class="filters">
-    <div class="chips" role="group" aria-label="Filter by state">
-      {#each FILTERS as [id, label] (id)}
+    <div class="chips" role="group" aria-label={t('conversation.filterByState')}>
+      {#each FILTERS as [id, name] (id)}
         <button aria-pressed={filter === id} onclick={() => (filter = id)}>
-          <span class="dot {id}"></span>{label}<span class="n">{id === 'all' ? subs.length : id === 'done' ? counts.done + counts.stopped : counts[id]}</span>
+          <span class="dot {id}"></span>{t(name)}<span class="n">{id === 'all' ? subs.length : id === 'done' ? counts.done + counts.stopped : counts[id]}</span>
         </button>
       {/each}
     </div>
@@ -108,14 +109,14 @@
     </div>
   </div>
 
-  <div class="columns" aria-hidden="true"><span></span><span>#</span><span>Subagent</span><span>Last action</span><span>Time</span><span>Tokens</span></div>
+  <div class="columns" aria-hidden="true"><span></span><span>#</span><span>{t('conversation.columnSubagent')}</span><span>{t('conversation.columnLastAction')}</span><span>{t('conversation.columnTime')}</span><span>{t('conversation.columnTokens')}</span></div>
 
-  <div class="list" role="group" aria-label="Subagents">
+  <div class="list" role="group" aria-label={t('conversation.subagents')}>
     {#each sections as section (section.id)}
       {#if section.id === 'done'}
         <button class="section {section.id}" aria-expanded={doneOpen || filter === 'done'} onclick={() => (doneOpen = !doneOpen)}>
-          Done <span class="n">{section.rows.length}</span><span class="grow"></span>
-          <span class="toggle">{doneOpen || filter === 'done' ? 'Hide' : `Show the ${section.rows.length} ›`}</span>
+          {section.title} <span class="n">{section.rows.length}</span><span class="grow"></span>
+          <span class="toggle">{doneOpen || filter === 'done' ? t('conversation.hide') : t('conversation.showThe', { count: section.rows.length })}</span>
         </button>
       {:else}
         <div class="section {section.id}">{section.title} <span class="n">{section.rows.length}</span></div>
@@ -126,13 +127,13 @@
           <button
             class="row {look}"
             class:picked={s.id === selected}
-            aria-label="Subagent #{s.num} · {s.name} · {LABEL[look]}"
-            title="Open the log"
+            aria-label={t('conversation.subagentLabel', { num: s.num, name: s.name, state: label(look) })}
+            title={t('conversation.openTheLog')}
             onclick={() => onview(s.id)}
           >
             <span class="dot {look}"></span>
             <span class="num">#{s.num}</span>
-            <span class="name">{s.name}</span>
+            <span class="name">{s.name}{#if s.background}<small class="bg" title={t('conversation.backgroundTitle', { name: agent.name })}>{t('conversation.background')}</small>{/if}</span>
             <span class="last">{doing(s, look)}</span>
             <span class="right">{elapsed(s)}</span>
             <span class="right">{tokens(s.tokens)}</span>
@@ -143,9 +144,9 @@
   </div>
 
   <div class="foot">
-    <span class="totals">{subs.length} subagents · {tokens(total)} tokens <span>· included in the {cost(agent.cost)} of {agent.name}</span></span>
+    <span class="totals">{t('conversation.subagentCount', { count: subs.length })} · {t('conversation.tokens', { n: tokens(total) })}</span>
     {#if failed.length}
-      <button class="relaunch" title="Fills in a message to {agent.name}" onclick={relaunch}>Ask to relaunch the {failed.length} failed</button>
+      <button class="relaunch" title={t('conversation.fillsMessage', { name: agent.name })} onclick={relaunch}>{t('conversation.relaunchFailed', { count: failed.length })}</button>
     {/if}
   </div>
   {/if}
@@ -361,6 +362,12 @@
 
   .name {
     font-weight: 500;
+  }
+
+  .bg {
+    margin-left: 7px;
+    font: 500 11px var(--mono);
+    color: var(--text-dim);
   }
 
   .row.waiting .name,

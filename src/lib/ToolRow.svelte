@@ -1,6 +1,7 @@
 <script lang="ts">
   import { counts, EDITS } from './diff'
   import { toolLabel } from './agents.svelte'
+  import { t, type Key } from './i18n/index.svelte'
   import { argument, type Agent, type ToolCall } from './stream'
 
   let { agent, call, ondiff }: { agent: Agent; call: ToolCall; ondiff: (call: ToolCall) => void } = $props()
@@ -15,20 +16,20 @@
       return [data.stdout, data.stderr].filter(Boolean).join('\n').trim()
     return call.result?.text.trim() ?? ''
   })
-  const code = $derived.by(() => {
+  const code = $derived.by((): Key | '' => {
     if (call.name !== 'Bash' || !call.result) return ''
-    if (call.result.data?.interrupted) return 'interrupted'
-    return failed ? 'failed' : 'code 0'
+    if (call.result.data?.interrupted) return 'conversation.exitInterrupted'
+    return failed ? 'conversation.exitFailed' : 'conversation.exitOk'
   })
 </script>
 
 {#if edit}
-  <button class="row action" title="Open in the Diff panel" onclick={() => ondiff(call)} disabled={!call.result}>
+  <button class="row action" title={t('conversation.openInDiff')} onclick={() => ondiff(call)} disabled={!call.result}>
     <span class="name">{toolLabel(call.name)}</span>
     <span class="arg">{arg}</span>
     {#if call.result}
       <span class="mono"><span class="add">+{changes.add}</span>{#if changes.del}&nbsp;<span class="del">−{changes.del}</span>{/if}</span>
-      <span class="go">Diff →</span>
+      <span class="go">{t('conversation.diffLink')}</span>
     {/if}
   </button>
 {:else if output && (call.name === 'Bash' || failed)}
@@ -39,8 +40,8 @@
       {/if}
       <span class="name">{toolLabel(call.name)}</span>
       <span class="arg">{arg}</span>
-      {#if code}<span class="code" class:ok={code === 'code 0'}>{code}</span>{/if}
-      <span class="go">output ›</span>
+      {#if code}<span class="code" class:ok={code === 'conversation.exitOk'}>{t(code)}</span>{/if}
+      <span class="go">{t('conversation.output')}</span>
     </summary>
     <pre>{output}</pre>
   </details>

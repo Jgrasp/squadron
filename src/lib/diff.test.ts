@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { changedFiles, counts, lineMarks, pairs, rows, type Cell } from './diff'
+import { changedFiles, counts, everything, hidden, lineMarks, pairs, reveal, rows, type Cell } from './diff'
 import type { ToolCall } from './stream'
 
 const edit = (id: string, path: string, data: Record<string, unknown>): ToolCall => ({
@@ -57,5 +57,29 @@ describe('diff', () => {
     const gone = lineMarks('a\nb\n', 'a\n')
     expect([...gone.added]).toEqual([])
     expect([...gone.removed]).toEqual([2])
+  })
+
+  it('unfolds the lines around hunks and the whole file', () => {
+    const file = Array.from({ length: 30 }, (_, i) => `l${i + 1}`)
+    const hunks = [
+      { oldStart: 5, newStart: 5, lines: [' l5', '-x', '+l6', ' l7'] },
+      { oldStart: 20, newStart: 20, lines: [' l20', '+l21', ' l22'] },
+    ]
+    expect(hidden(hunks, file.length)).toEqual([4, 12, 8])
+    const up = reveal(hunks, file, 1, 'up', 5)
+    expect(up[1]).toMatchObject({ oldStart: 15, newStart: 15 })
+    expect(up[1].lines.slice(0, 5)).toEqual([' l15', ' l16', ' l17', ' l18', ' l19'])
+    const down = reveal(hunks, file, 1, 'down', 5)
+    expect(down[0].lines.slice(-5)).toEqual([' l8', ' l9', ' l10', ' l11', ' l12'])
+    expect(hidden(down, file.length)).toEqual([4, 7, 8])
+    const joined = reveal(hunks, file, 1, 'up')
+    expect(joined).toHaveLength(1)
+    expect(hidden(joined, file.length)).toEqual([4, 8])
+    const all = everything(hunks, file)
+    expect(all).toHaveLength(1)
+    expect(hidden(all, file.length)).toEqual([0, 0])
+    expect(rows(all).filter((r) => r.kind === 'same' || r.kind === 'add').map((r) => r.text)).toEqual(file)
+    expect(rows(all).find((r) => r.kind === 'same' && r.text === 'l30')).toMatchObject({ old: 29, new: 30 })
+    expect(hunks[0].lines).toHaveLength(4)
   })
 })

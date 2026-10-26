@@ -1,6 +1,8 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { lookUpAll } from './pulls.svelte'
+  import { errorText, t } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
 
   type Accounts = { bitbucket: string | null; bitbucket_user: boolean; github: string | null }
 
@@ -31,7 +33,7 @@
       await refresh()
       lookUpAll(true)
     } catch (e) {
-      error = String(e)
+      error = errorText(e)
     } finally {
       busy = false
     }
@@ -44,48 +46,49 @@
   }
 </script>
 
-<p class="intro">Squadron finds the pull request of each agent's branch, shows its state and lets you review it in the Diff panel.</p>
+<p class="intro">{t('settings.hostingIntro')}</p>
 
 <section>
   <h3>Bitbucket</h3>
   {#if !accounts}
-    <p class="intro">Checking…</p>
+    <p class="intro">{t('common.checking')}</p>
   {:else if accounts.bitbucket}
     <div class="signed">
-      <span>Signed in as <strong>{accounts.bitbucket}</strong> · the token stays in the system keyring</span>
-      <button class="btn btn-secondary" onclick={signOut}>Sign out</button>
+      <span><Trans k="settings.bitbucketSignedIn">{#snippet email()}<strong>{accounts?.bitbucket}</strong>{/snippet}</Trans></span>
+      <button class="btn btn-secondary" onclick={signOut}>{t('settings.signOut')}</button>
     </div>
     {#if !accounts.bitbucket_user}
       <p class="intro">
-        This token lacks <code>read:user:bitbucket</code>, so Squadron cannot list the pull requests you review or wrote. Sign out, then sign in with a token
-        that has the four scopes.
+        <Trans k="settings.tokenLacksScope">{#snippet scope()}<code>read:user:bitbucket</code>{/snippet}</Trans>
       </p>
     {/if}
   {:else}
     <ol class="intro steps">
       <li>
         <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: 'https://id.atlassian.com/manage-profile/security/api-tokens' })}>
-          Open the API tokens page
+          {t('settings.openTokens')}
         </button>
       </li>
-      <li>Choose <strong>Create API token with scopes</strong>, name it Squadron, then pick <strong>Bitbucket</strong>.</li>
       <li>
-        Tick these four scopes. Click one to copy it, then paste it in the scope search:
+        <Trans k="settings.stepCreate">{#snippet create()}<strong>Create API token with scopes</strong>{/snippet}{#snippet bitbucket()}<strong>Bitbucket</strong>{/snippet}</Trans>
+      </li>
+      <li>
+        {t('settings.stepScopes')}
         <span class="scopes">
           {#each SCOPES as scope (scope)}
-            <button class="scope" onclick={() => copy(scope)}>{copied === scope ? 'Copied' : scope}</button>
+            <button class="scope" onclick={() => copy(scope)}>{copied === scope ? t('common.copied') : scope}</button>
           {/each}
         </span>
       </li>
-      <li>Paste the token below with the email of your Atlassian account.</li>
+      <li>{t('settings.stepPaste')}</li>
     </ol>
     <form onsubmit={signIn}>
-      <label for="bitbucket-email">Atlassian email</label>
+      <label for="bitbucket-email">{t('settings.atlassianEmail')}</label>
       <input id="bitbucket-email" class="field" type="email" autocomplete="off" bind:value={email} />
-      <label for="bitbucket-token">API token</label>
+      <label for="bitbucket-token">{t('settings.apiToken')}</label>
       <input id="bitbucket-token" class="field mono" type="password" autocomplete="off" spellcheck="false" bind:value={token} />
       <div class="row">
-        <button class="btn btn-primary" disabled={busy || !email.trim() || !token.trim()}>{busy ? 'Checking…' : 'Sign in'}</button>
+        <button class="btn btn-primary" disabled={busy || !email.trim() || !token.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
       </div>
     </form>
   {/if}
@@ -95,11 +98,11 @@
 <section>
   <h3>GitHub</h3>
   {#if !accounts}
-    <p class="intro">Checking…</p>
+    <p class="intro">{t('common.checking')}</p>
   {:else if accounts.github}
-    <p class="intro">Signed in through the GitHub CLI as <strong>{accounts.github}</strong>.</p>
+    <p class="intro"><Trans k="settings.githubSignedIn">{#snippet login()}<strong>{accounts?.github}</strong>{/snippet}</Trans></p>
   {:else}
-    <p class="intro">Install the GitHub CLI and run <code>gh auth login</code> in a terminal. Squadron uses its sign in.</p>
+    <p class="intro"><Trans k="settings.githubHow">{#snippet command()}<code>gh auth login</code>{/snippet}</Trans></p>
   {/if}
 </section>
 

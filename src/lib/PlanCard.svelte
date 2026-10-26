@@ -1,28 +1,29 @@
 <script lang="ts">
   import { plan } from './agents.svelte'
+  import { t } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
   import type { Agent, Ask } from './stream'
 
   let { agent, ask }: { agent: Agent; ask: Ask } = $props()
 </script>
 
-<section class="card" aria-label="Plan approval">
+<section class="card" aria-label={t('agent.planApproval')}>
   <div class="head">
     <span class="icon" aria-hidden="true">
       <svg width="16" height="16" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M4 6h.01M4 12h.01M4 18h.01" /></svg>
     </span>
     <span class="what">
-      <strong>Approve the plan?</strong>
-      <span>{agent.name} has not changed anything yet. It waits for your go-ahead.</span>
+      <strong>{t('agent.approvePlan')}</strong>
+      <span>{t('agent.planWaiting', { agent: agent.name })}</span>
     </span>
   </div>
   <div class="plan"><Markdown text={String(ask.input.plan ?? '')} /></div>
   <div class="actions">
-    <button class="btn go" onclick={() => plan(agent, ask, 'edits')}>Start · accept edits</button>
-    <button class="btn ask" onclick={() => plan(agent, ask, 'ask')}>Start · ask for each edit</button>
-    <button class="btn more" onclick={() => plan(agent, ask, 'continue')}>Keep planning</button>
+    <button class="btn go" onclick={() => plan(agent, ask, 'edits')}>{t('agent.startAcceptEdits')}</button>
+    <button class="btn ask" onclick={() => plan(agent, ask, 'ask')}>{t('agent.startAskEach')}</button>
+    <button class="btn more" onclick={() => plan(agent, ask, 'continue')}>{t('agent.keepPlanning')}</button>
   </div>
-  <span class="hint">To adjust the plan, write your feedback below.</span>
+  <span class="hint">{t('agent.planFeedbackHint')}</span>
 </section>
 
 <style>

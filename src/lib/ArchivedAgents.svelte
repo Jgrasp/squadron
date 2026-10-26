@@ -2,8 +2,8 @@
   import { ask } from '@tauri-apps/plugin-dialog'
   import { ui } from './actions.svelte'
   import { archived, forget, unarchive, type Archived } from './agents.svelte'
-  import { cost } from './format'
   import { home, projects } from './projects.svelte'
+  import { date, errorText, t } from './i18n/index.svelte'
 
   let list = $state<Archived[] | null>(null)
   let error = $state('')
@@ -12,8 +12,12 @@
   refresh()
 
   const projectOf = (a: Archived) => projects.list.find((p) => p.path === a.project)
-  const when = (at?: number) =>
-    at ? new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : 'some time ago'
+  const line = (a: Archived, project?: string) => {
+    const values = { project: project ?? home(a.project) }
+    return a.archived
+      ? t('settings.archivedOn', { ...values, when: date(a.archived, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) })
+      : t('settings.archivedLongAgo', values)
+  }
 
   async function restore(a: Archived) {
     error = ''
@@ -24,16 +28,16 @@
       projects.current = a.project
       ui.settings = null
     } catch (e) {
-      error = String(e)
+      error = errorText(e)
     }
   }
 
   async function remove(a: Archived) {
-    const sure = await ask(`Delete ${a.name} for good? Squadron forgets it; Claude Code keeps the session in its own history.`, {
-      title: 'Delete an archived agent',
+    const sure = await ask(t('settings.deleteAsk', { name: a.name }), {
+      title: t('settings.deleteTitle'),
       kind: 'warning',
-      okLabel: 'Delete',
-      cancelLabel: 'Keep it',
+      okLabel: t('common.delete'),
+      cancelLabel: t('settings.keepIt'),
     })
     if (!sure) return
     await forget(a.id)
@@ -41,9 +45,9 @@
   }
 </script>
 
-<p class="intro">Archived agents are stopped and kept here. Restoring one brings it back to its project with its conversation; your next message resumes its session.</p>
+<p class="intro">{t('settings.archivedIntro')}</p>
 {#if list && !list.length}
-  <p class="empty">No archived agents.</p>
+  <p class="empty">{t('settings.noArchived')}</p>
 {/if}
 <ul>
   {#each list ?? [] as a (a.id)}
@@ -51,10 +55,10 @@
     <li>
       <span class="who">
         <strong>{a.name}</strong>
-        <small>{project?.name ?? home(a.project)} · archived {when(a.archived)} · {cost(a.cost)}</small>
+        <small>{line(a, project?.name)}</small>
       </span>
-      <button class="btn btn-secondary" disabled={!project} title={project ? `Back to ${project.name}` : 'Its project was removed'} onclick={() => restore(a)}>Restore</button>
-      <button class="remove" onclick={() => remove(a)}>Delete</button>
+      <button class="btn btn-secondary" disabled={!project} title={project ? t('settings.backTo', { project: project.name }) : t('settings.projectRemoved')} onclick={() => restore(a)}>{t('common.restore')}</button>
+      <button class="remove" onclick={() => remove(a)}>{t('common.delete')}</button>
     </li>
   {/each}
 </ul>

@@ -7,7 +7,8 @@
   import type { Proposal } from './diff'
   import { highlight } from './commands'
   import ErrorCard from './ErrorCard.svelte'
-  import { cost, duration, time, tokens } from './format'
+  import { duration, time, tokens } from './format'
+  import { list, t, type Key } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
   import PermissionCard from './PermissionCard.svelte'
   import PlanCard from './PlanCard.svelte'
@@ -54,23 +55,23 @@
 
   const names = $derived(namesOf(agent))
 
-  const kinds: [string[], string, string][] = [
-    [['Read', 'Grep', 'Glob', 'LS'], 'read', 'reads'],
-    [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'edit', 'edits'],
-    [['Bash'], 'command', 'commands'],
-    [['WebFetch', 'WebSearch'], 'web lookup', 'web lookups'],
+  const kinds: [string[], Key][] = [
+    [['Read', 'Grep', 'Glob', 'LS'], 'conversation.reads'],
+    [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'conversation.edits'],
+    [['Bash'], 'conversation.commands'],
+    [['WebFetch', 'WebSearch'], 'conversation.webLookups'],
   ]
 
   function summary(calls: ToolCall[]) {
     const parts: string[] = []
     let rest = calls.length
-    for (const [names, one, many] of kinds) {
+    for (const [names, key] of kinds) {
       const n = calls.filter((c) => names.includes(c.name)).length
-      if (n) parts.push(`${n} ${n > 1 ? many : one}`)
+      if (n) parts.push(t(key, { count: n }))
       rest -= n
     }
-    if (rest) parts.push(`${rest} other${rest > 1 ? 's' : ''}`)
-    return `${calls.length} action${calls.length > 1 ? 's' : ''} · ${parts.join(', ')}`
+    if (rest) parts.push(t('conversation.others', { count: rest }))
+    return t('conversation.toolsSummary', { actions: t('conversation.actions', { count: calls.length }), kinds: list(parts, 'unit') })
   }
 
   type Segment =
@@ -115,19 +116,19 @@
     return out
   }
 
-  const verbs: [string[], string, string][] = [
-    [['Bash'], 'ran a command', 'ran {n} commands'],
-    [['Read', 'Grep', 'Glob', 'LS'], 'read a file', 'read {n} files'],
-    [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'edited a file', 'edited {n} files'],
-    [['WebFetch', 'WebSearch'], 'looked something up', 'made {n} web lookups'],
+  const verbs: [string[], Key][] = [
+    [['Bash'], 'conversation.ranCommands'],
+    [['Read', 'Grep', 'Glob', 'LS'], 'conversation.readFiles'],
+    [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'conversation.editedFiles'],
+    [['WebFetch', 'WebSearch'], 'conversation.lookedUp'],
   ]
 
   function now(steps: Segment[]) {
     const last = steps.at(-1)
     const call = last?.type === 'work' ? last.calls.at(-1) : undefined
     if (call && !call.result) return doing(call)
-    if (last?.type === 'work' && last.thinking && last.ms === undefined) return 'Thinking…'
-    return last?.type === 'text' ? 'Writing…' : 'Working…'
+    if (last?.type === 'work' && last.thinking && last.ms === undefined) return t('conversation.thinking')
+    return last?.type === 'text' ? t('conversation.writing') : t('conversation.working')
   }
 
   function runs(list: Segment[]) {
@@ -156,19 +157,19 @@
     const calls = works.flatMap((w) => w.calls)
     const parts: string[] = []
     const ms = works.reduce((t, w) => t + (w.thinking ? (w.ms ?? 0) : 0), 0)
-    if (settings.thinking !== 'hidden' && ms >= 1000) parts.push(`thought for ${duration(ms)}`)
+    if (settings.thinking !== 'hidden' && ms >= 1000) parts.push(t('conversation.thoughtFor', { duration: duration(ms) }))
     let rest = calls.length
-    for (const [names, one, many] of verbs) {
+    for (const [names, key] of verbs) {
       const n = calls.filter((c) => names.includes(c.name)).length
-      if (n) parts.push(n > 1 ? many.replace('{n}', String(n)) : one)
+      if (n) parts.push(t(key, { count: n }))
       rest -= n
     }
-    if (rest) parts.push(rest > 1 ? `used ${rest} tools` : 'used a tool')
+    if (rest) parts.push(t('conversation.usedTools', { count: rest }))
     const notes = steps.filter((s) => s.type === 'text').length
-    if (notes) parts.push(`${notes} note${notes > 1 ? 's' : ''}`)
-    let line = parts.join(', ')
-    if (live) line = line ? `${now(steps)} · ${line}` : now(steps)
-    return line.charAt(0).toUpperCase() + line.slice(1) || 'Steps'
+    if (notes) parts.push(t('conversation.notes', { count: notes }))
+    let line = list(parts, 'unit')
+    if (live) line = line ? t('conversation.liveSteps', { now: now(steps), steps: line }) : now(steps)
+    return line.charAt(0).toUpperCase() + line.slice(1) || t('conversation.steps')
   }
 
   function workOf(out: Segment[]) {
@@ -179,13 +180,16 @@
     return work
   }
 
+  const took = (ms: number | undefined) =>
+    ms === undefined ? t('conversation.thinking') : ms < 1000 ? t('conversation.thoughtMoment') : t('conversation.thoughtForTitle', { duration: duration(ms) })
+
   const lastAgent = $derived(agent.entries.findLastIndex((e) => e.kind === 'agent'))
   const working = $derived(agent.status === 'working')
 </script>
 
 {#snippet musing(thought: string, ms: number | undefined)}
   <div class="musing">
-    <span class="musing-head">{ms === undefined ? 'Thinking…' : ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(ms)}`}</span>
+    <span class="musing-head">{took(ms)}</span>
     <Markdown text={thought} streaming={ms === undefined} />
   </div>
 {/snippet}
@@ -196,16 +200,15 @@
       <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} /></div>
     {:else if segment.type === 'work'}
       {#if segment.thinking && (settings.thinking !== 'hidden' || segment.ms === undefined)}
-        {@const took = segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
         {#if segment.thought && settings.thinking === 'shown'}
           {@render musing(segment.thought, segment.ms)}
         {:else if segment.thought && settings.thinking === 'summary'}
           <details class="thinking">
-            <summary><span class="chevron" aria-hidden="true">›</span>{took}<span class="gist">— {segment.thought.split(/(?<=[.!?])\s|\n/)[0]}</span></summary>
+            <summary><span class="chevron" aria-hidden="true">›</span>{took(segment.ms)}<span class="gist">— {segment.thought.split(/(?<=[.!?])\s|\n/)[0]}</span></summary>
             <p class="thought-text">{segment.thought}</p>
           </details>
         {:else}
-          <div class="thought">{took}</div>
+          <div class="thought">{took(segment.ms)}</div>
         {/if}
       {/if}
       {#if segment.calls.length}
@@ -234,8 +237,8 @@
       {/if}
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
-    {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>Sent by {entry.from}, approved by you · {time(entry.at)}</span>{/if}
-    {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>Sent via remote control · {time(entry.at)}</span>{/if}
+    {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
+    {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
   {:else if entry.kind === 'agent'}
     {@const reply = groups(entry.blocks)}
     {@const tail = working && i === agent.entries.length - 1 ? entry.blocks.at(-1) : undefined}
@@ -266,18 +269,18 @@
   {:else if entry.kind === 'turn'}
     <span class="turn">
       <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
-      Turn {entry.index} done · {cost(entry.cost)} · {tokens(entry.input)} in · {tokens(entry.output)} out · {duration(entry.ms)}
+      {t('conversation.turnDone', { index: entry.index, input: tokens(entry.input), output: tokens(entry.output), duration: duration(entry.ms) })}
     </span>
   {:else if entry.kind === 'interrupted'}
     <div class="interrupted">
       <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="5" y="5" width="14" height="14" rx="2" /></svg>
-      <strong>Interrupted by you · {time(entry.at)}</strong>
-      <span>The reply stops here. Nothing was undone in the files.</span>
+      <strong>{t('conversation.interruptedBy', { time: time(entry.at) })}</strong>
+      <span>{t('conversation.replyStops')}</span>
     </div>
   {:else if entry.kind === 'compacted'}
     <div class="separator" role="separator">
       <span></span>
-      Conversation compacted · {tokens(entry.before)} → {tokens(entry.after)} tokens · {time(entry.at)}
+      {t('conversation.compacted', { before: tokens(entry.before), after: tokens(entry.after), time: time(entry.at) })}
       <span></span>
     </div>
   {:else if entry.kind === 'note' && entry.command === 'notice'}
@@ -294,25 +297,25 @@
   {:else if entry.kind === 'cleared'}
     <div class="separator" role="separator">
       <span></span>
-      Conversation cleared · Claude starts over from here · {time(entry.at)}
+      {t('conversation.cleared', { time: time(entry.at) })}
       <span></span>
     </div>
   {:else if entry.kind === 'launched'}
     <div class="separator" role="separator">
       <span></span>
-      Launched by {entry.by} · {time(entry.at)}
+      {t('conversation.launchedBy', { by: entry.by, time: time(entry.at) })}
       <span></span>
     </div>
   {:else if entry.kind === 'forked'}
     <div class="separator" role="separator">
       <span></span>
-      Forked from {entry.from} · {time(entry.at)} · context kept
+      {t('conversation.forkedFrom', { from: entry.from, time: time(entry.at) })}
       <span></span>
     </div>
   {:else if entry.kind === 'reloaded'}
     <div class="separator" role="separator">
       <span></span>
-      Session reloaded · {time(entry.at)} · conversation kept
+      {t('conversation.reloaded', { time: time(entry.at) })}
       <span></span>
     </div>
   {:else if entry.kind === 'error'}
@@ -326,7 +329,7 @@
       <span class="detail">{entry.detail}</span>
       {#if entry.questions?.length}
         <button class="review" aria-expanded={reviewing.has(i)} onclick={() => (reviewing.has(i) ? reviewing.delete(i) : reviewing.add(i))}>
-          {reviewing.has(i) ? 'Hide' : `Review the question${entry.questions.length > 1 ? 's' : ''}`}
+          {reviewing.has(i) ? t('conversation.hide') : t('conversation.reviewQuestions', { count: entry.questions.length })}
         </button>
       {/if}
       <span class="at">{time(entry.at)}</span>
@@ -365,7 +368,7 @@
   <details class="tasks" open={working}>
     <summary>
       <span class="chevron" aria-hidden="true">›</span>
-      Tasks · {agent.tasks.filter((t) => t.status === 'completed').length} of {agent.tasks.length}
+      {t('conversation.tasks', { done: agent.tasks.filter((task) => task.status === 'completed').length, total: agent.tasks.length })}
     </summary>
     <ul>
       {#each agent.tasks as task (task.toolUseId)}
@@ -383,9 +386,7 @@
     <svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
       ><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg
     >
-    Turn in progress · {tokens(agent.live.input)} in · {tokens(agent.live.outputDone + agent.live.output)} out · {duration(
-      Math.max(0, clock.now - agent.live.started),
-    )}
+    {t('conversation.turnLive', { input: tokens(agent.live.input), output: tokens(agent.live.outputDone + agent.live.output), duration: duration(Math.max(0, clock.now - agent.live.started)) })}
   </span>
 {/if}
 
@@ -393,11 +394,11 @@
 
 {#if menu}
   {@const index = menu.index}
-  <div class="menu" role="menu" aria-label="Message actions" style:left="{menu.x}px" style:top="{menu.y}px">
+  <div class="menu" role="menu" aria-label={t('conversation.messageActions')} style:left="{menu.x}px" style:top="{menu.y}px">
     {#if onfork && forkPoint(agent, index)}
-      <button role="menuitem" onclick={() => (onfork(index), (menu = null))}>Fork from here</button>
+      <button role="menuitem" onclick={() => (onfork(index), (menu = null))}>{t('conversation.forkFromHere')}</button>
     {/if}
-    <button role="menuitem" onclick={copy}>Copy</button>
+    <button role="menuitem" onclick={copy}>{t('common.copy')}</button>
   </div>
 {/if}
 

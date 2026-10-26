@@ -15,7 +15,10 @@
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { saveSettings, settings, type App, type TabEffect } from './settings.svelte'
+  import { saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
+  import { chime } from './chime'
+  import { errorText, LANGUAGES, list, systemLocale, t, type Key } from './i18n/index.svelte'
+  import Trans from './Trans.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
   type Tab = SettingsTab
@@ -24,70 +27,80 @@
 
   const tab = $derived(ui.settings ?? 'defaults')
 
-  const groups: [string, [Tab, string][]][] = [
+  const groups: [Key, [Tab, Key][]][] = [
     [
-      'Projects',
+      'settings.projects',
       [
-        ['projects', 'Projects'],
-        ['archived', 'Archived agents'],
+        ['projects', 'settings.projects'],
+        ['archived', 'settings.tabArchived'],
       ],
     ],
     [
-      'Agents',
+      'settings.agents',
       [
-        ['defaults', 'Agent defaults'],
-        ['rules', 'Permission rules'],
+        ['defaults', 'settings.tabDefaults'],
+        ['rules', 'settings.tabRules'],
       ],
     ],
     [
-      'Tools',
+      'settings.groupTools',
       [
-        ['claude', 'Claude Code'],
-        ['editors', 'Editors'],
-        ['hosting', 'Code hosting'],
+        ['claude', 'settings.tabClaude'],
+        ['editors', 'settings.tabEditors'],
+        ['hosting', 'settings.tabHosting'],
       ],
     ],
     [
-      'Interface',
+      'settings.groupInterface',
       [
-        ['preferences', 'Preferences'],
-        ['shortcuts', 'Shortcuts'],
-        ['layout', 'Layout'],
+        ['preferences', 'settings.tabPreferences'],
+        ['shortcuts', 'settings.tabShortcuts'],
+        ['layout', 'settings.tabLayout'],
       ],
     ],
-    ['Squadron', [['about', 'About']]],
+    ['settings.groupSquadron', [['about', 'settings.tabAbout']]],
   ]
-  const current = $derived(groups.flatMap(([, items]) => items).find(([id]) => id === tab)?.[1] ?? '')
-  const effects: [TabEffect, string, string][] = [
-    ['snake', 'Snake', 'A light trail runs around the tab, one lap every 2.4 s'],
-    ['pulse', 'Pulse', 'The tab background breathes, one cycle every 2 s'],
+  const current = $derived.by(() => {
+    const key = groups.flatMap(([, items]) => items).find(([id]) => id === tab)?.[1]
+    return key ? t(key) : ''
+  })
+  const effects: [TabEffect, Key, Key, number][] = [
+    ['snake', 'settings.effectSnake', 'settings.effectSnakeHint', 2.4],
+    ['pulse', 'settings.effectPulse', 'settings.effectPulseHint', 2],
   ]
 
   let defaults = $state({ ...settings.defaults })
   let claude = $state(settings.claude)
   let effect = $state<TabEffect>(settings.tab_effect)
+  let ring = $state<TabRing>(settings.tab_ring)
+  const RINGS: [TabRing, Key, Key][] = [
+    ['off', 'settings.ringOff', 'settings.ringOffHint'],
+    ['shake', 'settings.ringShake', 'settings.ringShakeHint'],
+    ['sound', 'settings.ringSound', 'settings.ringSoundHint'],
+  ]
   let pilot = $state(settings.pilot)
   let pilotAll = $state(settings.pilot_all)
   let archiveAfter = $state(settings.archive_after_days)
   let steps = $state(settings.steps)
   let thinking = $state(settings.thinking)
-  const STEPS: [typeof steps, string, string][] = [
-    ['grouped', 'Grouped', 'One line per reply for the thinking, the notes and the commands; the answer stands on its own'],
-    ['detailed', 'In full', 'Every thought, note and command in the flow of the conversation'],
+  let language = $state(settings.language)
+  const STEPS: [typeof steps, Key, Key][] = [
+    ['grouped', 'settings.stepsGrouped', 'settings.stepsGroupedHint'],
+    ['detailed', 'settings.stepsDetailed', 'settings.stepsDetailedHint'],
   ]
-  const THINKING: [typeof thinking, string][] = [
-    ['hidden', 'Hidden'],
-    ['duration', 'How long'],
-    ['summary', 'With its summary'],
-    ['shown', 'In the conversation'],
+  const THINKING: [typeof thinking, Key][] = [
+    ['hidden', 'settings.thinkingHidden'],
+    ['duration', 'settings.thinkingDuration'],
+    ['summary', 'settings.thinkingSummary'],
+    ['shown', 'settings.thinkingShown'],
   ]
-  const AGES: [number, string][] = [
-    [0, 'Never'],
-    [1, 'After a day'],
-    [3, 'After 3 days'],
-    [7, 'After a week'],
-    [14, 'After two weeks'],
-    [30, 'After a month'],
+  const AGES: [number, Key][] = [
+    [0, 'settings.archiveNever'],
+    [1, 'settings.archiveDay'],
+    [3, 'settings.archiveDays'],
+    [7, 'settings.archiveWeek'],
+    [14, 'settings.archiveTwoWeeks'],
+    [30, 'settings.archiveMonth'],
   ]
   let keys = $state<Record<string, string>>({ ...settings.keys })
   let editors = $state<App[]>(settings.editors.map((e) => ({ ...e })))
@@ -107,8 +120,8 @@
     const value = combo(event)
     if (!value) return
     const other = ACTIONS.find(([id]) => id !== recording && binding(keys, id) === value)
-    if (other) conflict = `${label(value)} is already used by “${other[1]}”.`
-    else if (!usable(value)) conflict = `${label(value)} would fire while you type. Add Ctrl or Alt, or use a function key.`
+    if (other) conflict = t('settings.conflictUsed', { keys: label(value), action: t(other[1]) })
+    else if (!usable(value)) conflict = t('settings.conflictTyping', { keys: label(value) })
     else {
       if (value === ACTIONS.find(([id]) => id === recording)![2]) delete keys[recording]
       else keys[recording] = value
@@ -125,11 +138,11 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking, language })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
-      error = String(e)
+      error = errorText(e)
     }
   }
 
@@ -139,7 +152,7 @@
     try {
       version = await invoke<string>('claude_version', { path: claude })
     } catch (e) {
-      error = String(e) || 'Claude Code did not answer.'
+      error = errorText(e) || t('settings.claudeNoAnswer')
     }
   }
 
@@ -151,13 +164,13 @@
 
 <svelte:window onkeydowncapture={record} />
 
-<Dialog title="Settings" {onclose} full>
+<Dialog title={t('settings.title')} {onclose} full>
   <div class="frame">
-  <div class="side" role="tablist" aria-label="Settings sections" aria-orientation="vertical">
+  <div class="side" role="tablist" aria-label={t('settings.sections')} aria-orientation="vertical">
     {#each groups as [title, items] (title)}
-      <span class="group">{title}</span>
+      <span class="group">{t(title)}</span>
       {#each items as [id, label] (id)}
-        <button role="tab" aria-selected={tab === id} onclick={() => (ui.settings = id)}>{label}</button>
+        <button role="tab" aria-selected={tab === id} onclick={() => (ui.settings = id)}>{t(label)}</button>
       {/each}
     {/each}
   </div>
@@ -174,10 +187,10 @@
     {:else if tab === 'hosting'}
       <CodeHosting />
     {:else if tab === 'defaults'}
-      <p class="intro">Used to fill in the New agent dialog.</p>
+      <p class="intro">{t('settings.defaultsIntro')}</p>
       <OptionsFields bind:options={defaults} />
     {:else if tab === 'rules'}
-      <p class="intro">Added with Always on a permission card. Agents of the project no longer ask for what a rule allows.</p>
+      <p class="intro">{t('settings.rulesIntro')}</p>
       {#each withRules as project (project.path)}
         <section>
           <h2>{project.name} <span>{home(project.path)}</span></h2>
@@ -186,67 +199,62 @@
               <li>
                 <code>{ruleLabel(rule)}</code>
                 <span class="tool">{rule.startsWith('Bash(') ? 'Bash' : rule.split('(')[0]}</span>
-                <button class="remove" onclick={() => removeRule(project.path, rule)}>Remove</button>
+                <button class="remove" onclick={() => removeRule(project.path, rule)}>{t('common.remove')}</button>
               </li>
             {/each}
           </ul>
         </section>
       {:else}
-        <p class="empty">No rules yet. Choosing Always on a permission card adds one here.</p>
+        <p class="empty">{t('settings.rulesEmpty')}</p>
       {/each}
     {:else if tab === 'editors'}
       <p class="intro">
-        Apps behind “Open in …” in the editor and diff panels. In a command, <code>{'{project}'}</code> and <code>{'{file}'}</code> become their
-        paths. The last app you used becomes the default.
+        <Trans k="settings.editorsIntro">{#snippet project()}<code>{'{project}'}</code>{/snippet}{#snippet file()}<code>{'{file}'}</code>{/snippet}</Trans>
       </p>
       {#each editors as app, i (i)}
         <div class="app">
-          <input class="field" bind:value={app.name} placeholder="Name" aria-label="Name" />
-          <input class="field mono" bind:value={app.command} placeholder={'zed {project} {file}'} aria-label="Command" spellcheck="false" />
-          <button class="remove" onclick={() => editors.splice(i, 1)}>Remove</button>
+          <input class="field" bind:value={app.name} placeholder={t('common.name')} aria-label={t('common.name')} />
+          <input class="field mono" bind:value={app.command} placeholder={'zed {project} {file}'} aria-label={t('settings.editorCommand')} spellcheck="false" />
+          <button class="remove" onclick={() => editors.splice(i, 1)}>{t('common.remove')}</button>
         </div>
       {:else}
         <p class="empty">
-          {found.length
-            ? `None set: Squadron offers the editors found on this computer (${found.map((a) => a.name).join(', ')}).`
-            : 'None set and none found: “Open in external editor” uses the system default app.'}
+          {found.length ? t('settings.editorsNoneFound', { apps: list(found.map((a) => a.name)) }) : t('settings.editorsNone')}
         </p>
       {/each}
       <div class="row">
-        <button class="btn btn-secondary" onclick={() => editors.push({ name: '', command: '' })}>Add an app</button>
+        <button class="btn btn-secondary" onclick={() => editors.push({ name: '', command: '' })}>{t('settings.addApp')}</button>
         <button class="btn btn-secondary" disabled={!found.some((f) => !editors.some((e) => e.name === f.name))} onclick={addFound}>
-          Add the apps found
+          {t('settings.addFoundApps')}
         </button>
       </div>
     {:else if tab === 'layout'}
       <div class="intro row-intro">
-        <p class="intro">
-          Drag an item to move it, click its eye to hide it, or focus it and use Alt and the arrows. Hidden items still answer to their shortcut.
-        </p>
-        <button class="btn btn-secondary" onclick={() => ((ui.settings = null), (ui.customizing = true))}>Customize in place</button>
+        <p class="intro">{t('settings.layoutIntro')}</p>
+        <button class="btn btn-secondary" onclick={() => ((ui.settings = null), (ui.customizing = true))}>{t('settings.customizeInPlace')}</button>
       </div>
       {#each Object.entries(SLOTS) as [slot, def] (slot)}
         <section>
-          <h2>{def.title} <span class="hint-text">{def.hint}</span></h2>
+          <h2>{t(def.title)} <span class="hint-text">{t(def.hint)}</span></h2>
           <SlotPreview slot={slot as Slot} />
-          <button class="link" onclick={() => reset(slot as Slot)}>Back to the default</button>
+          <button class="link" onclick={() => reset(slot as Slot)}>{t('settings.backToDefault')}</button>
         </section>
       {/each}
     {:else if tab === 'shortcuts'}
-      <p class="intro">Click a shortcut, then press the new keys. They do not fire while you type in the terminal or the editor.</p>
+      <p class="intro">{t('settings.shortcutsIntro')}</p>
       <ul class="keys">
         {#each ACTIONS as [id, name] (id)}
           <li>
-            <span class="what">{name}</span>
+            <span class="what">{t(name)}</span>
             {#if recording === id}
-              <span class="listening" role="status">Press the new keys…</span>
-              <button class="remove" onclick={() => ((recording = null), (conflict = ''))}>Cancel</button>
+              <span class="listening" role="status">{t('settings.pressKeys')}</span>
+              <button class="remove" onclick={() => ((recording = null), (conflict = ''))}>{t('common.cancel')}</button>
             {:else}
-              <button class="combo" class:custom={!!keys[id]} title="Change" onclick={() => ((recording = id), (conflict = ''))}>
+              <button class="combo" class:custom={!!keys[id]} title={t('settings.change')} onclick={() => ((recording = id), (conflict = ''))}>
                 <kbd>{label(binding(keys, id))}</kbd>
               </button>
               {#if keys[id]}
-                <button class="remove" onclick={() => delete keys[id]}>Default</button>
+                <button class="remove" onclick={() => delete keys[id]}>{t('common.default')}</button>
               {/if}
             {/if}
           </li>
@@ -254,67 +262,84 @@
       </ul>
       {#if conflict}<p class="bad" role="alert">{conflict}</p>{/if}
     {:else if tab === 'preferences'}
-      <p class="intro">How a project tab shows that one of its agents is working. The animation stops when the system asks for reduced motion.</p>
-      <div class="effects" role="group" aria-label="Working tab effect">
-        {#each effects as [id, title, hint] (id)}
+      <p class="intro">{t('settings.tabEffectIntro')}</p>
+      <div class="effects" role="group" aria-label={t('settings.workingTabEffect')}>
+        {#each effects as [id, title, hint, seconds] (id)}
           <button aria-pressed={effect === id} onclick={() => (effect = id)}>
             <span class="sample effect-{id}">
               <span class="dot" aria-hidden="true"></span>Orbit
             </span>
-            <strong>{title}</strong>
-            <span class="hint">{hint}</span>
+            <strong>{t(title)}</strong>
+            <span class="hint">{t(hint, { seconds })}</span>
           </button>
         {/each}
       </div>
-      <h2>Conversation</h2>
-      <span class="label">Agent steps</span>
-      <div class="effects" role="group" aria-label="Agent steps">
+      <span class="label">{t('settings.waitingTab')}</span>
+      <div class="effects three" role="group" aria-label={t('settings.waitingTab')}>
+        {#each RINGS as [id, title, hint] (id)}
+          <button aria-pressed={ring === id} onclick={() => ((ring = id), id === 'sound' && chime())}>
+            <span class="sample" class:ring={id !== 'off'}>
+              <span class="dot" aria-hidden="true"></span>Orbit<span class="badge">1</span>
+            </span>
+            <strong>{t(title)}</strong>
+            <span class="hint">{t(hint, { seconds: 2.4 })}</span>
+          </button>
+        {/each}
+      </div>
+      <h2>{t('settings.conversation')}</h2>
+      <span class="label">{t('settings.agentSteps')}</span>
+      <div class="effects" role="group" aria-label={t('settings.agentSteps')}>
         {#each STEPS as [id, title, detail] (id)}
           <button aria-pressed={steps === id} onclick={() => (steps = id)}>
-            <strong>{title}</strong>
-            <span class="hint">{detail}</span>
+            <strong>{t(title)}</strong>
+            <span class="hint">{t(detail)}</span>
           </button>
         {/each}
       </div>
-      <span class="label">Thinking</span>
-      <div class="effects" role="group" aria-label="Thinking">
+      <span class="label">{t('settings.thinking')}</span>
+      <div class="effects" role="group" aria-label={t('settings.thinking')}>
         {#each THINKING as [id, title] (id)}
-          <button aria-pressed={thinking === id} onclick={() => (thinking = id)}><strong>{title}</strong></button>
+          <button aria-pressed={thinking === id} onclick={() => (thinking = id)}><strong>{t(title)}</strong></button>
         {/each}
       </div>
-      <h2>Agents and Squadron</h2>
-      <label for="archive-after">Archive idle agents</label>
+      <h2>{t('settings.agentsAndSquadron')}</h2>
+      <label for="archive-after">{t('settings.archiveIdle')}</label>
       <select id="archive-after" class="field" bind:value={archiveAfter}>
-        {#each AGES as [days, text] (days)}<option value={days}>{text}</option>{/each}
+        {#each AGES as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
       </select>
-      <p class="intro">An agent that is done, interrupted or stopped on an error for that long goes to the archived agents. Working agents and agents waiting for you stay.</p>
+      <p class="intro">{t('settings.archiveIdleHint')}</p>
       <label class="check">
         <input type="checkbox" bind:checked={pilot} />
         <span>
-          <strong>Agents can drive Squadron</strong>
-          <small>They see the projects and agents, start new agents, add and move cards, and change the layout. They never answer or approve anything in your place. Read only actions run freely; the others ask you first, like any tool.</small>
+          <strong>{t('settings.pilot')}</strong>
+          <small>{t('settings.pilotHint')}</small>
         </span>
       </label>
       <label class="check" class:disabled={!pilot}>
         <input type="checkbox" bind:checked={pilotAll} disabled={!pilot} />
         <span>
-          <strong>On every project</strong>
-          <small>Otherwise an agent only starts agents and edits cards in its own project.</small>
+          <strong>{t('settings.pilotAll')}</strong>
+          <small>{t('settings.pilotAllHint')}</small>
         </span>
       </label>
-      <p class="intro">Applies to agents started or reloaded after saving.</p>
+      <p class="intro">{t('settings.pilotApplies')}</p>
+      <h2 id="language-heading">{t('settings.language')}</h2>
+      <select id="language" class="field" aria-labelledby="language-heading" bind:value={language}>
+        <option value="system">{t('settings.languageSystem', { language: LANGUAGES.find(([id]) => id === systemLocale())?.[1] ?? '' })}</option>
+        {#each LANGUAGES as [id, name] (id)}<option value={id}>{name}</option>{/each}
+      </select>
     {:else}
-      <p class="intro">Squadron starts every agent with this executable.</p>
-      <label for="claude-path">Executable</label>
+      <p class="intro">{t('settings.claudeIntro')}</p>
+      <label for="claude-path">{t('settings.executable')}</label>
       <div class="row">
         <input id="claude-path" class="field mono" bind:value={claude} spellcheck="false" />
-        <button class="btn btn-secondary" onclick={browse}>Browse…</button>
-        <button class="btn btn-secondary" onclick={check}>Check</button>
+        <button class="btn btn-secondary" onclick={browse}>{t('common.browse')}</button>
+        <button class="btn btn-secondary" onclick={check}>{t('settings.check')}</button>
       </div>
       {#if version}<p class="good">{version}</p>{/if}
       {#if account.value}
         <p class="intro">
-          Signed in as {[account.value.email, account.value.organization, account.value.subscriptionType].filter(Boolean).join(' · ')}
+          {t('settings.signedInAs', { account: [account.value.email, account.value.organization, account.value.subscriptionType].filter(Boolean).join(' · ') })}
         </p>
       {/if}
     {/if}
@@ -323,9 +348,9 @@
 
   {#if !['rules', 'layout', 'projects', 'archived', 'about', 'hosting'].includes(tab)}
     <footer>
-      {#if saved}<span class="good">Saved</span>{/if}
-      <button class="btn btn-secondary" onclick={onclose}>Close</button>
-      <button class="btn btn-primary" onclick={save}>Save</button>
+      {#if saved}<span class="good">{t('common.saved')}</span>{/if}
+      <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
+      <button class="btn btn-primary" onclick={save}>{t('common.save')}</button>
     </footer>
   {/if}
   </div>
@@ -693,6 +718,20 @@
     height: 9px;
     border-radius: 2px;
     background: var(--accent);
+  }
+
+  .sample .badge {
+    height: 20px;
+    min-width: 20px;
+    padding: 0 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 11.5px;
+    font-weight: 700;
   }
 
   footer {

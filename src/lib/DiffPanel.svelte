@@ -14,6 +14,8 @@
   import { hostName, markReviewed, post, reviews, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
+  import Trans from './Trans.svelte'
+  import { date, errorText, t, type Key } from './i18n/index.svelte'
 
   let {
     agent,
@@ -110,7 +112,7 @@
   const threadsAt = (path: string, line: Line) =>
     threads.filter((t) => t.root.path === path && t.root.line === line.number && t.root.removed === (line.side === 'old'))
   const talks = (path: string) => threads.filter((t) => t.root.path === path && t.root.line !== null).length
-  const when = (at: string) => new Date(at).toLocaleString('en-GB', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
+  const when = (at: string) => date(new Date(at), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
   let handed = $state<number[]>([])
   let replying = $state<number | null>(null)
   let answer = $state('')
@@ -147,6 +149,8 @@
   const source = $derived(reviewing ? (pull && pulled?.key === keyOf(pull) ? pulled.changes : null) : changes)
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
+  const BADGES: Record<string, Key> = { NEW: 'review.statusNew', DELETED: 'review.statusDeleted', MODIFIED: 'review.statusModified', PROPOSED: 'review.statusProposed' }
+  const badge = (status: string) => (BADGES[status] ? t(BADGES[status]) : status)
 
   const edited = $derived(agent ? changedFiles(calls(agent)).map((f) => ({ ...f, path: relative(agent, f.path) })) : [])
   const found = $derived(
@@ -265,6 +269,8 @@
   let body = $state<HTMLElement>()
   let spot = $state('')
   let folded = $state<string[]>([])
+  let wholes = $state<string[]>([])
+  const toggleWhole = (path: string) => (wholes = wholes.includes(path) ? wholes.filter((p) => p !== path) : [...wholes, path])
 
   let steered = 0
 
@@ -340,7 +346,10 @@
   }
 
   let posting = $state(false)
-  let postError = $state('')
+  let postError = $state<{ text: string; done: number } | null>(null)
+  const problem = $derived(
+    postError ? (postError.done ? t('review.postedThenError', { count: postError.done, error: errorText(postError.text) }) : errorText(postError.text)) : '',
+  )
   let finishing = $state(false)
   let summary = $state('')
 
@@ -348,10 +357,10 @@
     if (!commenting || !note.trim() || !pull) return
     const { path, side, number, text } = commenting
     posting = true
-    postError = ''
+    postError = null
     const { error } = await post(folder, pull, [{ path, line: number, removed: side === 'old', code: text, note: note.trim() }])
     posting = false
-    if (error) return (postError = error)
+    if (error) return (postError = { text: error, done: 0 })
     if (existing) existing.list.splice(existing.index, 1)
     commenting = null
     fresh++
@@ -371,10 +380,10 @@
   async function postGeneral() {
     if (!generalNote.trim() || !pull) return
     posting = true
-    postError = ''
+    postError = null
     const { error } = await post(folder, pull, [generalDraft()])
     posting = false
-    if (error) return (postError = error)
+    if (error) return (postError = { text: error, done: 0 })
     generalNote = ''
     fresh++
   }
@@ -407,16 +416,16 @@
 
   async function askAgent() {
     starting = true
-    postError = ''
-    await onagent?.().catch((e) => (postError = String(e)))
+    postError = null
+    await onagent?.().catch((e) => (postError = { text: String(e), done: 0 }))
     starting = false
   }
 
   let verdict = $state<'' | 'approve' | 'request_changes'>('')
-  const VERDICTS: [typeof verdict, string][] = [
-    ['', 'Comment'],
-    ['approve', 'Approve'],
-    ['request_changes', 'Request changes'],
+  const VERDICTS: [typeof verdict, Key][] = [
+    ['', 'review.verdictComment'],
+    ['approve', 'review.verdictApprove'],
+    ['request_changes', 'review.verdictRequestChanges'],
   ]
   const ready = $derived(verdict === 'request_changes' ? !!summary.trim() || review.length > 0 : verdict === 'approve' || !!summary.trim() || review.length > 0)
 
@@ -424,11 +433,11 @@
     if (!pull || !ready) return
     const sending = [...review]
     posting = true
-    postError = ''
+    postError = null
     const { done, error } = await post(folder, pull, sending, summary, verdict)
     posting = false
     reviews[reviewKey] = review.filter((c) => !sending.slice(0, done).includes(c))
-    if (error) return (postError = done ? `${done} posted, then: ${error}` : error)
+    if (error) return (postError = { text: error, done })
     summary = ''
     verdict = ''
     finishing = false
@@ -445,11 +454,11 @@
   }
 
   async function discard() {
-    const sure = await ask(`Discard the review and its ${review.length} comment${review.length > 1 ? 's' : ''}?`, {
-      title: 'Discard the review',
+    const sure = await ask(t('review.discardQuestion', { count: review.length }), {
+      title: t('review.discardTitle'),
       kind: 'warning',
-      okLabel: 'Discard',
-      cancelLabel: 'Keep it',
+      okLabel: t('review.discard'),
+      cancelLabel: t('review.keepIt'),
     })
     if (!sure) return
     reviews[reviewKey] = []
@@ -462,45 +471,45 @@
   }
 </script>
 
-<SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title="Diff" {onclose}>
+<SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title={t('review.diff')} {onclose}>
   {#snippet sub()}
     {#if reviewing && pull}
-      PR #{pull.number} · {pull.branch} → {pull.base}{source ? ` · ${files.length} file${files.length > 1 ? 's' : ''}` : ''}{onlyNew && pulled
-        ? ` · ${pulled.added} new commit${pulled.added === 1 ? '' : 's'} since your review`
+      {t('review.pullTag', { number: String(pull.number) })} · {pull.branch} → {pull.base}{source ? ` · ${t('review.fileCount', { count: files.length })}` : ''}{onlyNew && pulled
+        ? ` · ${t('review.newCommitsSince', { count: pulled.added })}`
         : ''}
     {:else if changes}
-      {files.length} uncommitted file{files.length > 1 ? 's' : ''}{agent ? ` · ${mine} edited by ${agent.name}` : ''}
+      {t('review.uncommittedFiles', { count: files.length })}{agent ? ` · ${t('review.editedBy', { count: mine, agent: agent.name })}` : ''}
     {:else if agent}
-      Changes by {agent.name} · {files.length} file{files.length > 1 ? 's' : ''}
+      {t('review.changesBy', { agent: agent.name })} · {t('review.fileCount', { count: files.length })}
     {:else}
-      No Git repository
+      {t('review.noGitRepository')}
     {/if}
   {/snippet}
   {#snippet actions()}
     <button
       class="tree-toggle"
       aria-pressed={layout.fileTree}
-      aria-label="File tree"
-      title="{layout.fileTree ? 'Hide' : 'Show'} the file tree"
+      aria-label={t('review.fileTree')}
+      title={layout.fileTree ? t('review.hideFileTree') : t('review.showFileTree')}
       onclick={() => setFileTree(!layout.fileTree)}
     >
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
     </button>
     {#if reviewing && since}
-      <div class="modes" role="group" aria-label="What to review">
-        <button aria-pressed={onlyNew} onclick={() => ((onlyNew = true), (sinceError = ''))}>Since your review</button>
-        <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>All changes</button>
+      <div class="modes" role="group" aria-label={t('review.whatToReview')}>
+        <button aria-pressed={onlyNew} onclick={() => ((onlyNew = true), (sinceError = ''))}>{t('review.sinceYourReview')}</button>
+        <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>{t('review.allChanges')}</button>
       </div>
     {/if}
     {#if pull && agent}
-      <div class="modes" role="group" aria-label="What to compare">
-        <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>Changes</button>
-        <button aria-pressed={reviewing} onclick={() => (mode = 'pull')}>PR #{pull.number}</button>
+      <div class="modes" role="group" aria-label={t('review.whatToCompare')}>
+        <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>{t('review.changes')}</button>
+        <button aria-pressed={reviewing} onclick={() => (mode = 'pull')}>{t('review.pullTag', { number: String(pull.number) })}</button>
       </div>
     {/if}
-    <div class="modes" role="group" aria-label="Diff layout">
-      <button aria-pressed={!layout.split} onclick={() => setSplit(false)}>Unified</button>
-      <button aria-pressed={layout.split} onclick={() => setSplit(true)}>Split</button>
+    <div class="modes" role="group" aria-label={t('review.diffLayout')}>
+      <button aria-pressed={!layout.split} onclick={() => setSplit(false)}>{t('review.unified')}</button>
+      <button aria-pressed={layout.split} onclick={() => setSplit(true)}>{t('review.split')}</button>
     </div>
   {/snippet}
   {#if reviewing && pull}
@@ -508,7 +517,7 @@
       <strong class="pr-title">{pull.title}</strong>
       {#if pull.description.trim()}
         <details class="pr-description">
-          <summary>Description</summary>
+          <summary>{t('common.description')}</summary>
           <div class="pr-body"><Markdown text={pull.description} /></div>
         </details>
       {/if}
@@ -519,108 +528,117 @@
       <span class="pulse" aria-hidden="true"></span>
       <span class="what">
         {#if review.length}
-          <strong>Review in progress</strong> ·
+          <strong>{t('review.reviewInProgress')}</strong> ·
           <button class="count-toggle" aria-expanded={listing} onclick={() => (listing = !listing)}
-            >{review.length} comment{review.length > 1 ? 's' : ''} <span aria-hidden="true">{listing ? '▴' : '▾'}</span></button
+            >{t('review.commentCount', { count: review.length })} <span aria-hidden="true">{listing ? '▴' : '▾'}</span></button
           >
-        {:else}<strong>Your review</strong> · comment the lines, then finish{/if}
+        {:else}<strong>{t('review.yourReview')}</strong> · {t('review.commentThenFinish')}{/if}
       </span>
-      {#if postError && !commenting}<span class="bad" role="alert">{postError}</span>{/if}
+      {#if postError && !commenting}<span class="bad" role="alert">{problem}</span>{/if}
       {#if reviewer}
-        <button class="agent-link" title="Open the conversation of {reviewer.name}" onclick={() => show(reviewer)}>
-          {reviewer.name} {reviewer.status === 'working' ? 'is reviewing…' : reviewer.status === 'waiting' ? 'waits for you' : reviewer.status === 'error' ? 'stopped on an error' : 'has reviewed'}
+        <button class="agent-link" title={t('review.openConversationOf', { name: reviewer.name })} onclick={() => show(reviewer)}>
+          {t(
+            reviewer.status === 'working'
+              ? 'review.reviewerWorking'
+              : reviewer.status === 'waiting'
+                ? 'review.reviewerWaiting'
+                : reviewer.status === 'error'
+                  ? 'review.reviewerError'
+                  : 'review.reviewerDone',
+            { name: reviewer.name },
+          )}
         </button>
       {:else if onagent}
         <button
           class="btn btn-secondary"
           disabled={starting || !settings.pilot}
           title={settings.pilot
-            ? 'An agent reads the pull request in its own worktree and adds its remarks to your review'
-            : 'Turn on “Agents can drive Squadron” in Settings › Preferences first'}
-          onclick={askAgent}>{starting ? 'Starting…' : 'Ask an agent'}</button
+            ? t('review.askAgentTitle')
+            : t('review.askAgentNeedsPilot')}
+          onclick={askAgent}>{starting ? t('review.starting') : t('review.askAgent')}</button
         >
       {/if}
-      {#if review.length}<button class="btn btn-secondary" onclick={discard}>Discard</button>{/if}
-      <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>Finish review</button>
+      {#if review.length}<button class="btn btn-secondary" onclick={discard}>{t('review.discard')}</button>{/if}
+      <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>{t('review.finishReview')}</button>
     </div>
     {#if listing && review.length}
       <ul class="drafts-list">
         {#each review as c, i (i)}
           <li>
             <button class="go" onclick={() => goTo(c)}>
-              <span class="where">{c.path ? `${c.path}:${c.line}${c.removed ? ' · removed line' : ''}` : 'Pull request'}</span>
+              <span class="where">{c.path ? `${c.path}:${c.line}${c.removed ? ` · ${t('review.removedLine')}` : ''}` : t('review.pullRequest')}</span>
               <span class="note">{c.note}</span>
             </button>
-            <button class="drop" aria-label="Delete the comment on {c.path} line {c.line}" title="Delete" onclick={() => drop(c)}>×</button>
+            <button class="drop" aria-label={t('review.deleteCommentOnLineOf', { path: c.path, line: String(c.line) })} title={t('common.delete')} onclick={() => drop(c)}>×</button>
           </li>
         {/each}
       </ul>
     {/if}
     {#if finishing}
       <div class="finish">
-        <label for="review-summary" class="sr-only">Overall comment</label>
+        <label for="review-summary" class="sr-only">{t('review.overallComment')}</label>
         <!-- svelte-ignore a11y_autofocus -->
         <textarea
           id="review-summary"
           class="field"
           rows="3"
           bind:value={summary}
-          placeholder={verdict === 'request_changes' ? 'What should change' : 'Overall comment, optional'}
+          placeholder={verdict === 'request_changes' ? t('review.whatShouldChange') : t('review.overallCommentOptional')}
           autofocus
         ></textarea>
         <div class="actions">
           {#if agent}
-            <span class="hint">Send the {review.length} comment{review.length > 1 ? 's' : ''} to {agent.name}, or post the review on {hostName(pull)}</span>
-            <button class="btn btn-secondary" disabled={posting || !review.length} onclick={submit}>{posting ? 'Posting…' : `Post on ${hostName(pull)}`}</button>
-            <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>Send to {agent.name}</button>
+            <span class="hint">{t('review.sendOrPost', { count: review.length, agent: agent.name, host: hostName(pull) })}</span>
+            <button class="btn btn-secondary" disabled={posting || !review.length} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
+            <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>{t('review.sendTo', { agent: agent.name })}</button>
           {:else}
-            <div class="modes verdicts" role="radiogroup" aria-label="Verdict">
+            <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
               {#each VERDICTS as [id, label] (id)}
-                <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{label}</button>
+                <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{t(label)}</button>
               {/each}
             </div>
             <span class="hint"></span>
-            <button class="btn btn-primary" disabled={posting || !ready} onclick={submit}>{posting ? 'Posting…' : `Submit on ${hostName(pull)}`}</button>
+            <button class="btn btn-primary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.submitOn', { host: hostName(pull) })}</button>
           {/if}
         </div>
       </div>
     {/if}
   {/if}
   {#if reviewing && sinceError}
-    <p class="ahead" role="note">{sinceError}</p>
+    <p class="ahead" role="note">{errorText(sinceError)}</p>
   {/if}
   {#if reviewing && agent && pulled && pulled.ahead > 0 && source}
     <p class="ahead" role="note">
-      {pulled.ahead} commit{pulled.ahead > 1 ? 's' : ''} of the branch {pulled.ahead > 1 ? 'are' : 'is'} not pushed to the pull request yet: lines can differ from {hostName(pull!)}.
+      {t('review.notPushed', { count: pulled.ahead, host: hostName(pull!) })}
     </p>
   {/if}
   {#if reviewing && !source}
     <div class="fetching" role="status">
       {#if pullError}
         <svg class="failed" width="34" height="34" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="10" /><path d="M12 7v6M12 16.5v.5" /></svg>
-        <strong>Pull request #{pull!.number} could not be read</strong>
-        <span class="why">{pullError}</span>
-        <button class="btn btn-secondary" onclick={() => attempt++}>Try again</button>
+        <strong>{t('review.couldNotRead', { number: String(pull!.number) })}</strong>
+        <span class="why">{errorText(pullError)}</span>
+        <button class="btn btn-secondary" onclick={() => attempt++}>{t('common.tryAgain')}</button>
       {:else}
         <svg class="ring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle class="track" cx="17" cy="17" r="14" /><circle class="arc" cx="17" cy="17" r="14" /></svg>
-        <strong>Fetching pull request #{pull!.number}</strong>
+        <strong>{t('review.fetching', { number: String(pull!.number) })}</strong>
         <span class="branches">{pull!.branch} → {pull!.base}</span>
-        <span class="why">Getting both branches from {hostName(pull!)}, then building the diff on this computer</span>
+        <span class="why">{t('review.fetchingWhy', { host: hostName(pull!) })}</span>
       {/if}
     </div>
   {:else if files.length}
     {#if !layout.fileTree}
-    <div class="tabs" role="tablist" aria-label="Changed files">
+    <div class="tabs" role="tablist" aria-label={t('review.changedFiles')}>
       {#each files as f (f.path)}
         <button
           role="tab"
           aria-selected={reviewing ? f.path === spot : f === selected}
           class:other={!f.edits && !reviewing && !!agent}
-          title={f.edits || !agent ? f.path : `${f.path} · not edited by ${agent.name}`}
+          title={f.edits || !agent ? f.path : t('review.notEditedByShort', { path: f.path, agent: agent.name })}
           onclick={() => (reviewing ? scrollToFile(f.path) : (file = f.path))}
         >
           {name(f.path)} <span class="add">+{f.add}</span>{#if f.del}<span class="del">−{f.del}</span>{/if}
-          {#if reviewing && talks(f.path)}<span class="talks" title="{talks(f.path)} review thread{talks(f.path) > 1 ? 's' : ''}">{talks(f.path)}</span>{/if}
+          {#if reviewing && talks(f.path)}<span class="talks" title={t('review.reviewThreads', { count: talks(f.path) })}>{talks(f.path)}</span>{/if}
         </button>
       {/each}
     </div>
@@ -639,29 +657,29 @@
       {#if reviewing && pull}
         {@const count = general.length + mineGeneral.length}
         <details class="general" open={count > 0 || undefined}>
-          <summary>{count ? `${count} comment${count > 1 ? 's' : ''} on the pull request` : 'Comment on the whole pull request'}</summary>
-          {#each general as t (t.root.id)}{@render thread(t)}{/each}
+          <summary>{count ? t('review.commentsOnPull', { count }) : t('review.commentOnWholePull')}</summary>
+          {#each general as th (th.root.id)}{@render thread(th)}{/each}
           {#each mineGeneral as c, i (i)}
             <div class="thread mine">
-              <span class="who"><strong>You</strong> · {review.includes(c) ? 'in your review, not posted yet' : `in your next message to ${agent?.name}`}</span>
+              <span class="who"><strong>{t('common.you')}</strong> · {review.includes(c) ? t('review.inReviewNotPosted') : t('review.inNextMessageTo', { agent: agent?.name ?? '' })}</span>
               <Markdown text={c.note} />
-              <div class="thread-actions"><button class="drop" aria-label="Delete this comment" title="Delete" onclick={() => drop(c)}>×</button></div>
+              <div class="thread-actions"><button class="drop" aria-label={t('review.deleteThisComment')} title={t('common.delete')} onclick={() => drop(c)}>×</button></div>
             </div>
           {/each}
           <form class="pr-comment" onsubmit={(e) => (e.preventDefault(), addGeneral('review'))}>
-            <label for="pr-comment" class="sr-only">Comment on the whole pull request</label>
-            <textarea id="pr-comment" class="field" rows="2" bind:value={generalNote} placeholder="Comment on the whole pull request"></textarea>
+            <label for="pr-comment" class="sr-only">{t('review.commentOnWholePull')}</label>
+            <textarea id="pr-comment" class="field" rows="2" bind:value={generalNote} placeholder={t('review.commentOnWholePull')}></textarea>
             <div class="actions">
               <span class="hint"></span>
               {#if !review.length}
                 <button type="button" class="btn btn-ghost" disabled={!generalNote.trim() || posting} onclick={postGeneral}>
-                  {posting ? 'Posting…' : `Post on ${hostName(pull)}`}
+                  {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
                 </button>
                 {#if agent}
-                  <button type="button" class="btn btn-secondary" disabled={!generalNote.trim()} onclick={() => addGeneral('agent')}>Add comment</button>
+                  <button type="button" class="btn btn-secondary" disabled={!generalNote.trim()} onclick={() => addGeneral('agent')}>{t('review.addComment')}</button>
                 {/if}
               {/if}
-              <button class="btn btn-primary" disabled={!generalNote.trim()}>{review.length ? 'Add to review' : 'Start a review'}</button>
+              <button class="btn btn-primary" disabled={!generalNote.trim()}>{review.length ? t('review.addToReview') : t('review.startReview')}</button>
             </div>
           </form>
         </details>
@@ -675,54 +693,60 @@
               <button
                 class="fold-file"
                 aria-expanded={open}
-                aria-label="{open ? 'Fold' : 'Unfold'} {f.path}"
+                aria-label={open ? t('review.foldFile', { path: f.path }) : t('review.unfoldFile', { path: f.path })}
                 onclick={() => (folded = open ? [...folded, f.path] : folded.filter((p) => p !== f.path))}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
               </button>
               {#if patch && typeof patch === 'object' && 'status' in patch}
-                <span class="badge" class:new={patch.status === 'NEW'} class:gone={patch.status === 'DELETED'}>{patch.status}</span>
+                <span class="badge" class:new={patch.status === 'NEW'} class:gone={patch.status === 'DELETED'}>{badge(patch.status)}</span>
               {/if}
               <span class="path">{f.path}</span>
               <span class="stat"><span class="add">+{f.add}</span>{#if f.del}&nbsp;<span class="del">−{f.del}</span>{/if}</span>
+              {#if open && patch && typeof patch === 'object' && 'status' in patch && patch.status === 'MODIFIED' && !patch.binary && patch.hunks.length}
+                <button class="whole" aria-pressed={wholes.includes(f.path)} onclick={() => toggleWhole(f.path)}>{t('review.wholeFile')}</button>
+              {/if}
             </div>
             {#if open}
               {#if !patch || patch === 'loading'}
-                <p class="empty">Reading the file…</p>
+                <p class="empty">{t('review.readingFile')}</p>
               {:else if 'error' in patch}
-                <p class="empty">{patch.error}</p>
+                <p class="empty">{errorText(patch.error)}</p>
               {:else}
                 {@const away = outsideFor(f.path, patch.hunks)}
                 {#if away.length}
                   <div class="outside">
-                    <span class="outside-head">Your comments on lines the diff does not show</span>
+                    <span class="outside-head">{t('review.commentsOutside')}</span>
                     {#each away as c, i (i)}
                       <div class="outside-item">
-                        <span class="mono">{c.removed ? 'removed ' : ''}line {c.line}</span>
+                        <span class="mono">{t(c.removed ? 'review.removedLineNumber' : 'review.lineNumber', { line: String(c.line) })}</span>
                         <div class="outside-note"><Markdown text={c.note} /></div>
-                        <button class="drop" aria-label="Delete the comment on line {c.line}" title="Delete" onclick={() => drop(c)}>×</button>
+                        <button class="drop" aria-label={t('review.deleteCommentOnLine', { line: String(c.line) })} title={t('common.delete')} onclick={() => drop(c)}>×</button>
                       </div>
                     {/each}
                   </div>
                 {/if}
                 {#if patch.binary}
-                  <p class="empty">Binary file, no preview.</p>
+                  <p class="empty">{t('review.binaryFile')}</p>
                 {:else if patch.hunks.length}
                   {#snippet lineThreads(line: Line)}
-                    {#each threadsAt(f.path, line) as t (t.root.id)}{@render thread(t, line)}{/each}
+                    {#each threadsAt(f.path, line) as th (th.root.id)}{@render thread(th, line)}{/each}
                   {/snippet}
                   <DiffView
                     hunks={patch.hunks}
                     split={layout.split}
+                    content={() => invoke<string | null>('git_file', { project: folder, rev: source!.now, path: f.path })}
+                    whole={wholes.includes(f.path)}
                     oncomment={(line) => openAt(f.path, line)}
                     commentRemoved={!onlyNew}
+                    commentRevealed={false}
                     marked={markedFor(f.path)}
                     open={commenting?.path === f.path ? commenting : null}
                     {editor}
                     below={lineThreads}
                   />
                 {:else}
-                  <p class="empty">No change to show.</p>
+                  <p class="empty">{t('review.noChange')}</p>
                 {/if}
               {/if}
             {/if}
@@ -732,39 +756,48 @@
         <div class="file">
           <div class="file-head">
             {#if shown}
-              <span class="badge" class:new={shown.status === 'NEW'} class:gone={shown.status === 'DELETED'} class:proposed={proposing}>{shown.status}</span>
+              <span class="badge" class:new={shown.status === 'NEW'} class:gone={shown.status === 'DELETED'} class:proposed={proposing}>{badge(shown.status)}</span>
             {/if}
             <span class="path">{selected.path}</span>
             <span class="by" hidden={reviewing || !agent}
               >{proposing
-                ? `Proposed by ${agent?.name} · not applied yet`
+                ? t('review.proposedBy', { agent: agent?.name ?? '' })
                 : selected.edits
-                  ? `${selected.edits} edit${selected.edits > 1 ? 's' : ''} by ${agent?.name}`
-                  : `Not edited by ${agent?.name}`}</span
+                  ? t('review.editsBy', { count: selected.edits, agent: agent?.name ?? '' })
+                  : t('review.notEditedBy', { agent: agent?.name ?? '' })}</span
             >
+            {#if shown && !proposing && shown.status === 'MODIFIED' && !shown.binary && shown.hunks.length}
+              <button class="whole" aria-pressed={wholes.includes(selected.path)} onclick={() => toggleWhole(selected.path)}>{t('review.wholeFile')}</button>
+            {/if}
           </div>
           {#if outside.length}
             <div class="outside">
-              <span class="outside-head">Your comments on lines the diff does not show</span>
+              <span class="outside-head">{t('review.commentsOutside')}</span>
               {#each outside as c, i (i)}
                 <div class="outside-item">
-                  <span class="mono">{c.removed ? 'removed ' : ''}line {c.line}</span>
+                  <span class="mono">{t(c.removed ? 'review.removedLineNumber' : 'review.lineNumber', { line: String(c.line) })}</span>
                   <div class="outside-note"><Markdown text={c.note} /></div>
-                  <button class="drop" aria-label="Delete the comment on line {c.line}" title="Delete" onclick={() => drop(c)}>×</button>
+                  <button class="drop" aria-label={t('review.deleteCommentOnLine', { line: String(c.line) })} title={t('common.delete')} onclick={() => drop(c)}>×</button>
                 </div>
               {/each}
             </div>
           {/if}
           {#if error}
-            <p class="empty">{error}</p>
+            <p class="empty">{errorText(error)}</p>
           {:else if !shown}
-            <p class="empty">Reading the file…</p>
+            <p class="empty">{t('review.readingFile')}</p>
           {:else if shown.binary}
-            <p class="empty">Binary file, no preview.</p>
+            <p class="empty">{t('review.binaryFile')}</p>
           {:else if shown.hunks.length}
             <DiffView
               hunks={shown.hunks}
               split={layout.split}
+              content={proposing
+                ? undefined
+                : source
+                  ? () => invoke<string | null>('git_file', { project: folder, rev: source.now, path: selected.path })
+                  : () => invoke<string | null>('read_project_file', { project: folder, path: selected.path })}
+              whole={!proposing && wholes.includes(selected.path)}
               oncomment={proposing || (!agent && !reviewing) ? undefined : open}
               {marked}
               open={commenting?.path === selected.path ? commenting : null}
@@ -772,7 +805,7 @@
               {below}
             />
           {:else}
-            <p class="empty">The file is back to its original state.</p>
+            <p class="empty">{t('review.backToOriginal')}</p>
           {/if}
         </div>
       {/if}
@@ -783,68 +816,68 @@
       <span>
         {reviewing && pull
           ? onlyNew
-            ? 'What changed since your review; removed lines are commented from All changes'
-            : `What the pull request changes, compared to ${pull.base}`
+            ? t('review.footSince')
+            : t('review.footPull', { base: pull.base })
           : changes
-            ? 'What is not committed yet, compared to the last commit'
-            : 'Diff since the agent first touched the file'}
+            ? t('review.footUncommitted')
+            : t('review.footAgent')}
       </span>
       {#if reviewing && pull}
-        <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+        <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: pull.url })}>{t('review.openOn', { host: hostName(pull) })}</button>
       {:else}
         <OpenWith project={folder} path={selected.path} up />
       {/if}
     </div>
   {:else}
-    <p class="empty pad">{changes ? 'Nothing changed in the folder.' : agent ? `${agent.name} has not changed any file yet.` : 'No Git repository here: there is nothing to compare.'}</p>
+    <p class="empty pad">{changes ? t('review.nothingChanged') : agent ? t('review.agentChangedNothing', { agent: agent.name }) : t('review.noRepositoryHere')}</p>
   {/if}
 </SidePanel>
 
 {#snippet below(line: Line)}
   {#if reviewing && selected}
-    {#each threadsAt(selected.path, line) as t (t.root.id)}{@render thread(t, line)}{/each}
+    {#each threadsAt(selected.path, line) as th (th.root.id)}{@render thread(th, line)}{/each}
   {/if}
 {/snippet}
 
-{#snippet thread(t: Thread, line?: Line)}
+{#snippet thread(th: Thread, line?: Line)}
   <div class="thread" class:inline-thread={!!line}>
-    {#if !line && t.root.path}<span class="where">{t.root.path} · outdated</span>{/if}
-    {#each t.all as r (r.id)}
-      <div class="remark" class:reply={r !== t.root}>
+    {#if !line && th.root.path}<span class="where">{t('review.outdated', { path: th.root.path })}</span>{/if}
+    {#each th.all as r (r.id)}
+      <div class="remark" class:reply={r !== th.root}>
         <span class="who"><strong>{r.author}</strong> · {when(r.at)}</span>
         <Markdown text={r.body} />
       </div>
     {/each}
-    {#if replying === t.root.id}
-      <form class="reply-form" onsubmit={(e) => reply(t, e)}>
-        <label for="reply-{t.root.id}" class="sr-only">Reply to {t.root.author}</label>
+    {#if replying === th.root.id}
+      <form class="reply-form" onsubmit={(e) => reply(th, e)}>
+        <label for="reply-{th.root.id}" class="sr-only">{t('review.replyTo', { author: th.root.author })}</label>
         <!-- svelte-ignore a11y_autofocus -->
         <textarea
-          id="reply-{t.root.id}"
+          id="reply-{th.root.id}"
           class="field"
           rows="2"
           bind:value={answer}
-          placeholder="Reply to {t.root.author}"
+          placeholder={t('review.replyTo', { author: th.root.author })}
           autofocus
           onkeydown={(e) => {
             if (e.key === 'Escape') (e.stopPropagation(), (replying = null))
-            else if (e.ctrlKey && e.key === 'Enter') reply(t, e)
+            else if (e.ctrlKey && e.key === 'Enter') reply(th, e)
           }}
         ></textarea>
         <div class="thread-actions">
-          {#if replyError}<span class="bad" role="alert">{replyError}</span>{/if}
-          <button type="button" class="btn btn-secondary" onclick={() => (replying = null)}>Cancel</button>
-          <button class="btn btn-primary" disabled={!answer.trim() || answering}>{answering ? 'Replying…' : `Reply on ${hostName(pull!)}`}</button>
+          {#if replyError}<span class="bad" role="alert">{errorText(replyError)}</span>{/if}
+          <button type="button" class="btn btn-secondary" onclick={() => (replying = null)}>{t('common.cancel')}</button>
+          <button class="btn btn-primary" disabled={!answer.trim() || answering}>{answering ? t('review.replying') : t('review.replyOn', { host: hostName(pull!) })}</button>
         </div>
       </form>
     {:else}
       <div class="thread-actions">
-        <button class="btn btn-secondary" onclick={() => ((replying = t.root.id), (answer = ''), (replyError = ''))}>Reply</button>
+        <button class="btn btn-secondary" onclick={() => ((replying = th.root.id), (answer = ''), (replyError = ''))}>{t('review.reply')}</button>
         {#if agent}
-          {#if handed.includes(t.root.id)}
-            <span class="handed">In your next message to {agent.name}</span>
+          {#if handed.includes(th.root.id)}
+            <span class="handed">{t('review.inYourNextMessageTo', { agent: agent.name })}</span>
           {:else}
-            <button class="btn btn-secondary" onclick={() => hand(t, line)}>Hand to {agent.name}</button>
+            <button class="btn btn-secondary" onclick={() => hand(th, line)}>{t('review.handTo', { agent: agent.name })}</button>
           {/if}
         {/if}
       </div>
@@ -854,14 +887,14 @@
 
 {#snippet editor()}
   <form class="inline" onsubmit={comment} use:reveal>
-    <label for="line-comment" class="sr-only">Comment on line {commenting?.number}</label>
+    <label for="line-comment" class="sr-only">{t('review.commentOnLine', { line: String(commenting?.number ?? '') })}</label>
     <!-- svelte-ignore a11y_autofocus -->
     <textarea
       id="line-comment"
       class="field"
       rows="3"
       bind:value={note}
-      placeholder={agent ? `What should ${agent.name} change here?` : 'Your comment'}
+      placeholder={agent ? t('review.whatShouldAgentChange', { agent: agent.name }) : t('review.yourComment')}
       autofocus
       onkeydown={(e) => {
         if (e.key === 'Escape') {
@@ -872,30 +905,30 @@
     ></textarea>
     <div class="actions">
       {#if existing}
-        <button type="button" class="btn btn-danger" onclick={remove}>Delete</button>
-        <span class="hint">{existing.inReview ? 'In the review' : 'In your next message'} · <kbd>Ctrl ↵</kbd></span>
-        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-        <button class="btn btn-primary" disabled={!note.trim()}>Save</button>
+        <button type="button" class="btn btn-danger" onclick={remove}>{t('common.delete')}</button>
+        <span class="hint">{existing.inReview ? t('review.inTheReview') : t('review.inYourNextMessage')} · <kbd>Ctrl ↵</kbd></span>
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>{t('common.save')}</button>
       {:else if reviewing && pull && review.length}
-        <span class="hint">Review in progress · {review.length} comment{review.length > 1 ? 's' : ''} · <kbd>Ctrl ↵</kbd></span>
-        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-        <button class="btn btn-primary" disabled={!note.trim()}>Add to review</button>
+        <span class="hint">{t('review.reviewInProgressComments', { count: review.length })} · <kbd>Ctrl ↵</kbd></span>
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>{t('review.addToReview')}</button>
       {:else if reviewing && pull}
-        {#if postError}<span class="hint bad" role="alert">{postError}</span>{:else}<span class="hint"><kbd>Ctrl ↵</kbd> starts a review</span>{/if}
-        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-        <button type="button" class="btn btn-ghost" title="Posts this comment on {hostName(pull)} right away" disabled={!note.trim() || posting} onclick={postNow}>
-          {posting ? 'Posting…' : `Post on ${hostName(pull)}`}
+        {#if postError}<span class="hint bad" role="alert">{problem}</span>{:else}<span class="hint"><Trans k="review.ctrlEnterStarts">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>{/if}
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
+        <button type="button" class="btn btn-ghost" title={t('review.postNowTitle', { host: hostName(pull) })} disabled={!note.trim() || posting} onclick={postNow}>
+          {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
         </button>
         {#if agent}
-          <button type="button" class="btn btn-secondary" title="Adds it to your next message to {agent.name}" disabled={!note.trim()} onclick={forAgent}>Add comment</button>
+          <button type="button" class="btn btn-secondary" title={t('review.addToNextMessageTitle', { agent: agent.name })} disabled={!note.trim()} onclick={forAgent}>{t('review.addComment')}</button>
         {/if}
-        <button class="btn btn-primary" title="Gathers this comment and the next ones until you finish the review" disabled={!note.trim()}>
-          Start a review
+        <button class="btn btn-primary" title={t('review.startReviewTitle')} disabled={!note.trim()}>
+          {t('review.startReview')}
         </button>
       {:else}
-        <span class="hint">Added to your next message · <kbd>Ctrl ↵</kbd></span>
-        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>Cancel</button>
-        <button class="btn btn-primary" disabled={!note.trim()}>Add comment</button>
+        <span class="hint">{t('review.addedToNextMessage')} · <kbd>Ctrl ↵</kbd></span>
+        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
+        <button class="btn btn-primary" disabled={!note.trim()}>{t('review.addComment')}</button>
       {/if}
     </div>
   </form>
@@ -1421,6 +1454,25 @@
   .stat {
     flex: none;
     font: 12px var(--mono);
+  }
+
+  .whole {
+    flex: none;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-dim);
+    font-size: 11.5px;
+  }
+
+  .whole:hover {
+    color: var(--text-strong);
+  }
+
+  .whole[aria-pressed='true'] {
+    background: var(--surface-3);
+    color: var(--text-strong);
   }
 
   .ahead {

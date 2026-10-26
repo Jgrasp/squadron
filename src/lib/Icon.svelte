@@ -21,8 +21,6 @@
     <circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="8" r="2" /><path d="M6 7v10M18 10a6 6 0 0 1-6 6H8" />
   {:else if name === 'options'}
     <path d="M4 6h10M18 6h2M4 12h4M12 12h8M4 18h12" /><circle cx="16" cy="6" r="2" /><circle cx="10" cy="12" r="2" /><circle cx="18" cy="18" r="2" />
-  {:else if name === 'cost'}
-    <path d="M12 3v18M16 7.5A4 4 0 0 0 12 5c-2.2 0-4 1.2-4 3s1.8 2.6 4 3 4 1.2 4 3-1.8 3-4 3a4 4 0 0 1-4-2.5" />
   {:else if name === 'context'}
     <path d="M4 18a8 8 0 1 1 16 0M12 18l4-5" />
   {:else if name === 'turns'}

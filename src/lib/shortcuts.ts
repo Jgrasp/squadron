@@ -1,15 +1,19 @@
-export type Action = 'newAgent' | 'jump' | 'kanban' | 'editor' | 'terminal' | 'diff' | 'sidebar' | 'interrupt' | 'quit'
+import { t, type Key } from './i18n/index.svelte'
 
-export const ACTIONS: [Action, string, string][] = [
-  ['newAgent', 'New agent', 'Ctrl+N'],
-  ['jump', 'Next agent waiting for you', 'Ctrl+J'],
-  ['kanban', 'Kanban', 'Ctrl+K'],
-  ['editor', 'Editor panel', 'Ctrl+E'],
-  ['terminal', 'Terminal panel', 'Ctrl+T'],
-  ['diff', 'Diff panel', 'Ctrl+D'],
-  ['sidebar', 'Fold the agent list', 'Ctrl+B'],
-  ['interrupt', 'Interrupt the agent', 'Escape'],
-  ['quit', 'Quit Squadron', 'Ctrl+Q'],
+export type Action = 'newAgent' | 'jump' | 'kanban' | 'editor' | 'terminal' | 'diff' | 'sidebar' | 'interrupt' | 'back' | 'forward' | 'quit'
+
+export const ACTIONS: [Action, Key, string][] = [
+  ['newAgent', 'common.newAgent', 'Ctrl+N'],
+  ['jump', 'settings.actionJump', 'Ctrl+J'],
+  ['kanban', 'settings.actionKanban', 'Ctrl+K'],
+  ['editor', 'settings.actionEditor', 'Ctrl+E'],
+  ['terminal', 'settings.actionTerminal', 'Ctrl+T'],
+  ['diff', 'settings.actionDiff', 'Ctrl+D'],
+  ['sidebar', 'settings.actionSidebar', 'Ctrl+B'],
+  ['interrupt', 'settings.actionInterrupt', 'Escape'],
+  ['back', 'settings.actionBack', 'Alt+ArrowLeft'],
+  ['forward', 'settings.actionForward', 'Alt+ArrowRight'],
+  ['quit', 'settings.actionQuit', 'Ctrl+Q'],
 ]
 
 type Keys = Pick<KeyboardEvent, 'key' | 'ctrlKey' | 'altKey' | 'shiftKey' | 'metaKey'>
@@ -29,4 +33,19 @@ export const pressed = (e: Keys, keys: Record<string, string>) => {
   return value ? ACTIONS.find(([id]) => binding(keys, id) === value)?.[0] : undefined
 }
 
-export const label = (value: string) => value.replaceAll('+', ' ')
+const KEYS: Record<string, Key> = {
+  Shift: 'settings.keyShift',
+  Escape: 'settings.keyEscape',
+  Space: 'settings.keySpace',
+  Enter: 'settings.keyEnter',
+  Backspace: 'settings.keyBackspace',
+  Delete: 'settings.keyDelete',
+}
+
+const ARROWS: Record<string, string> = { ArrowLeft: '←', ArrowRight: '→' }
+
+export const label = (value: string) =>
+  value
+    .split('+')
+    .map((name) => (KEYS[name] ? t(KEYS[name]) : (ARROWS[name] ?? name)))
+    .join(' ')

@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { t } from './i18n/index.svelte'
 import { arrange, movedAmong, SLOTS, type Arrangement, type Slot } from './slots'
 
 export const arrangement = $state<Record<string, Arrangement>>({})
@@ -23,7 +24,12 @@ export const hidden = (slot: Slot, id: string) => (arrangement[slot]?.hidden ?? 
 
 export const shown = (slot: Slot) => all(slot).filter((id) => !hidden(slot, id))
 
-export const labelOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)?.[1] ?? id
+const itemOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)
+
+export const labelOf = (slot: Slot, id: string, tr = t) => {
+  const key = itemOf(slot, id)?.[1]
+  return key ? tr(key) : id
+}
 
 export function place(slot: Slot, id: string, index: number, among = all(slot)) {
   arrangement[slot] = { ...arrangement[slot], order: movedAmong(all(slot), among, id, index) }
@@ -55,7 +61,10 @@ export function reset(slot?: Slot) {
   save()
 }
 
-export const detailOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)?.[2] ?? ''
+export const detailOf = (slot: Slot, id: string, tr = t) => {
+  const key = itemOf(slot, id)?.[2]
+  return key ? tr(key) : ''
+}
 
 type Sortable = { enabled: boolean; onplace: (id: string, index: number) => void }
 
