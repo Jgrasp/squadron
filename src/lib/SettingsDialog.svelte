@@ -17,6 +17,7 @@
   import { SLOTS, type Slot } from './slots'
   import { saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
   import { chime } from './chime'
+  import { LANGUAGES, systemLocale } from './i18n/index.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
   type Tab = SettingsTab
@@ -78,6 +79,7 @@
   let archiveAfter = $state(settings.archive_after_days)
   let steps = $state(settings.steps)
   let thinking = $state(settings.thinking)
+  let language = $state(settings.language)
   const STEPS: [typeof steps, string, string][] = [
     ['grouped', 'Grouped', 'One line per reply for the thinking, the notes and the commands; the answer stands on its own'],
     ['detailed', 'In full', 'Every thought, note and command in the flow of the conversation'],
@@ -132,7 +134,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking, language })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -261,6 +263,11 @@
       </ul>
       {#if conflict}<p class="bad" role="alert">{conflict}</p>{/if}
     {:else if tab === 'preferences'}
+      <label for="language">Language</label>
+      <select id="language" class="field" bind:value={language}>
+        <option value="system">System ({LANGUAGES.find(([id]) => id === systemLocale())?.[1]})</option>
+        {#each LANGUAGES as [id, name] (id)}<option value={id}>{name}</option>{/each}
+      </select>
       <p class="intro">How a project tab shows that one of its agents is working. The animation stops when the system asks for reduced motion.</p>
       <div class="effects" role="group" aria-label="Working tab effect">
         {#each effects as [id, title, hint] (id)}
