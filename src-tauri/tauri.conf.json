@@ -1,6 +1,6 @@
 {
   "$schema": "../node_modules/@tauri-apps/cli/config.schema.json",
-  "productName": "squadron",
+  "productName": "Squadron",
   "identifier": "dev.squadron.desktop",
   "build": {
     "frontendDist": "../dist",
