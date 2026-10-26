@@ -16,7 +16,8 @@ When the user asks to change Squadron (move or hide a button, add a card, start 
 You can prepare and start new agents as the user would, and send an instruction to another agent with message_agent: the user approves each message. You never answer another agent's questions or permission requests in the user's place. \
 When you start working in a git worktree that you entered yourself (a script, git worktree add, cd), call set_worktree so Squadron shows its branch. \
 To start an agent in a worktree a script made, pass its path to start_agent. \
-During a long task made of many items, show where you are on your card with set_progress.";
+During a long task made of many items, show where you are on your card with set_progress. \
+To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -142,6 +143,15 @@ struct SetProgress {
     message: Option<String>,
     /// above or below: where the message goes, above the bar by default.
     place: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct InfoPanel {
+    /// The panel content in HTML with inline CSS (style attributes or a <style> block), up to 50,000 characters. An empty string removes the panel.
+    html: String,
+    /// The panel height in pixels, from 24 to 240, 64 by default. Content beyond it is cut.
+    height: Option<u32>,
 }
 
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
@@ -298,6 +308,16 @@ impl Pilot {
         Parameters(args): Parameters<ImportSession>,
     ) -> String {
         self.forward(&parts, "import_session", json!(args)).await
+    }
+
+    /// Shows a panel of your own under the header of your conversation in Squadron, and only yours: for example the progress of a long task (\"60/80 tasks done\", a progress bar, the expected end). Call it again to update it, with an empty html to remove it. It is rendered without scripts, network, links or forms: images and fonts only as data: URLs. The body has Squadron's dark background, its text color and font; the CSS variables --text, --text-strong, --text-muted, --text-faint, --accent, --accent-soft, --ok, --done, --err, --surface-1, --surface-3, --surface-5, --border, --sans and --mono hold its colors and fonts. The user can hide it.
+    #[tool]
+    async fn set_info_panel(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<InfoPanel>,
+    ) -> String {
+        self.forward(&parts, "set_info_panel", json!(args)).await
     }
 
     /// Returns Squadron's layout: each slot (a bar of buttons or a menu), its items and which are hidden.
@@ -672,5 +692,23 @@ mod tests {
             .expect("start_agent called");
         assert_eq!(start.args["card"], "c-42");
         assert_eq!(start.args["model"], "haiku");
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_shows_its_progress_in_its_panel() {
+        let calls = drive(
+            "haiku",
+            "You are importing 80 products and 60 are done; the rest should be finished today around 18:40. Show that progress in your Squadron panel, with a progress bar. Nothing else to do.",
+            |_| "Your panel shows under the header of your conversation, 64px high.".to_string(),
+        )
+        .await;
+        let set = calls
+            .iter()
+            .find(|c| c.tool == "set_info_panel")
+            .expect("set_info_panel called");
+        let html = set.args["html"].as_str().unwrap();
+        assert!(html.contains("60") && html.contains("80"));
+        assert!(!html.contains("<script"));
     }
 }

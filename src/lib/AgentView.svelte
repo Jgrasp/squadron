@@ -7,6 +7,7 @@
   import DiffPanel from './DiffPanel.svelte'
   import { ago, meta, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
+  import InfoPanel from './InfoPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
@@ -718,6 +719,7 @@
         </div>
       {/if}
     </div>
+    {#if agent.infoPanel}<InfoPanel {agent} />{/if}
 
     <div class="middle">
       {#if users.length}
