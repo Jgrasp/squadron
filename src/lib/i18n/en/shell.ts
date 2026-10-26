@@ -275,6 +275,11 @@ export default {
   pilotStartRefuse: 'Refuse',
   markRead: 'Mark as read',
   markUnread: 'Mark as unread',
+  selectedCount: { one: '{count} agent selected', other: '{count} agents selected' },
+  bulkActions: 'Actions on the selected agents',
+  clearSelection: 'Clear the selection',
+  deleteAgentsAsk: { one: 'Delete {names}? Its conversation leaves Squadron for good; it cannot be restored like an archived agent.', other: 'Delete {count} agents: {names}? Their conversations leave Squadron for good; they cannot be restored like archived agents.' },
+  deleteAgentsTitle: { one: 'Delete agent', other: 'Delete {count} agents' },
   unread: 'Finished, not opened yet',
   agentsUnread: { one: '{count} agent finished, not opened yet', other: '{count} agents finished, not opened yet' },
 }

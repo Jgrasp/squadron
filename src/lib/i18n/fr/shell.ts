@@ -277,6 +277,11 @@ export default {
   pilotStartRefuse: 'Refuser',
   markRead: 'Marquer comme lu',
   markUnread: 'Marquer comme non lu',
+  selectedCount: { one: '{count} agent sélectionné', other: '{count} agents sélectionnés' },
+  bulkActions: 'Actions sur les agents sélectionnés',
+  clearSelection: 'Vider la sélection',
+  deleteAgentsAsk: { one: 'Supprimer {names} ? Sa conversation quitte Squadron pour de bon ; elle ne pourra pas être restaurée comme un agent archivé.', other: 'Supprimer {count} agents : {names} ? Leurs conversations quittent Squadron pour de bon ; elles ne pourront pas être restaurées comme des agents archivés.' },
+  deleteAgentsTitle: { one: 'Supprimer l’agent', other: 'Supprimer {count} agents' },
   unread: 'Terminé, pas encore ouvert',
   agentsUnread: { one: '{count} agent terminé, pas encore ouvert', other: '{count} agents terminés, pas encore ouverts' },
 } satisfies Catalog['shell']
