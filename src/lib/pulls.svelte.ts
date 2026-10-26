@@ -28,6 +28,7 @@ export type Pull = {
   head_at: string | null
   reviewers: Reviewer[]
   conflicts: boolean
+  mergeable: boolean
 }
 
 export type Reviewer = { name: string; avatar: string; verdict: 'approved' | 'changes_requested' | 'commented' | 'waiting' }
@@ -159,6 +160,17 @@ export async function post(dir: string, pull: Pull, list: Comment[], summary = '
   } finally {
     lookUp(dir, true)
   }
+}
+
+export async function approve(dir: string, pull: Pull) {
+  const { error } = await post(dir, pull, [], '', 'approve')
+  if (error) throw error
+  markReviewed(dir, pull)
+}
+
+export async function merge(dir: string, pull: Pull) {
+  await invoke('merge_pull', { dir, number: pull.number })
+  lookUpAll(true)
 }
 
 export async function reviewWithAgent(project: string, pull: Pull) {

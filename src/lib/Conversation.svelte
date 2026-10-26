@@ -7,7 +7,7 @@
   import type { Proposal } from './diff'
   import { highlight } from './commands'
   import ErrorCard from './ErrorCard.svelte'
-  import { cost, duration, time, tokens } from './format'
+  import { duration, time, tokens } from './format'
   import Markdown from './Markdown.svelte'
   import PermissionCard from './PermissionCard.svelte'
   import PlanCard from './PlanCard.svelte'
@@ -266,7 +266,7 @@
   {:else if entry.kind === 'turn'}
     <span class="turn">
       <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
-      Turn {entry.index} done · {cost(entry.cost)} · {tokens(entry.input)} in · {tokens(entry.output)} out · {duration(entry.ms)}
+      Turn {entry.index} done · {tokens(entry.input)} in · {tokens(entry.output)} out · {duration(entry.ms)}
     </span>
   {:else if entry.kind === 'interrupted'}
     <div class="interrupted">

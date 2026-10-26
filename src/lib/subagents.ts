@@ -26,11 +26,7 @@ export function count(subs: Subagent[], waiting: Set<string | undefined>) {
   return out
 }
 
-export function summary(subs: Subagent[], waiting: Set<string | undefined>) {
+export function tally(subs: Subagent[], waiting: Set<string | undefined>) {
   const c = count(subs, waiting)
-  const parts = [`${subs.length} subagent${subs.length > 1 ? 's' : ''}`]
-  if (c.done) parts.push(`${c.done} done`)
-  else if (c.running) parts.push(`${c.running} running`)
-  if (c.error) parts.push(`${c.error} failed`)
-  return parts.join(' · ')
+  return LOOKS.filter((look) => c[look]).map((look) => ({ look, text: `${c[look]} ${look === 'waiting' ? 'waiting' : LABEL[look]}` }))
 }

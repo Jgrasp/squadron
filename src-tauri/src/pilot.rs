@@ -15,7 +15,8 @@ These tools act on Squadron itself: its projects and agents, the Kanban cards, a
 When the user asks to change Squadron (move or hide a button, add a card, start an agent), use these tools and never edit Squadron's source code. \
 You can prepare and start new agents as the user would, and send an instruction to another agent with message_agent: the user approves each message. You never answer another agent's questions or permission requests in the user's place. \
 When you start working in a git worktree that you entered yourself (a script, git worktree add, cd), call set_worktree so Squadron shows its branch. \
-To start an agent in a worktree a script made, pass its path to start_agent.";
+To start an agent in a worktree a script made, pass its path to start_agent. \
+During a long task made of many items, show where you are on your card with set_progress.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -128,6 +129,19 @@ struct SetLayout {
     order: Option<Vec<String>>,
     /// The item ids to hide; the others are shown. Omit to keep the visibility.
     hidden: Option<Vec<String>>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SetProgress {
+    /// How many items are done so far, from 0 to total.
+    done: Option<u32>,
+    /// How many items there are in all. Leave it out to remove the bar.
+    total: Option<u32>,
+    /// A short line shown with the bar, such as \"60/80 tasks processed\". done/total when left empty.
+    message: Option<String>,
+    /// above or below: where the message goes, above the bar by default.
+    place: Option<String>,
 }
 
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
@@ -243,6 +257,16 @@ impl Pilot {
         Parameters(args): Parameters<SetWorktree>,
     ) -> String {
         self.forward(&parts, "set_worktree", json!(args)).await
+    }
+
+    /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps.
+    #[tool]
+    async fn set_progress(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<SetProgress>,
+    ) -> String {
+        self.forward(&parts, "set_progress", json!(args)).await
     }
 
     /// Adds a comment to the user's draft review of the pull request you were asked to review, on a line the diff shows or, without path and line, on the whole pull request. The user reads, edits and posts the review: nothing reaches Bitbucket or GitHub without them.
@@ -497,6 +521,30 @@ mod tests {
             imported.args["session"],
             "271982a4-ba81-4f9b-ac49-2c87f1ef6e88"
         );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_shows_its_progress_on_its_card() {
+        let calls = drive_in(
+            "haiku",
+            "Count the lines of each of the 4 files in this folder, one file at a time, and keep the progress on your Squadron card up to date, with a message under the bar. Remove the bar once you are done.",
+            |_| "Done.".to_string(),
+            |dir| {
+                for i in 1..=4 {
+                    std::fs::write(dir.join(format!("part{i}.txt")), "a\nb\n".repeat(i)).unwrap();
+                }
+            },
+        )
+        .await;
+        let progress: Vec<_> = calls.iter().filter(|c| c.tool == "set_progress").collect();
+        assert!(progress.len() >= 3, "too few updates");
+        assert!(
+            progress
+                .iter()
+                .any(|c| c.args["total"] == 4 && c.args["place"] == "below")
+        );
+        assert!(progress.last().unwrap().args["total"].is_null());
     }
 
     #[tokio::test(flavor = "multi_thread")]

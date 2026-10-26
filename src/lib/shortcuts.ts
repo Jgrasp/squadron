@@ -1,4 +1,4 @@
-export type Action = 'newAgent' | 'jump' | 'kanban' | 'editor' | 'terminal' | 'diff' | 'sidebar' | 'interrupt' | 'quit'
+export type Action = 'newAgent' | 'jump' | 'kanban' | 'editor' | 'terminal' | 'diff' | 'sidebar' | 'interrupt' | 'back' | 'forward' | 'quit'
 
 export const ACTIONS: [Action, string, string][] = [
   ['newAgent', 'New agent', 'Ctrl+N'],
@@ -9,6 +9,8 @@ export const ACTIONS: [Action, string, string][] = [
   ['diff', 'Diff panel', 'Ctrl+D'],
   ['sidebar', 'Fold the agent list', 'Ctrl+B'],
   ['interrupt', 'Interrupt the agent', 'Escape'],
+  ['back', 'Back to the previous view', 'Alt+ArrowLeft'],
+  ['forward', 'Forward to the next view', 'Alt+ArrowRight'],
   ['quit', 'Quit Squadron', 'Ctrl+Q'],
 ]
 
@@ -29,4 +31,4 @@ export const pressed = (e: Keys, keys: Record<string, string>) => {
   return value ? ACTIONS.find(([id]) => binding(keys, id) === value)?.[0] : undefined
 }
 
-export const label = (value: string) => value.replaceAll('+', ' ')
+export const label = (value: string) => value.replaceAll('+', ' ').replace('ArrowLeft', '←').replace('ArrowRight', '→')

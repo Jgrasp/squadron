@@ -61,6 +61,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
         waiting_for_user: a.attention || undefined,
         doing: a.status === 'working' ? a.action : undefined,
         cost_usd: Math.round(a.cost * 100) / 100,
+        progress: a.progress ? `${a.progress.done}/${a.progress.total}${a.progress.message ? ` · ${a.progress.message}` : ''}` : undefined,
         tasks: a.tasks.length ? `${a.tasks.filter((t) => t.status === 'completed').length}/${a.tasks.length}` : undefined,
         goal: goalOf(a),
       })),
@@ -151,6 +152,22 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     await invoke('set_workdir', { id: target.id, dir: path })
     persist(target)
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
+  },
+
+  set_progress: (caller, args) => {
+    if (args.total === null || args.total === undefined) {
+      caller.progress = null
+      persist(caller)
+      return 'Progress bar removed from your card.'
+    }
+    const total = Number(args.total)
+    const done = Number(args.done ?? 0)
+    if (!Number.isFinite(total) || total <= 0) throw new Error('total must be a number above 0.')
+    if (!Number.isFinite(done) || done < 0 || done > total) throw new Error(`done must be between 0 and ${total}.`)
+    const place = pick<'above' | 'below'>(args.place, ['above', 'below'], 'above', 'place')
+    caller.progress = { done, total, message: String(args.message ?? '').trim(), place }
+    persist(caller)
+    return `Your card shows ${done}/${total}. Call set_progress again as the work moves on, or without total to remove it.`
   },
 
   message_agent: async (caller, args) => {

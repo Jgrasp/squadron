@@ -2,7 +2,6 @@
   import { ask } from '@tauri-apps/plugin-dialog'
   import { ui } from './actions.svelte'
   import { archived, forget, unarchive, type Archived } from './agents.svelte'
-  import { cost } from './format'
   import { home, projects } from './projects.svelte'
 
   let list = $state<Archived[] | null>(null)
@@ -51,7 +50,7 @@
     <li>
       <span class="who">
         <strong>{a.name}</strong>
-        <small>{project?.name ?? home(a.project)} · archived {when(a.archived)} · {cost(a.cost)}</small>
+        <small>{project?.name ?? home(a.project)} · archived {when(a.archived)}</small>
       </span>
       <button class="btn btn-secondary" disabled={!project} title={project ? `Back to ${project.name}` : 'Its project was removed'} onclick={() => restore(a)}>Restore</button>
       <button class="remove" onclick={() => remove(a)}>Delete</button>

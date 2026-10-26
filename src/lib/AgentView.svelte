@@ -5,7 +5,7 @@
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
-  import { ago, cost, meta, modelLabel, time, tokens } from './format'
+  import { ago, meta, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard, togglePulls } from './projects.svelte'
@@ -64,7 +64,7 @@
   let railHeight = $state(0)
   const buckets = $derived.by(() => {
     const n = users.length
-    const count = Math.max(1, Math.min(n, Math.floor(railHeight / 7)))
+    const count = n * 10 <= railHeight ? n : Math.max(1, Math.floor(railHeight / 16))
     return n ? Array.from({ length: count }, (_, b) => ({ from: Math.floor((b * n) / count), to: Math.floor(((b + 1) * n) / count) - 1 })) : []
   })
   let earlier = $state<HTMLElement>()
@@ -257,7 +257,7 @@
         ? 'What should change in the plan…'
         : pending
           ? `Deny with an instruction for ${agent.name}…`
-          : agent.status === 'working'
+          : agent.status === 'working' && !agent.held
             ? 'Add an instruction, read once the current action ends…'
             : agent.status === 'interrupted'
               ? 'New instruction, or “continue” to resume'
@@ -327,11 +327,13 @@
     if (el) scroller.scrollTo({ top: Math.max(0, el.offsetTop - 18), behavior: 'smooth' })
   }
 
-  function hover(i: number, event: Event) {
-    hovered = i
-    const mark = (event.currentTarget as HTMLElement).getBoundingClientRect()
-    const rail = (event.currentTarget as HTMLElement).closest('nav')!.getBoundingClientRect()
-    tooltipTop = mark.top - rail.top + mark.height / 2
+  function hover(bucket: { from: number; to: number }, event: Event) {
+    const target = event.currentTarget as HTMLElement
+    const mark = target.getBoundingClientRect()
+    const rail = target.closest('nav')!.getBoundingClientRect()
+    const y = event instanceof MouseEvent ? Math.min(Math.max(event.clientY, mark.top), mark.bottom - 1) : mark.top + mark.height / 2
+    hovered = event instanceof MouseEvent ? bucket.from + Math.floor(((y - mark.top) / mark.height) * (bucket.to - bucket.from + 1)) : bucket.from
+    tooltipTop = y - rail.top
   }
 
   function bottom() {
@@ -532,8 +534,6 @@
                   {meta(agent)}
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
-              {:else if id === 'cost'}
-                <span class="mono">{cost(agent.cost)}</span>
               {:else if id === 'context'}
                 <span class="mono">{tokens(agent.tokens)} context tokens</span>
               {:else if id === 'turns'}
@@ -704,7 +704,7 @@
                 data-item={id}
                 onclick={() => toggle('subagents')}
               >
-                <Icon name="subagents" size={16} />{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}<span class="go" aria-hidden="true">›</span>
+                <Icon name="subagents" size={16} />{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}{#if running}<span class="live">{running} running</span>{/if}<span class="go" aria-hidden="true">›</span>
               </button>
             {/if}
           {/each}
@@ -715,28 +715,25 @@
     <div class="middle">
       {#if users.length}
         <nav class="rail" aria-label="Conversation landmarks">
-          <div class="marks" bind:clientHeight={railHeight}>
+          <div class="marks" class:grouped={buckets.length < users.length} bind:clientHeight={railHeight}>
             {#each buckets as bucket, i (i)}
               <button
                 aria-label="Go to message {bucket.from + 1}: {users[bucket.from].text.slice(0, 80)}"
                 aria-current={active >= bucket.from && active <= bucket.to ? 'true' : undefined}
-                onclick={() => jump(bucket.from)}
-                onmouseenter={(e) => hover(i, e)}
+                onclick={() => jump(hovered >= bucket.from && hovered <= bucket.to ? hovered : bucket.from)}
+                onmousemove={(e) => hover(bucket, e)}
                 onmouseleave={() => (hovered = -1)}
-                onfocus={(e) => hover(i, e)}
+                onfocus={(e) => hover(bucket, e)}
                 onblur={() => (hovered = -1)}
               >
                 <span></span>
               </button>
             {/each}
           </div>
-          {#if buckets[hovered]}
-            {@const bucket = buckets[hovered]}
+          {#if users[hovered]}
             <div class="tooltip" role="tooltip" style:top="{tooltipTop}px">
-              <small
-                >{bucket.to > bucket.from ? `Messages ${bucket.from + 1} to ${bucket.to + 1}` : `Message ${bucket.from + 1}`} · {time(users[bucket.from].at)}</small
-              >
-              <span>{users[bucket.from].text}</span>
+              <small>Message {hovered + 1} of {users.length} · {time(users[hovered].at)}</small>
+              <span>{users[hovered].text}</span>
             </div>
           {/if}
         </nav>
@@ -1045,6 +1042,10 @@
     border-radius: 3px;
   }
 
+  .marks.grouped button {
+    flex: 1 1 0;
+  }
+
   .rail button:hover {
     background: var(--menu);
   }
@@ -1215,6 +1216,12 @@
   .chip.subagents {
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .chip.subagents .live {
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--sub-running);
   }
 
   .chip.effect-snake {

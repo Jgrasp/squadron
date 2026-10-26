@@ -56,7 +56,7 @@ export type Subagent = {
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
@@ -116,6 +116,7 @@ export type Agent = {
   alive: boolean
   processCost: number
   interrupting: boolean
+  held: boolean
   asks: Ask[]
   allowEdits: boolean
   sessionId: string | null
@@ -131,6 +132,7 @@ export type Agent = {
   subagents: Subagent[]
   goal: Goal | null
   worktree: { path: string; branch: string } | null
+  progress?: { done: number; total: number; message: string; place: 'above' | 'below' } | null
   pinned?: boolean
   unread?: boolean
   review?: { project: string; number: number; base?: string }
@@ -158,6 +160,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     alive: false,
     processCost: 0,
     interrupting: false,
+    held: false,
     asks: [],
     allowEdits: false,
     sessionId: null,
@@ -246,6 +249,7 @@ export function userMessage(agent: Agent, text: string, comments: Comment[] = []
   })
   agent.attention = ''
   if (!agent.alive) agent.processCost = 0
+  agent.held = false
   agent.status = 'working'
   agent.action = 'Starting…'
   agent.since = Date.now()
@@ -300,11 +304,35 @@ function subagentEvent(agent: Agent, d: Json) {
   }
   if (d.subtype === 'task_progress' && d.description) sub.last = String(d.description)
   const status = SETTLED[d.subtype === 'task_updated' ? d.patch?.status : d.subtype === 'task_notification' ? d.status : '']
-  if (status) {
+  if (status && sub.status === 'running') {
     sub.status = status
     sub.ended ??= d.patch?.end_time ?? Date.now()
+    if (agent.held) settled(agent, status)
   }
   if (d.subtype === 'task_notification' && d.summary) sub.result = String(d.summary)
+}
+
+export const running = (agent: Agent) => agent.subagents.filter((s) => s.status === 'running').length
+
+export const waitingOn = (n: number) => `Waiting for ${n} subagent${n > 1 ? 's' : ''}…`
+
+function settled(agent: Agent, status: Subagent['status']) {
+  const left = running(agent)
+  if (left) return act(agent, waitingOn(left))
+  agent.held = false
+  agent.since = Date.now()
+  if (agent.interrupting) interrupted(agent)
+  else if (status === 'stopped') {
+    agent.status = 'done'
+    agent.action = ''
+  } else act(agent, 'Reading what the subagents handed back…')
+}
+
+function interrupted(agent: Agent, used: Usage = { cost: 0, input: 0, output: 0, ms: 0 }) {
+  agent.interrupting = false
+  agent.status = 'interrupted'
+  agent.action = 'Interrupted · waiting for your instruction'
+  agent.entries.push({ kind: 'interrupted', at: Date.now(), ...used })
 }
 
 function textOf(content: unknown): string {
@@ -356,8 +384,10 @@ export function apply(agent: Agent, d: Json) {
       if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
       if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
         agent.attention = String(d.needs_action || d.status_detail || 'Waiting for you')
-      if (d.subtype === 'status' && d.status === 'requesting' && agent.status !== 'waiting')
-        agent.status = 'working'
+      if (d.subtype === 'status' && d.status === 'requesting') {
+        agent.held = false
+        if (agent.status !== 'waiting') agent.status = 'working'
+      }
       return
     case 'control_response':
       if (d.response?.response?.session_url)
@@ -517,6 +547,11 @@ function relaunched(agent: Agent, text: string) {
 export const notice = (text: string) => /^<task-notification>\s*([\s\S]*?)\s*<\/task-notification>$/.exec(text.trim())?.[1]
 
 function remoteMessage(agent: Agent, d: Json) {
+  if (d.origin?.handback) {
+    const sub = agent.subagents.find((s) => s.task === d.origin.senderTaskId)
+    if (sub && d.origin.handbackReportText) sub.result = String(d.origin.handbackReportText)
+    return
+  }
   const text = textOf(d.message?.content).trim()
   if (!text) return
   const inside = notice(text)
@@ -562,17 +597,16 @@ function result(agent: Agent, d: Json) {
   const used = usage(d, cost)
   agent.cost += cost
   agent.since = Date.now()
-  if (agent.interrupting) {
-    agent.interrupting = false
-    agent.status = 'interrupted'
-    agent.action = 'Interrupted · waiting for your instruction'
-    agent.entries.push({ kind: 'interrupted', at: Date.now(), ...used })
-  } else if (d.is_error) {
+  if (agent.interrupting) interrupted(agent, used)
+  else if (d.is_error) {
     const message = String(d.result ?? ((d.errors ?? []).join('\n') || d.subtype))
     fail(agent, message || 'The session stopped.')
   } else {
-    agent.status = agent.goal?.state === 'sent' ? 'working' : 'done'
-    agent.action = agent.goal?.state === 'sent' ? 'Starting the goal…' : ''
+    const left = running(agent)
+    const goal = agent.goal?.state === 'sent'
+    agent.held = !goal && left > 0
+    agent.status = goal || left ? 'working' : 'done'
+    agent.action = goal ? 'Starting the goal…' : left ? waitingOn(left) : ''
     if (agent.goal?.state === 'active') {
       agent.goal.state = 'met'
       agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'ok', title: 'Goal met', detail: agent.goal.condition })
@@ -587,6 +621,7 @@ export function fail(agent: Agent, message: string) {
   agent.asks = []
   agent.status = 'error'
   agent.interrupting = false
+  agent.held = false
   agent.attention = message.split('\n')[0] || 'Error'
   agent.since = Date.now()
   const missing = message === 'claude-not-found'
@@ -599,13 +634,10 @@ export function exited(agent: Agent, stderr: string) {
   agent.alive = false
   agent.remote = null
   agent.asks = []
+  agent.held = false
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
-  if (agent.interrupting) {
-    agent.interrupting = false
-    agent.status = 'interrupted'
-    agent.action = 'Interrupted · waiting for your instruction'
-    agent.entries.push({ kind: 'interrupted', at: Date.now(), cost: 0, input: 0, output: 0, ms: 0 })
-  } else if (agent.status === 'working' || agent.status === 'waiting') {
+  if (agent.interrupting) interrupted(agent)
+  else if (agent.status === 'working' || agent.status === 'waiting') {
     fail(agent, stderr.trim() || 'The session stopped while the agent was replying.')
   }
 }
@@ -617,6 +649,8 @@ export function reloaded(agent: Agent) {
   agent.processCost = 0
   agent.alive = true
   agent.interrupting = false
+  agent.held = false
+  for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   if (agent.status !== 'done') {
     agent.status = 'done'
     agent.action = 'Session reloaded'

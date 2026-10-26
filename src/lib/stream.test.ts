@@ -6,6 +6,8 @@ import tasks from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
+import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
+import backgroundInterrupt from '../../src-tauri/tests/fixtures/background_interrupt.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
@@ -248,6 +250,39 @@ describe('stream', () => {
     expect(second.log.some((b) => b.type === 'tools' && b.calls[0].result)).toBe(true)
     expect(calls(agent).map((c) => c.id)).toContain(bash.id)
     expect(agent.status).toBe('done')
+  })
+
+  it('keeps the agent working while a background subagent runs after its turn', () => {
+    const agent = fresh()
+    const lines = background.trim().split('\n')
+    const turn = lines.findIndex((l) => JSON.parse(l).type === 'result')
+    for (const line of lines.slice(0, turn + 1)) apply(agent, JSON.parse(line))
+    expect(agent.subagents.map((s) => [s.background, s.status])).toEqual([[true, 'running']])
+    expect(agent.status).toBe('working')
+    expect(agent.action).toBe('Waiting for 1 subagent…')
+
+    const settled = lines.findIndex((l) => l.includes('"subtype":"task_updated"'))
+    for (const line of lines.slice(turn + 1, settled + 1)) apply(agent, JSON.parse(line))
+    expect(agent.subagents[0].status).toBe('done')
+    expect(agent.status).toBe('working')
+
+    for (const line of lines.slice(settled + 1)) apply(agent, JSON.parse(line))
+    expect(agent.status).toBe('done')
+    expect(agent.subagents[0].result).toBe('DONE')
+    expect(agent.entries.filter((e) => e.kind === 'user' && e.text.includes('Another Claude session'))).toHaveLength(0)
+  })
+
+  it('interrupts an agent that only waits for its background subagents', () => {
+    const agent = fresh()
+    const lines = backgroundInterrupt.trim().split('\n')
+    const turn = lines.findIndex((l) => JSON.parse(l).type === 'result')
+    for (const line of lines.slice(0, turn + 1)) apply(agent, JSON.parse(line))
+    expect(agent.status).toBe('working')
+    agent.interrupting = true
+    for (const line of lines.slice(turn + 1)) apply(agent, JSON.parse(line))
+    expect(agent.subagents[0].status).toBe('stopped')
+    expect(agent.status).toBe('interrupted')
+    expect(agent.interrupting).toBe(false)
   })
 
   it('keeps the summary of the thinking', () => {

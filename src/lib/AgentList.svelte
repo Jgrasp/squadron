@@ -1,7 +1,7 @@
 <script lang="ts">
   import { ask } from '@tauri-apps/plugin-dialog'
   import { agents, archive, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail } from './agents.svelte'
-  import { ago, cost, short } from './format'
+  import { ago, short } from './format'
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
   import { home, type Project } from './projects.svelte'
@@ -11,7 +11,7 @@
   import PullTag from './PullTag.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
-  import { asking, count, LOOKS, summary } from './subagents'
+  import { asking, count, tally } from './subagents'
 
   let {
     project,
@@ -101,6 +101,7 @@
     }
     return [...all.filter((a) => a.pinned), ...all.filter((a) => !a.pinned)]
   })
+  const pinned = $derived(list.filter((a) => a.pinned).length)
 
   function drop(id: string, index: number) {
     const ids = list.map((a) => a.id).filter((a) => a !== id)
@@ -109,7 +110,6 @@
     if (sort.by !== 'none') setSort(project.path, { by: 'none' })
   }
   const pending = $derived(waiting(project.path))
-  const total = $derived(list.reduce((sum, a) => sum + a.cost, 0))
 
   const blocked = (agent: Agent) => !!agent.attention && agent.status !== 'working' && agent.status !== 'error' && !agent.asks.length
   const look = (agent: Agent) => (blocked(agent) ? 'waiting' : agent.status)
@@ -150,7 +150,6 @@
       <span class="name">{agent.name}</span>
       {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
     {/if}
-    <span class="cost">{cost(agent.cost)}</span>
   </span>
   <span class="state">{label(agent)}</span>
   <PullTag {agent} />
@@ -160,6 +159,15 @@
     <span class="detail">{waitingDetail(agent)}</span>
   {:else if blocked(agent)}
     <span class="detail">{agent.attention}</span>
+  {/if}
+  {#if agent.progress}
+    {@const { done, total, message, place } = agent.progress}
+    <span class="reported {place}">
+      <span class="bar" role="progressbar" aria-valuemin={0} aria-valuemax={total} aria-valuenow={done} aria-label={message || 'Progress'}
+        ><span style:width="{(done / total) * 100}%"></span></span
+      >
+      <span class="message">{message || `${done}/${total}`}</span>
+    </span>
   {/if}
   {#if agent.tasks.length && agent.status !== 'done'}
     {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
@@ -173,10 +181,8 @@
     {@const counts = count(agent.subagents, waiting)}
     {#if counts.running || counts.waiting}
       <span class="subagents">
-        <span class="segments" aria-hidden="true">
-          {#each LOOKS as look (look)}{#if counts[look]}<span class={look} style:flex={counts[look]}></span>{/if}{/each}
-        </span>
-        <span class="count">{summary(agent.subagents, waiting)}</span>
+        <span>{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}</span>
+        {#each tally(agent.subagents, waiting) as part (part.look)}<span class="part"><span class="dot {part.look}" aria-hidden="true"></span>{part.text}</span>{/each}
       </span>
     {/if}
   {/if}
@@ -211,8 +217,9 @@
     <button class="add" aria-label="New agent" title="New agent ({hint('newAgent')})" disabled={!project.exists} onclick={onnew}>+</button>
     <span class="sep" aria-hidden="true"></span>
     <div class="tiles" use:sortable={{ enabled: list.length > 1, onplace: drop }}>
-      {#each list as agent (agent.id)}
+      {#each list as agent, i (agent.id)}
         {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
+        {#if pinned && i === pinned}<span class="sep pins" aria-hidden="true"></span>{/if}
         <button
           class="tile {look(agent)}"
           data-item={agent.id}
@@ -227,7 +234,9 @@
         >
           {short(agent.name)}
           <span class="marker"><StatusIcon status={look(agent)} /></span>
-          {#if agent.tasks.length}
+          {#if agent.progress}
+            <span class="fill" style:width="{(agent.progress.done / agent.progress.total) * 100}%"></span>
+          {:else if agent.tasks.length}
             <span class="fill" style:width="{(done / agent.tasks.length) * 100}%"></span>
           {/if}
         </button>
@@ -313,7 +322,8 @@
 
   {#if list.length}
     <div class="list" use:sortable={{ enabled: list.length > 1 && !editing, onplace: drop }}>
-      {#each list as agent (agent.id)}
+      {#each list as agent, i (agent.id)}
+        {#if pinned && i === pinned}<span class="divider" aria-hidden="true"></span>{/if}
         {#if editing === agent.id}
           <div class="agent {look(agent)}" data-item={agent.id} aria-current={agent.id === current?.id ? 'true' : undefined}>
             {@render card(agent)}
@@ -340,7 +350,7 @@
         ><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" stroke-dasharray="3 3" /></svg
       >
       {project.exists
-        ? `${project.name} agents will show up here, with their state and cost.`
+        ? `${project.name} agents will show up here, with their state.`
         : 'You can create agents once the folder is found again.'}
     </div>
   {/if}
@@ -348,7 +358,6 @@
   <div class="info">
     <span class="mono">{home(project.path)}</span>
     <span>{project.git ? `Git · ${project.branch ?? 'repository'}` : 'No Git repository'}</span>
-    <span>Project cost · {cost(total)}</span>
   </div>
 </aside>
 {/if}
@@ -556,6 +565,12 @@
     padding: 2px 4px;
   }
 
+  .divider {
+    flex: none;
+    margin: 4px 14px;
+    border-top: 1px dashed var(--border-dashed);
+  }
+
   .agent {
     display: flex;
     flex-direction: column;
@@ -670,10 +685,17 @@
   }
 
   .sep {
+    flex: none;
     width: 28px;
     height: 1px;
     margin: 2px 0;
     background: var(--border);
+  }
+
+  .sep.pins {
+    height: 0;
+    background: none;
+    border-top: 1px dashed var(--border-dashed);
   }
 
   .tiles {
@@ -820,15 +842,6 @@
     color: var(--wait-text);
   }
 
-  .cost {
-    font: 12px var(--mono);
-    color: var(--text-dim);
-  }
-
-  .waiting .cost {
-    color: #ddbba8;
-  }
-
   .state,
   .detail {
     padding-left: 18px;
@@ -868,37 +881,41 @@
 
   .subagents {
     display: flex;
-    flex-direction: column;
-    gap: 5px;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
     padding: 2px 0 0 18px;
+    font: 11.5px var(--sans);
+    color: var(--text-dim);
   }
 
-  .segments {
-    display: flex;
+  .subagents .part {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .subagents .dot {
+    width: 6px;
     height: 6px;
-    border-radius: 2px;
-    overflow: hidden;
-    background: var(--surface-3);
+    border-radius: 50%;
+    background: var(--sub-stopped);
   }
 
-  .segments .running {
+  .subagents .dot.running {
     background: var(--sub-running);
   }
 
-  .segments .waiting {
+  .subagents .dot.waiting {
     background: var(--sub-waiting);
   }
 
-  .segments .error {
+  .subagents .dot.error {
     background: var(--sub-error);
   }
 
-  .segments .done {
+  .subagents .dot.done {
     background: var(--sub-done);
-  }
-
-  .segments .stopped {
-    background: var(--sub-stopped);
   }
 
   .progress {
@@ -929,6 +946,29 @@
 
   .waiting .bar span {
     background: var(--accent);
+  }
+
+  .reported {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    padding: 2px 0 0 18px;
+  }
+
+  .reported.above {
+    flex-direction: column-reverse;
+  }
+
+  .reported .bar {
+    flex: none;
+  }
+
+  .message {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--text-2);
   }
 
   .count {

@@ -265,6 +265,8 @@
   let body = $state<HTMLElement>()
   let spot = $state('')
   let folded = $state<string[]>([])
+  let wholes = $state<string[]>([])
+  const toggleWhole = (path: string) => (wholes = wholes.includes(path) ? wholes.filter((p) => p !== path) : [...wholes, path])
 
   let steered = 0
 
@@ -685,6 +687,9 @@
               {/if}
               <span class="path">{f.path}</span>
               <span class="stat"><span class="add">+{f.add}</span>{#if f.del}&nbsp;<span class="del">−{f.del}</span>{/if}</span>
+              {#if open && patch && typeof patch === 'object' && 'status' in patch && patch.status === 'MODIFIED' && !patch.binary && patch.hunks.length}
+                <button class="whole" aria-pressed={wholes.includes(f.path)} onclick={() => toggleWhole(f.path)}>Whole file</button>
+              {/if}
             </div>
             {#if open}
               {#if !patch || patch === 'loading'}
@@ -714,8 +719,11 @@
                   <DiffView
                     hunks={patch.hunks}
                     split={layout.split}
+                    content={() => invoke<string | null>('git_file', { project: folder, rev: source!.now, path: f.path })}
+                    whole={wholes.includes(f.path)}
                     oncomment={(line) => openAt(f.path, line)}
                     commentRemoved={!onlyNew}
+                    commentRevealed={false}
                     marked={markedFor(f.path)}
                     open={commenting?.path === f.path ? commenting : null}
                     {editor}
@@ -742,6 +750,9 @@
                   ? `${selected.edits} edit${selected.edits > 1 ? 's' : ''} by ${agent?.name}`
                   : `Not edited by ${agent?.name}`}</span
             >
+            {#if shown && !proposing && shown.status === 'MODIFIED' && !shown.binary && shown.hunks.length}
+              <button class="whole" aria-pressed={wholes.includes(selected.path)} onclick={() => toggleWhole(selected.path)}>Whole file</button>
+            {/if}
           </div>
           {#if outside.length}
             <div class="outside">
@@ -765,6 +776,12 @@
             <DiffView
               hunks={shown.hunks}
               split={layout.split}
+              content={proposing
+                ? undefined
+                : source
+                  ? () => invoke<string | null>('git_file', { project: folder, rev: source.now, path: selected.path })
+                  : () => invoke<string | null>('read_project_file', { project: folder, path: selected.path })}
+              whole={!proposing && wholes.includes(selected.path)}
               oncomment={proposing || (!agent && !reviewing) ? undefined : open}
               {marked}
               open={commenting?.path === selected.path ? commenting : null}
@@ -1421,6 +1438,25 @@
   .stat {
     flex: none;
     font: 12px var(--mono);
+  }
+
+  .whole {
+    flex: none;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-dim);
+    font-size: 11.5px;
+  }
+
+  .whole:hover {
+    color: var(--text-strong);
+  }
+
+  .whole[aria-pressed='true'] {
+    background: var(--surface-3);
+    color: var(--text-strong);
   }
 
   .ahead {

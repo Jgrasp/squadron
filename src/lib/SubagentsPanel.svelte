@@ -1,6 +1,6 @@
 <script lang="ts">
   import { clock } from './agents.svelte'
-  import { cost, tokens } from './format'
+  import { tokens } from './format'
   import SidePanel from './SidePanel.svelte'
   import SubagentLog from './SubagentLog.svelte'
   import type { Agent, Subagent } from './stream'
@@ -132,7 +132,7 @@
           >
             <span class="dot {look}"></span>
             <span class="num">#{s.num}</span>
-            <span class="name">{s.name}</span>
+            <span class="name">{s.name}{#if s.background}<small class="bg" title="Runs in the background while {agent.name} goes on">background</small>{/if}</span>
             <span class="last">{doing(s, look)}</span>
             <span class="right">{elapsed(s)}</span>
             <span class="right">{tokens(s.tokens)}</span>
@@ -143,7 +143,7 @@
   </div>
 
   <div class="foot">
-    <span class="totals">{subs.length} subagents · {tokens(total)} tokens <span>· included in the {cost(agent.cost)} of {agent.name}</span></span>
+    <span class="totals">{subs.length} subagents · {tokens(total)} tokens</span>
     {#if failed.length}
       <button class="relaunch" title="Fills in a message to {agent.name}" onclick={relaunch}>Ask to relaunch the {failed.length} failed</button>
     {/if}
@@ -361,6 +361,12 @@
 
   .name {
     font-weight: 500;
+  }
+
+  .bg {
+    margin-left: 7px;
+    font: 500 11px var(--mono);
+    color: var(--text-dim);
   }
 
   .row.waiting .name,

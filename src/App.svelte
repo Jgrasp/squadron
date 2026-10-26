@@ -9,11 +9,12 @@
   import ProjectView from './lib/ProjectView.svelte'
   import Settings from './lib/SettingsDialog.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
-  import { agents, archiveIdle, create, find, loadToday, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
+  import { agents, archiveIdle, create, find, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
   import { setPanel } from './lib/layout.svelte'
+  import { trackHistory } from './lib/history.svelte'
   import './lib/pilot.svelte'
   import Board from './lib/Board.svelte'
   import { follow, mirror, type Actions } from './lib/board'
@@ -72,10 +73,10 @@
 
   loadSettings()
   loadLayout()
-  loadToday()
   load()
     .then(() => restore())
     .then(() => {
+      trackHistory()
       archiveIdle()
       setInterval(() => (rescan(), archiveIdle()), 15_000)
       lookForUpdate()

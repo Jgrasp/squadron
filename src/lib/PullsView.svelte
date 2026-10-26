@@ -1,9 +1,10 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { ask } from '@tauri-apps/plugin-dialog'
   import { agents, clock, find, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { hostName, lists, lookUpLists, moved, progress, pulls, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pulls, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
@@ -38,6 +39,34 @@
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
+
+  let busy = $state<{ number: number; doing: 'approve' | 'merge' } | null>(null)
+  let failure = $state('')
+
+  async function act(pull: Pull, doing: 'approve' | 'merge', work: () => Promise<unknown>) {
+    busy = { number: pull.number, doing }
+    failure = ''
+    try {
+      await work()
+      await lookUpLists(project.path, true)
+    } catch (e) {
+      failure = `#${pull.number}: ${e}`
+    } finally {
+      busy = null
+    }
+  }
+
+  const approvable = (pull: Pull) => pull.reviewed !== 'approved' || moved(project.path, pull)
+
+  async function mergeIt(pull: Pull) {
+    const confirmed = await ask(`Merge #${pull.number} “${pull.title}” into ${pull.base} on ${hostName(pull)}?`, {
+      title: 'Merge pull request',
+      kind: 'warning',
+      okLabel: 'Merge',
+      cancelLabel: 'Cancel',
+    })
+    if (confirmed) await act(pull, 'merge', () => merge(project.path, pull))
+  }
 
   async function refresh() {
     refreshing = true
@@ -98,6 +127,14 @@
     </div>
   {/if}
 
+  {#if failure}
+    <div class="flash bad" role="alert">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="grow">{failure}</span>
+      <button class="close" aria-label="Hide this message" title="Hide" onclick={() => (failure = '')}>×</button>
+    </div>
+  {/if}
+
   <div class="scroll">
     {#if !found}
       <p class="empty">Looking for pull requests…</p>
@@ -117,6 +154,12 @@
             {@render about(pull)}
             <div class="actions">
               <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+              {#if approvable(pull)}
+                <button class="btn btn-secondary" disabled={!!busy} onclick={() => act(pull, 'approve', () => approve(project.path, pull))}>
+                  {busy?.number === pull.number && busy.doing === 'approve' ? 'Approving…' : 'Approve'}
+                </button>
+              {/if}
+              {@render merging(pull, 'btn-secondary')}
               <button
                 class="btn {waitsFor(project.path, pull) ? 'btn-primary' : 'btn-secondary'}"
                 aria-pressed={opened?.number === pull.number}
@@ -141,6 +184,7 @@
             <div class="actions">
               {#if agent}<button class="btn btn-secondary" title="The agent working on {pull.branch}" onclick={() => show(agent)}>{agent.name}</button>{/if}
               <button class="btn btn-secondary open" onclick={() => invoke('open_link', { url: pull.url })}>Open on {hostName(pull)}</button>
+              {@render merging(pull, 'btn-primary')}
             </div>
           </article>
         {:else}
@@ -172,6 +216,14 @@
   {/key}
 {/if}
 </div>
+
+{#snippet merging(pull: Pull, kind: string)}
+  {#if pull.mergeable}
+    <button class="btn {kind}" title="Merge into {pull.base}" disabled={!!busy} onclick={() => mergeIt(pull)}>
+      {busy?.number === pull.number && busy.doing === 'merge' ? 'Merging…' : 'Merge'}
+    </button>
+  {/if}
+{/snippet}
 
 {#snippet about(pull: Pull)}
   <span class="author" title="By {pull.author}"><Avatar name={pull.author} src={pull.author_avatar} size={30} /></span>
@@ -284,6 +336,16 @@
     box-shadow: inset 0 0 0 1px var(--ok-line);
     font-size: 13px;
     color: var(--ok-text);
+  }
+
+  .flash.bad {
+    background: var(--err-bg);
+    box-shadow: inset 0 0 0 1px var(--err-border);
+    color: var(--err-text);
+  }
+
+  .flash.bad .dot {
+    background: var(--err);
   }
 
   .flash .dot {
@@ -523,6 +585,12 @@
   .empty {
     margin: 0;
     color: var(--text-dim);
+  }
+
+  @container (max-width: 1000px) {
+    .open {
+      display: none;
+    }
   }
 
   @container (max-width: 760px) {

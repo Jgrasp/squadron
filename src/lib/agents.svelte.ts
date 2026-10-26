@@ -20,7 +20,9 @@ import {
   notice,
   prompt,
   reloaded,
+  running,
   userMessage,
+  waitingOn,
   type Agent,
   type Ask,
   type Comment,
@@ -31,26 +33,6 @@ import {
 export const agents = $state({ list: [] as Agent[], current: {} as Record<string, string> })
 
 export const clock = $state({ now: Date.now() })
-
-const dayOf = (at: number) => new Date(at).toLocaleDateString('sv')
-
-export const today = $state({ day: dayOf(Date.now()), usd: 0 })
-
-export function todayCost() {
-  return today.day === dayOf(clock.now) ? today.usd : 0
-}
-
-export async function loadToday() {
-  today.day = dayOf(Date.now())
-  today.usd = await invoke<number>('day_cost', { day: today.day })
-}
-
-async function spend(usd: number) {
-  const day = dayOf(Date.now())
-  const total = await invoke<number>('add_cost', { day, usd })
-  today.day = day
-  today.usd = total
-}
 
 export type Limit = { utilization: number; resetsAt: number }
 
@@ -136,7 +118,6 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const agent = find(payload.id)
   if (!agent) return
   const d = JSON.parse(payload.line)
-  const before = agent.cost
   const previous = agent.worktree
   const was = agent.status
   apply(agent, d)
@@ -156,7 +137,6 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
           persist(agent)
         })
   }
-  if (agent.cost > before) spend(agent.cost - before)
   if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
   if (agent.goal?.state === 'active' && agent.goal.relaunches >= GOAL_RELAUNCHES) {
     agent.goal.state = 'stopping'
@@ -183,7 +163,7 @@ export function persist(agent: Agent) {
 function save(agent: Agent, extra: Record<string, unknown> = {}) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
-  const { live, alive, processCost, interrupting, asks, ...kept } = $state.snapshot(agent)
+  const { live, alive, processCost, interrupting, held, asks, ...kept } = $state.snapshot(agent)
   const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
   return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents, ...extra }) })
 }
@@ -376,7 +356,7 @@ function waitFor(agent: Agent) {
   const ask = agent.asks[0]
   if (!ask) {
     agent.status = 'working'
-    agent.action = 'Resuming…'
+    agent.action = agent.held ? waitingOn(running(agent)) : 'Resuming…'
     agent.attention = ''
     return
   }

@@ -4,7 +4,6 @@ import type { Agent, Options } from './stream'
 
 const number = new Intl.NumberFormat('en-GB', { maximumFractionDigits: 1 })
 
-export const cost = (usd: number) => `$${usd.toFixed(usd > 0 && usd < 0.01 ? 3 : 2)}`
 
 export const tokens = (n: number) => (n < 1000 ? `${n}` : n < 1e6 ? `${number.format(n / 1000)}k` : `${number.format(n / 1e6)} M`)
 

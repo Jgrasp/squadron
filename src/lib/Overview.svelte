@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { agents, clock, ofProject, show, todayCost, waitingAgents, waitingDetail } from './agents.svelte'
-  import { ago, cost, modelLabel } from './format'
+  import { agents, clock, ofProject, show, waitingAgents, waitingDetail } from './agents.svelte'
+  import { ago, modelLabel } from './format'
   import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
   import PullTag from './PullTag.svelte'
@@ -72,7 +72,6 @@
       <span>
         Agents across all your projects{#if pending}&nbsp;· <strong>{pending} waiting for you</strong>{/if}{#if pullsWaiting}&nbsp;·
           <strong>{pullsWaiting} pull request{pullsWaiting > 1 ? 's' : ''} for you</strong>{/if}
-        · Today <span class="mono">{cost(todayCost())}</span>
       </span>
     </div>
     <label><input type="checkbox" bind:checked={finished} /> Show finished agents</label>
@@ -86,7 +85,6 @@
           <th scope="col">Agent</th>
           <th scope="col">Last action</th>
           <th scope="col">Progress</th>
-          <th scope="col">Cost</th>
           <th scope="col"><span class="sr-only">Actions</span></th>
         </tr>
       </thead>
@@ -94,12 +92,12 @@
         {@const waiting = group.all.filter((a) => a.attention).length}
         <tbody>
           <tr class="project">
-            <th scope="colgroup" colspan="6">
+            <th scope="colgroup" colspan="5">
               <span class="name"><span class="square" aria-hidden="true" style:background={group.project.color}></span>{group.project.name}</span>
               <span class="path">{home(group.project.path)}</span>
               <span class="meta">
                 {group.all.length
-                  ? `${group.all.length} agent${group.all.length > 1 ? 's' : ''}${waiting ? ` · ${waiting} waiting for you` : ''} · ${cost(group.all.reduce((s, a) => s + a.cost, 0))}`
+                  ? `${group.all.length} agent${group.all.length > 1 ? 's' : ''}${waiting ? ` · ${waiting} waiting for you` : ''}`
                   : 'No agents'}
               </span>
               {#if open_pulls(group.project.path)}
@@ -121,7 +119,7 @@
           </tr>
           {#if !group.list.length}
             <tr class="none">
-              <td colspan="6">
+              <td colspan="5">
                 {group.all.length ? 'No agent running' : 'No agents yet'}
                 <button class="action" disabled={!group.project.exists} onclick={() => (open(group.project.path), (ui.creating = true))}>New agent</button>
               </td>
@@ -145,7 +143,6 @@
                   </span>
                 {/if}
               </td>
-              <td class="mono">{cost(agent.cost)}</td>
               <td>
                 <button class="action" class:answer={!!agent.attention} onclick={() => show(agent)}>
                   {agent.attention ? 'Answer' : 'Open'}

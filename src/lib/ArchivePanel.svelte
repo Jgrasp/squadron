@@ -3,7 +3,6 @@
   import { archived, forget, unarchive, type Archived } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import Dialog from './Dialog.svelte'
-  import { cost } from './format'
   import { projects, type Project } from './projects.svelte'
   import { newAgent } from './stream'
 
@@ -62,7 +61,7 @@
           <li>
             <button aria-current={a.id === chosen ? 'true' : undefined} onclick={() => (chosen = a.id)}>
               <strong>{a.name}</strong>
-              <small>Archived {when(a.archived)} · {messages(a)} message{messages(a) > 1 ? 's' : ''}{a.cost ? ` · ${cost(a.cost)}` : ''}</small>
+              <small>Archived {when(a.archived)} · {messages(a)} message{messages(a) > 1 ? 's' : ''}</small>
             </button>
           </li>
         {/each}

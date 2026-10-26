@@ -1,12 +1,11 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
-  import { ofProject, shelve, todayCost, unread, waiting, waitingAgents } from './agents.svelte'
+  import { ofProject, shelve, unread, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
   import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
   import { chime } from './chime'
-  import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
@@ -15,13 +14,13 @@
   let { onadd }: { onadd: () => void } = $props()
 
   const failed = (path: string) => ofProject(path).filter((a) => a.status === 'error').length
+
   let heard = new Set<string>()
   $effect(() => {
     const asks = waitingAgents().map((a) => `${a.id}:${a.asks[0]?.id}`)
     if (settings.tab_ring === 'sound' && asks.some((ask) => !heard.has(ask))) chime()
     heard = new Set(asks)
   })
-
 
 
   const appWindow = getCurrentWindow()
@@ -165,8 +164,8 @@
         animate:flip={{ duration: dropped ? 0 : 260 }}
         data-item={project.path}
         class="tab {ofProject(project.path).some((a) => a.status === 'working') ? `effect-${settings.tab_effect}` : ''}"
-        class:ring={settings.tab_ring !== 'off' && waiting(project.path) > 0}
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
+        class:ring={settings.tab_ring !== 'off' && waiting(project.path) > 0}
         style:--project={project.color}
         onclick={() => ((projects.overview = false), (projects.current = project.path))}
         oncontextmenu={(e) => (e.preventDefault(), (context = { path: project.path, x: e.clientX, y: e.clientY }))}
@@ -198,8 +197,8 @@
     {#if hidden.length}
       <div class="anchor" data-menu>
         <button
-          class:ring={settings.tab_ring !== 'off' && hidden.some((p) => waiting(p.path))}
           class="tab more"
+          class:ring={settings.tab_ring !== 'off' && hidden.some((p) => waiting(p.path))}
           aria-haspopup="menu"
           aria-expanded={moreOpen}
           onclick={() => (moreOpen = !moreOpen)}
@@ -248,7 +247,6 @@
   </nav>
 
   <div class="end" data-tauri-drag-region>
-    <span class="today" title="Cost of today, all agents">Today <span>{cost(todayCost())}</span></span>
     <button class="win" aria-label="Minimize" onclick={() => appWindow.minimize()}>–</button>
     <button class="win" aria-label="Maximize" onclick={() => appWindow.toggleMaximize()}>□</button>
     <button class="win" aria-label="Close" onclick={() => appWindow.close()}>×</button>
@@ -564,17 +562,6 @@
     background: transparent;
     box-shadow: inset 0 0 0 1px var(--wait-border);
     color: var(--accent-soft);
-  }
-
-  .today {
-    margin-right: 6px;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .today span {
-    font-family: var(--mono);
-    color: var(--text-3);
   }
 
   .tab:has(.badge) {
