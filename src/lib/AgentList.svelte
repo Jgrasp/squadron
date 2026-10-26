@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ask } from '@tauri-apps/plugin-dialog'
-  import { agents, archive, clock, fork, ofProject, pin, remove, rename, waiting, waitingDetail } from './agents.svelte'
+  import { agents, archive, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail } from './agents.svelte'
   import { ago, cost, short } from './format'
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
@@ -146,6 +146,7 @@
         onblur={() => finishRename(true)}
       />
     {:else}
+      {#if agent.unread}<span class="unread" role="img" aria-label="Finished, not opened yet" title="Finished, not opened yet"></span>{/if}
       <span class="name">{agent.name}</span>
       {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
     {/if}
@@ -190,6 +191,7 @@
   {@const agent = menu.agent}
   <div class="menu" role="menu" aria-label="{agent.name} actions" data-menu style:left="{menu.x}px" style:top="{menu.y}px">
     <button role="menuitem" onclick={() => ((pinned) => act((id) => pin(id, pinned)))(!agent.pinned)}>{agent.pinned ? 'Unpin' : 'Pin to the top'}</button>
+    <button role="menuitem" onclick={() => ((value) => act((id) => markUnread(id, value)))(!agent.unread)}>{agent.unread ? 'Mark as read' : 'Mark as unread'}</button>
     <button role="menuitem" disabled={!agent.sessionId} onclick={() => act(fork)}>Fork</button>
     <button role="menuitem" onclick={() => act(archive)}>Archive conversation</button>
     <button role="menuitem" class="danger" onclick={() => erase(agent)}>Delete…</button>
@@ -791,6 +793,14 @@
     background: var(--bg-main);
     box-shadow: inset 0 0 0 2px var(--border-focus);
     font-weight: 600;
+  }
+
+  .unread {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ok);
   }
 
   .name {

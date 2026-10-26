@@ -132,6 +132,7 @@ export type Agent = {
   goal: Goal | null
   worktree: { path: string; branch: string } | null
   pinned?: boolean
+  unread?: boolean
   review?: { project: string; number: number; base?: string }
   imported?: string
 }
