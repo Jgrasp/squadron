@@ -212,7 +212,7 @@
     {/if}
   </span>
   <span class="state">{label(agent)}</span>
-  <PullTag {agent} />
+  <PullTag {agent} gutter />
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
   {:else if agent.status === 'waiting'}
