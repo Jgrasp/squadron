@@ -21,6 +21,9 @@ use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, RunEvent, State, WindowEvent};
 use terminal::Terminals;
 
+const RELEASE_ID: &str = "dev.squadron.desktop";
+const DEV_ID: &str = "dev.squadron.desktop.dev";
+
 struct Projects {
     file: PathBuf,
     list: Mutex<Vec<Project>>,
@@ -94,16 +97,23 @@ fn add_project(
     projects: State<Projects>,
     path: PathBuf,
     name: String,
+    color: Option<String>,
 ) -> Result<Vec<Folder>, String> {
     let name = name.trim().to_string();
     if name.is_empty() {
         return Err("Give the project a name.".into());
     }
+    let color = color
+        .filter(|c| {
+            c.len() == 7 && c.starts_with('#') && c[1..].bytes().all(|b| b.is_ascii_hexdigit())
+        })
+        .unwrap_or_default();
     projects.update(|list| {
         check_new_folder(list, &path)?;
         list.push(Project {
             name,
             path,
+            color,
             ..Default::default()
         });
         Ok(())
@@ -242,6 +252,7 @@ struct Config {
     claude: String,
     defaults: claude::Options,
     tab_effect: String,
+    tab_order: String,
     keys: std::collections::BTreeMap<String, String>,
     editors: Vec<editors::App>,
     pilot: bool,
@@ -261,6 +272,7 @@ impl Default for Config {
                 mode: "default".into(),
             },
             tab_effect: "pulse".into(),
+            tab_order: "manual".into(),
             keys: Default::default(),
             editors: Vec::new(),
             pilot: true,
@@ -292,6 +304,9 @@ impl Settings {
         config.defaults.check()?;
         if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
+        }
+        if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
+            return Err(format!("Unknown tab order: {}", config.tab_order));
         }
         config.keys.retain(|_, value| !value.trim().is_empty());
         config
@@ -1146,6 +1161,65 @@ fn login_path() {
     unsafe { std::env::set_var("PATH", path) };
 }
 
+#[derive(Serialize, serde::Deserialize)]
+struct Place {
+    x: i32,
+    y: i32,
+    width: u32,
+    height: u32,
+    maximized: bool,
+}
+
+fn keep_place(window: &tauri::Window) {
+    let (Ok(at), Ok(size), Ok(maximized), Ok(dir)) = (
+        window.outer_position(),
+        window.inner_size(),
+        window.is_maximized(),
+        window.app_handle().path().app_config_dir(),
+    ) else {
+        return;
+    };
+    let place = Place {
+        x: at.x,
+        y: at.y,
+        width: size.width,
+        height: size.height,
+        maximized,
+    };
+    if let Ok(text) = serde_json::to_string(&place) {
+        let _ = std::fs::write(dir.join("window.json"), text);
+    }
+}
+
+fn restore_place(app: &tauri::App, config: &std::path::Path) {
+    let (Some(window), Some(place)) = (
+        app.get_webview_window("main"),
+        std::fs::read_to_string(config.join("window.json"))
+            .ok()
+            .and_then(|text| serde_json::from_str::<Place>(&text).ok()),
+    ) else {
+        return;
+    };
+    let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
+    let at = tauri::PhysicalPosition::new(place.x, place.y);
+    let _ = window.set_position(at);
+    #[cfg(target_os = "linux")]
+    if let Ok(gtk) = window.gtk_window() {
+        use gtk::prelude::WidgetExtManual;
+        let placed = std::cell::Cell::new(false);
+        let target = window.clone();
+        gtk.connect_map_event(move |_, _| {
+            if !placed.replace(true) {
+                let _ = target.set_position(at);
+            }
+            gtk::glib::Propagation::Proceed
+        });
+    }
+    if place.maximized {
+        let _ = window.maximize();
+    }
+}
+
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
     for leaked in [
@@ -1159,11 +1233,17 @@ pub fn run() {
     #[cfg(target_os = "macos")]
     login_path();
     #[cfg(all(debug_assertions, target_os = "linux"))]
+    {
+        gtk::glib::set_prgname(Some("squadron-dev"));
+        // Wayland lets no window choose its position: X11 lets the dev build reopen where it was.
+        gtk::gdk::set_allowed_backends("x11");
+    }
+    #[cfg(all(debug_assertions, target_os = "linux"))]
     if let Some(data) = std::env::var_os("XDG_DATA_HOME")
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
     {
-        let _ = std::fs::remove_dir_all(data.join("dev.squadron.desktop/WebKitCache"));
+        let _ = std::fs::remove_dir_all(data.join(DEV_ID).join("WebKitCache"));
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())
@@ -1252,6 +1332,9 @@ pub fn run() {
             archive_agent
         ])
         .setup(|app| {
+            if cfg!(debug_assertions) && app.config().identifier != DEV_ID {
+                return Err("Start the dev build with `pnpm app`: it keeps its own data, apart from the installed Squadron.".into());
+            }
             if cfg!(debug_assertions) {
                 app.handle().plugin(
                     tauri_plugin_log::Builder::default()
@@ -1260,6 +1343,20 @@ pub fn run() {
                 )?;
             }
             let config = app.path().app_config_dir()?;
+            if cfg!(debug_assertions) && !config.exists() {
+                std::fs::create_dir_all(&config)?;
+                if let Some(release) = config.parent().map(|p| p.join(RELEASE_ID)) {
+                    for name in ["projects.json", "settings.json", "layout.json"] {
+                        let _ = std::fs::copy(release.join(name), config.join(name));
+                    }
+                }
+            }
+            if cfg!(debug_assertions) {
+                restore_place(app, &config);
+            }
+            if let Some(window) = app.get_webview_window("main") {
+                window.show()?;
+            }
             let file = config.join("projects.json");
             let mut list = projects::load(&file);
             if projects::paint(&mut list) {
@@ -1313,6 +1410,15 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
+            if cfg!(debug_assertions)
+                && window.label() == "main"
+                && matches!(
+                    event,
+                    WindowEvent::Moved(_) | WindowEvent::Resized(_) | WindowEvent::CloseRequested { .. }
+                )
+            {
+                keep_place(window);
+            }
             if window.label() == "main" && matches!(event, WindowEvent::Destroyed) {
                 window.app_handle().exit(0);
             }

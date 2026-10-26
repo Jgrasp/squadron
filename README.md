@@ -27,8 +27,10 @@ To follow pull requests, Squadron needs to reach Bitbucket or GitHub:
 
 ```bash
 pnpm install
-pnpm tauri dev
+pnpm app
 ```
+
+The dev build keeps its own data (`dev.squadron.desktop.dev`) and keyring entry, apart from the installed Squadron, so both can run side by side. Its first start copies the projects, settings and layout of the installed one; agents and tokens are not copied.
 
 `pnpm check` runs the type checks, the tests, rustfmt and clippy.
 

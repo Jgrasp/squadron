@@ -1,6 +1,8 @@
 import { invoke } from '@tauri-apps/api/core'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { Card } from './board'
+import { ofProject } from './agents.svelte'
+import { settings } from './settings.svelte'
 
 export type Project = {
   name: string
@@ -34,8 +36,8 @@ export async function load() {
   set(await invoke<Project[]>('list_projects'))
 }
 
-export async function add(path: string, name: string) {
-  set(await invoke<Project[]>('add_project', { path, name }))
+export async function add(path: string, name: string, color = '') {
+  set(await invoke<Project[]>('add_project', { path, name, color: color || null }))
   projects.current = path
 }
 
@@ -53,10 +55,19 @@ export async function editProject(path: string, changes: { name?: string; color?
 }
 
 export async function orderProjects(paths: string[]) {
+  const rank = (p: Project) => (paths.includes(p.path) ? paths.indexOf(p.path) : paths.length)
+  projects.list = [...projects.list].sort((a, b) => rank(a) - rank(b))
   set(await invoke<Project[]>('order_projects', { paths }))
 }
 
-export const ordered = () => [...projects.list.filter((p) => p.pinned), ...projects.list.filter((p) => !p.pinned)]
+const lastActive = (path: string) => Math.max(0, ...ofProject(path).map((a) => a.since))
+
+export function ordered() {
+  const list = [...projects.list]
+  if (settings.tab_order === 'name') list.sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }))
+  else if (settings.tab_order === 'activity') list.sort((a, b) => lastActive(b.path) - lastActive(a.path))
+  return [...list.filter((p) => p.pinned), ...list.filter((p) => !p.pinned)]
+}
 
 export async function addRule(path: string, rule: string) {
   set(await invoke<Project[]>('add_rule', { path, rule }))

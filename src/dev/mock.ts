@@ -43,6 +43,7 @@ const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules,
 const timers = new Map<string, number>()
 let claudePath = 'claude'
 let tabEffect = 'pulse'
+let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 
@@ -347,10 +348,11 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
+        tabOrder = (a as unknown as { config: { tab_order: string } }).config.tab_order
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         return

@@ -162,7 +162,12 @@ struct Account {
 }
 
 fn entry() -> Result<keyring::Entry, String> {
-    keyring::Entry::new("squadron", "bitbucket").map_err(|e| e.to_string())
+    let service = if cfg!(debug_assertions) {
+        "squadron-dev"
+    } else {
+        "squadron"
+    };
+    keyring::Entry::new(service, "bitbucket").map_err(|e| e.to_string())
 }
 
 fn account() -> Result<Account, String> {

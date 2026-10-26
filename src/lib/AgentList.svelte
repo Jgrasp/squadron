@@ -2,7 +2,8 @@
   import { ask } from '@tauri-apps/plugin-dialog'
   import { agents, archive, clock, fork, ofProject, pin, remove, rename, waiting, waitingDetail } from './agents.svelte'
   import { ago, cost, short } from './format'
-  import { layout, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
+  import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
+  import { sortable } from './layout-slots.svelte'
   import { home, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
@@ -63,7 +64,7 @@
   }
 
   const SORTS: [AgentSort['by'], string][] = [
-    ['none', 'No sorting'],
+    ['none', 'By hand'],
     ['updated', 'Last activity'],
     ['created', 'Creation date'],
     ['name', 'Name'],
@@ -93,8 +94,20 @@
     const all = [...ofProject(project.path)]
     const by = sort.by
     if (by !== 'none') all.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
+    else {
+      const order = layout.orders[project.path] ?? []
+      const rank = (a: Agent) => (order.includes(a.id) ? order.indexOf(a.id) : order.length)
+      all.sort((a, b) => rank(a) - rank(b))
+    }
     return [...all.filter((a) => a.pinned), ...all.filter((a) => !a.pinned)]
   })
+
+  function drop(id: string, index: number) {
+    const ids = list.map((a) => a.id).filter((a) => a !== id)
+    ids.splice(index, 0, id)
+    orderAgents(project.path, ids)
+    if (sort.by !== 'none') setSort(project.path, { by: 'none' })
+  }
   const pending = $derived(waiting(project.path))
   const total = $derived(list.reduce((sum, a) => sum + a.cost, 0))
 
@@ -195,11 +208,12 @@
     <span class="square" title={project.name}></span>
     <button class="add" aria-label="New agent" title="New agent ({hint('newAgent')})" disabled={!project.exists} onclick={onnew}>+</button>
     <span class="sep" aria-hidden="true"></span>
-    <div class="tiles">
+    <div class="tiles" use:sortable={{ enabled: list.length > 1, onplace: drop }}>
       {#each list as agent (agent.id)}
         {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
         <button
           class="tile {look(agent)}"
+          data-item={agent.id}
           aria-current={agent.id === current?.id ? 'true' : undefined}
           aria-label="{agent.name}, {label(agent)}"
           onclick={() => (agents.current[project.path] = agent.id)}
@@ -296,15 +310,16 @@
   </div>
 
   {#if list.length}
-    <div class="list">
+    <div class="list" use:sortable={{ enabled: list.length > 1 && !editing, onplace: drop }}>
       {#each list as agent (agent.id)}
         {#if editing === agent.id}
-          <div class="agent {look(agent)}" aria-current={agent.id === current?.id ? 'true' : undefined}>
+          <div class="agent {look(agent)}" data-item={agent.id} aria-current={agent.id === current?.id ? 'true' : undefined}>
             {@render card(agent)}
           </div>
         {:else}
           <button
             class="agent {look(agent)}"
+            data-item={agent.id}
             aria-current={agent.id === current?.id ? 'true' : undefined}
             title="Double-click or F2 to rename"
             onclick={() => (agents.current[project.path] = agent.id)}
@@ -546,6 +561,13 @@
     padding: 12px 14px;
     border-radius: 6px;
     text-align: left;
+  }
+
+  .agent:global(.dragging),
+  .tile:global(.dragging) {
+    z-index: 2;
+    cursor: grabbing;
+    background: var(--surface-2);
   }
 
   .agent:hover {

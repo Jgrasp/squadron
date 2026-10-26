@@ -5,12 +5,9 @@
   import '@xterm/xterm/css/xterm.css'
   import { home } from './projects.svelte'
   import SidePanel from './SidePanel.svelte'
-  import { workdir, type Agent } from './stream'
   import { attach, close, detach, ofProject, sessions, start } from './terminals.svelte'
 
-  let { agent, onsend, onclose }: { agent: Agent; onsend: (text: string) => void; onclose: () => void } = $props()
-
-  const dir = $derived(workdir(agent))
+  let { dir, to, onsend, onclose }: { dir: string; to?: string; onsend?: (text: string) => void; onclose: () => void } = $props()
 
   const THEME = {
     background: '#110e0d',
@@ -128,9 +125,11 @@
   <div class="foot">
     <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" /></svg>
     <span>Agents do not write in this terminal. Their commands stay in the conversation.</span>
-    <button class="btn btn-secondary" disabled={!selection} onclick={() => term && onsend(term.getSelection())}>
-      Send the selection to {agent.name}
-    </button>
+    {#if to && onsend}
+      <button class="btn btn-secondary" disabled={!selection} onclick={() => term && onsend(term.getSelection())}>
+        Send the selection to {to}
+      </button>
+    {/if}
   </div>
 </SidePanel>
 

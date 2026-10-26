@@ -19,6 +19,7 @@
 
   let {
     agent,
+    start = 0,
     ondiff,
     onsubagent,
     onsubagents,
@@ -26,6 +27,7 @@
     onfork,
   }: {
     agent: Agent
+    start?: number
     ondiff: (call: ToolCall) => void
     onfork?: (index: number) => void
     onsubagent?: (sub: Subagent) => void
@@ -128,6 +130,21 @@
     return last?.type === 'text' ? 'Writing…' : 'Working…'
   }
 
+  function runs(list: Segment[]) {
+    const out: ({ thought: string; ms: number | undefined } | Segment[])[] = []
+    for (const segment of list) {
+      if (segment.type === 'work' && segment.thought) {
+        out.push({ thought: segment.thought, ms: segment.ms })
+        if (segment.calls.length) out.push([{ ...segment, thinking: false, thought: '' }])
+        continue
+      }
+      const last = out.at(-1)
+      if (Array.isArray(last)) last.push(segment)
+      else out.push([segment])
+    }
+    return out
+  }
+
   function split(list: Segment[]) {
     let cut = list.length
     while (cut > 0 && list[cut - 1].type === 'text') cut--
@@ -166,6 +183,13 @@
   const working = $derived(agent.status === 'working')
 </script>
 
+{#snippet musing(thought: string, ms: number | undefined)}
+  <div class="musing">
+    <span class="musing-head">{ms === undefined ? 'Thinking…' : ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(ms)}`}</span>
+    <Markdown text={thought} streaming={ms === undefined} />
+  </div>
+{/snippet}
+
 {#snippet detail(list: Segment[], i: number, tail: Block | undefined, quiet: boolean)}
   {#each list as segment, s (s)}
     {#if segment.type === 'text'}
@@ -173,7 +197,9 @@
     {:else if segment.type === 'work'}
       {#if segment.thinking && (settings.thinking !== 'hidden' || segment.ms === undefined)}
         {@const took = segment.ms === undefined ? 'Thinking…' : segment.ms < 1000 ? 'Thought for a moment' : `Thought for ${duration(segment.ms)}`}
-        {#if segment.thought && settings.thinking === 'summary'}
+        {#if segment.thought && settings.thinking === 'shown'}
+          {@render musing(segment.thought, segment.ms)}
+        {:else if segment.thought && settings.thinking === 'summary'}
           <details class="thinking">
             <summary><span class="chevron" aria-hidden="true">›</span>{took}<span class="gist">— {segment.thought.split(/(?<=[.!?])\s|\n/)[0]}</span></summary>
             <p class="thought-text">{segment.thought}</p>
@@ -196,7 +222,8 @@
   {/each}
 {/snippet}
 
-{#each agent.entries as entry, i (i)}
+{#each agent.entries.slice(start) as entry, k (start + k)}
+  {@const i = start + k}
   {#if entry.kind === 'user'}
     <div class="user" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
       {#if entry.comments}
@@ -220,12 +247,17 @@
       {:else}
         {@const parts = split(group.segments)}
         {@const live = working && i === lastAgent && g === reply.length - 1}
-        {#if parts.steps.length || (live && !parts.answer.length)}
-          <details class="steps" class:live>
-            <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(parts.steps, live)}</span></summary>
-            <div class="step-list">{@render detail(parts.steps, i, tail, true)}</div>
-          </details>
-        {/if}
+        {@const chunks = settings.thinking === 'shown' ? runs(parts.steps) : [parts.steps]}
+        {#each chunks as chunk, c (c)}
+          {#if !Array.isArray(chunk)}
+            {@render musing(chunk.thought, chunk.ms)}
+          {:else if chunk.length || (live && !parts.answer.length)}
+            <details class="steps" class:live={live && c === chunks.length - 1}>
+              <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span></summary>
+              <div class="step-list">{@render detail(chunk, i, tail, true)}</div>
+            </details>
+          {/if}
+        {/each}
         {#if parts.answer.length}
           <div class="agent">{@render detail(parts.answer, i, tail, false)}</div>
         {/if}
@@ -563,6 +595,24 @@
 
   details[open] .gist {
     display: none;
+  }
+
+  .musing {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 2px 0 2px 14px;
+    border-left: 2px solid var(--border-strong);
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text-muted);
+  }
+
+  .musing-head {
+    font-size: 12px;
+    font-style: normal;
+    font-weight: 600;
+    color: var(--text-dim);
   }
 
   .thought-text {

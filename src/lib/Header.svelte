@@ -7,9 +7,9 @@
   import { checkNow } from './update.svelte'
   import { cost } from './format'
   import { ui, type SettingsTab } from './actions.svelte'
-  import { detailOf, labelOf, shown } from './layout-slots.svelte'
-  import { hint, settings } from './settings.svelte'
-  import { editProject, ordered, projects } from './projects.svelte'
+  import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
+  import { hint, saveSettings, settings } from './settings.svelte'
+  import { editProject, ordered, orderProjects, projects } from './projects.svelte'
 
   let { onadd }: { onadd: () => void } = $props()
 
@@ -51,6 +51,17 @@
     hidden.filter((p) => p.name.toLowerCase().includes(search.trim().toLowerCase())),
   )
 
+  let dropped = $state(false)
+
+  function drop(path: string, index: number) {
+    const order = visible.map((p) => p.path).filter((p) => p !== path)
+    order.splice(index, 0, path)
+    dropped = true
+    requestAnimationFrame(() => (dropped = false))
+    if (settings.tab_order !== 'manual') saveSettings({ ...$state.snapshot(settings), tab_order: 'manual' })
+    orderProjects([...order, ...tabs.map((p) => p.path).filter((p) => !order.includes(p))])
+  }
+
   function choose(path: string) {
     projects.overview = false
     projects.current = path
@@ -81,7 +92,7 @@
   <svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label="Pinned"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
 {/snippet}
 
-<header data-tauri-drag-region bind:clientWidth={headerWidth}>
+<header data-tauri-drag-region bind:clientWidth={headerWidth} class:build-dev={import.meta.env.DEV}>
   <div class="start" data-tauri-drag-region>
     <div class="anchor" data-menu>
       <button
@@ -92,6 +103,7 @@
       >
         <span class="triangle" aria-hidden="true"></span>
         <span class="wordmark">Squadron</span>
+        {#if import.meta.env.DEV}<span class="dev">dev</span>{/if}
         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
           ><path d="M6 9l6 6 6-6" /></svg
         >
@@ -100,7 +112,7 @@
         <div class="menu" role="menu" aria-label="Squadron menu">
           <div class="about">
             <span class="triangle big" aria-hidden="true"></span>
-            <span><strong>Squadron</strong><small>Version {version} · Linux</small></span>
+            <span><strong>Squadron</strong><small>Version {version} · {navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux'}</small></span>
           </div>
           {#each shown('menu.squadron') as id (id)}
             <button
@@ -120,7 +132,7 @@
     </div>
   </div>
 
-  <nav aria-label="Projects">
+  <nav aria-label="Projects" use:sortable={{ enabled: visible.length > 1, onplace: drop }}>
     <button
       class="tab overview"
       aria-current={projects.overview ? 'page' : undefined}
@@ -136,7 +148,8 @@
     <span class="divider" aria-hidden="true"></span>
     {#each visible as project (project.path)}
       <button
-        animate:flip={{ duration: 260 }}
+        animate:flip={{ duration: dropped ? 0 : 260 }}
+        data-item={project.path}
         class="tab {ofProject(project.path).some((a) => a.status === 'working') ? `effect-${settings.tab_effect}` : ''}"
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         style:--project={project.color}
@@ -463,6 +476,23 @@
     background: var(--bg-tabs);
   }
 
+  .build-dev {
+    --dev: #5db5e7;
+  }
+
+  .build-dev .triangle {
+    background: var(--dev);
+  }
+
+  .dev {
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--dev);
+    color: #0d1b24;
+    font: 700 10.5px/16px var(--mono);
+    text-transform: uppercase;
+  }
+
   .tab {
     display: flex;
     align-items: center;
@@ -472,6 +502,11 @@
     border-radius: 4px;
     color: var(--text-muted);
     white-space: nowrap;
+  }
+
+  .tab:global(.dragging) {
+    z-index: 2;
+    cursor: grabbing;
   }
 
   .tab:hover {

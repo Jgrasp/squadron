@@ -2,23 +2,18 @@
   import { open } from '@tauri-apps/plugin-dialog'
   import { ui } from './actions.svelte'
   import { shelve, unshelve } from './agents.svelte'
+  import ColorPick from './ColorPick.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
+  import { saveSettings, settings, type TabOrder } from './settings.svelte'
 
-  const COLORS = [
-    ['#F472B6', 'Pink'],
-    ['#A78BFA', 'Purple'],
-    ['#2DD4BF', 'Teal'],
-    ['#60A5FA', 'Blue'],
-    ['#FACC15', 'Yellow'],
-    ['#4ADE80', 'Green'],
-    ['#A3E635', 'Lime'],
-    ['#F87171', 'Red'],
-    ['#A8A29E', 'Grey'],
-  ]
 
   let error = $state('')
-  const custom = (color: string) => !COLORS.some(([c]) => c.toLowerCase() === color.toLowerCase())
   const list = $derived(ordered())
+  const ORDERS: [TabOrder, string, string][] = [
+    ['manual', 'By hand', 'The order you set by dragging the tabs, or with the arrows below'],
+    ['name', 'Name', 'Alphabetical order'],
+    ['activity', 'Last activity', 'The project whose agents moved last comes first'],
+  ]
   const movable = (index: number, by: number) => list[index + by]?.pinned === list[index].pinned
 
   async function act(work: () => Promise<unknown>) {
@@ -47,13 +42,24 @@
   <p class="intro">Pinned projects always keep their tab, first in the bar. The others follow this order and move to the + menu when the bar is full.</p>
   <button class="btn btn-primary" onclick={() => (ui.adding = '')}>+ Add a project</button>
 </div>
+<span class="label">Tab order</span>
+<div class="orders" role="group" aria-label="Tab order">
+  {#each ORDERS as [id, title, detail] (id)}
+    <button aria-pressed={settings.tab_order === id} onclick={() => act(() => saveSettings({ ...$state.snapshot(settings), tab_order: id }))}>
+      <strong>{title}</strong>
+      <span class="hint">{detail}</span>
+    </button>
+  {/each}
+</div>
 <ul class="projects">
   {#each list as project, i (project.path)}
     <li style:--project={project.color}>
-      <span class="order">
-        <button aria-label="Move {project.name} up" disabled={!movable(i, -1)} onclick={() => shift(i, -1)}>↑</button>
-        <button aria-label="Move {project.name} down" disabled={!movable(i, 1)} onclick={() => shift(i, 1)}>↓</button>
-      </span>
+      {#if settings.tab_order === 'manual'}
+        <span class="order">
+          <button aria-label="Move {project.name} up" disabled={!movable(i, -1)} onclick={() => shift(i, -1)}>↑</button>
+          <button aria-label="Move {project.name} down" disabled={!movable(i, 1)} onclick={() => shift(i, 1)}>↓</button>
+        </span>
+      {/if}
       <span class="main">
         <span class="line">
           <span class="square" aria-hidden="true"></span>
@@ -68,25 +74,7 @@
             {project.pinned ? 'Pinned' : 'Pin'}
           </button>
         </span>
-        <span class="colors" role="group" aria-label="Color of {project.name}">
-          {#each COLORS as [color, label] (color)}
-            <button
-              class="swatch"
-              style:background={color}
-              aria-label={label}
-              aria-pressed={project.color.toLowerCase() === color.toLowerCase()}
-              onclick={() => act(() => editProject(project.path, { color }))}
-            ></button>
-          {/each}
-          <label class="swatch custom" class:on={custom(project.color)} style:--custom={custom(project.color) ? project.color : null} title="Custom color">
-            <input
-              type="color"
-              value={project.color}
-              aria-label="Custom color of {project.name}"
-              onchange={(e) => act(() => editProject(project.path, { color: e.currentTarget.value.toUpperCase() }))}
-            />
-          </label>
-        </span>
+        <ColorPick value={project.color} label="Color of {project.name}" onpick={(color) => act(() => editProject(project.path, { color }))} />
         <span class="folder">
           <code>{home(project.path)}</code>
           {#if !project.exists}<span class="missing">Folder not found</span>{/if}
@@ -133,6 +121,45 @@
     margin: 0;
     color: var(--text-muted);
     line-height: 1.5;
+  }
+
+  .label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: 600;
+  }
+
+  .orders {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 8px;
+    margin-bottom: 18px;
+  }
+
+  .orders button {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 14px;
+    border-radius: 4px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    text-align: left;
+  }
+
+  .orders button[aria-pressed='true'] {
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 2px var(--text);
+  }
+
+  .orders strong {
+    font-weight: 600;
+  }
+
+  .orders .hint {
+    font-size: 12.5px;
+    color: var(--text-dim);
   }
 
   .projects {
@@ -221,41 +248,6 @@
     box-shadow: inset 0 0 0 1px var(--project);
     color: var(--text-strong);
     font-weight: 600;
-  }
-
-  .colors {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 8px;
-  }
-
-  .swatch {
-    width: 24px;
-    height: 24px;
-    border-radius: 5px;
-  }
-
-  .custom {
-    position: relative;
-    overflow: hidden;
-    background: var(--custom, conic-gradient(#f472b6, #facc15, #4ade80, #60a5fa, #a78bfa, #f472b6));
-    cursor: pointer;
-  }
-
-  .custom input {
-    position: absolute;
-    inset: 0;
-    width: 100%;
-    height: 100%;
-    opacity: 0;
-    cursor: pointer;
-  }
-
-  .custom.on,
-  .swatch[aria-pressed='true'] {
-    box-shadow:
-      0 0 0 2px var(--surface-1),
-      0 0 0 4px var(--project);
   }
 
   .folder {

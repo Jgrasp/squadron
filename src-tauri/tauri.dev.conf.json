@@ -1,0 +1,6 @@
+{
+  "identifier": "dev.squadron.desktop.dev",
+  "bundle": {
+    "icon": ["icons/dev/icon.png", "icons/dev/32x32.png", "icons/dev/128x128.png", "icons/dev/128x128@2x.png"]
+  }
+}

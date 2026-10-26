@@ -3,12 +3,14 @@
   import { untrack } from 'svelte'
   import { unshelve } from './agents.svelte'
   import Dialog from './Dialog.svelte'
+  import ColorPick from './ColorPick.svelte'
   import { add, home, inspect, projects, type Inspection } from './projects.svelte'
 
   let { path: initial, onclose }: { path: string; onclose: () => void } = $props()
 
   let path = $state(untrack(() => initial))
   let name = $state('')
+  let color = $state('')
   let info = $state<Inspection | null>(null)
   let error = $state('')
   let busy = $state(false)
@@ -47,7 +49,7 @@
     busy = true
     try {
       if (revive) await unshelve(projects.archived.find((p) => p.name === info?.taken_by)?.path ?? path.trim())
-      else await add(path.trim(), name)
+      else await add(path.trim(), name, color)
       onclose()
     } catch (e) {
       error = String(e)
@@ -112,6 +114,13 @@
         <input id="name" class="field" bind:value={name} disabled={!info?.exists || !!info.taken_by} />
         <span class="state">Filled in from the folder name.</span>
       </div>
+      {#if !revive}
+        <div class="group">
+          <span class="label">Color</span>
+          <ColorPick value={color} label="Color of the project" onpick={(picked) => (color = picked)} />
+          <span class="state">{color ? 'Shows on its tab and its agents.' : 'Left empty, Squadron picks the color least used.'}</span>
+        </div>
+      {/if}
       {#if error}<p class="bad" role="alert">{error}</p>{/if}
     </div>
     <footer>
@@ -142,7 +151,8 @@
     gap: 8px;
   }
 
-  label {
+  label,
+  .label {
     font-weight: 600;
   }
 

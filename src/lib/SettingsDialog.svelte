@@ -79,6 +79,7 @@
     ['hidden', 'Hidden'],
     ['duration', 'How long'],
     ['summary', 'With its summary'],
+    ['shown', 'In the conversation'],
   ]
   const AGES: [number, string][] = [
     [0, 'Never'],
@@ -124,7 +125,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking })
+      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, steps, thinking })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -276,7 +277,7 @@
         {/each}
       </div>
       <span class="label">Thinking</span>
-      <div class="effects three" role="group" aria-label="Thinking">
+      <div class="effects" role="group" aria-label="Thinking">
         {#each THINKING as [id, title] (id)}
           <button aria-pressed={thinking === id} onclick={() => (thinking = id)}><strong>{title}</strong></button>
         {/each}

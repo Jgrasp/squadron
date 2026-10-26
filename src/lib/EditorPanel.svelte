@@ -10,11 +10,11 @@
   import { projects } from './projects.svelte'
   import OpenWith from './OpenWith.svelte'
   import SidePanel from './SidePanel.svelte'
-  import { calls, relative, type Agent } from './stream'
+  import { calls, relative } from './stream'
 
-  let { agent, changes, onclose }: { agent: Agent; changes: Changes | null; onclose: () => void } = $props()
+  let { project: folder, changes, onclose }: { project: string; changes: Changes | null; onclose: () => void } = $props()
 
-  const project = untrack(() => agent.project)
+  const project = untrack(() => folder)
   const ws = workspace(project)
   const root = $derived(projects.list.find((p) => p.path === project))
   const keyOf = (path: string) => `${project}\n${path}`

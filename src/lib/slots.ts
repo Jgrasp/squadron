@@ -63,3 +63,9 @@ export function moved(list: string[], id: string, index: number) {
   rest.splice(Math.max(0, Math.min(index, rest.length)), 0, id)
   return rest
 }
+
+export function movedAmong(list: string[], among: string[], id: string, index: number) {
+  const others = among.filter((i) => i !== id)
+  const rest = list.filter((i) => i !== id)
+  return moved(list, id, index < others.length ? rest.indexOf(others[index]) : rest.indexOf(others.at(-1)!) + 1)
+}

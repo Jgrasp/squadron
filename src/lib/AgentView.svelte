@@ -10,7 +10,7 @@
   import { layout, setPanel, type PanelKind } from './layout.svelte'
   import { projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
-  import { all, detailOf, hidden, labelOf, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
+  import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
   import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
@@ -52,7 +52,17 @@
     setPanel(agent.project, 'subagents')
   }
   const openDiff = (path: string) => ((diffFile = path), setPanel(agent.project, 'diff'))
-  let marks = $state<{ offset: number; text: string; at: number }[]>([])
+  const WINDOW = 20
+  const users = $derived(agent.entries.flatMap((e, i) => (e.kind === 'user' ? [{ entry: i, text: prompt(e.text, e.comments), at: e.at }] : [])))
+  let start = $state(untrack(() => (users.length > WINDOW ? users[users.length - WINDOW].entry : 0)))
+  let offsets = $state<number[]>([])
+  let railHeight = $state(0)
+  const buckets = $derived.by(() => {
+    const n = users.length
+    const count = Math.max(1, Math.min(n, Math.floor(railHeight / 7)))
+    return n ? Array.from({ length: count }, (_, b) => ({ from: Math.floor((b * n) / count), to: Math.floor(((b + 1) * n) / count) - 1 })) : []
+  })
+  let earlier = $state<HTMLElement>()
   let active = $state(-1)
   let below = $state(0)
   let hovered = $state(-1)
@@ -252,14 +262,30 @@
   )
 
   function measure() {
-    const users = agent.entries.flatMap((e) => (e.kind === 'user' ? [e] : []))
-    const els = [...column.querySelectorAll<HTMLElement>('[data-user]')]
-    marks = els.map((el, i) => ({ offset: el.offsetTop, text: prompt(users[i]?.text ?? '', users[i]?.comments), at: users[i]?.at ?? 0 }))
+    const placed = new Map([...column.querySelectorAll<HTMLElement>('[data-user]')].map((el) => [Number(el.dataset.user), el.offsetTop]))
+    offsets = users.map((u) => placed.get(u.entry) ?? -1)
     const view = scroller.scrollTop + scroller.clientHeight / 3
     const end = scroller.scrollHeight - scroller.scrollTop - scroller.clientHeight < 4
-    active = picked >= 0 ? picked : end ? marks.length - 1 : scroller.scrollTop < 4 ? 0 : marks.findLastIndex((m) => m.offset <= view)
-    below = marks.filter((m) => m.offset > scroller.scrollTop + scroller.clientHeight).length
+    const first = offsets.findIndex((o) => o >= 0)
+    active = picked >= 0 ? picked : end ? users.length - 1 : scroller.scrollTop < 4 ? first : Math.max(first, offsets.findLastIndex((o) => o >= 0 && o <= view))
+    below = offsets.filter((o) => o > scroller.scrollTop + scroller.clientHeight).length
   }
+
+  async function showEarlier() {
+    const first = users.findIndex((u) => u.entry >= start)
+    const from = first - WINDOW
+    const height = scroller.scrollHeight - scroller.scrollTop
+    start = from > 0 ? users[from].entry : 0
+    await tick()
+    scroller.scrollTop = scroller.scrollHeight - height
+  }
+
+  $effect(() => {
+    if (!earlier) return
+    const observer = new IntersectionObserver((seen) => seen.some((s) => s.isIntersecting) && showEarlier(), { root: scroller, rootMargin: '800px 0px 0px 0px' })
+    observer.observe(earlier)
+    return () => observer.disconnect()
+  })
 
   let touched = 0
   let picked = -1
@@ -284,11 +310,16 @@
     return () => observer.disconnect()
   })
 
-  function jump(i: number) {
+  async function jump(i: number) {
     stuck = false
     touched = Date.now()
     picked = active = i
-    scroller.scrollTo({ top: Math.max(0, marks[i].offset - 18), behavior: 'smooth' })
+    if (users[i].entry < start) {
+      start = users[i].entry
+      await tick()
+    }
+    const el = column.querySelector<HTMLElement>(`[data-user="${users[i].entry}"]`)
+    if (el) scroller.scrollTo({ top: Math.max(0, el.offsetTop - 18), behavior: 'smooth' })
   }
 
   function hover(i: number, event: Event) {
@@ -515,7 +546,7 @@
           {/if}
         </span>
       </div>
-      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={{ slot: 'agent.tools', enabled: ui.customizing }}>
+      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label="Open in a tool" use:sortable={{ enabled: true, onplace: (id, index) => place('agent.tools', id, index, ui.customizing ? all('agent.tools') : shown('agent.tools')) }}>
     {#snippet editorTool()}
       <button class="btn btn-ghost" aria-label="Editor" aria-pressed={panel === 'editor'} title="Browse and edit the project files ({hint('editor')})" onclick={() => toggle('editor')}>
         <Icon name="editor" />
@@ -564,10 +595,16 @@
         {/each}
       </div>
       {#if chips.length}
-        <div class="context" role="group" aria-label="Session context" style:--project={projects.list.find((p) => p.path === agent.project)?.color}>
+        <div
+          class="context"
+          role="group"
+          aria-label="Session context"
+          style:--project={projects.list.find((p) => p.path === agent.project)?.color}
+          use:sortable={{ enabled: chips.length > 1, onplace: (id, index) => place('agent.info', id, index, chips) }}
+        >
           {#each chips as id (id)}
             {#if id === 'remote'}
-              <span class="anchor" data-remote-menu>
+              <span class="anchor" data-remote-menu data-item={id}>
                 <button
                   class="chip {agent.remote ? `on effect-${settings.tab_effect}` : ''}"
                   aria-haspopup="menu"
@@ -581,7 +618,7 @@
                   <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {#if remoteOpen}
-                  <div class="remote-menu" class:short={!agent.remote} role="menu" aria-label="Remote control">
+                  <div class="remote-menu" class:short={!agent.remote} role="menu" aria-label="Remote control" data-keep>
                     {#if agent.remote}
                       <span class="about">
                         <strong>Remote control on</strong>
@@ -617,6 +654,7 @@
             {:else if id === 'branch'}
               <span
                 class="chip branch"
+                data-item={id}
                 class:worktree={!!agent.worktree}
                 title={agent.worktree ? `Works in the worktree ${agent.worktree.path}` : 'Branch of the project checkout'}
               >
@@ -627,6 +665,7 @@
               {@const drafts = reviews[`${agent.review.project}#${agent.review.number}`]?.length ?? 0}
               <button
                 class="chip pull"
+                data-item={id}
                 title="Open the review of pull request #{agent.review.number}, where {agent.name} drops its remarks"
                 onclick={() => agent.review && openReview(agent.review.project, agent.review.number)}
               >
@@ -636,6 +675,7 @@
             {:else if id === 'pull' && pull}
               <button
                 class="chip pull"
+                data-item={id}
                 aria-pressed={panel === 'diff' && diffSource === 'pull'}
                 title="{pull.title} · review it in the Diff panel"
                 onclick={() => ((diffSource = 'pull'), setPanel(agent.project, 'diff'))}
@@ -656,6 +696,7 @@
                 title="{running ? `${running} working · ` : ''}{tokens(agent.subagents.reduce((t, s) => t + s.tokens, 0))} tokens in subagents · {panel === 'subagents'
                   ? 'close'
                   : 'open'} the panel"
+                data-item={id}
                 onclick={() => toggle('subagents')}
               >
                 <Icon name="subagents" size={16} />{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}<span class="go" aria-hidden="true">›</span>
@@ -667,14 +708,14 @@
     </div>
 
     <div class="middle">
-      {#if marks.length}
+      {#if users.length}
         <nav class="rail" aria-label="Conversation landmarks">
-          <div class="marks">
-            {#each marks as mark, i (i)}
+          <div class="marks" bind:clientHeight={railHeight}>
+            {#each buckets as bucket, i (i)}
               <button
-                aria-label="Go to message {i + 1}: {mark.text.slice(0, 80)}"
-                aria-current={i === active ? 'true' : undefined}
-                onclick={() => jump(i)}
+                aria-label="Go to message {bucket.from + 1}: {users[bucket.from].text.slice(0, 80)}"
+                aria-current={active >= bucket.from && active <= bucket.to ? 'true' : undefined}
+                onclick={() => jump(bucket.from)}
                 onmouseenter={(e) => hover(i, e)}
                 onmouseleave={() => (hovered = -1)}
                 onfocus={(e) => hover(i, e)}
@@ -684,10 +725,13 @@
               </button>
             {/each}
           </div>
-          {#if hovered >= 0}
+          {#if buckets[hovered]}
+            {@const bucket = buckets[hovered]}
             <div class="tooltip" role="tooltip" style:top="{tooltipTop}px">
-              <small>Message {hovered + 1} · {time(marks[hovered].at)}</small>
-              <span>{marks[hovered].text}</span>
+              <small
+                >{bucket.to > bucket.from ? `Messages ${bucket.from + 1} to ${bucket.to + 1}` : `Message ${bucket.from + 1}`} · {time(users[bucket.from].at)}</small
+              >
+              <span>{users[bucket.from].text}</span>
             </div>
           {/if}
         </nav>
@@ -703,8 +747,12 @@
         role="presentation"
       >
         <div class="column" bind:this={column}>
+          {#if start > 0}
+            <button class="earlier" bind:this={earlier} onclick={showEarlier}>Earlier messages</button>
+          {/if}
           <Conversation
           {agent}
+          {start}
           {ondiff}
           onfork={(i) => fork(agent.id, i)}
           onsubagent={openSubagent}
@@ -843,9 +891,9 @@
       onclose={() => setPanel(agent.project, null)}
     />
   {:else if panel === 'editor'}
-    <EditorPanel {agent} {changes} onclose={() => setPanel(agent.project, null)} />
+    <EditorPanel project={agent.project} {changes} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'terminal'}
-    <TerminalPanel {agent} onsend={excerpt} onclose={() => setPanel(agent.project, null)} />
+    <TerminalPanel dir={workdir(agent)} to={agent.name} onsend={excerpt} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'subagents' && agent.subagents.length}
     <SubagentsPanel
       {agent}
@@ -903,7 +951,8 @@
     pointer-events: none;
   }
 
-  .customizing .item:global(.dragging) {
+  .tools .item:global(.dragging),
+  .context > :global(.dragging) {
     z-index: 2;
     cursor: grabbing;
     filter: drop-shadow(0 6px 14px rgba(0, 0, 0, 0.5));
@@ -1636,6 +1685,19 @@
     display: flex;
     flex-direction: column;
     gap: 14px;
+  }
+
+  .earlier {
+    align-self: center;
+    padding: 6px 14px;
+    border-radius: 14px;
+    color: var(--text-dim);
+    font-size: 12.5px;
+  }
+
+  .earlier:hover {
+    background: var(--surface-1);
+    color: var(--text);
   }
 
   .composer {
