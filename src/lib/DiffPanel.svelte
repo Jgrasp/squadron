@@ -8,7 +8,7 @@
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
-  import { ask } from '@tauri-apps/plugin-dialog'
+  import { ask } from './confirm.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
   import { hostName, markReviewed, post, reviews, type Pull, type Remark } from './pulls.svelte'

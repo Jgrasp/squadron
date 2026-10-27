@@ -2,6 +2,7 @@ import type { Catalog } from '../index.svelte'
 
 export default {
   cancel: 'Annuler',
+  ok: 'OK',
   close: 'Fermer',
   save: 'Enregistrer',
   saved: 'Enregistré',
