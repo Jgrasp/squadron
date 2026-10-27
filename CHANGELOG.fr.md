@@ -1,5 +1,28 @@
 # Nouveautés
 
+## 0.11.0 · 2026-10-27
+
+### Conversation
+
+- **Commandes depuis la conversation** : une commande tapée après ! s'exécute dans le dossier de l'agent et s'affiche dans une carte bordée de vert ou de rouge, et Claude voit sa sortie. Un bloc bash dans une réponse a un bouton Lancer qui fait de même.
+- **Mots de passe** : quand sudo, ssh ou git demande un mot de passe dans une commande d'un agent, Squadron le demande dans une fenêtre qui montre l'agent et la commande, et Claude ne le voit jamais.
+- **Fichiers avec @** : taper @ dans un message ou dans le premier message d'un nouvel agent propose les fichiers et dossiers du projet.
+- **Conversations sans dossier**, rangées dans un projet Conversations à part, accessible depuis Ajouter un projet et depuis l'écran vide.
+- Une capture d'écran s'ouvre dans la visionneuse de Squadron, qui ne parcourt que les captures de la conversation.
+- Claude met chaque commande terminal dans son propre bloc, et un bloc html affiche un état de chargement pendant son écriture.
+
+### Projets
+
+- **Actions et pipelines** : les GitHub Actions et Bitbucket Pipelines d'un projet s'affichent au-dessus de ses agents pendant qu'elles tournent, sur une ligne avec un panneau au survol, et une exécution terminée reste visible, en vert ou en rouge, le temps que vous choisissez.
+- On peut coller ou joindre des captures et des fichiers en créant une tâche ou un nouvel agent.
+- Un agent lancé depuis une tâche reçoit le titre de la tâche en tête de son prompt.
+- Un agent terminé et pas encore lu ressort dans la liste avec un bord vert.
+- La liste des agents ne se termine plus par le dossier du projet et sa branche Git.
+
+### Squadron
+
+- **Nouveautés** dans les Réglages liste les fonctions et correctifs de chaque version dans la langue de l'interface, et une notification l'affiche une fois après une mise à jour.
+
 ## 0.10.0 · 2026-10-27
 
 ### Conversation

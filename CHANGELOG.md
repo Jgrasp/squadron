@@ -1,5 +1,28 @@
 # Changelog
 
+## 0.11.0 · 2026-10-27
+
+### Conversation
+
+- **Commands from the conversation**: a command typed after ! runs in the agent's folder and shows in a card framed green or red, and Claude sees its output. A bash block in a reply has a Run button that does the same.
+- **Passwords**: when sudo, ssh or git asks for a password in an agent's command, Squadron asks for it in a window that shows the agent and the command, and Claude never sees it.
+- **Files with @**: typing @ in a message or in a new agent's first message suggests the project's files and folders.
+- **Conversations without a folder**, kept in a Conversations project of their own, reached from Add a project and from the empty screen.
+- A screenshot opens in Squadron's own viewer, which steps only through that conversation's screenshots.
+- Claude puts each terminal command in its own block, and an html block shows a loading state while it is written.
+
+### Projects
+
+- **Actions and pipelines**: the GitHub Actions and Bitbucket Pipelines of a project show above its agents while they run, on one line with a panel on hover, and a finished one stays in view, green or red, for a time you choose.
+- Screenshots and files can be pasted or attached when creating a task or a new agent.
+- An agent started from a task gets the task title at the top of its prompt.
+- An agent that finished and has not been read yet stands out in the list with a green edge.
+- The agent list no longer ends with the project's folder and Git branch.
+
+### Squadron
+
+- **What's new** in Settings lists every release's features and fixes in the interface language, and a notice shows it once after an update.
+
 ## 0.10.0 · 2026-10-27
 
 ### Conversation
