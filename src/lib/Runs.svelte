@@ -94,6 +94,26 @@
       <div class="head">
         <strong>{run.name || `#${run.number}`}</strong>
         <span class="state">{t(STATUS[run.status])}</span>
+        <div class="actions">
+          <button class="btn btn-ghost out" onclick={() => invoke('open_link', { url: run.url })}>{t('runs.openOn', { host: host(run) })}</button>
+          <div class="anchor" data-menu>
+            <button class="icon" aria-label={t('runs.more', { name: run.name })} aria-haspopup="menu" aria-expanded={menu === run.id} onclick={() => (menu = menu === run.id ? null : run.id)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
+            </button>
+            {#if menu === run.id}
+              <div class="menu" role="menu">
+                <button role="menuitem" onclick={() => hideHere(run)}>{t('runs.hideHere', { name: run.name })}</button>
+                <button role="menuitem" onclick={() => hideEverywhere(run)}>{t('runs.hideEverywhere', { name: run.name })}</button>
+                <button role="menuitem" onclick={() => (close(), editProject(project.path, { runs: false }))}>{t('runs.offHere')}</button>
+              </div>
+            {/if}
+          </div>
+          {#if !active(run)}
+            <button class="icon" title={t('runs.dismiss')} aria-label={t('runs.dismiss')} onclick={() => dismiss(project, run)}>
+              <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg>
+            </button>
+          {/if}
+        </div>
       </div>
       {#if run.title}<p class="title">{run.title}</p>{/if}
       <div class="meta">
@@ -110,28 +130,6 @@
           {/if}
         </span>
       </div>
-    </div>
-    <div class="actions">
-      <button class="icon" title={t('runs.openOn', { host: host(run) })} aria-label={t('runs.openOn', { host: host(run) })} onclick={() => invoke('open_link', { url: run.url })}>
-        <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
-      </button>
-      <div class="anchor" data-menu>
-        <button class="icon" aria-label={t('runs.more', { name: run.name })} aria-haspopup="menu" aria-expanded={menu === run.id} onclick={() => (menu = menu === run.id ? null : run.id)}>
-          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><circle cx="5" cy="12" r="1.6" /><circle cx="12" cy="12" r="1.6" /><circle cx="19" cy="12" r="1.6" /></svg>
-        </button>
-        {#if menu === run.id}
-          <div class="menu" role="menu">
-            <button role="menuitem" onclick={() => hideHere(run)}>{t('runs.hideHere', { name: run.name })}</button>
-            <button role="menuitem" onclick={() => hideEverywhere(run)}>{t('runs.hideEverywhere', { name: run.name })}</button>
-            <button role="menuitem" onclick={() => (close(), editProject(project.path, { runs: false }))}>{t('runs.offHere')}</button>
-          </div>
-        {/if}
-      </div>
-      {#if !active(run)}
-        <button class="icon" title={t('runs.dismiss')} aria-label={t('runs.dismiss')} onclick={() => dismiss(project, run)}>
-          <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 7l10 10M17 7L7 17" /></svg>
-        </button>
-      {/if}
     </div>
   </li>
 {/snippet}
@@ -380,7 +378,8 @@
 
   .head {
     display: flex;
-    align-items: baseline;
+    align-items: center;
+    height: 20px;
     gap: 8px;
   }
 
@@ -431,13 +430,10 @@
   }
 
   .actions {
-    position: absolute;
-    top: 6px;
-    right: 6px;
     display: flex;
+    align-items: center;
     gap: 2px;
-    border-radius: 5px;
-    background: var(--menu-hover);
+    margin: -4px -2px -4px auto;
     opacity: 0;
   }
 
@@ -446,11 +442,18 @@
     opacity: 1;
   }
 
+  .out {
+    height: 24px;
+    margin-right: 4px;
+    padding: 0 8px;
+    font-size: 12px;
+  }
+
   .icon {
     display: grid;
     place-items: center;
-    width: 26px;
-    height: 26px;
+    width: 24px;
+    height: 24px;
     border-radius: 4px;
     color: var(--text-muted);
   }
