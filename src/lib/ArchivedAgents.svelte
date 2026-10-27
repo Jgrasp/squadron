@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ask } from './confirm.svelte'
+  import { ask } from './asking.svelte'
   import { ui } from './actions.svelte'
   import { archived, forget, unarchive, type Archived } from './agents.svelte'
   import { home, projects } from './projects.svelte'

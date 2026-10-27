@@ -1,6 +1,6 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog'
-  import { ask } from './confirm.svelte'
+  import { ask } from './asking.svelte'
   import AgentList from './AgentList.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'

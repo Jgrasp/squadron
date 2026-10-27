@@ -8,7 +8,7 @@
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
-  import { ask } from './confirm.svelte'
+  import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
   import { hostName, markReviewed, merge, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'

@@ -7,7 +7,7 @@
 </script>
 
 <script lang="ts">
-  import { message } from './confirm.svelte'
+  import { message } from './asking.svelte'
   import { settings } from './settings.svelte'
   import { errorText, t } from './i18n/index.svelte'
 

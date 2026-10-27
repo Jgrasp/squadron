@@ -1,6 +1,6 @@
 <script lang="ts">
   import { t } from './i18n/index.svelte'
-  import { questions } from './confirm.svelte'
+  import { questions } from './asking.svelte'
 
   const current = $derived(questions[0])
   let dialog = $state<HTMLDialogElement>()
