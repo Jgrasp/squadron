@@ -53,7 +53,7 @@
   }
 
   function open(project: string) {
-    projects.overview = false
+    projects.overview = projects.pulls = projects.board = false
     projects.current = project
   }
 
