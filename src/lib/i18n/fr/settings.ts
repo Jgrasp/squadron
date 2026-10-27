@@ -17,6 +17,7 @@ export default {
   tabShortcuts: 'Raccourcis',
   tabLayout: 'Disposition',
   groupSquadron: 'Squadron',
+  tabChangelog: 'Nouveautés',
   tabAbout: 'À propos',
   effectSnake: 'Serpent',
   effectSnakeHint: 'Une traînée lumineuse fait le tour de l’onglet, un tour toutes les {seconds} s',

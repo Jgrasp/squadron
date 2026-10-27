@@ -160,6 +160,7 @@ export default {
   preview: 'Aperçu',
   markdown: 'Markdown',
   mockup: 'Proposition visuelle',
+  drawing: 'Création du rendu…',
 
   statusWorking: 'Au travail',
   statusWaiting: 'En attente',

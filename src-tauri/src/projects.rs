@@ -82,6 +82,8 @@ pub struct Card {
     pub prompt: String,
     #[serde(default)]
     pub goal: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<PathBuf>,
     pub column: Column,
     #[serde(default)]
     pub agent: Option<String>,
@@ -331,6 +333,7 @@ mod tests {
                 title: "Segment export".into(),
                 prompt: String::new(),
                 goal: "the export tests pass".into(),
+                files: Vec::new(),
                 column: Column::Review,
                 agent: Some("a1".into()),
                 auto: Some(Column::Review),

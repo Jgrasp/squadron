@@ -122,6 +122,32 @@ fn add_project(
 }
 
 #[tauri::command]
+fn scratch_project(
+    app: AppHandle,
+    projects: State<Projects>,
+    name: String,
+) -> Result<(PathBuf, Vec<Folder>), String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("conversations");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let list = projects.update(|list| {
+        match list.iter_mut().find(|p| p.path == dir) {
+            Some(project) => project.archived = false,
+            None => list.push(Project {
+                name,
+                path: dir.clone(),
+                ..Default::default()
+            }),
+        }
+        Ok(())
+    })?;
+    Ok((dir, list))
+}
+
+#[tauri::command]
 fn remove_project(projects: State<Projects>, path: PathBuf) -> Result<Vec<Folder>, String> {
     projects.update(|list| {
         list.retain(|p| p.path != path);
@@ -518,6 +544,13 @@ fn list_dir(project: PathBuf, path: PathBuf) -> Result<Vec<Entry>, String> {
 }
 
 #[tauri::command]
+async fn project_files(dir: PathBuf) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::files(&dir))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn git_file(project: PathBuf, rev: String, path: String) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || git::show(&project, &rev, &path))
         .await
@@ -773,16 +806,19 @@ fn create_agent(
     text: String,
     worktree: Option<String>,
     dir: Option<PathBuf>,
+    files: Option<Vec<PathBuf>>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, None, false)?;
     agents.set_dir(&id, dir)?;
     if let Some(name) = worktree {
         agents.new_worktree(&id, &name)?;
     }
-    if text.trim().is_empty() {
+    let files = files.unwrap_or_default();
+    if text.trim().is_empty() && files.is_empty() {
         return Ok(());
     }
-    agents.send(&app, &settings.claude(), &id, serde_json::json!(text))
+    let content = attach::content(&text, &files)?;
+    agents.send(&app, &settings.claude(), &id, content)
 }
 
 #[tauri::command]
@@ -1281,6 +1317,7 @@ pub fn run() {
             list_projects,
             inspect_folder,
             add_project,
+            scratch_project,
             remove_project,
             move_project,
             edit_project,
@@ -1299,6 +1336,7 @@ pub fn run() {
             read_project_file,
             write_project_file,
             list_dir,
+            project_files,
             git_file,
             term_open,
             term_write,

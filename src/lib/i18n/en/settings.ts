@@ -15,6 +15,7 @@ export default {
   tabShortcuts: 'Shortcuts',
   tabLayout: 'Layout',
   groupSquadron: 'Squadron',
+  tabChangelog: 'What’s new',
   tabAbout: 'About',
   effectSnake: 'Snake',
   effectSnakeHint: 'A light trail runs around the tab, one lap every {seconds} s',

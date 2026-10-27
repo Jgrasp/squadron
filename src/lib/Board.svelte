@@ -1,8 +1,11 @@
 <script lang="ts">
+  import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
+  import Attachment from './Attachment.svelte'
   import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
   import { t, type Key } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
+  import { imagePaste } from './paste'
   import { home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -67,11 +70,28 @@
 
   const defaults = () => ({ ...$state.snapshot(settings.defaults) })
 
+  let attachError = $state('')
+
+  function attach(paths: string[]) {
+    if (!editing) return
+    const files = editing.card.files ?? []
+    editing.card.files = [...files, ...paths.filter((p) => !files.includes(p))]
+  }
+
+  const clip = imagePaste(attach, (e) => (attachError = e))
+
+  async function browseFiles() {
+    const chosen = await chooseFiles({ multiple: true })
+    if (chosen) attach(Array.isArray(chosen) ? chosen : [chosen])
+  }
+
   function create(column: Column = 'todo') {
-    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', goal: '', column, agent: null }, fresh: true, options: defaults(), worktree: null }
+    attachError = ''
+    editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', goal: '', files: [], column, agent: null }, fresh: true, options: defaults(), worktree: null }
   }
 
   function edit(card: Card) {
+    attachError = ''
     editing = { card: $state.snapshot(card), fresh: false, options: defaults(), worktree: null }
   }
 
@@ -80,7 +100,7 @@
     if (!editing?.card.title.trim()) return
     const card = { ...editing.card, title: editing.card.title.trim(), prompt: editing.card.prompt.trim(), goal: editing.card.goal?.trim() ?? '' }
     save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
-    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), card.prompt || card.title, card.goal ?? '', editing.worktree)
+    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), [card.title, card.prompt].filter(Boolean).join('\n\n'), card.goal ?? '', editing.worktree, card.files ?? [])
     editing = null
   }
 
@@ -243,17 +263,17 @@
                   </span>
                 {/if}
                 <span class="buttons">
-                  <button class="link" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
+                  <button class="act" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
                     {agent.attention ? t('board.answer') : t('board.openAgent')} ›
                   </button>
                   {#if column === 'review' && (agent.add || agent.del)}
-                    <button class="link diff" onclick={() => actions.diff(agent.id)}>
+                    <button class="act diff" onclick={() => actions.diff(agent.id)}>
                       {t('board.seeDiff')} <span class="add">+{agent.add}</span>{#if agent.del}<span class="del">−{agent.del}</span>{/if}
                     </button>
                   {/if}
                 </span>
               {:else if column !== 'done'}
-                <button class="link" disabled={!project.exists} onclick={() => edit(card)}>
+                <button class="act start" disabled={!project.exists} onclick={() => edit(card)}>
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>{t('board.startAnAgent')}
                 </button>
               {/if}
@@ -290,8 +310,20 @@
             rows="4"
             bind:value={editing.card.prompt}
             placeholder={t('board.taskPromptPlaceholder')}
-            onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
+            onkeydown={(e) => (clip.key(e), e.ctrlKey && e.key === 'Enter' && submit(e))}
+            onpaste={clip.paste}
           ></textarea>
+          <div class="files" aria-label={t('board.taskFiles')}>
+            {#each editing.card.files ?? [] as file, i (file)}<Attachment path={file} onremove={linked ? undefined : () => editing?.card.files?.splice(i, 1)} />{/each}
+            {#if !linked}
+              <button type="button" class="btn btn-secondary attach" title={t('board.attachTitle')} onclick={browseFiles}>
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                  ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
+                >{t('board.attach')}
+              </button>
+            {/if}
+            {#if attachError}<span class="attach-error" role="alert">{attachError}</span>{/if}
+          </div>
         </div>
         {#if !linked}
           <div class="group">
@@ -705,36 +737,37 @@
     color: var(--text-dim);
   }
 
-  .link {
+  .act {
     display: inline-flex;
     align-items: center;
     gap: 6px;
-    height: 26px;
-    margin-left: -8px;
-    padding: 0 8px;
+    height: 28px;
+    margin-top: 4px;
+    padding: 0 10px;
     border-radius: 4px;
-    color: var(--accent-link);
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text);
     font-size: 12.5px;
     font-weight: 600;
   }
 
-  .link svg {
-    fill: currentColor;
+  .act svg {
+    fill: var(--accent-link);
   }
 
-  .link:not(:disabled):hover {
-    background: var(--surface-3);
-    color: var(--accent-soft);
+  .act:not(:disabled):hover {
+    background: var(--surface-4);
   }
 
-  .link:disabled {
+  .act:disabled {
     opacity: 0.4;
   }
 
   .buttons {
     display: flex;
     flex-wrap: wrap;
-    gap: 2px 10px;
+    gap: 6px;
   }
 
   .diff .add {
@@ -747,17 +780,15 @@
     color: var(--err);
   }
 
-  .link.answer {
-    margin-left: 0;
-    padding: 0 10px;
+  .act.answer {
     background: var(--accent);
+    box-shadow: none;
     color: var(--accent-ink);
     font-weight: 700;
   }
 
-  .link.answer:hover {
+  .act.answer:hover {
     background: var(--accent-soft);
-    color: var(--accent-ink);
   }
 
   .add-row {
@@ -867,6 +898,26 @@
 
   .spacer {
     flex: 1;
+  }
+
+  .files {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .attach {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 32px;
+  }
+
+  .attach-error {
+    flex-basis: 100%;
+    font-size: 12.5px;
+    color: var(--err-text);
   }
 
   .btn-danger {

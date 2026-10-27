@@ -300,6 +300,13 @@ mockIPC(
       case 'add_project':
         projects.push({ name: a.name, path: a.path, rules: [] })
         return views()
+      case 'scratch_project': {
+        const path = '/home/user/.local/share/squadron/conversations'
+        const found = projects.find((p) => p.path === path)
+        if (found) found.archived = false
+        else projects.push({ name: a.name, path, rules: [] })
+        return [path, views()]
+      }
       case 'remove_project':
         projects.splice(
           projects.findIndex((p) => p.path === a.path),
@@ -598,6 +605,8 @@ mockIPC(
         return a.path.endsWith('Test.php')
           ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
           : `diff --git a/${a.path} b/${a.path}\nindex 3f2a91c..${a.now.slice(0, 7)} 100644\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
+      case 'project_files':
+        return ['composer.json', 'composer.lock', 'config/', 'config/services.yaml', 'resume.txt', 'src/', 'src/Segmentation/', 'src/Segmentation/ChannelSegmentResolver.php', 'src/Segmentation/SegmentRepository.php', 'tests/', 'tests/ResolverTest.php']
       case 'list_dir': {
         const tree: Record<string, [string, boolean][]> = {
           '': [['config', true], ['src', true], ['tests', true], ['vendor', true], ['composer.json', false], ['composer.lock', false], ['resume.txt', false]],
