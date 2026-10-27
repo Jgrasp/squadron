@@ -3,6 +3,7 @@
   import { flip } from 'svelte/animate'
   import { ofProject, shelve, unread, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
+  import { outcome } from './pipelines.svelte'
   import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
   import { chime } from './chime'
@@ -92,6 +93,15 @@
     .catch(() => {})
 </script>
 
+{#snippet run(state: 'running' | 'success' | 'failure')}
+  <span
+    class="run {state}"
+    role="img"
+    aria-label={t(state === 'running' ? 'runs.tabRunning' : state === 'success' ? 'runs.tabSuccess' : 'runs.tabFailure')}
+    title={t(state === 'running' ? 'runs.tabRunning' : state === 'success' ? 'runs.tabSuccess' : 'runs.tabFailure')}
+  ></span>
+{/snippet}
+
 <svelte:window
   onclick={closeMenus}
   onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false), (context = null))}
@@ -175,6 +185,7 @@
         <span class="dot" aria-hidden="true"></span>
         {project.name}
         {#if project.pinned}{@render pin()}{/if}
+        {#if outcome(project)}{@render run(outcome(project)!)}{/if}
         {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if needsYou(project.path)}<span
             class="badge pulls"
             role="img"
@@ -715,5 +726,28 @@
     visibility: hidden;
     pointer-events: none;
     display: flex;
+  }
+
+  .run {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 50%;
+  }
+
+  .run.running {
+    border: 2px solid var(--border-strong);
+    border-top-color: var(--project);
+    animation: spin 0.9s linear infinite;
+  }
+
+  .run.success {
+    background: var(--ok);
+    box-shadow: 0 0 6px var(--ok);
+  }
+
+  .run.failure {
+    background: var(--err);
+    box-shadow: 0 0 6px var(--err);
   }
 </style>

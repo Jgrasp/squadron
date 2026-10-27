@@ -9,7 +9,7 @@ import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_hidden?: string[]; repository?: string }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
@@ -39,8 +39,9 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived }))
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '' }))
 
+const loaded = Date.now()
 const timers = new Map<string, number>()
 let claudePath = 'claude'
 let tabEffect = 'pulse'
@@ -48,6 +49,7 @@ let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 let language = 'system'
+let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[] }
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -366,10 +368,7 @@ mockIPC(
         return
       case 'edit_project': {
         const project = projects.find((p) => p.path === a.path)!
-        if (a.name !== undefined) project.name = a.name
-        if (a.color !== undefined) project.color = a.color
-        if (a.pinned !== undefined) project.pinned = (args as { pinned: boolean }).pinned
-        if (a.archived !== undefined) project.archived = (args as { archived: boolean }).archived
+        Object.assign(project, (args as { changes: Partial<Project> }).changes)
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
       }
@@ -398,7 +397,7 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, ...runsConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
@@ -406,6 +405,7 @@ mockIPC(
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
+        runsConfig = (({ runs, runs_linger, runs_hidden }) => ({ runs, runs_linger, runs_hidden }))((a as unknown as { config: typeof runsConfig }).config)
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
@@ -431,6 +431,22 @@ mockIPC(
       case 'plugin:window|set_focus':
         if (label === 'main') popup?.focus()
         return
+      case 'pipeline_runs': {
+        if (a.dir.includes('nova')) throw 'The project is not on Bitbucket or GitHub.'
+        const at = (ms: number) => new Date(loaded + ms).toISOString()
+        const elapsed = Date.now() - loaded
+        const run = (id: number, name: string, title: string, status: string, started: number, finished: number | null, event = 'push') => ({
+          host: 'github', id: String(id), number: id, name, title, event, branch: 'main', url: `https://github.com/orbit/orbit/actions/runs/${id}`,
+          status: finished !== null && elapsed > finished ? status : elapsed > started ? 'running' : 'queued', started: at(started), finished: finished !== null && elapsed > finished ? at(finished) : null,
+        })
+        return [
+          run(3, 'Release', 'Orbit 2.4.0', 'success', 0, 25_000),
+          run(4, 'Tests', 'Segment CSV export', 'failure', 5_000, 40_000, 'pull_request'),
+          run(5, 'Deploy staging', 'Segment CSV export', 'success', 30_000, null),
+          run(6, 'Copilot code review', 'Segment CSV export', 'success', 0, 10_000, 'dynamic'),
+          run(2, 'Release', 'Orbit 2.3.0', 'success', -3 * 3_600_000, -3 * 3_600_000 + 300_000),
+        ]
+      }
       case 'pull_request':
         return a.dir.includes('orbit') ? orbitPull() : null
       case 'linked_pull': {

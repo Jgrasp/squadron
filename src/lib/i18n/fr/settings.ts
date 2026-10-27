@@ -189,7 +189,7 @@ export default {
   tokenLacksScope: 'Ce token n’a pas la portée {scope}, Squadron ne peut donc pas lister les pull requests que vous relisez ou avez écrites. Déconnectez-vous, puis reconnectez-vous avec un token qui a les quatre portées.',
   openTokens: 'Ouvrir la page des tokens d’API',
   stepCreate: 'Choisissez {create}, nommez-le Squadron, puis sélectionnez {bitbucket}.',
-  stepScopes: 'Cochez ces quatre portées. Cliquez sur l’une d’elles pour la copier, puis collez-la dans la recherche de portées :',
+  stepScopes: 'Cochez ces cinq portées. Cliquez sur l’une d’elles pour la copier, puis collez-la dans la recherche de portées :',
   stepPaste: 'Collez le token ci-dessous avec l’e-mail de votre compte Atlassian.',
   atlassianEmail: 'E-mail Atlassian',
   apiToken: 'Token d’API',

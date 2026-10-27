@@ -187,7 +187,7 @@ export default {
   tokenLacksScope: 'This token lacks {scope}, so Squadron cannot list the pull requests you review or wrote. Sign out, then sign in with a token that has the four scopes.',
   openTokens: 'Open the API tokens page',
   stepCreate: 'Choose {create}, name it Squadron, then pick {bitbucket}.',
-  stepScopes: 'Tick these four scopes. Click one to copy it, then paste it in the scope search:',
+  stepScopes: 'Tick these five scopes. Click one to copy it, then paste it in the scope search:',
   stepPaste: 'Paste the token below with the email of your Atlassian account.',
   atlassianEmail: 'Atlassian email',
   apiToken: 'API token',

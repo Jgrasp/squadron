@@ -190,30 +190,36 @@ fn cancel_permissions(gate: State<Gate>, agent: String) {
 fn edit_project(
     projects: State<Projects>,
     path: PathBuf,
-    name: Option<String>,
-    color: Option<String>,
-    pinned: Option<bool>,
-    archived: Option<bool>,
+    changes: projects::Edit,
 ) -> Result<Vec<Folder>, String> {
     projects.update(|list| {
         let project = list
             .iter_mut()
             .find(|p| p.path == path)
             .ok_or("Unknown project.")?;
-        if let Some(name) = name.map(|n| n.trim().to_string()) {
+        if let Some(name) = changes.name.map(|n| n.trim().to_string()) {
             if name.is_empty() {
                 return Err("The project needs a name.".into());
             }
             project.name = name;
         }
-        if let Some(color) = color {
+        if let Some(color) = changes.color {
             project.color = color;
         }
-        if let Some(pinned) = pinned {
+        if let Some(pinned) = changes.pinned {
             project.pinned = pinned;
         }
-        if let Some(archived) = archived {
+        if let Some(archived) = changes.archived {
             project.archived = archived;
+        }
+        if let Some(runs) = changes.runs {
+            project.runs_off = !runs;
+        }
+        if let Some(hidden) = changes.runs_hidden {
+            project.runs_hidden = hidden;
+        }
+        if let Some(repository) = changes.repository {
+            project.repository = repository.trim().to_string();
         }
         Ok(())
     })
@@ -264,6 +270,9 @@ struct Config {
     steps: String,
     thinking: String,
     language: String,
+    runs: bool,
+    runs_linger: u32,
+    runs_hidden: Vec<String>,
 }
 
 impl Default for Config {
@@ -287,6 +296,9 @@ impl Default for Config {
             steps: "grouped".into(),
             thinking: "duration".into(),
             language: "system".into(),
+            runs: true,
+            runs_linger: 10,
+            runs_hidden: Vec::new(),
         }
     }
 }
@@ -326,6 +338,7 @@ impl Settings {
             ));
         }
         config.keys.retain(|_, value| !value.trim().is_empty());
+        config.runs_hidden.retain(|name| !name.trim().is_empty());
         config
             .editors
             .retain(|e| !e.name.trim().is_empty() && !e.command.trim().is_empty());
@@ -578,6 +591,11 @@ async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
 #[tauri::command]
 async fn linked_pull(url: String, projects: Vec<PathBuf>) -> Result<forge::Linked, String> {
     forge::linked(&url, projects).await
+}
+
+#[tauri::command]
+async fn pipeline_runs(dir: PathBuf, repository: String) -> Result<Vec<forge::Run>, String> {
+    forge::runs(&dir, &repository).await
 }
 
 #[tauri::command]
@@ -1294,6 +1312,7 @@ pub fn run() {
             git_patch,
             pull_request,
             pull_lists,
+            pipeline_runs,
             linked_pull,
             review_checkout,
             changed_files,

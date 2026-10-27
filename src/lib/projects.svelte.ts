@@ -12,6 +12,9 @@ export type Project = {
   color: string
   pinned: boolean
   archived: boolean
+  runs: boolean
+  runs_hidden: string[]
+  repository: string
   exists: boolean
   git: boolean
   branch: string | null
@@ -50,8 +53,16 @@ export async function move(path: string, to: string) {
   projects.current = to
 }
 
-export async function editProject(path: string, changes: { name?: string; color?: string; pinned?: boolean; archived?: boolean }) {
-  set(await invoke<Project[]>('edit_project', { path, ...changes }))
+export async function editProject(path: string, changes: {
+    name?: string
+    color?: string
+    pinned?: boolean
+    archived?: boolean
+    runs?: boolean
+    runs_hidden?: string[]
+    repository?: string
+  },) {
+  set(await invoke<Project[]>('edit_project', { path, changes }))
 }
 
 export async function orderProjects(paths: string[]) {

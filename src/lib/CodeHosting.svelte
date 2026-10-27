@@ -1,6 +1,9 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { lookUpAll } from './pulls.svelte'
+  import { projects } from './projects.svelte'
+  import { names } from './pipelines.svelte'
+  import { saveSettings, settings } from './settings.svelte'
   import { errorText, t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
 
@@ -12,12 +15,24 @@
   let error = $state('')
   let busy = $state(false)
   let copied = $state('')
-  const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket']
+  const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket', 'read:pipeline:bitbucket']
 
   function copy(scope: string) {
     navigator.clipboard.writeText(scope)
     copied = scope
     setTimeout(() => copied === scope && (copied = ''), 1500)
+  }
+
+  const LINGERS = [1, 2, 5, 10, 15, 30, 60]
+  let hide = $state('')
+  const seen = $derived([...new Set(projects.list.flatMap(names))].filter((n) => !settings.runs_hidden.includes(n)).sort())
+  const change = (changes: Partial<typeof settings>) => saveSettings({ ...$state.snapshot(settings), ...changes }).catch((e) => (error = errorText(e)))
+
+  function hideName(event: Event) {
+    event.preventDefault()
+    const name = hide.trim()
+    if (name && !settings.runs_hidden.includes(name)) change({ runs_hidden: [...settings.runs_hidden, name] })
+    hide = ''
   }
 
   const refresh = () => invoke<Accounts>('forge_accounts').then((found) => (accounts = found))
@@ -106,7 +121,109 @@
   {/if}
 </section>
 
+<section>
+  <h3>{t('runs.title')}</h3>
+  <p class="intro">{t('runs.settingsIntro')}</p>
+  <label class="check">
+    <input type="checkbox" checked={settings.runs} onchange={(e) => change({ runs: e.currentTarget.checked })} />
+    <span>
+      <strong>{t('runs.show')}</strong>
+      <small>{t('runs.showHint')}</small>
+    </span>
+  </label>
+  <label for="runs-linger">{t('runs.linger')}</label>
+  <select id="runs-linger" class="field" disabled={!settings.runs} value={settings.runs_linger} onchange={(e) => change({ runs_linger: Number(e.currentTarget.value) })}>
+    {#each LINGERS as minutes (minutes)}<option value={minutes}>{t('runs.lingerMinutes', { count: minutes })}</option>{/each}
+  </select>
+  <span class="label">{t('runs.hiddenEverywhere')}</span>
+  {#if settings.runs_hidden.length}
+    <span class="names">
+      {#each settings.runs_hidden as name (name)}
+        <button class="name" aria-label={t('runs.unhide', { name })} title={t('runs.unhide', { name })} onclick={() => change({ runs_hidden: settings.runs_hidden.filter((n) => n !== name) })}>
+          {name}<span aria-hidden="true">×</span>
+        </button>
+      {/each}
+    </span>
+  {:else}
+    <p class="intro">{t('runs.hiddenNone')}</p>
+  {/if}
+  <form class="row" onsubmit={hideName}>
+    <input class="field" list="runs-seen" placeholder={t('runs.hideName')} aria-label={t('runs.hideName')} bind:value={hide} />
+    <datalist id="runs-seen">{#each seen as name (name)}<option value={name}></option>{/each}</datalist>
+    <button class="btn btn-secondary" disabled={!hide.trim()}>{t('common.add')}</button>
+  </form>
+</section>
+
 <style>
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    font-weight: 400;
+    cursor: pointer;
+  }
+
+  .check input {
+    margin-top: 3px;
+    accent-color: var(--accent);
+  }
+
+  .check span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .check strong {
+    font-weight: 600;
+  }
+
+  .check small {
+    font-size: 12.5px;
+    line-height: 1.5;
+    color: var(--text-dim);
+  }
+
+  .label {
+    font-weight: 600;
+  }
+
+  .names {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .name {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+  }
+
+  .name:hover {
+    background: var(--surface-5);
+    color: var(--text-strong);
+  }
+
+  form.row {
+    flex-direction: row;
+  }
+
+  .row .field {
+    flex: 1;
+    height: 34px;
+  }
+
+  .row .btn {
+    height: 34px;
+    padding: 0 14px;
+  }
+
   section,
   form {
     display: flex;

@@ -1081,6 +1081,155 @@ pub async fn merge(dir: &Path, number: u64) -> Result<(), String> {
     }
 }
 
+#[derive(Debug, Default, PartialEq, Serialize)]
+pub struct Run {
+    pub host: String,
+    pub id: String,
+    pub number: u64,
+    pub name: String,
+    pub title: String,
+    pub event: String,
+    pub branch: String,
+    pub status: String,
+    pub url: String,
+    pub started: String,
+    pub finished: Option<String>,
+}
+
+const NO_PIPELINE_SCOPE: &str =
+    "Add the read:pipeline:bitbucket scope to the Bitbucket API token to see pipelines.";
+
+fn repo_given(dir: &Path, repository: &str) -> Result<Repo, String> {
+    let given = repository.trim();
+    if given.is_empty() {
+        return repo_of(dir);
+    }
+    let url = if given.contains("://") || given.contains('@') {
+        given.to_string()
+    } else {
+        format!("https://{given}")
+    };
+    repo(&url).ok_or_else(|| "The repository is not a Bitbucket or GitHub address.".into())
+}
+
+pub async fn runs(dir: &Path, repository: &str) -> Result<Vec<Run>, String> {
+    let repo = repo_given(dir, repository)?;
+    match repo.host {
+        Host::Bitbucket => {
+            let list = bitbucket(
+                Method::GET,
+                &format!("/repositories/{}/pipelines", repo.slug),
+                &[
+                    ("sort", "-created_on"),
+                    ("pagelen", "20"),
+                    ("fields", "values.uuid,values.build_number,values.state.name,values.state.result.name,values.state.stage.name,values.target.ref_name,values.target.selector.type,values.target.selector.pattern,values.target.commit.message,values.trigger.name,values.created_on,values.completed_on"),
+                ],
+                None,
+            )
+            .await
+            .map_err(|e| if e.contains("403") { NO_PIPELINE_SCOPE.into() } else { e })?;
+            Ok(list["values"]
+                .as_array()
+                .into_iter()
+                .flatten()
+                .map(|value| bitbucket_run(value, &repo.slug))
+                .collect())
+        }
+        Host::GitHub => {
+            blocking(move || {
+                let out = gh(
+                    &[
+                        "run",
+                        "list",
+                        "--repo",
+                        &repo.slug,
+                        "--limit",
+                        "20",
+                        "--json",
+                        "databaseId,number,workflowName,displayTitle,event,headBranch,status,conclusion,url,createdAt,startedAt,updatedAt",
+                    ],
+                    None,
+                )?;
+                let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+                Ok(list.as_array().into_iter().flatten().map(github_run).collect())
+            })
+            .await
+        }
+    }
+}
+
+fn github_run(value: &Value) -> Run {
+    let status = match (
+        text(&value["status"]).as_str(),
+        text(&value["conclusion"]).as_str(),
+    ) {
+        ("completed", "success") => "success",
+        ("completed", "cancelled") => "cancelled",
+        ("completed", "skipped" | "neutral" | "stale") => "skipped",
+        ("completed", _) => "failure",
+        ("in_progress", _) => "running",
+        _ => "queued",
+    };
+    let started = Some(text(&value["startedAt"]))
+        .filter(|s| !s.is_empty())
+        .unwrap_or_else(|| text(&value["createdAt"]));
+    Run {
+        host: "github".into(),
+        id: value["databaseId"].as_u64().unwrap_or_default().to_string(),
+        number: value["number"].as_u64().unwrap_or_default(),
+        name: text(&value["workflowName"]),
+        title: text(&value["displayTitle"]),
+        event: text(&value["event"]),
+        branch: text(&value["headBranch"]),
+        status: status.into(),
+        url: text(&value["url"]),
+        started,
+        finished: (value["status"] == "completed").then(|| text(&value["updatedAt"])),
+    }
+}
+
+fn bitbucket_run(value: &Value, slug: &str) -> Run {
+    let state = &value["state"];
+    let status = match (
+        text(&state["name"]).as_str(),
+        text(&state["result"]["name"]).as_str(),
+    ) {
+        ("COMPLETED", "SUCCESSFUL") => "success",
+        ("COMPLETED", "STOPPED" | "EXPIRED") => "cancelled",
+        ("COMPLETED", _) => "failure",
+        ("IN_PROGRESS", _) if state["stage"]["name"] == "PAUSED" => "queued",
+        ("IN_PROGRESS", _) => "running",
+        _ => "queued",
+    };
+    let selector = &value["target"]["selector"];
+    let kind = text(&selector["type"]);
+    let pattern = text(&selector["pattern"]);
+    let name = if pattern.is_empty() || kind == "default" {
+        kind
+    } else {
+        format!("{kind}: {pattern}")
+    };
+    let number = value["build_number"].as_u64().unwrap_or_default();
+    let title = text(&value["target"]["commit"]["message"])
+        .lines()
+        .next()
+        .unwrap_or_default()
+        .to_string();
+    Run {
+        host: "bitbucket".into(),
+        id: text(&value["uuid"]),
+        number,
+        name,
+        title,
+        event: text(&value["trigger"]["name"]).to_lowercase(),
+        branch: text(&value["target"]["ref_name"]),
+        status: status.into(),
+        url: format!("https://bitbucket.org/{slug}/pipelines/results/{number}"),
+        started: text(&value["created_on"]),
+        finished: value["completed_on"].as_str().map(str::to_string),
+    }
+}
+
 #[cfg(test)]
 mod tests {
     #[test]
@@ -1493,5 +1642,96 @@ mod tests {
                 Err(e) => println!("{dir}: error {e}"),
             }
         }
+    }
+    #[test]
+    fn sums_up_runs_of_both_hosts() {
+        let run = github_run(
+            &json!({"databaseId": 7, "number": 14, "workflowName": "Release", "displayTitle": "Squadron 0.10.0", "event": "push", "headBranch": "main", "status": "completed", "conclusion": "timed_out", "url": "u", "createdAt": "a", "startedAt": "b", "updatedAt": "c"}),
+        );
+        assert_eq!(
+            (
+                run.id.as_str(),
+                run.status.as_str(),
+                run.started.as_str(),
+                run.finished.as_deref()
+            ),
+            ("7", "failure", "b", Some("c"))
+        );
+        let run = github_run(&json!({"status": "waiting", "createdAt": "a", "startedAt": ""}));
+        assert_eq!(
+            (run.status.as_str(), run.started.as_str(), run.finished),
+            ("queued", "a", None)
+        );
+        let run = bitbucket_run(
+            &json!({"uuid": "{x}", "build_number": 42, "state": {"name": "COMPLETED", "result": {"name": "STOPPED"}}, "target": {"ref_name": "main", "selector": {"type": "custom", "pattern": "deploy-prod"}, "commit": {"message": "Ship it\n\nmore"}}, "trigger": {"name": "MANUAL"}, "created_on": "a", "completed_on": "b"}),
+            "akki-team/fileas",
+        );
+        assert_eq!(
+            (
+                run.name.as_str(),
+                run.title.as_str(),
+                run.status.as_str(),
+                run.event.as_str(),
+                run.url.as_str()
+            ),
+            (
+                "custom: deploy-prod",
+                "Ship it",
+                "cancelled",
+                "manual",
+                "https://bitbucket.org/akki-team/fileas/pipelines/results/42"
+            )
+        );
+        let run = bitbucket_run(
+            &json!({"state": {"name": "IN_PROGRESS", "stage": {"name": "RUNNING"}}, "target": {"selector": {"type": "default"}}}),
+            "a/b",
+        );
+        assert_eq!(
+            (run.name.as_str(), run.status.as_str()),
+            ("default", "running")
+        );
+    }
+
+    #[test]
+    fn reads_a_repository_given_by_hand() {
+        let dir = Path::new("/nowhere");
+        assert_eq!(
+            repo_given(dir, "github.com/Jgrasp/squadron").unwrap().slug,
+            "Jgrasp/squadron"
+        );
+        assert_eq!(
+            repo_given(dir, "git@bitbucket.org:akki-team/fileas.git")
+                .unwrap()
+                .host,
+            Host::Bitbucket
+        );
+        assert!(repo_given(dir, "Jgrasp/squadron").is_err());
+    }
+
+    #[test]
+    #[ignore = "asks GitHub through gh"]
+    fn real_github_runs() {
+        let runs = tauri::async_runtime::block_on(runs(
+            Path::new("/nowhere"),
+            "github.com/Jgrasp/squadron",
+        ))
+        .unwrap();
+        assert!(runs.iter().any(|r| {
+            r.name == "Release"
+                && r.url
+                    .starts_with("https://github.com/Jgrasp/squadron/actions/runs/")
+        }));
+    }
+
+    #[test]
+    #[ignore = "asks Bitbucket with the saved token"]
+    fn real_bitbucket_runs() {
+        let runs = tauri::async_runtime::block_on(runs(
+            Path::new("/home/jgrasp/Projects/Symfony/fileas"),
+            "",
+        ))
+        .unwrap();
+        println!("{runs:#?}");
+        assert!(!runs.is_empty());
     }
 }

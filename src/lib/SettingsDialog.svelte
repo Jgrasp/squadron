@@ -141,7 +141,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, compact_window: compactWindow, steps, thinking, language })
+      await saveSettings({ ...$state.snapshot(settings), claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, compact_window: compactWindow, steps, thinking, language })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {

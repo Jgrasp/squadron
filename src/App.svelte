@@ -25,6 +25,8 @@
   import { activity } from './lib/stream'
   import { lookForUpdate } from './lib/update.svelte'
   import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
+  import { watchRuns } from './lib/pipelines.svelte'
+  import Runs from './lib/Runs.svelte'
   import PullsView from './lib/PullsView.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
@@ -86,6 +88,7 @@
       const lookUpPulls = () => (lookUpAll(), projects.list.forEach((p) => lookUpLists(p.path)))
       lookUpPulls()
       setInterval(lookUpPulls, 3 * 60_000)
+      watchRuns()
     })
 
   $effect(() => {
@@ -143,6 +146,7 @@
   {:else if projects.list.length === 0}
     <EmptyProjects onadd={() => (ui.adding = '')} />
   {:else if project}
+    <Runs {project} />
     {#key project.path}
       {#if projects.board}
         <Board {project} agents={mirrored} {actions} onclose={() => (projects.board = false)} onpopout={popOut} />

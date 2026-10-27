@@ -10,6 +10,9 @@ export const backend: Partial<Record<Locale, Table>> = {
         'Ajoutez la portée read:user:bitbucket au token d’API Bitbucket pour lister vos pull requests.',
       'Bitbucket refused the API token: add a new one in Settings › Code hosting.':
         'Bitbucket a refusé le token d’API : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
+      'Add the read:pipeline:bitbucket scope to the Bitbucket API token to see pipelines.':
+        'Ajoutez la portée read:pipeline:bitbucket au token d’API Bitbucket pour voir les pipelines.',
+      'The repository is not a Bitbucket or GitHub address.': 'Ce dépôt n’est pas une adresse Bitbucket ou GitHub.',
       'Bitbucket refused this email and token.': 'Bitbucket a refusé cet e-mail et ce token.',
       'Empty command.': 'Commande vide.',
       'File outside the project.': 'Ce fichier est en dehors du projet.',

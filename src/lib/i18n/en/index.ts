@@ -4,7 +4,8 @@ import common from './common'
 import conversation from './conversation'
 import format from './format'
 import review from './review'
+import runs from './runs'
 import settings from './settings'
 import shell from './shell'
 
-export default { common, format, settings, board, review, agent, conversation, shell }
+export default { common, format, settings, board, review, runs, agent, conversation, shell }

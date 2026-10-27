@@ -5,6 +5,7 @@
   import ColorPick from './ColorPick.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
   import { saveSettings, settings, type TabOrder } from './settings.svelte'
+  import { names, runs } from './pipelines.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
 
   let error = $state('')
@@ -81,6 +82,41 @@
           <button class="link" onclick={() => relocate(project.path)}>{t('settings.changeFolder')}</button>
           <button class="link quiet" onclick={() => act(() => shelve(project))}>{t('settings.archiveEllipsis')}</button>
         </span>
+        <span class="runs" class:off={!settings.runs}>
+          <label class="toggle">
+            <input type="checkbox" checked={project.runs} disabled={!settings.runs} onchange={(e) => act(() => editProject(project.path, { runs: e.currentTarget.checked }))} />
+            {t('runs.projectShow')}
+          </label>
+          {#if project.runs && settings.runs}
+            <input
+              class="field repo"
+              value={project.repository}
+              placeholder={t('runs.repositoryPlaceholder')}
+              aria-label={t('runs.repository')}
+              title={t('runs.repositoryHint')}
+              spellcheck="false"
+              onchange={(e) => act(() => editProject(project.path, { repository: e.currentTarget.value }))}
+            />
+          {/if}
+        </span>
+        {#if project.runs && settings.runs}
+          {#if runs[project.path]?.error}<span class="hint bad">{errorText(runs[project.path].error)}</span>{/if}
+          {#if project.runs_hidden.length || names(project).length}
+            <span class="names">
+              <span class="hint">{t('runs.filterHint')}</span>
+              {#each project.runs_hidden as name (name)}
+                <button class="name hidden" aria-pressed="false" title={t('runs.unhide', { name })} onclick={() => act(() => editProject(project.path, { runs_hidden: project.runs_hidden.filter((n) => n !== name) }))}>
+                  <s>{name}</s>
+                </button>
+              {/each}
+              {#each names(project).filter((n) => !project.runs_hidden.includes(n) && !settings.runs_hidden.includes(n)) as name (name)}
+                <button class="name" aria-pressed="true" title={t('runs.hideHere', { name })} onclick={() => act(() => editProject(project.path, { runs_hidden: [...project.runs_hidden, name] }))}>
+                  {name}
+                </button>
+              {/each}
+            </span>
+          {/if}
+        {/if}
       </span>
     </li>
   {/each}
@@ -269,6 +305,67 @@
 
   .bad {
     color: var(--err-text);
+  }
+
+  .runs {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .runs.off {
+    opacity: 0.5;
+  }
+
+  .toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    white-space: nowrap;
+    cursor: pointer;
+  }
+
+  .toggle input {
+    accent-color: var(--accent);
+  }
+
+  .repo {
+    flex: 1;
+    height: 30px;
+    font: 12.5px var(--mono);
+  }
+
+  .hint {
+    font-size: 12.5px;
+  }
+
+  .names {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+  }
+
+  .name {
+    height: 26px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 12.5px;
+  }
+
+  .name.hidden {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-faint);
+  }
+
+  .name:hover {
+    background: var(--surface-5);
+    color: var(--text-strong);
   }
 
   .quiet {
