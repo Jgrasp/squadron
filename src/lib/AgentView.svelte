@@ -48,7 +48,7 @@
   let column: HTMLElement
   let stuck = $state(true)
   let diffFile = $state('')
-  let diffSource = $state<'local' | 'pull'>('local')
+  let diffSource = $state<'local' | 'pull' | 'branch'>('local')
   let proposal = $state<Proposal | null>(null)
 
   $effect(() => {

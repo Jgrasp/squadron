@@ -44,7 +44,7 @@
     comments: Comment[]
     target: Comment | null
     pull?: Pull | null
-    mode: 'local' | 'pull'
+    mode: 'local' | 'pull' | 'branch'
     onhand: (quote: string) => void
     onreview: (summary: string, list: Comment[]) => void
     onposted?: () => void
@@ -80,6 +80,18 @@
         sinceError = String(e)
         onlyNew = false
       })
+  })
+
+  const branching = $derived(mode === 'branch' && !reviewing && !!changes)
+  let branched = $state<{ changes: Changes; base: string; commits: number } | null>(null)
+  let branchError = $state('')
+
+  $effect(() => {
+    if (!branching) return
+    void changes?.now
+    invoke<{ changes: Changes; base: string; commits: number }>('branch_changes', { project: folder })
+      .then((found) => ((branched = found), (branchError = '')))
+      .catch((e) => (branchError = String(e)))
   })
 
   let remarks = $state<Remark[]>([])
@@ -148,7 +160,7 @@
     handed.push(thread.root.id)
   }
 
-  const source = $derived(reviewing ? (pull && pulled?.key === keyOf(pull) ? pulled.changes : null) : changes)
+  const source = $derived(reviewing ? (pull && pulled?.key === keyOf(pull) ? pulled.changes : null) : branching ? (branched?.changes ?? null) : changes)
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
   const BADGES: Record<string, Key> = { NEW: 'review.statusNew', DELETED: 'review.statusDeleted', MODIFIED: 'review.statusModified', PROPOSED: 'review.statusProposed' }
@@ -490,6 +502,8 @@
       {t('review.pullTag', { number: String(pull.number) })} · {pull.branch} → {pull.base}{source ? ` · ${t('review.fileCount', { count: files.length })}` : ''}{onlyNew && pulled
         ? ` · ${t('review.newCommitsSince', { count: pulled.added })}`
         : ''}
+    {:else if branching}
+      {branched ? t('review.branchSince', { base: branched.base, commits: branched.commits, count: files.length }) : branchError}
     {:else if changes}
       {t('review.uncommittedFiles', { count: files.length })}{agent ? ` · ${t('review.editedBy', { count: mine, agent: agent.name })}` : ''}
     {:else if agent}
@@ -514,10 +528,11 @@
         <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>{t('review.allChanges')}</button>
       </div>
     {/if}
-    {#if pull && agent}
+    {#if agent && (changes || pull)}
       <div class="modes" role="group" aria-label={t('review.whatToCompare')}>
-        <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>{t('review.changes')}</button>
-        <button aria-pressed={reviewing} onclick={() => (mode = 'pull')}>{t('review.pullTag', { number: String(pull.number) })}</button>
+        <button aria-pressed={mode === 'local'} onclick={() => (mode = 'local')}>{t('review.uncommitted')}</button>
+        {#if changes}<button aria-pressed={mode === 'branch'} title={t('review.branchTitle')} onclick={() => (mode = 'branch')}>{t('review.branch')}</button>{/if}
+        {#if pull}<button aria-pressed={mode === 'pull'} onclick={() => (mode = 'pull')}>{t('review.pullTag', { number: String(pull.number) })}</button>{/if}
       </div>
     {/if}
     <div class="modes" role="group" aria-label={t('review.diffLayout')}>
@@ -831,7 +846,9 @@
           ? onlyNew
             ? t('review.footSince')
             : t('review.footPull', { base: pull.base })
-          : changes
+          : branching && branched
+            ? t('review.footBranch', { base: branched.base })
+            : changes
             ? t('review.footUncommitted')
             : t('review.footAgent')}
       </span>

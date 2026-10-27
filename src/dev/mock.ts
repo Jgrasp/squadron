@@ -554,6 +554,23 @@ mockIPC(
             { path: 'src/Legacy/OldResolver.php', status: 'D', add: 0, del: 12 },
           ],
         }
+      case 'branch_changes':
+        if (a.project.includes('nova')) throw 'not a git repository'
+        return {
+          base: 'develop',
+          commits: 4,
+          changes: {
+            from: 'c'.repeat(40),
+            now: 'b'.repeat(40),
+            files: [
+              { path: 'config/packages/segmentation.yaml', status: 'A', add: 9, del: 0 },
+              { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 18, del: 4 },
+              { path: 'src/Segmentation/SegmentRepository.php', status: 'M', add: 22, del: 3 },
+              { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
+              { path: 'templates/admin/segment/index.html.twig', status: 'M', add: 7, del: 1 },
+            ],
+          },
+        }
       case 'git_patch':
         return a.path.endsWith('Test.php')
           ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`

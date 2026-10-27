@@ -70,6 +70,47 @@ pub fn changes(dir: &Path) -> Result<Changes, String> {
     between(dir, head(dir), snapshot(dir)?)
 }
 
+#[derive(Serialize)]
+pub struct Branched {
+    pub changes: Changes,
+    pub base: String,
+    pub commits: u32,
+}
+
+fn base_branch(dir: &Path) -> Option<String> {
+    run(git(dir).args([
+        "symbolic-ref",
+        "--quiet",
+        "--short",
+        "refs/remotes/origin/HEAD",
+    ]))
+    .ok()
+    .map(|name| name.trim().to_string())
+    .filter(|name| commit(dir, name).is_some())
+    .or_else(|| {
+        ["origin/main", "main", "origin/master", "master"]
+            .into_iter()
+            .find(|name| commit(dir, name).is_some())
+            .map(str::to_string)
+    })
+}
+
+pub fn branch_changes(dir: &Path) -> Result<Branched, String> {
+    let base = base_branch(dir).ok_or("No main branch to compare with.")?;
+    let from = run(git(dir).args(["merge-base", &base, "HEAD"]))?
+        .trim()
+        .to_string();
+    let commits = run(git(dir).args(["rev-list", "--count", &format!("{from}..HEAD")]))
+        .ok()
+        .and_then(|n| n.trim().parse().ok())
+        .unwrap_or(0);
+    Ok(Branched {
+        changes: between(dir, from, snapshot(dir)?)?,
+        base: base.trim_start_matches("origin/").to_string(),
+        commits,
+    })
+}
+
 pub fn origin(dir: &Path) -> Option<String> {
     run(git(dir).args(["remote", "get-url", "origin"]))
         .ok()
@@ -247,6 +288,37 @@ pub fn patch(dir: &Path, from: &str, now: &str, path: &str) -> Result<String, St
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn branch_changes_cover_commits_and_uncommitted_work_since_main() {
+        let dir = std::env::temp_dir().join(format!("squadron-branch-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(&dir).unwrap();
+        let sh = |args: &[&str]| run(git(&dir).args(args)).unwrap();
+        sh(&["init", "-q", "-b", "main"]);
+        sh(&["config", "user.email", "t@t"]);
+        sh(&["config", "user.name", "t"]);
+        let commit = |file: &str| {
+            fs::write(dir.join(file), "x\n").unwrap();
+            sh(&["add", "-A"]);
+            sh(&["-c", "commit.gpgsign=false", "commit", "-qnm", file]);
+        };
+        commit("base.txt");
+        sh(&["checkout", "-qb", "feat"]);
+        commit("one.txt");
+        commit("two.txt");
+        fs::write(dir.join("draft.txt"), "y\n").unwrap();
+        let found = branch_changes(&dir).unwrap();
+        let paths: Vec<&str> = found
+            .changes
+            .files
+            .iter()
+            .map(|f| f.path.as_str())
+            .collect();
+        assert_eq!((found.base.as_str(), found.commits), ("main", 2));
+        assert_eq!(paths, ["draft.txt", "one.txt", "two.txt"]);
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn diffs_a_linked_worktree_apart_from_the_main_checkout() {

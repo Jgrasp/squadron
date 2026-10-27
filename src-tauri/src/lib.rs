@@ -557,6 +557,13 @@ fn term_close(terminals: State<Terminals>, id: u32) {
 }
 
 #[tauri::command]
+async fn branch_changes(project: PathBuf) -> Result<git::Branched, String> {
+    tauri::async_runtime::spawn_blocking(move || git::branch_changes(&project))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
     tauri::async_runtime::spawn_blocking(move || git::changes(&project))
         .await
@@ -1276,6 +1283,7 @@ pub fn run() {
             detect_editors,
             open_with,
             git_changes,
+            branch_changes,
             git_patch,
             pull_request,
             pull_lists,
