@@ -122,6 +122,32 @@ fn add_project(
 }
 
 #[tauri::command]
+fn scratch_project(
+    app: AppHandle,
+    projects: State<Projects>,
+    name: String,
+) -> Result<(PathBuf, Vec<Folder>), String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("conversations");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let list = projects.update(|list| {
+        match list.iter_mut().find(|p| p.path == dir) {
+            Some(project) => project.archived = false,
+            None => list.push(Project {
+                name,
+                path: dir.clone(),
+                ..Default::default()
+            }),
+        }
+        Ok(())
+    })?;
+    Ok((dir, list))
+}
+
+#[tauri::command]
 fn remove_project(projects: State<Projects>, path: PathBuf) -> Result<Vec<Folder>, String> {
     projects.update(|list| {
         list.retain(|p| p.path != path);
@@ -1263,6 +1289,7 @@ pub fn run() {
             list_projects,
             inspect_folder,
             add_project,
+            scratch_project,
             remove_project,
             move_project,
             edit_project,

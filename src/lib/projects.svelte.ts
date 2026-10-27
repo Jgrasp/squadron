@@ -41,6 +41,15 @@ export async function add(path: string, name: string, color = '') {
   projects.current = path
 }
 
+export async function scratch(name: string) {
+  const [path, all] = await invoke<[string, Project[]]>('scratch_project', { name })
+  set(all)
+  projects.overview = false
+  projects.board = false
+  projects.pulls = false
+  projects.current = path
+}
+
 export async function remove(path: string) {
   set(await invoke<Project[]>('remove_project', { path }))
 }

@@ -298,6 +298,13 @@ mockIPC(
       case 'add_project':
         projects.push({ name: a.name, path: a.path, rules: [] })
         return views()
+      case 'scratch_project': {
+        const path = '/home/user/.local/share/squadron/conversations'
+        const found = projects.find((p) => p.path === path)
+        if (found) found.archived = false
+        else projects.push({ name: a.name, path, rules: [] })
+        return [path, views()]
+      }
       case 'remove_project':
         projects.splice(
           projects.findIndex((p) => p.path === a.path),
