@@ -392,6 +392,7 @@
           <button
             class="agent {look(agent)}"
             class:picked={chosen.includes(agent.id)}
+            class:fresh={agent.status === 'done' && agent.unread}
             data-item={agent.id}
             aria-current={agent.id === current?.id ? 'true' : undefined}
             aria-pressed={chosen.length ? chosen.includes(agent.id) : undefined}
@@ -714,6 +715,20 @@
 
   .bulk .clear {
     margin-left: auto;
+  }
+
+  .agent.fresh {
+    background: color-mix(in srgb, var(--ok) 9%, transparent);
+    box-shadow: inset 3px 0 0 var(--ok);
+  }
+
+  .agent.fresh .name {
+    color: var(--text-strong);
+  }
+
+  .agent.fresh .state {
+    font-weight: 600;
+    color: var(--ok);
   }
 
   .agent.waiting {
