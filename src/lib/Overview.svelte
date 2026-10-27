@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { agents, clock, ofProject, show, waitingAgents, waitingDetail } from './agents.svelte'
+  import { agents, calling, clock, ofProject, show, waitingAgents, waitingDetail } from './agents.svelte'
   import { ago, effortLabel, modelLabel } from './format'
   import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
@@ -91,7 +91,7 @@
         </tr>
       </thead>
       {#each groups as group (group.project.path)}
-        {@const waiting = group.all.filter((a) => a.attention).length}
+        {@const waiting = group.all.filter(calling).length}
         <tbody>
           <tr class="project">
             <th scope="colgroup" colspan="5">

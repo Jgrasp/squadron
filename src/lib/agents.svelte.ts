@@ -64,8 +64,10 @@ export function branchOf(agent: Agent) {
     .catch(() => {})
 }
 
+export const calling = (a: Agent) => !!a.attention && !(a.status === 'error' && a.errorSeen)
+
 export function waitingAgents() {
-  return agents.list.filter((a) => a.attention).sort((a, b) => a.since - b.since)
+  return agents.list.filter(calling).sort((a, b) => a.since - b.since)
 }
 
 export function show(agent: Agent) {
@@ -95,7 +97,7 @@ export function ofProject(project: string) {
 }
 
 export function waiting(project: string) {
-  return agents.list.filter((a) => a.project === project && a.attention).length
+  return agents.list.filter((a) => a.project === project && calling(a)).length
 }
 
 export function unread(project: string) {
