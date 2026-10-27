@@ -92,6 +92,8 @@
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const lang = tokens[idx].info.trim().split(/\s+/)[0] || 'text'
     const source = fence(tokens, idx, options, env, self)
+    if (lang === 'html' && env?.streaming)
+      return `<div class="code"><div class="code-head"><span>html</span></div><div class="drawing"><span>${t('conversation.drawing')}</span></div></div>`
     if (lang === 'html') {
       const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">${t('conversation.preview')}</button><button type="button" data-view="source" aria-pressed="false">HTML</button></span>`
       return `<div class="code"><div class="code-head">${tabs}${copyButton()}</div><div class="rendered mockup" data-mockup></div><div class="source" hidden>${source}</div></div>`
@@ -139,7 +141,7 @@
 
   const html = $derived.by(() => {
     void loaded
-    return md.render(streaming ? text.slice(0, shown) : text)
+    return md.render(streaming ? text.slice(0, shown) : text, { streaming })
   })
 
   let box = $state<HTMLElement>()
@@ -382,6 +384,18 @@
 
   .prose :global(.code:has(> .mockup:empty) > .mockup) {
     display: none;
+  }
+
+  .prose :global(.drawing) {
+    display: grid;
+    place-items: center;
+    height: 120px;
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  .prose :global(.drawing span) {
+    animation: pulse 1.6s ease-in-out infinite;
   }
 
   .prose :global(.rendered > :first-child) {
