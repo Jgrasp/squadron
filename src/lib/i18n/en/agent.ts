@@ -142,6 +142,7 @@ export default {
   commentsSent: 'Comments on the diff, sent with your message',
   argumentsOf: 'Arguments of /{command}',
   commands: 'Commands',
+  files: 'Files',
   skills: 'Skills',
   keysMove: '{up}{down} to move',
   keysChoose: '{tab} or {enter} to choose',

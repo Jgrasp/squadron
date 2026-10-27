@@ -22,6 +22,7 @@
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
   import { imagePaste } from './paste'
+  import { Mention } from './mention.svelte'
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
@@ -163,7 +164,7 @@
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
 
-  type Item = { value: string; label: string; hint?: string; detail?: string; usage?: string; group?: string; text: string }
+  type Item = { value: string; label: string; hint?: string; detail?: string; usage?: string; group?: string; text: string; at?: number }
 
   const GROUPS = ['Commands', 'Skills', 'Claude Code']
   const groupName = (group: string) => (group === 'Commands' ? t('agent.commands') : group === 'Skills' ? t('agent.skills') : group)
@@ -173,8 +174,10 @@
   let chosen = $state('')
   let composer: HTMLTextAreaElement
   const commandList = $derived(commandsOf(agent))
+  const mentions = new Mention(() => text, () => workdir(agent))
+  const mention = $derived(text === dismissed ? null : mentions.found)
   const stage = $derived.by(() => {
-    if (text === dismissed) return null
+    if (text === dismissed || mention) return null
     const m = /^\/(\S*)(?:(\s+)(\S*))?$/.exec(text)
     if (!m) return null
     if (m[2] === undefined) return { query: m[1].toLowerCase() }
@@ -187,6 +190,7 @@
     return skills.some((s) => s === c.name || s.endsWith(`:${c.name}`)) ? 'Skills' : 'Commands'
   }
   const suggestions = $derived.by((): Item[] => {
+    if (mention) return mentions.choices
     if (!stage) return []
     if (!stage.command) {
       const q = stage.query
@@ -218,6 +222,7 @@
   $effect(() => {
     const query = stage?.query ?? ''
     void stage?.command
+    void mention?.query
     pick = query ? Math.max(0, untrack(() => suggestions).findIndex((s) => s.value.toLowerCase().startsWith(query))) : 0
     reveal()
   })
@@ -230,6 +235,9 @@
     text = chosen = item.text
     dismissed = ''
     composer.focus()
+    if (item.at === undefined) return
+    const at = (mentions.caret = item.at)
+    tick().then(() => composer.setSelectionRange(at, at))
   }
 
   function local(message: string) {
@@ -796,7 +804,7 @@
         </div>
       {/if}
       {#if suggestions.length || guide}
-        <div class="commands" role="listbox" aria-label={stage?.command ? t('agent.argumentsOf', { command: stage.command.name }) : t('agent.commands')}>
+        <div class="commands" role="listbox" aria-label={mention ? t('agent.files') : stage?.command ? t('agent.argumentsOf', { command: stage.command.name }) : t('agent.commands')}>
           {#if stage?.command}
             <div class="usage" role="presentation">
               <span class="slash">/{stage.command.name}</span>
@@ -841,7 +849,7 @@
       {/if}
       <div class="bar">
         <label for="composer" class="sr-only">{t('agent.messageToAgent')}</label>
-        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={clip.paste}></textarea>
+        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={clip.paste} oninput={mentions.track} onkeyup={mentions.track} onmouseup={mentions.track}></textarea>
         <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
           <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
             ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg

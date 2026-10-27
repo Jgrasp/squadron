@@ -5,7 +5,8 @@
   import { t } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import type { Project } from './projects.svelte'
-  import { untrack } from 'svelte'
+  import { tick, untrack } from 'svelte'
+  import { Mention, type FileChoice } from './mention.svelte'
   import { imagePaste } from './paste'
   import { settings } from './settings.svelte'
   import Trans from './Trans.svelte'
@@ -37,6 +38,40 @@
 
   const clip = imagePaste(attach, (e) => (attachError = e))
 
+  let message: HTMLTextAreaElement
+  let dismissed = $state('')
+  let pick = $state(0)
+  const mentions = new Mention(() => text, () => project.path)
+  const choices = $derived(text === dismissed ? [] : mentions.choices)
+
+  $effect(() => {
+    void mentions.found?.query
+    pick = 0
+  })
+
+  function choose(choice: FileChoice) {
+    text = choice.text
+    mentions.caret = choice.at
+    message.focus()
+    tick().then(() => message.setSelectionRange(choice.at, choice.at))
+  }
+
+  function keys(event: KeyboardEvent) {
+    clip.key(event)
+    if (choices.length && (event.key === 'ArrowDown' || event.key === 'ArrowUp')) {
+      event.preventDefault()
+      pick = (pick + (event.key === 'ArrowDown' ? 1 : -1) + choices.length) % choices.length
+      tick().then(() => document.querySelector('.mentions [aria-selected="true"]')?.scrollIntoView({ block: 'nearest' }))
+    } else if (choices.length && (event.key === 'Tab' || (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey))) {
+      event.preventDefault()
+      choose(choices[pick])
+    } else if (choices.length && event.key === 'Escape') {
+      event.preventDefault()
+      event.stopPropagation()
+      dismissed = text
+    } else if (event.ctrlKey && event.key === 'Enter') submit(event)
+  }
+
   async function browseFiles() {
     const chosen = await chooseFiles({ multiple: true })
     if (chosen) attach(Array.isArray(chosen) ? chosen : [chosen])
@@ -67,17 +102,32 @@
 
       <div class="group">
         <label for="first-message">{t('board.firstMessage')}</label>
-        <!-- svelte-ignore a11y_autofocus -->
-        <textarea
-          id="first-message"
-          class="field"
-          rows="4"
-          bind:value={text}
-          placeholder={t('board.firstMessagePlaceholder')}
-          autofocus
-          onkeydown={(e) => (clip.key(e), e.ctrlKey && e.key === 'Enter' && submit(e))}
-          onpaste={clip.paste}
-        ></textarea>
+        <div class="write">
+          <!-- svelte-ignore a11y_autofocus -->
+          <textarea
+            id="first-message"
+            class="field"
+            rows="4"
+            bind:value={text}
+            bind:this={message}
+            placeholder={t('board.firstMessagePlaceholder')}
+            autofocus
+            onkeydown={keys}
+            onpaste={clip.paste}
+            oninput={mentions.track}
+            onkeyup={mentions.track}
+            onmouseup={mentions.track}
+          ></textarea>
+          {#if choices.length}
+            <div class="mentions" role="listbox" aria-label={t('agent.files')}>
+              {#each choices as choice, i (choice.value)}
+                <button type="button" role="option" aria-selected={i === pick} onmousemove={() => (pick = i)} onmousedown={(e) => e.preventDefault()} onclick={() => choose(choice)}
+                  >{choice.label}</button
+                >
+              {/each}
+            </div>
+          {/if}
+        </div>
         <div class="files" aria-label={t('board.taskFiles')}>
           {#each files as file, i (file)}<Attachment path={file} onremove={() => files.splice(i, 1)} />{/each}
           <button type="button" class="btn btn-secondary attach" title={t('board.attachTitle')} onclick={browseFiles}>
@@ -146,6 +196,46 @@
 
   label {
     font-weight: 600;
+  }
+
+  .write {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .mentions {
+    position: absolute;
+    top: calc(100% + 4px);
+    left: 0;
+    right: 0;
+    z-index: 20;
+    max-height: 240px;
+    overflow-y: auto;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .mentions button {
+    display: block;
+    width: 100%;
+    min-height: 32px;
+    padding: 6px 10px;
+    border-radius: 4px;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    text-align: left;
+    font: 13px var(--mono);
+    color: var(--text-strong);
+  }
+
+  .mentions button[aria-selected='true'] {
+    background: var(--menu-hover);
   }
 
   textarea {

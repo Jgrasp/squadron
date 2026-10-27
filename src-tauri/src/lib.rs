@@ -531,6 +531,13 @@ fn list_dir(project: PathBuf, path: PathBuf) -> Result<Vec<Entry>, String> {
 }
 
 #[tauri::command]
+async fn project_files(dir: PathBuf) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::files(&dir))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn git_file(project: PathBuf, rev: String, path: String) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || git::show(&project, &rev, &path))
         .await
@@ -1311,6 +1318,7 @@ pub fn run() {
             read_project_file,
             write_project_file,
             list_dir,
+            project_files,
             git_file,
             term_open,
             term_write,
