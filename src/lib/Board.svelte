@@ -80,7 +80,7 @@
     if (!editing?.card.title.trim()) return
     const card = { ...editing.card, title: editing.card.title.trim(), prompt: editing.card.prompt.trim(), goal: editing.card.goal?.trim() ?? '' }
     save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
-    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), card.prompt || card.title, card.goal ?? '', editing.worktree)
+    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), [card.title, card.prompt].filter(Boolean).join('\n\n'), card.goal ?? '', editing.worktree)
     editing = null
   }
 
