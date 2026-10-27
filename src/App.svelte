@@ -117,6 +117,7 @@
     if (!href || href.startsWith('#')) return
     event.preventDefault()
     if (/^https?:\/\//.test(href)) invoke('open_link', { url: href })
+    else if (/^(\/|file:\/\/)/.test(href)) invoke('open_attachment', { path: decodeURI(href.replace(/^file:\/\//, '')) }).catch(() => {})
   }
 
   const SCOPED = ['newAgent', 'interrupt', 'editor', 'terminal', 'diff', 'sidebar']

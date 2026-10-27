@@ -472,6 +472,8 @@ mockIPC(
         throw 'Not an image.'
       case 'open_attachment':
         return
+      case 'attachment_size':
+        return a.path.length * 3_917
       case 'project_sessions':
         return [
           { id: '271982a4-ba81-4f9b-ac49-2c87f1ef6e88', title: '[ORB-809] Pilotage tickets', cwd: a.project, here: true, updated: Date.now() - 3_600_000, size: 34_000_000, app: true, archived: false, model: 'opus', effort: 'high', mode: 'default' },

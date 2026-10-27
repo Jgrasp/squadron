@@ -27,6 +27,14 @@
     return html
   }
 
+  function localFile(href: string) {
+    let path = href.replace(/^file:\/\//, '')
+    try {
+      path = decodeURI(path)
+    } catch {}
+    return path.startsWith('/') && /\/[^/]+\.[a-z0-9]{1,8}$/i.test(path) ? path : ''
+  }
+
   const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') })
   md.core.ruler.push('pull_cards', (state) => {
     const tokens = state.tokens
@@ -34,10 +42,19 @@
       if (token.type !== 'inline' || !token.children) return
       const kids = token.children.filter((c) => c.type !== 'softbreak' && !(c.type === 'text' && !c.content.trim()))
       const href = String(kids[0]?.attrGet('href') ?? '')
-      if (kids.length === 3 && kids[0].type === 'link_open' && kids[2].type === 'link_close' && isPullLink(href) && tokens[i - 1]?.type === 'paragraph_open') {
+      const alone = kids.length === 3 && kids[0].type === 'link_open' && kids[2].type === 'link_close' && tokens[i - 1]?.type === 'paragraph_open'
+      if (alone && isPullLink(href)) {
         tokens[i - 1].tag = tokens[i + 1].tag = 'div'
         tokens[i - 1].attrSet('class', 'pr-slot')
         tokens[i - 1].attrSet('data-pr', href)
+        return
+      }
+      const file = localFile(href)
+      if (alone && file) {
+        tokens[i - 1].tag = tokens[i + 1].tag = 'div'
+        tokens[i - 1].hidden = tokens[i + 1].hidden = false
+        tokens[i - 1].attrSet('class', 'file-slot')
+        tokens[i - 1].attrSet('data-file', file)
         return
       }
       for (const c of token.children) if (c.type === 'link_open' && isPullLink(String(c.attrGet('href') ?? ''))) c.attrSet('data-pr-inline', '')
@@ -71,6 +88,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { mount, tick, unmount, untrack } from 'svelte'
   import PullCard from './PullCard.svelte'
+  import Attachment from './Attachment.svelte'
 
   let { text, streaming = false, cards = false }: { text: string; streaming?: boolean; cards?: boolean } = $props()
 
@@ -128,6 +146,10 @@
     const mounted: ReturnType<typeof mount>[] = []
     const added: Element[] = []
     tick().then(() => {
+      for (const slot of box?.querySelectorAll<HTMLElement>('[data-file]') ?? []) {
+        slot.querySelector('a')?.setAttribute('hidden', '')
+        mounted.push(mount(Attachment, { target: slot, props: { path: slot.dataset.file!, look: 'card', large: true } }))
+      }
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
         mounted.push(mount(PullCard, { target: slot, props: { url: slot.dataset.pr!, onready: () => slot.classList.add('ready') } }))
       const shown = new Set([...(box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])].map((slot) => slot.dataset.pr))
@@ -189,6 +211,14 @@
 
   .prose :global(.pr-slot.ready > a) {
     display: none;
+  }
+
+  .prose :global(.file-slot) {
+    margin: 4px 0 10px;
+  }
+
+  .prose :global(li:has(> .file-slot)) {
+    list-style: none;
   }
 
   .prose :global(.shot) {

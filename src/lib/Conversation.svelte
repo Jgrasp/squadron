@@ -231,15 +231,17 @@
 {#each agent.entries.slice(start) as entry, k (start + k)}
   {@const i = start + k}
   {#if entry.kind === 'user'}
-    <div class="user" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
-      {#if entry.comments}
-        <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
-      {/if}
-      {#if entry.files}
-        <div class="files">{#each entry.files as file (file)}<Attachment path={file} large />{/each}</div>
-      {/if}
-      {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
-    </div>
+    {#if entry.files?.length}
+      <div class="files" data-user={i}>{#each entry.files as file (file)}<Attachment path={file} large look="card" />{/each}</div>
+    {/if}
+    {#if entry.text || entry.comments?.length || !entry.files?.length}
+      <div class="user" data-user={entry.files?.length ? undefined : i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
+        {#if entry.comments}
+          <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
+        {/if}
+        {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+      </div>
+    {/if}
     {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
     {#if entry.peer !== undefined}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>{/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
@@ -546,15 +548,17 @@
     background: var(--remote-dot);
   }
 
-  .files + .said {
-    margin-top: 10px;
-  }
-
   .files {
+    align-self: flex-end;
+    max-width: 540px;
     display: flex;
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
+  }
+
+  .files:has(+ .user) {
+    margin-bottom: -8px;
   }
 
   .said {
