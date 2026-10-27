@@ -33,21 +33,21 @@
     tokens.forEach((token, i) => {
       if (token.type !== 'inline' || !token.children) return
       const kids = token.children.filter((c) => c.type !== 'softbreak' && !(c.type === 'text' && !c.content.trim()))
-      const href = kids[0]?.attrGet('href') ?? ''
+      const href = String(kids[0]?.attrGet('href') ?? '')
       if (kids.length === 3 && kids[0].type === 'link_open' && kids[2].type === 'link_close' && isPullLink(href) && tokens[i - 1]?.type === 'paragraph_open') {
         tokens[i - 1].tag = tokens[i + 1].tag = 'div'
         tokens[i - 1].attrSet('class', 'pr-slot')
         tokens[i - 1].attrSet('data-pr', href)
         return
       }
-      for (const c of token.children) if (c.type === 'link_open' && isPullLink(c.attrGet('href') ?? '')) c.attrSet('data-pr-inline', '')
+      for (const c of token.children) if (c.type === 'link_open' && isPullLink(String(c.attrGet('href') ?? ''))) c.attrSet('data-pr-inline', '')
     })
   })
 
   const shots = new Map<string, string>()
   md.renderer.rules.image = (tokens, idx) => {
     const alt = md.utils.escapeHtml(tokens[idx].content)
-    let path = tokens[idx].attrGet('src') ?? ''
+    let path = String(tokens[idx].attrGet('src') ?? '')
     try {
       path = decodeURI(path)
     } catch {}

@@ -435,7 +435,7 @@ mockIPC(
         return a.dir.includes('orbit') ? orbitPull() : null
       case 'linked_pull': {
         const url = a.url as string
-        const projectsOf = a.projects as string[]
+        const projectsOf = a.projects as unknown as string[]
         if (url.includes('2108')) {
           return { repo: 'orbit/orbit', pull: orbitPull(), additions: 214, deletions: 38, files: 9, project: projectsOf.find((p) => p.includes('orbit')) ?? null }
         }

@@ -69,10 +69,10 @@
   const floor = $derived(agent.entries.findLastIndex((e) => e.kind === 'compacted'))
   const foldedCount = $derived(floor > 0 ? agent.entries.slice(0, floor).filter((e) => e.kind === 'user' || e.kind === 'agent').length : 0)
   let unfolded = $state(false)
-  const folded = $derived(!unfolded && floor > 0 && start <= floor)
   let start = $state(
     untrack(() => Math.max(users.length > WINDOW ? users[users.length - WINDOW].entry : 0, agent.entries.findLastIndex((e) => e.kind === 'compacted'))),
   )
+  const folded = $derived(!unfolded && floor > 0 && start <= floor)
   let offsets = $state<number[]>([])
   let railHeight = $state(0)
   const buckets = $derived.by(() => {
