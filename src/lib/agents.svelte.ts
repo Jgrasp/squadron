@@ -519,7 +519,7 @@ export async function create(project: string, name: string, options: Options, te
   }
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
   else agents.current[project] = agent.id
-  if (text.trim()) userMessage(agent, text, [], files)
+  if (text.trim() || files.length) userMessage(agent, text, [], files)
   else {
     agent.status = 'done'
     agent.since = Date.now()

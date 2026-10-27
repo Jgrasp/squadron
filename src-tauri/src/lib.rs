@@ -781,16 +781,19 @@ fn create_agent(
     text: String,
     worktree: Option<String>,
     dir: Option<PathBuf>,
+    files: Option<Vec<PathBuf>>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, None, false)?;
     agents.set_dir(&id, dir)?;
     if let Some(name) = worktree {
         agents.new_worktree(&id, &name)?;
     }
-    if text.trim().is_empty() {
+    let files = files.unwrap_or_default();
+    if text.trim().is_empty() && files.is_empty() {
         return Ok(());
     }
-    agents.send(&app, &settings.claude(), &id, serde_json::json!(text))
+    let content = attach::content(&text, &files)?;
+    agents.send(&app, &settings.claude(), &id, content)
 }
 
 #[tauri::command]
