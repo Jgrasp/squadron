@@ -72,9 +72,6 @@ export default {
   renameHint: 'Double-clic ou F2 pour renommer',
   agentsShowHere: 'Les agents du projet {name} apparaîtront ici, avec leur état.',
   agentsOnceFound: 'Vous pourrez créer des agents une fois le dossier retrouvé.',
-  gitBranch: 'Git · {branch}',
-  gitRepository: 'Git · dépôt',
-  noGit: 'Aucun dépôt Git',
   projectCost: 'Coût du projet · {cost}',
 
   waitingForAnswer: 'Attend votre réponse',

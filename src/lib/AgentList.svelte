@@ -4,7 +4,7 @@
   import { ago, short } from './format'
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
-  import { home, type Project } from './projects.svelte'
+  import type { Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
   import ImportPanel from './ImportPanel.svelte'
@@ -428,11 +428,6 @@
       {project.exists ? t('shell.agentsShowHere', { name: project.name }) : t('shell.agentsOnceFound')}
     </div>
   {/if}
-
-  <div class="info">
-    <span class="mono">{home(project.path)}</span>
-    <span>{project.git ? (project.branch !== null ? t('shell.gitBranch', { branch: project.branch }) : t('shell.gitRepository')) : t('shell.noGit')}</span>
-  </div>
 </aside>
 {/if}
 
@@ -1129,22 +1124,6 @@
     fill: none;
     stroke: var(--text-faint);
     stroke-width: 1.6;
-  }
-
-  .info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px;
-    border-radius: 4px;
-    background: var(--surface-1);
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .info .mono {
-    color: var(--text-3);
-    overflow-wrap: anywhere;
   }
 
 </style>

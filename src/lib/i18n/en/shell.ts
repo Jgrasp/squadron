@@ -70,9 +70,6 @@ export default {
   renameHint: 'Double-click or F2 to rename',
   agentsShowHere: '{name} agents will show up here, with their state.',
   agentsOnceFound: 'You can create agents once the folder is found again.',
-  gitBranch: 'Git · {branch}',
-  gitRepository: 'Git · repository',
-  noGit: 'No Git repository',
   projectCost: 'Project cost · {cost}',
 
   waitingForAnswer: 'Waiting for your answer',
