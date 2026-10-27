@@ -235,6 +235,7 @@ const replies = new Map<string, (result: string) => void>()
 const files = new Map<string, string>()
 let terminal = 0
 let line = ''
+const shells = new Map<number, number>()
 const prompt = '\x1b[38;2;154;214;203mdemo\x1b[0m \x1b[2m~/agence/orbit\x1b[0m \x1b[38;2;201;166;255mfeat/T15-segmentation*\x1b[0m\r\n\x1b[38;2;224;138;91m❯\x1b[0m '
 
 if (location.search.includes('stress'))
@@ -661,6 +662,24 @@ mockIPC(
         setTimeout(() => emit('term-out', { id, data: prompt }), 50)
         return { id, shell: 'zsh' }
       }
+      case 'shell_run': {
+        const id = ++terminal
+        const command = String(a.command)
+        const long = command.includes('sleep')
+        const lines = command.includes('fail')
+          ? [' \x1b[32m✓\x1b[0m src/lib/board.test.ts (12)\r\n', ' \x1b[31m✗ src/lib/agents.test.ts > keeps the worktree\r\n   expected /tmp/a to be /tmp/b\x1b[0m\r\n', '\r\n Tests  1 failed | 16 passed\r\n']
+          : [`ran: ${command}\r\n`, 'building 10%\r', 'building 100%\r\n', 'done\r\n']
+        lines.forEach((data, i) => setTimeout(() => emit('shell-out', { id, data }), 300 * (i + 1)))
+        shells.set(id, setTimeout(() => emit('shell-exit', { id, code: command.includes('fail') ? 1 : 0 }), long ? 60_000 : 300 * (lines.length + 1)))
+        return id
+      }
+      case 'term_close':
+        if (shells.has(Number(a.id))) {
+          clearTimeout(shells.get(Number(a.id)))
+          shells.delete(Number(a.id))
+          setTimeout(() => emit('shell-exit', { id: Number(a.id), code: null }), 50)
+        }
+        return
       case 'term_write': {
         const id = Number(a.id)
         const data = a.data === '\r' ? `\r\n${line ? `ran: ${line}\r\n` : ''}${prompt}` : a.data === '\x7f' ? '\b \b' : a.data
@@ -708,7 +727,6 @@ mockIPC(
       case 'open_with':
         return
       case 'term_resize':
-      case 'term_close':
         return
       case 'plugin:dialog|open':
         return '/home/demo/agence/hermes'

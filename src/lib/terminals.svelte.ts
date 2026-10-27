@@ -27,8 +27,18 @@ export function ofProject(project: string) {
   return sessions.list.filter((s) => s.project === project)
 }
 
+const typed: Record<string, string> = {}
+
+export function type(project: string, text: string) {
+  const id = sessions.current[project]
+  if (id && !sessions.list.find((s) => s.id === id)?.ended) invoke('term_write', { id, data: text })
+  else typed[project] = text
+}
+
 export async function start(project: string, cols: number, rows: number) {
   const { id, shell } = await invoke<{ id: number; shell: string }>('term_open', { project, cols, rows })
+  if (typed[project]) invoke('term_write', { id, data: typed[project] })
+  delete typed[project]
   sessions.list.push({ id, project, title: shell, ended: false })
   sessions.current[project] = id
 }

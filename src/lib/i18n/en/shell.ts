@@ -155,6 +155,10 @@ export default {
   terminalNote: 'Agents do not write in this terminal. Their commands stay in the conversation.',
   sendSelection: 'Send the selection to {name}',
   processExited: '[Process exited]',
+  commandRunning: 'Command running',
+  stopCommand: 'Stop the command',
+  replayCommand: 'Run again',
+  openInTerminal: 'Open in the terminal',
 
   deleteArchivedAsk: 'Delete “{name}” for good? Squadron forgets it; Claude Code keeps the session in its own history.',
   deleteArchivedTitle: 'Delete an archived agent',

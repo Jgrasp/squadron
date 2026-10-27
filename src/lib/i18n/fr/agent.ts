@@ -168,4 +168,6 @@ export default {
   newInstruction: 'Nouvelle consigne, ou « continue » pour reprendre',
   writeReload: 'Écrire à {agent} : la session sera rechargée avant l’envoi',
   writeTo: 'Écrire à {agent}…',
+  shellIn: 'S’exécute dans {path}',
+  shellKeys: '{up} historique · {enter} lancer',
 } satisfies Catalog['agent']

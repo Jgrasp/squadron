@@ -575,6 +575,7 @@ fn term_open(
     let id = terminals.open(
         &project,
         None,
+        None,
         cols,
         rows,
         move |id, data| {
@@ -585,6 +586,33 @@ fn term_open(
         },
     )?;
     Ok(serde_json::json!({ "id": id, "shell": shell }))
+}
+
+#[tauri::command]
+fn shell_run(
+    app: AppHandle,
+    terminals: State<Terminals>,
+    dir: PathBuf,
+    command: String,
+    cols: u16,
+    rows: u16,
+) -> Result<u32, String> {
+    let shell = std::env::var("SHELL").ok();
+    let out = app.clone();
+    terminals.open(
+        &dir,
+        shell.as_deref(),
+        Some(&command),
+        cols,
+        rows,
+        move |id, data| {
+            let _ = out.emit("shell-out", serde_json::json!({ "id": id, "data": data }));
+        },
+        move |id| {
+            let code = app.state::<Terminals>().finish(id);
+            let _ = app.emit("shell-exit", serde_json::json!({ "id": id, "code": code }));
+        },
+    )
 }
 
 #[tauri::command]
@@ -1339,6 +1367,7 @@ pub fn run() {
             project_files,
             git_file,
             term_open,
+            shell_run,
             term_write,
             term_resize,
             term_close,

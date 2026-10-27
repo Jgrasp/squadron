@@ -10,7 +10,7 @@
   import InfoPanel from './InfoPanel.svelte'
   import ContextGauge from './ContextGauge.svelte'
   import { layout, setPanel, type PanelKind } from './layout.svelte'
-  import { projects, toggleBoard, togglePulls } from './projects.svelte'
+  import { home, projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
@@ -19,6 +19,8 @@
   import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
+  import { type as typeInTerminal } from './terminals.svelte'
+  import { run } from './shells.svelte'
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
   import { imagePaste } from './paste'
@@ -269,7 +271,18 @@
     text = text.trim() ? `${text.trimEnd()}\n\n${block}` : block
   }
   let target = $state<Comment | null>(null)
-  const sent = $derived(agent.entries.flatMap((e) => (e.kind === 'user' ? [e.text] : [])))
+  const bang = $derived(text.startsWith('!'))
+  const sent = $derived(agent.entries.flatMap((e) => (bang ? (e.kind === 'shell' ? [`!${e.command}`] : []) : e.kind === 'user' ? [e.text] : [])))
+
+  function replay(command: string) {
+    text = `!${command}`
+    tick().then(() => composer?.focus())
+  }
+
+  function inTerminal(command: string) {
+    typeInTerminal(workdir(agent), command)
+    setPanel(agent.project, 'terminal')
+  }
 
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
   const pending = $derived(agent.asks[0]?.tool_name)
@@ -414,6 +427,13 @@
     const attached = $state.snapshot(comments)
     const joined = $state.snapshot(attachments)
     if (!message && !attached.length && !joined.length) return
+    if (message.startsWith('!') && message.slice(1).trim() && !attached.length && !joined.length) {
+      text = ''
+      recall = -1
+      stuck = true
+      run(agent, message.slice(1).trim())
+      return
+    }
     if (!forced && !busy && !agent.asks.length && !message.startsWith('/') && agent.tokens >= 200_000 && Date.now() - agent.since > 3_600_000) {
       chilly = agent.id
       return
@@ -762,6 +782,8 @@
           onsubagent={openSubagent}
           onsubagents={() => openSubagent(null)}
           onpreview={(p) => ((proposal = p), openDiff(p.path))}
+          onreplay={replay}
+          onterminal={inTerminal}
         />
         </div>
       </div>
@@ -847,7 +869,7 @@
           </div>
         </div>
       {/if}
-      <div class="bar">
+      <div class="bar" class:bang>
         <label for="composer" class="sr-only">{t('agent.messageToAgent')}</label>
         <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={clip.paste} oninput={mentions.track} onkeyup={mentions.track} onmouseup={mentions.track}></textarea>
         <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
@@ -891,6 +913,12 @@
           {pending === 'AskUserQuestion' ? t('agent.answer') : pending === 'ExitPlanMode' ? t('agent.sendFeedback') : pending ? t('agent.deny') : t('common.send')}
         </button>
       </div>
+      {#if bang}
+        <div class="shell-hint">
+          <span><Trans k="agent.shellIn">{#snippet path()}<span class="mono">{home(workdir(agent))}</span>{/snippet}</Trans></span>
+          <span><Trans k="agent.shellKeys">{#snippet up()}<kbd>↑</kbd>{/snippet}{#snippet enter()}<kbd>{t('agent.keyEnter')}</kbd>{/snippet}</Trans></span>
+        </div>
+      {/if}
     </form>
   </section>
 
@@ -1839,6 +1867,36 @@
     font-size: 16px;
     font-weight: 600;
     pointer-events: none;
+  }
+
+  .bar.bang {
+    box-shadow:
+      inset 0 0 0 1px var(--accent),
+      0 0 0 3px var(--accent-soft);
+  }
+
+  .shell-hint {
+    max-width: 740px;
+    margin: 6px auto 0;
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    padding: 0 4px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  .shell-hint .mono {
+    font-family: var(--mono);
+    color: var(--text-muted);
+  }
+
+  .shell-hint kbd {
+    padding: 0 4px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    font: 11px var(--mono);
+    color: var(--text-2);
   }
 
   .bar {

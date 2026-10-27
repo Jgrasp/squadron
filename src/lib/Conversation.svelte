@@ -18,6 +18,7 @@
   import SubagentsCard from './SubagentsCard.svelte'
   import ToolRow from './ToolRow.svelte'
   import Shots from './Shots.svelte'
+  import ShellCard from './ShellCard.svelte'
 
   let {
     agent,
@@ -27,6 +28,8 @@
     onsubagents,
     onpreview,
     onfork,
+    onreplay = () => {},
+    onterminal = () => {},
   }: {
     agent: Agent
     start?: number
@@ -35,6 +38,8 @@
     onsubagent?: (sub: Subagent) => void
     onsubagents?: () => void
     onpreview?: (proposal: Proposal) => void
+    onreplay?: (command: string) => void
+    onterminal?: (command: string) => void
   } = $props()
 
   const SPAWN = ['Agent', 'Task']
@@ -252,6 +257,8 @@
     {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
     {#if entry.peer !== undefined}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>{/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
+  {:else if entry.kind === 'shell'}
+    <ShellCard {entry} {onreplay} {onterminal} />
   {:else if entry.kind === 'agent'}
     {@const reply = groups(entry.blocks)}
     {@const tail = working && i === agent.entries.length - 1 ? entry.blocks.at(-1) : undefined}

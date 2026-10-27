@@ -166,4 +166,6 @@ export default {
   newInstruction: 'New instruction, or “continue” to resume',
   writeReload: 'Write to {agent}: the session will reload before sending',
   writeTo: 'Write to {agent}…',
+  shellIn: 'Runs in {path}',
+  shellKeys: '{up} history · {enter} run',
 }

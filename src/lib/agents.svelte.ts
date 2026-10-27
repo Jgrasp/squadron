@@ -7,6 +7,7 @@ import { ask } from './asking.svelte'
 import { matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
+import { deliver, take } from './shells.svelte'
 import { t } from './i18n/index.svelte'
 import {
   apply,
@@ -168,6 +169,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (d.type === 'result' || d.subtype === 'init' || d.response?.response?.maxTokens) persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
+  if (d.type === 'result' && agent.status === 'done') deliver(agent)
 })
 
 const timers = new Map<string, number>()
@@ -253,6 +255,11 @@ async function adopt(data: Agent) {
     agent.action = t('shell.stoppedOnClose')
   }
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
+  for (const e of agent.entries)
+    if (e.kind === 'shell' && e.state === 'running') {
+      e.state = 'stopped'
+      delete e.pty
+    }
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
   agent.entries = agent.entries.flatMap((e): Entry[] => {
     if (e.kind !== 'user') return [e]
@@ -552,7 +559,9 @@ export async function send(id: string, text: string, comments: Comment[] = [], f
   if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
   userMessage(agent, text, comments, files, from)
   persist(agent)
-  const said = from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments)
+  const said = [take(agent), from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments)]
+    .filter(Boolean)
+    .join('\n\n')
   try {
     await invoke('send_message', { id, text: said, files })
   } catch (e) {
