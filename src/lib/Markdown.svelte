@@ -35,6 +35,21 @@
     return path.startsWith('/') && /\/[^/]+\.[a-z0-9]{1,8}$/i.test(path) ? path : ''
   }
 
+  let theme = ''
+
+  function themeCss() {
+    if (theme) return theme
+    const rules: string[] = []
+    for (const sheet of document.styleSheets)
+      try {
+        for (const rule of sheet.cssRules) if (rule instanceof CSSFontFaceRule || (rule instanceof CSSStyleRule && rule.selectorText === ':root')) rules.push(rule.cssText)
+      } catch {}
+    return (theme = rules.join('\n'))
+  }
+
+  const page = (code: string) =>
+    `<!doctype html><html><head><meta charset="utf-8"><style>${themeCss()}\nhtml{color-scheme:dark}body{margin:0;padding:16px;background:var(--bg-main);color:var(--text);font:13.5px/1.5 var(--sans)}</style></head><body>${code}</body></html>`
+
   const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') })
   md.core.ruler.push('pull_cards', (state) => {
     const tokens = state.tokens
@@ -77,6 +92,10 @@
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const lang = tokens[idx].info.trim().split(/\s+/)[0] || 'text'
     const source = fence(tokens, idx, options, env, self)
+    if (lang === 'html') {
+      const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">${t('conversation.preview')}</button><button type="button" data-view="source" aria-pressed="false">HTML</button></span>`
+      return `<div class="code"><div class="code-head">${tabs}${copyButton()}</div><div class="rendered mockup" data-mockup></div><div class="source" hidden>${source}</div></div>`
+    }
     if (lang !== 'markdown' && lang !== 'md')
       return `<div class="code"><div class="code-head"><span>${md.utils.escapeHtml(lang)}</span>${copyButton()}</div>${source}</div>`
     const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">${t('conversation.preview')}</button><button type="button" data-view="source" aria-pressed="false">${t('conversation.markdown')}</button></span>`
@@ -138,6 +157,31 @@
             .catch(() => shot.classList.add('gone'))
       }
     })
+  })
+
+  $effect(() => {
+    void html
+    if (streaming) return
+    const watching: ResizeObserver[] = []
+    tick().then(() => {
+      for (const slot of box?.querySelectorAll<HTMLElement>('[data-mockup]') ?? []) {
+        const frame = document.createElement('iframe')
+        frame.setAttribute('sandbox', 'allow-same-origin')
+        frame.title = t('conversation.mockup')
+        frame.srcdoc = page(slot.parentElement?.querySelector(':scope > .source code')?.textContent ?? '')
+        frame.addEventListener('load', () => {
+          const doc = frame.contentDocument
+          if (!doc) return
+          const fit = () => (frame.style.height = `${doc.documentElement.scrollHeight}px`)
+          fit()
+          const watch = new ResizeObserver(fit)
+          watch.observe(doc.body)
+          watching.push(watch)
+        })
+        slot.replaceChildren(frame)
+      }
+    })
+    return () => watching.forEach((w) => w.disconnect())
   })
 
   $effect(() => {
@@ -318,6 +362,26 @@
     max-height: 520px;
     overflow: auto;
     padding: 14px 16px;
+  }
+
+  .prose :global(.mockup) {
+    max-height: none;
+    padding: 0;
+  }
+
+  .prose :global(.mockup iframe) {
+    display: block;
+    width: 100%;
+    height: 80px;
+    border: 0;
+  }
+
+  .prose :global(.code:has(> .mockup:empty) > .source) {
+    display: block;
+  }
+
+  .prose :global(.code:has(> .mockup:empty) > .mockup) {
+    display: none;
   }
 
   .prose :global(.rendered > :first-child) {

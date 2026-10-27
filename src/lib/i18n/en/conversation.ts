@@ -157,6 +157,7 @@ export default {
 
   preview: 'Preview',
   markdown: 'Markdown',
+  mockup: 'Visual proposal',
 
   statusWorking: 'Working',
   statusWaiting: 'Waiting',
