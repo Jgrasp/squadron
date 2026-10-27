@@ -1416,6 +1416,38 @@ mod tests {
     }
 
     #[test]
+    #[test]
+    #[ignore = "asks Bitbucket and GitHub with the real accounts"]
+    fn real_linked_pull_requests_of_both_hosts() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        for dir in [
+            "/home/jgrasp/Projects/Sylius/kiosquemag",
+            "/home/jgrasp/Projects/Shopify/lr-presse-shopify",
+        ] {
+            let dir = Path::new(dir);
+            let lists = rt.block_on(lists(dir)).unwrap();
+            let url = lists
+                .review
+                .into_iter()
+                .chain(lists.mine)
+                .next()
+                .map(|p| p.url);
+            let url = url.unwrap_or_else(|| {
+                let repo = repo_of(dir).unwrap();
+                match repo.host {
+                    Host::GitHub => format!("https://github.com/{}/pull/1", repo.slug),
+                    Host::Bitbucket => {
+                        format!("https://bitbucket.org/{}/pull-requests/1", repo.slug)
+                    }
+                }
+            });
+            let found = rt.block_on(linked(&url, vec![dir.to_path_buf()])).unwrap();
+            println!("{url}\n{found:#?}");
+            assert!(found.pull.number > 0 && !found.pull.title.is_empty());
+            assert_eq!(found.project.as_deref(), Some(dir));
+        }
+    }
+
     #[ignore = "uses the system keyring"]
     fn real_keyring_keeps_a_secret() {
         let entry = keyring::Entry::new("squadron", "keyring-check").unwrap();
