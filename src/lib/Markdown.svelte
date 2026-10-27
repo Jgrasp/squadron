@@ -106,10 +106,10 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core'
   import { mount, tick, unmount, untrack } from 'svelte'
   import PullCard from './PullCard.svelte'
   import Attachment from './Attachment.svelte'
+  import { showCapture } from './captures.svelte'
 
   let { text, streaming = false, cards = false }: { text: string; streaming?: boolean; cards?: boolean } = $props()
 
@@ -227,7 +227,7 @@
   function click(event: MouseEvent) {
     const target = event.target as HTMLElement
     const shot = target.closest<HTMLElement>('[data-shot]')
-    if (shot) return void invoke('open_attachment', { path: shot.dataset.shot }).catch(() => shot.classList.add('gone'))
+    if (shot) return void (shot.classList.contains('gone') || showCapture(shot, shot.dataset.shot!))
     const block = target.closest('.code')
     const view = target.closest<HTMLButtonElement>('[data-view]')
     if (block && view) {

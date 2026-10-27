@@ -744,7 +744,7 @@
         onkeydown={touch}
         role="presentation"
       >
-        <div class="column" bind:this={column}>
+        <div class="column" data-gallery bind:this={column}>
           {#if folded}
             {@const mark = agent.entries[floor]}
             <button class="earlier folded" onclick={() => ((unfolded = true), showEarlier())}>
