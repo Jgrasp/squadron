@@ -20,12 +20,19 @@ export async function lookForUpdate() {
   } catch {}
 }
 
+export const news = $state<{ version: string }>({ version: '' })
+
 export async function showChangelogOnce() {
   if (import.meta.env.DEV) return
   const version = await getVersion()
   const seen = localStorage.getItem('squadron.seen-version')
   localStorage.setItem('squadron.seen-version', version)
-  if (seen && seen !== version && !ui.settings) ui.settings = 'changelog'
+  if (seen && seen !== version) news.version = version
+}
+
+export function openChangelog() {
+  news.version = ''
+  ui.settings = 'changelog'
 }
 
 export async function checkNow() {

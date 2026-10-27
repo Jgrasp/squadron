@@ -23,6 +23,7 @@
   import Board from './lib/Board.svelte'
   import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
+  import WhatsNew from './lib/WhatsNew.svelte'
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
@@ -162,6 +163,8 @@
   {/if}
   <StatusBar />
 </div>
+
+<WhatsNew />
 
 {#if ui.settings}
   <Settings onclose={() => (ui.settings = null)} />
