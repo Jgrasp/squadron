@@ -420,6 +420,7 @@
   $effect(() => {
     let stop: (() => void) | undefined
     let gone = false
+    untrack(() => ui.drops++)
     getCurrentWebview()
       .onDragDropEvent(({ payload }) => {
         if (payload.type === 'over' || payload.type === 'enter') dropping = true
@@ -434,6 +435,7 @@
       .catch(() => {})
     return () => {
       gone = true
+      ui.drops--
       stop?.()
     }
   })

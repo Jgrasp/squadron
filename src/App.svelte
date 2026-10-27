@@ -26,7 +26,7 @@
   import { lookForUpdate } from './lib/update.svelte'
   import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
   import PullsView from './lib/PullsView.svelte'
-  import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
+  import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
   const mirrored = $derived(
@@ -102,7 +102,9 @@
 
   $effect(() => {
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
-      if (event.payload.type === 'drop' && event.payload.paths.length) ui.adding = event.payload.paths[0]
+      if (event.payload.type !== 'drop' || !event.payload.paths.length || ui.drops) return
+      const [path] = event.payload.paths
+      inspect(path).then((info) => info.exists && ui.adding === null && (ui.adding = path))
     })
     return () => {
       unlisten.then((stop) => stop())
