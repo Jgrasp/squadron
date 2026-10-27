@@ -295,7 +295,15 @@
     spot = path
     steered = Date.now()
     folded = folded.filter((p) => p !== path)
-    tick().then(() => body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: 'start' }))
+    tick().then(() => within(body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`), 'start'))
+  }
+
+  function within(el: Element | null | undefined, block: 'start' | 'center') {
+    const box = el?.closest<HTMLElement>('.body')
+    if (!el || !box) return
+    const r = el.getBoundingClientRect()
+    const b = box.getBoundingClientRect()
+    box.scrollTop += r.top - b.top - (block === 'center' ? Math.max(0, (b.height - r.height) / 2) : 0)
   }
 
   const notesFor = (path: string) => [...review, ...comments.filter(here)].filter((c) => c.path === path)
@@ -323,7 +331,10 @@
     target = null
   })
 
-  const reveal = (el: HTMLElement) => el.scrollIntoView({ block: 'center' })
+  function reveal(el: HTMLElement) {
+    within(el, 'center')
+    el.querySelector('textarea')?.focus({ preventScroll: true })
+  }
 
   function draft(): Comment {
     const { path, side, number, text } = commenting!
@@ -401,7 +412,7 @@
 
   function goTo(c: Comment) {
     listing = false
-    if (!c.path) return document.querySelector('.general')?.scrollIntoView({ block: 'start' })
+    if (!c.path) return within(document.querySelector('.general'), 'start')
     if (reviewing) scrollToFile(c.path)
     else file = c.path
     target = c
@@ -849,16 +860,14 @@
       </div>
     {/each}
     {#if replying === th.root.id}
-      <form class="reply-form" onsubmit={(e) => reply(th, e)}>
+      <form class="reply-form" onsubmit={(e) => reply(th, e)} use:reveal>
         <label for="reply-{th.root.id}" class="sr-only">{t('review.replyTo', { author: th.root.author })}</label>
-        <!-- svelte-ignore a11y_autofocus -->
         <textarea
           id="reply-{th.root.id}"
           class="field"
           rows="2"
           bind:value={answer}
           placeholder={t('review.replyTo', { author: th.root.author })}
-          autofocus
           onkeydown={(e) => {
             if (e.key === 'Escape') (e.stopPropagation(), (replying = null))
             else if (e.ctrlKey && e.key === 'Enter') reply(th, e)
@@ -888,14 +897,12 @@
 {#snippet editor()}
   <form class="inline" onsubmit={comment} use:reveal>
     <label for="line-comment" class="sr-only">{t('review.commentOnLine', { line: String(commenting?.number ?? '') })}</label>
-    <!-- svelte-ignore a11y_autofocus -->
     <textarea
       id="line-comment"
       class="field"
       rows="3"
       bind:value={note}
       placeholder={agent ? t('review.whatShouldAgentChange', { agent: agent.name }) : t('review.yourComment')}
-      autofocus
       onkeydown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation()
