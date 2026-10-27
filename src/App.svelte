@@ -23,7 +23,7 @@
   import Overview from './lib/Overview.svelte'
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
-  import { lookForUpdate } from './lib/update.svelte'
+  import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
   import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
   import PullsView from './lib/PullsView.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
@@ -81,6 +81,7 @@
       trackHistory()
       archiveIdle()
       setInterval(() => (rescan(), archiveIdle()), 15_000)
+      showChangelogOnce()
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)
       const lookUpPulls = () => (lookUpAll(), projects.list.forEach((p) => lookUpLists(p.path)))

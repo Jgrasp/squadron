@@ -9,6 +9,10 @@ cd "$(dirname "$0")/.."
 
 sed -i "0,/^version = .*/s//version = \"$version\"/" src-tauri/Cargo.toml
 (cd src-tauri && cargo update -p squadron --offline -q)
+if [ -n "$notes" ]; then
+  { echo "# Changelog"; echo; echo "## $version · $(date +%F)"; echo; echo "$notes" | sed 's/^## /### /'; tail -n +2 CHANGELOG.md; } > CHANGELOG.md.new
+  mv CHANGELOG.md.new CHANGELOG.md
+fi
 git diff --quiet || git commit -qam "Squadron $version"
 
 parent=$(git rev-parse -q --verify refs/heads/public || true)
