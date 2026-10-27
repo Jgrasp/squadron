@@ -80,7 +80,10 @@
   type Segment =
     | { type: 'work'; ms: number | undefined; thinking: boolean; thought: string; calls: ToolCall[] }
     | { type: 'spawn'; calls: ToolCall[] }
+    | { type: 'ask' }
     | Extract<Block, { type: 'text' }>
+
+  const ASKING = ['AskUserQuestion', 'ExitPlanMode']
 
   function segments(blocks: Block[]) {
     const out: Segment[] = []
@@ -97,7 +100,8 @@
         continue
       }
       for (const call of block.calls.filter((c) => !INTERNAL.includes(c.name))) {
-        if (!SPAWN.includes(call.name) || !agent.subagents.some((s) => s.id === call.id)) workOf(out).calls.push(call)
+        if (ASKING.includes(call.name)) out.push({ type: 'ask' })
+        else if (!SPAWN.includes(call.name) || !agent.subagents.some((s) => s.id === call.id)) workOf(out).calls.push(call)
         else {
           const last = out.at(-1)
           if (last?.type === 'spawn') last.calls.push(call)
@@ -110,11 +114,14 @@
 
   function groups(blocks: Block[]) {
     const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' }>)[] = []
+    let asked = false
     for (const segment of segments(blocks)) {
       const last = out.at(-1)
-      if (segment.type === 'spawn') out.push(segment)
-      else if (last?.type === 'box') last.segments.push(segment)
+      if (segment.type === 'ask') asked = true
+      else if (segment.type === 'spawn') out.push(segment)
+      else if (last?.type === 'box' && !asked) last.segments.push(segment)
       else out.push({ type: 'box', segments: [segment] })
+      if (segment.type !== 'ask') asked = false
     }
     return out
   }
