@@ -65,6 +65,8 @@ export default {
   forkedFrom: 'Dupliqué depuis {from} · {time} · contexte conservé',
   reloaded: 'Session rechargée · {time} · conversation conservée',
   hide: 'Masquer',
+  allCaptures: 'Voir les {count} captures',
+  fewerCaptures: 'Voir moins de captures',
   openCapture: 'Ouvrir la capture en grand',
   reviewQuestions: { one: 'Revoir la question', other: 'Revoir les questions' },
   tasks: 'Tâches · {done} sur {total}',

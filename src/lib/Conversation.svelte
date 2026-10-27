@@ -417,6 +417,10 @@
     cursor: pointer;
   }
 
+  summary:has(:global(.shots.all)) {
+    flex-wrap: wrap;
+  }
+
   .steps > summary::-webkit-details-marker {
     display: none;
   }

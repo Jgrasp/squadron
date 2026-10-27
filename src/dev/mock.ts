@@ -149,7 +149,7 @@ function replay(id: string, text: string) {
       .map((l) => {
         const d = JSON.parse(l)
         if (d.type !== 'user' || d.message?.content?.[0]?.type !== 'tool_result') return l
-        d.message.content[0].content = [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: page() } }]
+        d.message.content[0].content = Array.from({ length: text.includes('many') ? 5 : 1 }, () => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: page() } }))
         return JSON.stringify(d)
       })
       .join('\n')
