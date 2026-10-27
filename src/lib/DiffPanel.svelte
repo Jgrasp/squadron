@@ -33,6 +33,7 @@
     reviewer = null,
     onagent,
     since = null,
+    own = false,
     onclose,
   }: {
     agent: Agent | null
@@ -50,6 +51,7 @@
     reviewer?: Agent | null
     onagent?: () => Promise<unknown>
     since?: string | null
+    own?: boolean
     onclose: () => void
   } = $props()
 
@@ -604,7 +606,7 @@
             <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>{t('review.sendTo', { agent: agent.name })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
-              {#each VERDICTS as [id, label] (id)}
+              {#each own ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
                 <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{t(label)}</button>
               {/each}
             </div>

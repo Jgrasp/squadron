@@ -188,13 +188,14 @@
         {#each found.mine as pull (pull.number)}
           {@const agent = agentOn(pull)}
           {@const others = agent ? [{ label: t('review.goToAgent', { name: agent.name }), title: t('review.agentWorkingOn', { branch: pull.branch }), run: () => show(agent) }] : []}
+          {@const reviewing = { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) }}
           <article>
             <span class="verdict {standing(pull)[0]}">{standing(pull)[1]}</span>
             {@render about(pull)}
             {#if pull.mergeable}
-              {@render split(`mine-${pull.number}`, merging(pull)[0], true, [openOn(pull), ...others])}
+              {@render split(`mine-${pull.number}`, merging(pull)[0], true, [reviewing, openOn(pull), ...others])}
             {:else}
-              {@render split(`mine-${pull.number}`, openOn(pull), false, others)}
+              {@render split(`mine-${pull.number}`, reviewing, false, [openOn(pull), ...others], opened?.number === pull.number)}
             {/if}
           </article>
         {:else}
@@ -213,6 +214,7 @@
       pull={opened}
       since={opened.reviewed && moved(project.path, opened) ? sinceOf(project.path, opened) : null}
       mode="pull"
+      own={found?.mine.some((p) => p.number === opened?.number)}
       bind:file
       bind:comments={notes}
       bind:target
