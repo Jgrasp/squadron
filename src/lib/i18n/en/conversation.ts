@@ -63,6 +63,7 @@ export default {
   forkedFrom: 'Forked from {from} · {time} · context kept',
   reloaded: 'Session reloaded · {time} · conversation kept',
   hide: 'Hide',
+  openCapture: 'Open the capture full size',
   reviewQuestions: { one: 'Review the question', other: 'Review the questions' },
   tasks: 'Tasks · {done} of {total}',
   messageActions: 'Message actions',

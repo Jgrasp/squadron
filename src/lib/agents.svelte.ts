@@ -11,6 +11,7 @@ import { t } from './i18n/index.svelte'
 import {
   apply,
   argument,
+  captures,
   commandEcho,
   commandOutput,
   subagentOf,
@@ -118,6 +119,14 @@ export function selected(project: string) {
   const list = ofProject(project)
   return list.find((a) => a.id === agents.current[project]) ?? list[0]
 }
+
+captures.save = (agent, call, data) =>
+  invoke<string>('save_capture', { data })
+    .then((path) => {
+      call.shots = [...(call.shots ?? []), path]
+      persist(agent)
+    })
+    .catch(() => {})
 
 listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const agent = find(payload.id)

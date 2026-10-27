@@ -13,6 +13,7 @@ export type ToolCall = {
   name: string
   input: Record<string, unknown>
   result?: { text: string; error: boolean; data?: Record<string, unknown> }
+  shots?: string[]
 }
 
 export type Block =
@@ -584,6 +585,11 @@ function remoteMessage(agent: Agent, d: Json) {
   if (agent.remote) agent.remote.last = Date.now()
 }
 
+export const captures: { save?: (agent: Agent, call: ToolCall, data: string) => void } = {}
+
+const imagesOf = (content: unknown) =>
+  Array.isArray(content) ? (content as Json[]).filter((x) => x.type === 'image' && x.source?.type === 'base64').map((x) => String(x.source.data)) : []
+
 function toolResults(agent: Agent, d: Json) {
   const content = d.message?.content
   if (!Array.isArray(content)) return
@@ -596,6 +602,7 @@ function toolResults(agent: Agent, d: Json) {
     if (!d.parent_tool_use_id && call?.name === 'EnterWorktree' && result?.worktreePath)
       agent.worktree = { path: String(result.worktreePath), branch: String(result.worktreeBranch ?? '') }
     if (!d.parent_tool_use_id && call?.name === 'ExitWorktree' && !c.is_error) agent.worktree = null
+    if (call && !call.result) for (const data of imagesOf(c.content)) captures.save?.(agent, call, data)
     if (call)
       call.result = {
         text: textOf(c.content),

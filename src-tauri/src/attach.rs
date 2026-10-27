@@ -122,6 +122,24 @@ pub fn sweep(attachments: &Path, agents: &Path, older: Duration) {
     }
 }
 
+pub fn capture(dir: &Path, data: &str) -> Result<PathBuf, String> {
+    let bytes = STANDARD.decode(data).map_err(|e| e.to_string())?;
+    let ext = match bytes.get(..12) {
+        Some([0x89, b'P', b'N', b'G', ..]) => "png",
+        Some([0xff, 0xd8, 0xff, ..]) => "jpg",
+        Some([b'G', b'I', b'F', b'8', ..]) => "gif",
+        Some([b'R', b'I', b'F', b'F', _, _, _, _, b'W', b'E', b'B', b'P']) => "webp",
+        _ => return Err("Not an image.".into()),
+    };
+    if bytes.len() > 20 * 1024 * 1024 {
+        return Err("Image too large.".into());
+    }
+    fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+    let file = dir.join(format!("{}.{ext}", uuid::Uuid::new_v4().simple()));
+    fs::write(&file, bytes).map_err(|e| e.to_string())?;
+    Ok(file)
+}
+
 pub fn expire(dir: &Path, older: Duration) {
     let Ok(entries) = fs::read_dir(dir) else {
         return;
@@ -241,6 +259,16 @@ mod tests {
         }
         sweep(&store, &agents, Duration::from_secs(7 * 24 * 3600));
         assert!(kept.exists() && archived.exists() && !draft.exists());
+    }
+
+    #[test]
+    fn keeps_a_tool_screenshot_by_its_real_format() {
+        let dir = std::env::temp_dir().join(format!("squadron-capture-{}", std::process::id()));
+        let png = STANDARD.encode([0x89, b'P', b'N', b'G', 13, 10, 26, 10, 0, 0, 0, 13]);
+        let saved = capture(&dir, &png).unwrap();
+        assert_eq!(saved.extension().unwrap(), "png");
+        assert!(capture(&dir, &STANDARD.encode("#!/bin/sh echo hi")).is_err());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

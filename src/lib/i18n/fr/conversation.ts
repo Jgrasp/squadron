@@ -65,6 +65,7 @@ export default {
   forkedFrom: 'Dupliqué depuis {from} · {time} · contexte conservé',
   reloaded: 'Session rechargée · {time} · conversation conservée',
   hide: 'Masquer',
+  openCapture: 'Ouvrir la capture en grand',
   reviewQuestions: { one: 'Revoir la question', other: 'Revoir les questions' },
   tasks: 'Tâches · {done} sur {total}',
   messageActions: 'Actions sur le message',

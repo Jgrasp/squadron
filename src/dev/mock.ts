@@ -131,7 +131,29 @@ function replay(id: string, text: string) {
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
   const shot = 'Voici la page :\\n\\n![Accueil](/captures/home.png)\\n\\nEt une capture effacée : ![Ancienne](/captures/old.png)'
   files.set('/captures/home.png', `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#2a2420"/><text x="40" y="190" font-size="40" fill="#e8875a">Capture</text></svg>')}`)
-  const stream = text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const page = () => {
+    const canvas = Object.assign(document.createElement('canvas'), { width: 1280, height: 800 })
+    const g = canvas.getContext('2d')!
+    g.fillStyle = '#1d1a18'
+    g.fillRect(0, 0, 1280, 800)
+    g.fillStyle = '#e8875a'
+    g.fillRect(0, 0, 1280, 90)
+    g.fillStyle = '#3a332e'
+    for (let y = 140; y < 760; y += 120) g.fillRect(60, y, 1160, 90)
+    return canvas.toDataURL('image/png').split(',')[1]
+  }
+  const shots = () =>
+    tools
+      .trim()
+      .split('\n')
+      .map((l) => {
+        const d = JSON.parse(l)
+        if (d.type !== 'user' || d.message?.content?.[0]?.type !== 'tool_result') return l
+        d.message.content[0].content = [{ type: 'image', source: { type: 'base64', media_type: 'image/png', data: page() } }]
+        return JSON.stringify(d)
+      })
+      .join('\n')
+  const stream = text.includes('shots') ? shots() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -405,6 +427,11 @@ mockIPC(
               ],
             }
           : null
+      case 'save_capture': {
+        const path = `/captures/${files.size}.png`
+        files.set(path, `data:image/png;base64,${a.data}`)
+        return path
+      }
       case 'save_attachment':
         files.set(`/attachments/${a.name}`, `data:image/png;base64,${a.data}`)
         return `/attachments/${a.name}`

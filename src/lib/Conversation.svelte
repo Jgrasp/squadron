@@ -17,6 +17,7 @@
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
   import ToolRow from './ToolRow.svelte'
+  import Shots from './Shots.svelte'
 
   let {
     agent,
@@ -61,6 +62,8 @@
     [['Bash'], 'conversation.commands'],
     [['WebFetch', 'WebSearch'], 'conversation.webLookups'],
   ]
+
+  const shotsOf = (list: Segment[]) => list.flatMap((s) => (s.type === 'work' ? s.calls.flatMap((c) => c.shots ?? []) : []))
 
   function summary(calls: ToolCall[]) {
     const parts: string[] = []
@@ -213,7 +216,7 @@
       {/if}
       {#if segment.calls.length}
         <details class="tools" open={i === lastAgent && working}>
-          <summary><span class="chevron" aria-hidden="true">›</span>{summary(segment.calls)}</summary>
+          <summary><span class="chevron" aria-hidden="true">›</span>{summary(segment.calls)}{#if !quiet}<Shots paths={shotsOf([segment])} />{/if}</summary>
           <div class="calls">
             {#each segment.calls as call (call.id)}
               <ToolRow {agent} {call} {ondiff} />
@@ -256,7 +259,7 @@
             {@render musing(chunk.thought, chunk.ms)}
           {:else if chunk.length || (live && !parts.answer.length)}
             <details class="steps" class:live={live && c === chunks.length - 1}>
-              <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span></summary>
+              <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span><Shots paths={shotsOf(chunk)} /></summary>
               <div class="step-list">{@render detail(chunk, i, tail, true)}</div>
             </details>
           {/if}

@@ -1023,6 +1023,14 @@ fn open_attachment(path: PathBuf) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn save_capture(data: String) -> Result<PathBuf, String> {
+    let dir = claude::CAPTURES.get().ok_or("No captures folder.")?.clone();
+    tauri::async_runtime::spawn_blocking(move || attach::capture(&dir, &data))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn attachment_preview(path: PathBuf) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || attach::preview(&path))
         .await
@@ -1295,6 +1303,7 @@ pub fn run() {
             send_message,
             save_attachment,
             attachment_preview,
+            save_capture,
             open_attachment,
             paste_image,
             project_sessions,
