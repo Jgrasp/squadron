@@ -93,7 +93,6 @@
     <div class="body">
       <div class="head">
         <strong>{run.name || `#${run.number}`}</strong>
-        <span class="state">{t(STATUS[run.status])}</span>
         <div class="actions">
           <button class="btn btn-ghost out" onclick={() => invoke('open_link', { url: run.url })}>{t('runs.openOn', { host: host(run) })}</button>
           <div class="anchor" data-menu>
@@ -114,6 +113,7 @@
             </button>
           {/if}
         </div>
+        <span class="state">{t(STATUS[run.status])}</span>
       </div>
       {#if run.title}<p class="title">{run.title}</p>{/if}
       <div class="meta">
@@ -394,13 +394,21 @@
 
   .state {
     flex: none;
-    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    height: 20px;
+    padding: 0 8px;
+    border-radius: 10px;
+    background: color-mix(in srgb, var(--tone) 16%, transparent);
+    font-size: 11.5px;
+    font-weight: 600;
     color: var(--tone);
   }
 
   .item.queued .state,
   .item.cancelled .state {
-    color: var(--text-dim);
+    background: var(--surface-3);
+    color: var(--text-muted);
   }
 
   .title {
@@ -433,7 +441,7 @@
     display: flex;
     align-items: center;
     gap: 2px;
-    margin: -4px -2px -4px auto;
+    margin: -4px 4px -4px auto;
     opacity: 0;
   }
 
