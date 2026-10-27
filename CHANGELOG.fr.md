@@ -1,5 +1,12 @@
 # Nouveautés
 
+## 0.12.0 · 2026-10-27
+
+### Actions et pipelines
+
+- **Dans les outils de l'agent** : les actions et pipelines passent dans un bouton à droite des outils de l'agent, qui ouvre leur liste. Le marqueur sur l'onglet du projet disparaît.
+- **Notification à la fin** : Squadron peut envoyer une notification système quand une action ou un pipeline se termine, à activer dans Réglages › Hébergement du code et à couper par projet dans Réglages › Projets.
+
 ## 0.11.0 · 2026-10-27
 
 ### Conversation

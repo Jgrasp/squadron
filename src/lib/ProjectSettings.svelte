@@ -87,6 +87,12 @@
             <input type="checkbox" checked={project.runs} disabled={!settings.runs} onchange={(e) => act(() => editProject(project.path, { runs: e.currentTarget.checked }))} />
             {t('runs.projectShow')}
           </label>
+          {#if project.runs && settings.runs && settings.runs_notify}
+            <label class="toggle">
+              <input type="checkbox" checked={project.runs_notify} onchange={(e) => act(() => editProject(project.path, { runs_notify: e.currentTarget.checked }))} />
+              {t('runs.projectNotify')}
+            </label>
+          {/if}
           {#if project.runs && settings.runs}
             <input
               class="field repo"

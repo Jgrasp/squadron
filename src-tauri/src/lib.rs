@@ -253,6 +253,9 @@ fn edit_project(
         if let Some(runs) = changes.runs {
             project.runs_off = !runs;
         }
+        if let Some(notify) = changes.runs_notify {
+            project.runs_quiet = !notify;
+        }
         if let Some(hidden) = changes.runs_hidden {
             project.runs_hidden = hidden;
         }
@@ -311,6 +314,7 @@ struct Config {
     runs: bool,
     runs_linger: u32,
     runs_hidden: Vec<String>,
+    runs_notify: bool,
 }
 
 impl Default for Config {
@@ -337,6 +341,7 @@ impl Default for Config {
             runs: true,
             runs_linger: 10,
             runs_hidden: Vec::new(),
+            runs_notify: false,
         }
     }
 }
@@ -1343,6 +1348,7 @@ pub fn run() {
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
+        .plugin(tauri_plugin_notification::init())
         .manage(Agents::default())
         .manage(Terminals::default())
         .manage(system::Cpu::default())

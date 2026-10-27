@@ -135,6 +135,13 @@
   <select id="runs-linger" class="field" disabled={!settings.runs} value={settings.runs_linger} onchange={(e) => change({ runs_linger: Number(e.currentTarget.value) })}>
     {#each LINGERS as minutes (minutes)}<option value={minutes}>{t('runs.lingerMinutes', { count: minutes })}</option>{/each}
   </select>
+  <label class="check">
+    <input type="checkbox" checked={settings.runs_notify} disabled={!settings.runs} onchange={(e) => change({ runs_notify: e.currentTarget.checked })} />
+    <span>
+      <strong>{t('runs.notify')}</strong>
+      <small>{t('runs.notifyHint')}</small>
+    </span>
+  </label>
   <span class="label">{t('runs.hiddenEverywhere')}</span>
   {#if settings.runs_hidden.length}
     <span class="names">

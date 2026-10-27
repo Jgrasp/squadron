@@ -14,6 +14,8 @@
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
+  import Runs from './Runs.svelte'
+  import { shown as runsShown } from './pipelines.svelte'
   import { errorText, t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
   import { hint, settings } from './settings.svelte'
@@ -117,6 +119,8 @@
   })
 
   const pull = $derived(pulls[workdir(agent)] ?? null)
+  const project = $derived(projects.list.find((p) => p.path === agent.project))
+  const ran = $derived(!!project && runsShown(project).length > 0)
   $effect(() => {
     void agent.turns
     lookUp(workdir(agent))
@@ -593,15 +597,22 @@
         {#if needsYou(agent.project)}<span class="count">{needsYou(agent.project)}</span>{/if}
       </button>
     {/snippet}
+    {#snippet runsTool()}
+      {#if project && ran}
+        <Runs {project} compact={!!panel} />
+      {:else}
+        <button class="btn btn-ghost" disabled>{t('settings.itemRuns')}</button>
+      {/if}
+    {/snippet}
     {#snippet kanbanTool()}
       <button class="btn btn-ghost" aria-label={t('agent.kanban')} title={t('agent.kanbanTitle', { shortcut: hint('kanban') })} onclick={toggleBoard}>
         <Icon name="kanban" />
         {#if !panel}{t('agent.kanban')}{/if}
       </button>
     {/snippet}
-      {#each ui.customizing ? all('agent.tools') : shown('agent.tools') as id (id)}
+      {#each ui.customizing ? all('agent.tools') : shown('agent.tools').filter((id) => id !== 'runs' || ran) as id (id)}
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
-            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : kanbanTool)()}
+            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : kanbanTool)()}
             {#if ui.customizing}
               <button class="eye" data-keep aria-label={t(hidden('agent.tools', id) ? 'agent.showItem' : 'agent.hideItem', { item: labelOf('agent.tools', id) })} onclick={() => toggleItem('agent.tools', id)}>
                 <Icon name={hidden('agent.tools', id) ? 'eye-off' : 'eye'} size={12} />

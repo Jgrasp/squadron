@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0 · 2026-10-27
+
+### Actions and pipelines
+
+- **In the agent's tools**: actions and pipelines move to a button at the right of the agent's tools, which opens their list. The marker on the project tab is gone.
+- **Notification when one ends**: Squadron can send a system notification when an action or a pipeline ends, turned on in Settings › Code hosting and off per project in Settings › Projects.
+
 ## 0.11.0 · 2026-10-27
 
 ### Conversation

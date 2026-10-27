@@ -7,7 +7,7 @@
   import { saveSettings, settings } from './settings.svelte'
   import { t, type Key } from './i18n/index.svelte'
 
-  let { project }: { project: Project } = $props()
+  let { project, compact = false }: { project: Project; compact?: boolean } = $props()
   let open = $state(false)
   let pinned = $state(false)
   let menu = $state<string | null>(null)
@@ -136,13 +136,13 @@
 
 {#if list.length}
   <div class="runs" style:--project={project.color} role="region" aria-label={t('runs.title')} onmouseenter={enter} onmouseleave={leave}>
-    <button class="summary {tone}" aria-expanded={open} onclick={() => (pinned ? close() : (pinned = open = true))}>
+    <button class="btn btn-ghost summary {tone}" class:compact aria-label={t('runs.title')} aria-expanded={open} onclick={() => (pinned ? close() : (pinned = open = true))}>
       {#each SUMMARY as [status, key] (key)}
         {#if count(status)}
-          <span class="part {status[0]}">{@render icon(status[0])}{t(key, { count: count(status) })}</span>
+          <span class="part {status[0]}">{@render icon(status[0])}{compact ? count(status) : t(key, { count: count(status) })}</span>
         {/if}
       {/each}
-      <svg class="chevron" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      {#if !compact}<svg class="chevron" width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>{/if}
     </button>
     {#if open}
       <div class="panel" role="dialog" aria-label={t('runs.title')}>
@@ -165,15 +165,8 @@
 
 <style>
   .runs {
-    flex: none;
     position: relative;
-    z-index: 15;
     display: flex;
-    align-items: center;
-    height: 34px;
-    padding: 0 12px;
-    border-bottom: 1px solid var(--border);
-    background: var(--surface-1);
   }
 
   svg {
@@ -198,12 +191,11 @@
     display: inline-flex;
     align-items: center;
     gap: 14px;
-    height: 24px;
-    padding: 0 10px;
-    border-radius: 5px;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    font-size: 12.5px;
-    color: var(--text-2);
+  }
+
+  .summary.compact {
+    gap: 8px;
+    padding: 0 9px;
   }
 
   .summary:hover,
@@ -269,8 +261,10 @@
 
   .panel {
     position: absolute;
-    top: 32px;
-    left: 8px;
+    top: 38px;
+    right: 0;
+    z-index: 20;
+    text-align: left;
     width: 440px;
     max-height: min(560px, 70vh);
     overflow-y: auto;

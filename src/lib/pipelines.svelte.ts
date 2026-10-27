@@ -1,7 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
+import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { clock } from './agents.svelte'
 import { projects, type Project } from './projects.svelte'
 import { settings } from './settings.svelte'
+import { t, type Key } from './i18n/index.svelte'
 
 export type Run = {
   host: 'github' | 'bitbucket'
@@ -37,13 +39,6 @@ export function shown(project: Project): Run[] {
   )
 }
 
-export function outcome(project: Project): 'running' | 'failure' | 'success' | null {
-  const list = shown(project)
-  if (list.some(active)) return 'running'
-  if (list.some((r) => r.status === 'failure')) return 'failure'
-  return list.length ? 'success' : null
-}
-
 export const names = (project: Project) => [...new Set((runs[project.path]?.list ?? []).map((r) => r.name))].filter(Boolean)
 
 export const dismiss = (project: Project, run: Run) => (dismissed[key(project, run)] = true)
@@ -54,10 +49,26 @@ export async function lookUpRuns(project: Project, force = false) {
   if (!force && Date.now() - (fetched[project.path] ?? 0) < every) return
   fetched[project.path] = Date.now()
   try {
-    runs[project.path] = { list: await invoke<Run[]>('pipeline_runs', { dir: project.path, repository: project.repository }), error: '' }
+    const list = await invoke<Run[]>('pipeline_runs', { dir: project.path, repository: project.repository })
+    if (found && !found.error) announce(project, found.list, list).catch(() => {})
+    runs[project.path] = { list, error: '' }
   } catch (e) {
     runs[project.path] = { list: [], error: String(e) }
   }
+}
+
+const ENDED: Partial<Record<Run['status'], Key>> = {
+  success: 'runs.notifySuccess',
+  failure: 'runs.notifyFailure',
+  cancelled: 'runs.notifyCancelled',
+}
+
+async function announce(project: Project, before: Run[], after: Run[]) {
+  if (!settings.runs_notify || !project.runs_notify) return
+  const ended = after.filter((run) => ENDED[run.status] && !hiddenIn(project, run.name) && before.some((b) => b.id === run.id && active(b)))
+  if (!ended.length || !((await isPermissionGranted()) || (await requestPermission()) === 'granted')) return
+  for (const run of ended)
+    sendNotification({ title: t(ENDED[run.status]!, { name: run.name || `#${run.number}`, project: project.name }), body: [run.title, run.branch].filter(Boolean).join(' · ') })
 }
 
 export function watchRuns() {

@@ -9,7 +9,7 @@ import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_hidden?: string[]; repository?: string }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
@@ -39,7 +39,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '' }))
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '' }))
 
 const loaded = Date.now()
 const timers = new Map<string, number>()
@@ -49,7 +49,7 @@ let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 let language = 'system'
-let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[] }
+let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[], runs_notify: false }
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -414,7 +414,7 @@ mockIPC(
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
-        runsConfig = (({ runs, runs_linger, runs_hidden }) => ({ runs, runs_linger, runs_hidden }))((a as unknown as { config: typeof runsConfig }).config)
+        runsConfig = (({ runs, runs_linger, runs_hidden, runs_notify }) => ({ runs, runs_linger, runs_hidden, runs_notify }))((a as unknown as { config: typeof runsConfig }).config)
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
