@@ -126,16 +126,34 @@
     void html
     if (streaming || !cards) return
     const mounted: ReturnType<typeof mount>[] = []
+    const added: Element[] = []
     tick().then(() => {
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
         mounted.push(mount(PullCard, { target: slot, props: { url: slot.dataset.pr!, onready: () => slot.classList.add('ready') } }))
+      const shown = new Set([...(box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])].map((slot) => slot.dataset.pr))
+      const last = new Map<Element, Element>()
       for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-pr-inline]') ?? []) {
+        const href = link.getAttribute('href') ?? link.href
+        if (!shown.has(href) && shown.size < 4) {
+          shown.add(href)
+          let top: Element = link
+          while (top.parentElement && top.parentElement !== box) top = top.parentElement
+          const slot = document.createElement('div')
+          slot.className = 'pr-unfurl'
+          ;(last.get(top) ?? top).after(slot)
+          last.set(top, slot)
+          added.push(slot)
+          mounted.push(mount(PullCard, { target: slot, props: { url: href } }))
+        }
         const spot = document.createElement('span')
         link.before(spot)
-        mounted.push(mount(PullCard, { target: spot, props: { url: link.href, inline: true, onready: () => (link.hidden = true) } }))
+        mounted.push(mount(PullCard, { target: spot, props: { url: link.href, inline: true, short: shown.has(href), onready: () => (link.hidden = true) } }))
       }
     })
-    return () => mounted.forEach((m) => unmount(m))
+    return () => {
+      mounted.forEach((m) => unmount(m))
+      added.forEach((el) => el.remove())
+    }
   })
 
   function click(event: MouseEvent) {

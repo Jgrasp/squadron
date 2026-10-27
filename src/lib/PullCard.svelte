@@ -7,7 +7,7 @@
   import { lookUpLink, showPulls, type Linked } from './linked.svelte'
   import { hostName, openReview, progress, stateLabel } from './pulls.svelte'
 
-  let { url, inline = false, onready }: { url: string; inline?: boolean; onready?: () => void } = $props()
+  let { url, inline = false, short = false, onready }: { url: string; inline?: boolean; short?: boolean; onready?: () => void } = $props()
 
   let linked = $state<Linked | null>(null)
   let failed = $state(false)
@@ -124,8 +124,8 @@
 {#if inline}
   {#if pull}
     <span class="pill-anchor" role="presentation" onmouseenter={enter} onmouseleave={away}>
-      <a class="pill {tone}" href={pull.url || url} title={pull.title}>{@render icon()}<span class="n">#{pull.number}</span><span class="t">{pull.title}</span></a>
-      {#if hover}<span class="popover">{@render card()}</span>{/if}
+      <a class="pill {tone}" href={pull.url || url} title={pull.title}>{@render icon()}<span class="n">#{pull.number}</span>{#if !short}<span class="t">{pull.title}</span>{/if}</a>
+      {#if hover && !short}<span class="popover">{@render card()}</span>{/if}
     </span>
   {/if}
 {:else if !failed}
@@ -358,6 +358,7 @@
     color: var(--text);
     font-size: 12.5px;
     text-decoration: none;
+    overflow-wrap: normal;
   }
 
   .pill:hover {
@@ -369,6 +370,8 @@
   }
 
   .pill .n {
+    flex: none;
+    white-space: nowrap;
     font: 12px var(--mono);
     color: var(--text-muted);
   }
