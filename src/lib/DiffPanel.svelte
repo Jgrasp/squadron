@@ -11,7 +11,7 @@
   import { ask } from './confirm.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { hostName, markReviewed, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { hostName, markReviewed, merge, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
   import Trans from './Trans.svelte'
@@ -504,6 +504,28 @@
     onposted?.()
   }
 
+  let merging = $state(false)
+
+  async function mergeIt() {
+    if (!pull) return
+    const sure = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {
+      title: t('review.mergeTitle'),
+      kind: 'warning',
+      okLabel: t('review.merge'),
+      cancelLabel: t('common.cancel'),
+    })
+    if (!sure) return
+    merging = true
+    postError = null
+    try {
+      await merge(folder, pull)
+      onposted?.()
+    } catch (e) {
+      postError = { text: String(e), done: 0 }
+    }
+    merging = false
+  }
+
   function handOver() {
     const list = $state.snapshot(review)
     reviews[reviewKey] = []
@@ -621,6 +643,12 @@
         >
       {/if}
       {#if review.length}<button class="btn btn-secondary" onclick={discard}>{t('review.discard')}</button>{/if}
+      {#if own && pull.mergeable && !review.length}
+        <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
+      {/if}
+      {#if !own && !agent}
+        <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'approve'} onclick={() => ((verdict = 'approve'), (finishing = true))}>{t('review.verdictApprove')}</button>
+      {/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>{t('review.finishReview')}</button>
     </div>
     {#if listing && review.length}

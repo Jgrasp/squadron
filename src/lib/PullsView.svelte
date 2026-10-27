@@ -174,7 +174,7 @@
               `review-${pull.number}`,
               { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) },
               waitsFor(project.path, pull),
-              [openOn(pull), ...approving(pull), ...merging(pull)],
+              [openOn(pull), ...approving(pull)],
               opened?.number === pull.number,
             )}
           </article>
