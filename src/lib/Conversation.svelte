@@ -30,6 +30,7 @@
     onfork,
     onreplay = () => {},
     onterminal = () => {},
+    onrun,
   }: {
     agent: Agent
     start?: number
@@ -40,6 +41,7 @@
     onpreview?: (proposal: Proposal) => void
     onreplay?: (command: string) => void
     onterminal?: (command: string) => void
+    onrun?: (command: string) => void
   } = $props()
 
   const SPAWN = ['Agent', 'Task']
@@ -212,7 +214,7 @@
 {#snippet detail(list: Segment[], i: number, tail: Block | undefined, quiet: boolean)}
   {#each list as segment, s (s)}
     {#if segment.type === 'text'}
-      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} cards /></div>
+      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} cards {onrun} /></div>
     {:else if segment.type === 'work'}
       {#if segment.thinking && (settings.thinking !== 'hidden' || segment.ms === undefined)}
         {#if segment.thought && settings.thinking === 'shown'}

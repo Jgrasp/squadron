@@ -784,6 +784,7 @@
           onpreview={(p) => ((proposal = p), openDiff(p.path))}
           onreplay={replay}
           onterminal={inTerminal}
+          onrun={(command) => ((stuck = true), run(agent, command))}
         />
         </div>
       </div>
