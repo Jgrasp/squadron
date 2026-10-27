@@ -137,6 +137,7 @@ export type Agent = {
   progress?: { done: number; total: number; message: string; place: 'above' | 'below' } | null
   pinned?: boolean
   unread?: boolean
+  errorSeen?: boolean
   context?: { max: number; threshold: number | null }
   review?: { project: string; number: number; base?: string }
   imported?: string
@@ -635,6 +636,7 @@ function result(agent: Agent, d: Json) {
 export function fail(agent: Agent, message: string) {
   agent.asks = []
   agent.status = 'error'
+  agent.errorSeen = false
   agent.interrupting = false
   agent.held = false
   agent.attention = message.split('\n')[0] || t('conversation.error')
