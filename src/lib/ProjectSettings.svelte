@@ -5,7 +5,7 @@
   import ColorPick from './ColorPick.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
   import { saveSettings, settings, type TabOrder } from './settings.svelte'
-  import { names, runs } from './pipelines.svelte'
+  import { lookUpRuns, names, runs } from './pipelines.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
 
   let error = $state('')
@@ -101,7 +101,7 @@
               aria-label={t('runs.repository')}
               title={t('runs.repositoryHint')}
               spellcheck="false"
-              onchange={(e) => act(() => editProject(project.path, { repository: e.currentTarget.value }))}
+              onchange={(e) => act(() => editProject(project.path, { repository: e.currentTarget.value }).then(() => lookUpRuns(projects.list.find((p) => p.path === project.path)!, true)))}
             />
           {/if}
         </span>
