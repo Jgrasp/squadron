@@ -7,6 +7,7 @@
   import { changedFiles, type Changes } from './diff'
   import { remember, workspace, type OpenFile } from './editor.svelte'
   import FileTree, { type Change } from './FileTree.svelte'
+  import Markdown from './Markdown.svelte'
   import { projects } from './projects.svelte'
   import OpenWith from './OpenWith.svelte'
   import SidePanel from './SidePanel.svelte'
@@ -57,10 +58,19 @@
   const active = $derived(ws.files.find((f) => f.path === ws.active))
   const kind = $derived(active ? (languageOf(active.path.split('/').pop()!)?.name ?? t('shell.plainText')) : '')
   const authors = $derived(active ? (touched.get(active.path) ?? []) : [])
+  const format = $derived(active ? (/\.(md|markdown|mdx)$/i.test(active.path) ? 'markdown' : /\.html?$/i.test(active.path) ? 'html' : '') : '')
+  const previewing = $derived(!!format && !!active && ws.preview.includes(active.path))
+
+  function flip() {
+    if (!active) return
+    ws.preview = previewing ? ws.preview.filter((p) => p !== active.path) : [...ws.preview, active.path]
+    remember(project)
+  }
 
   async function load(file: OpenFile) {
     try {
       file.saved = (await invoke<string | null>('read_project_file', { project, path: file.path })) ?? ''
+      file.doc = file.saved
     } catch (e) {
       file.error = errorText(e)
     }
@@ -93,7 +103,9 @@
 
   function change(key: string, doc: string) {
     const file = ws.files.find((f) => f.path === pathOf(key))
-    if (file) file.dirty = doc !== file.saved
+    if (!file) return
+    file.doc = doc
+    file.dirty = doc !== file.saved
   }
 
   async function save(key: string, doc: string) {
@@ -132,7 +144,8 @@
         .then((text) => {
           if (text === null || text === file.saved || file.dirty) return
           file.saved = text
-          if (file === active) editor?.replace(text)
+          file.doc = text
+          if (file === active && editor) editor.replace(text)
           else forget(keyOf(file.path))
         })
         .catch(() => {})
@@ -145,6 +158,11 @@
     {changes ? t('shell.filesUncommitted') : t('shell.filesChangedByAgents')}
   {/snippet}
   {#snippet actions()}
+    {#if format}
+      <button class="btn btn-secondary flip" aria-pressed={previewing} title={previewing ? undefined : t('shell.previewOf', { name: active!.path.split('/').pop()! })} onclick={flip}>
+        {previewing ? t('shell.code') : t('shell.preview')}
+      </button>
+    {/if}
     <OpenWith {project} path={active?.path ?? ''} />
   {/snippet}
   <div class="body" style:--project={root?.color}>
@@ -193,6 +211,10 @@
         <p class="empty">{t('shell.readingFile')}</p>
       {:else if active.error}
         <p class="empty">{active.error}</p>
+      {:else if previewing && format === 'markdown'}
+        <div class="preview"><Markdown text={active.doc ?? active.saved} /></div>
+      {:else if previewing}
+        <iframe class="page" title={active.path} sandbox="" srcdoc={active.doc ?? active.saved}></iframe>
       {:else}
         <CodeEditor
           bind:this={editor}
@@ -210,7 +232,7 @@
         <div class="status">
           <span>{kind}</span>
           <span>UTF-8</span>
-          <span>{t('shell.cursor', { line: String(cursor.line), col: String(cursor.col) })}</span>
+          {#if !previewing}<span>{t('shell.cursor', { line: String(cursor.line), col: String(cursor.col) })}</span>{/if}
           <span class="grow">{notice}</span>
           {#if active.base !== undefined}
             <span class="legend" title={t('shell.linesAdded')}><span class="added"></span>{t('shell.added')}</span>
@@ -354,6 +376,28 @@
     margin: 0;
     padding: 24px 18px;
     color: var(--text-dim);
+  }
+
+  .flip {
+    height: 32px;
+    padding: 0 12px;
+    font-size: 13px;
+  }
+
+  .preview {
+    flex: 1;
+    min-height: 0;
+    overflow: auto;
+    padding: 18px 28px;
+    font-size: 14px;
+    color: var(--text);
+  }
+
+  .page {
+    flex: 1;
+    min-height: 0;
+    border: none;
+    background: #fff;
   }
 
   .status {
