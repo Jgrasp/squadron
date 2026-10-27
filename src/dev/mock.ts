@@ -9,7 +9,7 @@ import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_hidden?: string[]; repository?: string }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
@@ -39,8 +39,9 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived }))
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '' }))
 
+const loaded = Date.now()
 const timers = new Map<string, number>()
 let claudePath = 'claude'
 let tabEffect = 'pulse'
@@ -48,6 +49,7 @@ let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 let language = 'system'
+let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[] }
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -119,6 +121,7 @@ function goal(id: string, condition: string) {
 }
 
 function replay(id: string, text: string) {
+  if (text.includes('sudo')) setTimeout(() => emit('askpass-request', { id: String(askId++), agent: id, prompt: '[sudo] password for demo: ' }), 400)
   if (text.startsWith('/goal ')) return goal(id, text.slice(6))
   const key = Object.keys(asks).find((k) => text.includes(k))
   if (key) {
@@ -159,7 +162,7 @@ function replay(id: string, text: string) {
       })
       .join('\n')
   const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
-  const stream = text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -233,6 +236,7 @@ const replies = new Map<string, (result: string) => void>()
 const files = new Map<string, string>()
 let terminal = 0
 let line = ''
+const shells = new Map<number, number>()
 const prompt = '\x1b[38;2;154;214;203mdemo\x1b[0m \x1b[2m~/agence/orbit\x1b[0m \x1b[38;2;201;166;255mfeat/T15-segmentation*\x1b[0m\r\n\x1b[38;2;224;138;91m❯\x1b[0m '
 
 if (location.search.includes('stress'))
@@ -298,6 +302,13 @@ mockIPC(
       case 'add_project':
         projects.push({ name: a.name, path: a.path, rules: [] })
         return views()
+      case 'scratch_project': {
+        const path = '/home/user/.local/share/squadron/conversations'
+        const found = projects.find((p) => p.path === path)
+        if (found) found.archived = false
+        else projects.push({ name: a.name, path, rules: [] })
+        return [path, views()]
+      }
       case 'remove_project':
         projects.splice(
           projects.findIndex((p) => p.path === a.path),
@@ -366,10 +377,7 @@ mockIPC(
         return
       case 'edit_project': {
         const project = projects.find((p) => p.path === a.path)!
-        if (a.name !== undefined) project.name = a.name
-        if (a.color !== undefined) project.color = a.color
-        if (a.pinned !== undefined) project.pinned = (args as { pinned: boolean }).pinned
-        if (a.archived !== undefined) project.archived = (args as { archived: boolean }).archived
+        Object.assign(project, (args as { changes: Partial<Project> }).changes)
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
       }
@@ -398,7 +406,7 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, ...runsConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
@@ -406,6 +414,7 @@ mockIPC(
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
+        runsConfig = (({ runs, runs_linger, runs_hidden }) => ({ runs, runs_linger, runs_hidden }))((a as unknown as { config: typeof runsConfig }).config)
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
@@ -431,6 +440,22 @@ mockIPC(
       case 'plugin:window|set_focus':
         if (label === 'main') popup?.focus()
         return
+      case 'pipeline_runs': {
+        if (a.dir.includes('nova')) throw 'The project is not on Bitbucket or GitHub.'
+        const at = (ms: number) => new Date(loaded + ms).toISOString()
+        const elapsed = Date.now() - loaded
+        const run = (id: number, name: string, title: string, status: string, started: number, finished: number | null, event = 'push') => ({
+          host: 'github', id: String(id), number: id, name, title, event, branch: 'main', url: `https://github.com/orbit/orbit/actions/runs/${id}`,
+          status: finished !== null && elapsed > finished ? status : elapsed > started ? 'running' : 'queued', started: at(started), finished: finished !== null && elapsed > finished ? at(finished) : null,
+        })
+        return [
+          run(3, 'Release', 'Orbit 2.4.0', 'success', 0, 25_000),
+          run(4, 'Tests', 'Segment CSV export', 'failure', 5_000, 40_000, 'pull_request'),
+          run(5, 'Deploy staging', 'Segment CSV export', 'success', 30_000, null),
+          run(6, 'Copilot code review', 'Segment CSV export', 'success', 0, 10_000, 'dynamic'),
+          run(2, 'Release', 'Orbit 2.3.0', 'success', -3 * 3_600_000, -3 * 3_600_000 + 300_000),
+        ]
+      }
       case 'pull_request':
         return a.dir.includes('orbit') ? orbitPull() : null
       case 'linked_pull': {
@@ -582,6 +607,8 @@ mockIPC(
         return a.path.endsWith('Test.php')
           ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
           : `diff --git a/${a.path} b/${a.path}\nindex 3f2a91c..${a.now.slice(0, 7)} 100644\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
+      case 'project_files':
+        return ['composer.json', 'composer.lock', 'config/', 'config/services.yaml', 'resume.txt', 'src/', 'src/Segmentation/', 'src/Segmentation/ChannelSegmentResolver.php', 'src/Segmentation/SegmentRepository.php', 'tests/', 'tests/ResolverTest.php']
       case 'list_dir': {
         const tree: Record<string, [string, boolean][]> = {
           '': [['config', true], ['src', true], ['tests', true], ['vendor', true], ['composer.json', false], ['composer.lock', false], ['resume.txt', false]],
@@ -636,6 +663,24 @@ mockIPC(
         setTimeout(() => emit('term-out', { id, data: prompt }), 50)
         return { id, shell: 'zsh' }
       }
+      case 'shell_run': {
+        const id = ++terminal
+        const command = String(a.command)
+        const long = command.includes('sleep')
+        const lines = command.includes('fail')
+          ? [' \x1b[32m✓\x1b[0m src/lib/board.test.ts (12)\r\n', ' \x1b[31m✗ src/lib/agents.test.ts > keeps the worktree\r\n   expected /tmp/a to be /tmp/b\x1b[0m\r\n', '\r\n Tests  1 failed | 16 passed\r\n']
+          : [`ran: ${command}\r\n`, 'building 10%\r', 'building 100%\r\n', 'done\r\n']
+        lines.forEach((data, i) => setTimeout(() => emit('shell-out', { id, data }), 300 * (i + 1)))
+        shells.set(id, setTimeout(() => emit('shell-exit', { id, code: command.includes('fail') ? 1 : 0 }), long ? 60_000 : 300 * (lines.length + 1)))
+        return id
+      }
+      case 'term_close':
+        if (shells.has(Number(a.id))) {
+          clearTimeout(shells.get(Number(a.id)))
+          shells.delete(Number(a.id))
+          setTimeout(() => emit('shell-exit', { id: Number(a.id), code: null }), 50)
+        }
+        return
       case 'term_write': {
         const id = Number(a.id)
         const data = a.data === '\r' ? `\r\n${line ? `ran: ${line}\r\n` : ''}${prompt}` : a.data === '\x7f' ? '\b \b' : a.data
@@ -683,7 +728,7 @@ mockIPC(
       case 'open_with':
         return
       case 'term_resize':
-      case 'term_close':
+      case 'answer_askpass':
         return
       case 'plugin:dialog|open':
         return '/home/demo/agence/hermes'

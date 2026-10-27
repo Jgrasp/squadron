@@ -89,13 +89,19 @@
   }
   const fence = md.renderer.rules.fence!
   const copyButton = () => `<button type="button" class="copy" data-copy><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>${t('common.copy')}</span></button>`
+  const SHELLS = ['bash', 'sh', 'shell', 'zsh', 'console', 'terminal']
+  const runButton = () => `<button type="button" class="run" data-run><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4.5v15l12-7.5z"/></svg><span>${t('common.run')}</span></button>`
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
     const lang = tokens[idx].info.trim().split(/\s+/)[0] || 'text'
     const source = fence(tokens, idx, options, env, self)
+    if (lang === 'html' && env?.streaming)
+      return `<div class="code"><div class="code-head"><span>html</span></div><div class="drawing"><span>${t('conversation.drawing')}</span></div></div>`
     if (lang === 'html') {
       const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">${t('conversation.preview')}</button><button type="button" data-view="source" aria-pressed="false">HTML</button></span>`
       return `<div class="code"><div class="code-head">${tabs}${copyButton()}</div><div class="rendered mockup" data-mockup></div><div class="source" hidden>${source}</div></div>`
     }
+    if (SHELLS.includes(lang))
+      return `<div class="code"><div class="code-head"><span>${md.utils.escapeHtml(lang)}</span><span class="buttons">${copyButton()}${runButton()}</span></div>${source}</div>`
     if (lang !== 'markdown' && lang !== 'md')
       return `<div class="code"><div class="code-head"><span>${md.utils.escapeHtml(lang)}</span>${copyButton()}</div>${source}</div>`
     const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">${t('conversation.preview')}</button><button type="button" data-view="source" aria-pressed="false">${t('conversation.markdown')}</button></span>`
@@ -104,12 +110,12 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core'
   import { mount, tick, unmount, untrack } from 'svelte'
   import PullCard from './PullCard.svelte'
   import Attachment from './Attachment.svelte'
+  import { showCapture } from './captures.svelte'
 
-  let { text, streaming = false, cards = false }: { text: string; streaming?: boolean; cards?: boolean } = $props()
+  let { text, streaming = false, cards = false, onrun }: { text: string; streaming?: boolean; cards?: boolean; onrun?: (command: string) => void } = $props()
 
   let shown = $state(untrack(() => text.length))
   let frame = 0
@@ -139,7 +145,7 @@
 
   const html = $derived.by(() => {
     void loaded
-    return md.render(streaming ? text.slice(0, shown) : text)
+    return md.render(streaming ? text.slice(0, shown) : text, { streaming })
   })
 
   let box = $state<HTMLElement>()
@@ -222,10 +228,15 @@
     }
   })
 
+  function command(code: string) {
+    const lines = code.trim().split('\n')
+    return (lines.every((l) => l.startsWith('$ ')) ? lines.map((l) => l.slice(2)) : lines).join('\n')
+  }
+
   function click(event: MouseEvent) {
     const target = event.target as HTMLElement
     const shot = target.closest<HTMLElement>('[data-shot]')
-    if (shot) return void invoke('open_attachment', { path: shot.dataset.shot }).catch(() => shot.classList.add('gone'))
+    if (shot) return void (shot.classList.contains('gone') || showCapture(shot, shot.dataset.shot!))
     const block = target.closest('.code')
     const view = target.closest<HTMLButtonElement>('[data-view]')
     if (block && view) {
@@ -234,8 +245,9 @@
       block.querySelector(':scope > .source')?.toggleAttribute('hidden', view.dataset.view !== 'source')
       return
     }
-    const button = target.closest<HTMLButtonElement>('[data-copy]')
     const code = block?.querySelector(':scope > pre, :scope > .source > pre')?.textContent
+    if (target.closest('[data-run]') && code && onrun) return onrun(command(code))
+    const button = target.closest<HTMLButtonElement>('[data-copy]')
     if (!button || code === undefined || code === null) return
     navigator.clipboard.writeText(code.replace(/\n$/, ''))
     const label = button.querySelector('span')!
@@ -245,7 +257,7 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="prose" class:streaming onclick={click} bind:this={box}>{@html html}</div>
+<div class="prose" class:streaming class:runnable={!!onrun && !streaming} onclick={click} bind:this={box}>{@html html}</div>
 
 <style>
   .prose {
@@ -327,6 +339,31 @@
     font: 600 12.5px var(--sans);
   }
 
+  .prose :global(.buttons) {
+    display: flex;
+    gap: 6px;
+  }
+
+  .prose :global(.run) {
+    display: none;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    padding: 0 12px;
+    border-radius: 4px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 600 12.5px var(--sans);
+  }
+
+  .prose.runnable :global(.run) {
+    display: inline-flex;
+  }
+
+  .prose :global(.run svg) {
+    fill: currentColor;
+  }
+
   .prose :global(.copy svg) {
     fill: none;
     stroke: currentColor;
@@ -382,6 +419,18 @@
 
   .prose :global(.code:has(> .mockup:empty) > .mockup) {
     display: none;
+  }
+
+  .prose :global(.drawing) {
+    display: grid;
+    place-items: center;
+    height: 120px;
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  .prose :global(.drawing span) {
+    animation: pulse 1.6s ease-in-out infinite;
   }
 
   .prose :global(.rendered > :first-child) {

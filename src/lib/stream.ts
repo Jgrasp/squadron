@@ -92,6 +92,7 @@ export type Entry =
   | { kind: 'compacted'; at: number; before: number; after: number }
   | { kind: 'cleared'; at: number }
   | { kind: 'note'; at: number; command: string; text: string }
+  | { kind: 'shell'; at: number; command: string; output: string; state: 'running' | 'done' | 'stopped'; code?: number | null; ms?: number; sent?: boolean; pty?: number }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
   | {
       kind: 'decision'
@@ -254,6 +255,10 @@ export function userMessage(agent: Agent, text: string, comments: Comment[] = []
     ...(files.length ? { files } : {}),
     ...(from ? { from } : {}),
   })
+  starting(agent)
+}
+
+export function starting(agent: Agent) {
   agent.attention = ''
   if (!agent.alive) agent.processCost = 0
   agent.held = false

@@ -17,6 +17,23 @@ pub struct Project {
     pub pinned: bool,
     #[serde(default)]
     pub archived: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub runs_off: bool,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub runs_hidden: Vec<String>,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub repository: String,
+}
+
+#[derive(Deserialize)]
+pub struct Edit {
+    pub name: Option<String>,
+    pub color: Option<String>,
+    pub pinned: Option<bool>,
+    pub archived: Option<bool>,
+    pub runs: Option<bool>,
+    pub runs_hidden: Option<Vec<String>>,
+    pub repository: Option<String>,
 }
 
 pub fn reorder(list: &mut [Project], paths: &[PathBuf]) {
@@ -65,6 +82,8 @@ pub struct Card {
     pub prompt: String,
     #[serde(default)]
     pub goal: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub files: Vec<PathBuf>,
     pub column: Column,
     #[serde(default)]
     pub agent: Option<String>,
@@ -81,6 +100,9 @@ pub struct Folder {
     pub color: String,
     pub pinned: bool,
     pub archived: bool,
+    pub runs: bool,
+    pub runs_hidden: Vec<String>,
+    pub repository: String,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
@@ -97,6 +119,9 @@ impl Folder {
             color: project.color.clone(),
             pinned: project.pinned,
             archived: project.archived,
+            runs: !project.runs_off,
+            runs_hidden: project.runs_hidden.clone(),
+            repository: project.repository.clone(),
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -308,6 +333,7 @@ mod tests {
                 title: "Segment export".into(),
                 prompt: String::new(),
                 goal: "the export tests pass".into(),
+                files: Vec::new(),
                 column: Column::Review,
                 agent: Some("a1".into()),
                 auto: Some(Column::Review),
@@ -315,6 +341,9 @@ mod tests {
             color: "#A78BFA".into(),
             pinned: true,
             archived: false,
+            runs_off: true,
+            runs_hidden: vec!["Copilot".into()],
+            repository: "github.com/Jgrasp/squadron".into(),
         }];
         save(&file, &projects).unwrap();
         assert!(

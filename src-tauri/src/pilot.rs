@@ -366,7 +366,9 @@ mod tests {
         let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
         let pilot = Pilot::new("token".into(), move |call| calls_tx.send(call).unwrap());
-        let port = serve_with_pilot(gate.clone(), pilot.clone()).await.unwrap();
+        let port = serve_with_pilot(gate.clone(), pilot.clone(), axum::Router::new())
+            .await
+            .unwrap();
         tokio::spawn(async move {
             while let Some(ask) = asks_rx.recv().await {
                 let ask: crate::permissions::Ask = ask;

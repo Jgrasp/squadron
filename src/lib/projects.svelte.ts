@@ -12,6 +12,9 @@ export type Project = {
   color: string
   pinned: boolean
   archived: boolean
+  runs: boolean
+  runs_hidden: string[]
+  repository: string
   exists: boolean
   git: boolean
   branch: string | null
@@ -41,6 +44,15 @@ export async function add(path: string, name: string, color = '') {
   projects.current = path
 }
 
+export async function scratch(name: string) {
+  const [path, all] = await invoke<[string, Project[]]>('scratch_project', { name })
+  set(all)
+  projects.overview = false
+  projects.board = false
+  projects.pulls = false
+  projects.current = path
+}
+
 export async function remove(path: string) {
   set(await invoke<Project[]>('remove_project', { path }))
 }
@@ -50,8 +62,16 @@ export async function move(path: string, to: string) {
   projects.current = to
 }
 
-export async function editProject(path: string, changes: { name?: string; color?: string; pinned?: boolean; archived?: boolean }) {
-  set(await invoke<Project[]>('edit_project', { path, ...changes }))
+export async function editProject(path: string, changes: {
+    name?: string
+    color?: string
+    pinned?: boolean
+    archived?: boolean
+    runs?: boolean
+    runs_hidden?: string[]
+    repository?: string
+  },) {
+  set(await invoke<Project[]>('edit_project', { path, changes }))
 }
 
 export async function orderProjects(paths: string[]) {

@@ -2,6 +2,7 @@ import { getVersion } from '@tauri-apps/api/app'
 import { ask, message } from './asking.svelte'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
+import { ui } from './actions.svelte'
 import { agents, saveAll } from './agents.svelte'
 import { errorText, t } from './i18n/index.svelte'
 
@@ -17,6 +18,21 @@ export async function lookForUpdate() {
   try {
     update.found = await check()
   } catch {}
+}
+
+export const news = $state<{ version: string }>({ version: '' })
+
+export async function showChangelogOnce() {
+  if (import.meta.env.DEV) return
+  const version = await getVersion()
+  const seen = localStorage.getItem('squadron.seen-version')
+  localStorage.setItem('squadron.seen-version', version)
+  if (seen && seen !== version) news.version = version
+}
+
+export function openChangelog() {
+  news.version = ''
+  ui.settings = 'changelog'
 }
 
 export async function checkNow() {

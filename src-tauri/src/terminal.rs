@@ -37,10 +37,12 @@ fn decode(pending: &mut Vec<u8>) -> String {
 }
 
 impl Terminals {
+    #[allow(clippy::too_many_arguments)]
     pub fn open(
         &self,
         dir: &Path,
         shell: Option<&str>,
+        command: Option<&str>,
         cols: u16,
         rows: u16,
         on_output: impl Fn(u32, String) + Send + 'static,
@@ -51,8 +53,12 @@ impl Terminals {
             .map_err(|e| e.to_string())?;
         let mut cmd = match shell {
             Some(program) => CommandBuilder::new(program),
+            None if command.is_some() => CommandBuilder::new("/bin/sh"),
             None => CommandBuilder::new_default_prog(),
         };
+        if let Some(line) = command {
+            cmd.args(["-ic", line]);
+        }
         cmd.cwd(dir);
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
@@ -101,6 +107,11 @@ impl Terminals {
             .map_err(|e| e.to_string())
     }
 
+    pub fn finish(&self, id: u32) -> Option<u32> {
+        let mut term = self.open.lock().unwrap().remove(&id)?;
+        term.child.wait().ok().map(|status| status.exit_code())
+    }
+
     pub fn close(&self, id: u32) {
         if let Some(mut term) = self.open.lock().unwrap().remove(&id) {
             let _ = term.child.kill();
@@ -143,6 +154,7 @@ mod tests {
             .open(
                 &dir,
                 Some("/bin/sh"),
+                None,
                 80,
                 24,
                 move |_, text| {
@@ -164,5 +176,35 @@ mod tests {
         assert_eq!(exited.recv_timeout(Duration::from_secs(5)).unwrap(), id);
         terminals.close(id);
         assert!(terminals.write(id, "x").is_err());
+    }
+
+    #[test]
+    fn runs_one_command_and_gives_its_exit_code() {
+        let dir = std::env::temp_dir();
+        let terminals = std::sync::Arc::new(Terminals::default());
+        let (out, received) = mpsc::channel();
+        let (done, exited) = mpsc::channel();
+        let finished = terminals.clone();
+        terminals
+            .open(
+                &dir,
+                Some("/bin/sh"),
+                Some("echo squad$((2+1)); exit 3"),
+                80,
+                24,
+                move |_, text| {
+                    let _ = out.send(text);
+                },
+                move |id| {
+                    let _ = done.send(finished.finish(id));
+                },
+            )
+            .unwrap();
+        assert_eq!(
+            exited.recv_timeout(Duration::from_secs(5)).unwrap(),
+            Some(3)
+        );
+        let seen: String = received.try_iter().collect();
+        assert!(seen.contains("squad3"));
     }
 }

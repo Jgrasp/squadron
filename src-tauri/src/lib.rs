@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod askpass;
 pub mod attach;
 pub mod claude;
 pub mod editors;
@@ -12,6 +13,7 @@ pub mod system;
 pub mod terminal;
 
 use agents::Agents;
+use askpass::Askpass;
 use permissions::Gate;
 use pilot::Pilot;
 use projects::{Card, Folder, Project};
@@ -122,6 +124,32 @@ fn add_project(
 }
 
 #[tauri::command]
+fn scratch_project(
+    app: AppHandle,
+    projects: State<Projects>,
+    name: String,
+) -> Result<(PathBuf, Vec<Folder>), String> {
+    let dir = app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("conversations");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let list = projects.update(|list| {
+        match list.iter_mut().find(|p| p.path == dir) {
+            Some(project) => project.archived = false,
+            None => list.push(Project {
+                name,
+                path: dir.clone(),
+                ..Default::default()
+            }),
+        }
+        Ok(())
+    })?;
+    Ok((dir, list))
+}
+
+#[tauri::command]
 fn remove_project(projects: State<Projects>, path: PathBuf) -> Result<Vec<Folder>, String> {
     projects.update(|list| {
         list.retain(|p| p.path != path);
@@ -182,38 +210,54 @@ fn answer_permission(
 }
 
 #[tauri::command]
-fn cancel_permissions(gate: State<Gate>, agent: String) {
-    gate.cancel(&agent)
+fn cancel_permissions(gate: State<Gate>, askpass: State<Askpass>, agent: String) {
+    gate.cancel(&agent);
+    askpass.cancel(&agent);
+}
+
+#[tauri::command]
+fn answer_askpass(
+    askpass: State<Askpass>,
+    id: String,
+    secret: Option<String>,
+) -> Result<(), String> {
+    askpass.answer(&id, secret)
 }
 
 #[tauri::command]
 fn edit_project(
     projects: State<Projects>,
     path: PathBuf,
-    name: Option<String>,
-    color: Option<String>,
-    pinned: Option<bool>,
-    archived: Option<bool>,
+    changes: projects::Edit,
 ) -> Result<Vec<Folder>, String> {
     projects.update(|list| {
         let project = list
             .iter_mut()
             .find(|p| p.path == path)
             .ok_or("Unknown project.")?;
-        if let Some(name) = name.map(|n| n.trim().to_string()) {
+        if let Some(name) = changes.name.map(|n| n.trim().to_string()) {
             if name.is_empty() {
                 return Err("The project needs a name.".into());
             }
             project.name = name;
         }
-        if let Some(color) = color {
+        if let Some(color) = changes.color {
             project.color = color;
         }
-        if let Some(pinned) = pinned {
+        if let Some(pinned) = changes.pinned {
             project.pinned = pinned;
         }
-        if let Some(archived) = archived {
+        if let Some(archived) = changes.archived {
             project.archived = archived;
+        }
+        if let Some(runs) = changes.runs {
+            project.runs_off = !runs;
+        }
+        if let Some(hidden) = changes.runs_hidden {
+            project.runs_hidden = hidden;
+        }
+        if let Some(repository) = changes.repository {
+            project.repository = repository.trim().to_string();
         }
         Ok(())
     })
@@ -264,6 +308,9 @@ struct Config {
     steps: String,
     thinking: String,
     language: String,
+    runs: bool,
+    runs_linger: u32,
+    runs_hidden: Vec<String>,
 }
 
 impl Default for Config {
@@ -287,6 +334,9 @@ impl Default for Config {
             steps: "grouped".into(),
             thinking: "duration".into(),
             language: "system".into(),
+            runs: true,
+            runs_linger: 10,
+            runs_hidden: Vec::new(),
         }
     }
 }
@@ -326,6 +376,7 @@ impl Settings {
             ));
         }
         config.keys.retain(|_, value| !value.trim().is_empty());
+        config.runs_hidden.retain(|name| !name.trim().is_empty());
         config
             .editors
             .retain(|e| !e.name.trim().is_empty() && !e.command.trim().is_empty());
@@ -505,6 +556,13 @@ fn list_dir(project: PathBuf, path: PathBuf) -> Result<Vec<Entry>, String> {
 }
 
 #[tauri::command]
+async fn project_files(dir: PathBuf) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::files(&dir))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn git_file(project: PathBuf, rev: String, path: String) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || git::show(&project, &rev, &path))
         .await
@@ -529,6 +587,7 @@ fn term_open(
     let id = terminals.open(
         &project,
         None,
+        None,
         cols,
         rows,
         move |id, data| {
@@ -539,6 +598,33 @@ fn term_open(
         },
     )?;
     Ok(serde_json::json!({ "id": id, "shell": shell }))
+}
+
+#[tauri::command]
+fn shell_run(
+    app: AppHandle,
+    terminals: State<Terminals>,
+    dir: PathBuf,
+    command: String,
+    cols: u16,
+    rows: u16,
+) -> Result<u32, String> {
+    let shell = std::env::var("SHELL").ok();
+    let out = app.clone();
+    terminals.open(
+        &dir,
+        shell.as_deref(),
+        Some(&command),
+        cols,
+        rows,
+        move |id, data| {
+            let _ = out.emit("shell-out", serde_json::json!({ "id": id, "data": data }));
+        },
+        move |id| {
+            let code = app.state::<Terminals>().finish(id);
+            let _ = app.emit("shell-exit", serde_json::json!({ "id": id, "code": code }));
+        },
+    )
 }
 
 #[tauri::command]
@@ -578,6 +664,11 @@ async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
 #[tauri::command]
 async fn linked_pull(url: String, projects: Vec<PathBuf>) -> Result<forge::Linked, String> {
     forge::linked(&url, projects).await
+}
+
+#[tauri::command]
+async fn pipeline_runs(dir: PathBuf, repository: String) -> Result<Vec<forge::Run>, String> {
+    forge::runs(&dir, &repository).await
 }
 
 #[tauri::command]
@@ -755,16 +846,19 @@ fn create_agent(
     text: String,
     worktree: Option<String>,
     dir: Option<PathBuf>,
+    files: Option<Vec<PathBuf>>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, None, false)?;
     agents.set_dir(&id, dir)?;
     if let Some(name) = worktree {
         agents.new_worktree(&id, &name)?;
     }
-    if text.trim().is_empty() {
+    let files = files.unwrap_or_default();
+    if text.trim().is_empty() && files.is_empty() {
         return Ok(());
     }
-    agents.send(&app, &settings.claude(), &id, serde_json::json!(text))
+    let content = attach::content(&text, &files)?;
+    agents.send(&app, &settings.claude(), &id, content)
 }
 
 #[tauri::command]
@@ -1263,6 +1357,7 @@ pub fn run() {
             list_projects,
             inspect_folder,
             add_project,
+            scratch_project,
             remove_project,
             move_project,
             edit_project,
@@ -1278,11 +1373,14 @@ pub fn run() {
             remote_control,
             context_usage,
             cancel_permissions,
+            answer_askpass,
             read_project_file,
             write_project_file,
             list_dir,
+            project_files,
             git_file,
             term_open,
+            shell_run,
             term_write,
             term_resize,
             term_close,
@@ -1294,6 +1392,7 @@ pub fn run() {
             git_patch,
             pull_request,
             pull_lists,
+            pipeline_runs,
             linked_pull,
             review_checkout,
             changed_files,
@@ -1401,10 +1500,23 @@ pub fn run() {
             let pilot = Pilot::new(token.clone(), move |call| {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });
+            let handle = app.handle().clone();
+            let askpass = Askpass::new(token.clone(), move |question| {
+                let _ = handle.emit("askpass-request", question);
+            });
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
                 gate.clone(),
                 pilot.clone(),
+                askpass.clone().router(),
             ))?;
+            let helpers = app.path().app_data_dir()?.join("bin");
+            match std::env::current_exe().and_then(|exe| askpass::install(&helpers, &exe)) {
+                Ok(script) => {
+                    let _ = askpass::HELPER.set((script, port, token.clone()));
+                }
+                Err(e) => log::warn!("password helper not installed: {e}"),
+            }
+            app.manage(askpass);
             let agents = app.state::<Agents>();
             agents.endpoint(port, token);
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);

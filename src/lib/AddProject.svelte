@@ -6,7 +6,8 @@
   import ColorPick from './ColorPick.svelte'
   import { errorText, t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
-  import { add, home, inspect, projects, type Inspection } from './projects.svelte'
+  import { add, home, inspect, projects, scratch, type Inspection } from './projects.svelte'
+  import { ui } from './actions.svelte'
 
   let { path: initial, onclose }: { path: string; onclose: () => void } = $props()
 
@@ -53,6 +54,18 @@
       if (revive) await unshelve(projects.archived.find((p) => p.name === info?.taken_by)?.path ?? path.trim())
       else await add(path.trim(), name, color)
       onclose()
+    } catch (e) {
+      error = errorText(e)
+      busy = false
+    }
+  }
+
+  async function converse() {
+    busy = true
+    try {
+      await scratch(t('board.scratchName'))
+      onclose()
+      ui.creating = true
     } catch (e) {
       error = errorText(e)
       busy = false
@@ -126,6 +139,7 @@
       {#if error}<p class="bad" role="alert">{error}</p>{/if}
     </div>
     <footer>
+      <button type="button" class="btn btn-ghost scratch" disabled={busy} title={t('board.scratchTitle')} onclick={converse}>{t('board.scratch')}</button>
       <button type="button" class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
       <button class="btn btn-primary" disabled={!ready}>{revive ? t('board.unarchive', { project: info?.taken_by ?? '' }) : t('board.addProjectButton')}</button>
     </footer>
@@ -227,5 +241,9 @@
 
   footer .btn {
     height: 40px;
+  }
+
+  .scratch {
+    margin-right: auto;
   }
 </style>

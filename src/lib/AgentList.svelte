@@ -4,7 +4,7 @@
   import { ago, short } from './format'
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
-  import { home, type Project } from './projects.svelte'
+  import type { Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
   import ImportPanel from './ImportPanel.svelte'
@@ -392,6 +392,7 @@
           <button
             class="agent {look(agent)}"
             class:picked={chosen.includes(agent.id)}
+            class:fresh={agent.status === 'done' && agent.unread}
             data-item={agent.id}
             aria-current={agent.id === current?.id ? 'true' : undefined}
             aria-pressed={chosen.length ? chosen.includes(agent.id) : undefined}
@@ -427,11 +428,6 @@
       {project.exists ? t('shell.agentsShowHere', { name: project.name }) : t('shell.agentsOnceFound')}
     </div>
   {/if}
-
-  <div class="info">
-    <span class="mono">{home(project.path)}</span>
-    <span>{project.git ? (project.branch !== null ? t('shell.gitBranch', { branch: project.branch }) : t('shell.gitRepository')) : t('shell.noGit')}</span>
-  </div>
 </aside>
 {/if}
 
@@ -714,6 +710,20 @@
 
   .bulk .clear {
     margin-left: auto;
+  }
+
+  .agent.fresh {
+    background: color-mix(in srgb, var(--ok) 9%, transparent);
+    box-shadow: inset 3px 0 0 var(--ok);
+  }
+
+  .agent.fresh .name {
+    color: var(--text-strong);
+  }
+
+  .agent.fresh .state {
+    font-weight: 600;
+    color: var(--ok);
   }
 
   .agent.waiting {
@@ -1114,22 +1124,6 @@
     fill: none;
     stroke: var(--text-faint);
     stroke-width: 1.6;
-  }
-
-  .info {
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    padding: 12px;
-    border-radius: 4px;
-    background: var(--surface-1);
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .info .mono {
-    color: var(--text-3);
-    overflow-wrap: anywhere;
   }
 
 </style>

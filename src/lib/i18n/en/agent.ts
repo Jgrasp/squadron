@@ -142,6 +142,7 @@ export default {
   commentsSent: 'Comments on the diff, sent with your message',
   argumentsOf: 'Arguments of /{command}',
   commands: 'Commands',
+  files: 'Files',
   skills: 'Skills',
   keysMove: '{up}{down} to move',
   keysChoose: '{tab} or {enter} to choose',
@@ -165,4 +166,6 @@ export default {
   newInstruction: 'New instruction, or “continue” to resume',
   writeReload: 'Write to {agent}: the session will reload before sending',
   writeTo: 'Write to {agent}…',
+  shellIn: 'Runs in {path}',
+  shellKeys: '{up} history · {enter} run',
 }

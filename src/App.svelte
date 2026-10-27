@@ -10,6 +10,8 @@
   import Settings from './lib/SettingsDialog.svelte'
   import Spotlight from './lib/Spotlight.svelte'
   import Confirm from './lib/Confirm.svelte'
+  import Viewer from './lib/Viewer.svelte'
+  import Password from './lib/Password.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, create, find, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
@@ -21,10 +23,13 @@
   import Board from './lib/Board.svelte'
   import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
+  import WhatsNew from './lib/WhatsNew.svelte'
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
-  import { lookForUpdate } from './lib/update.svelte'
+  import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
   import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
+  import { watchRuns } from './lib/pipelines.svelte'
+  import Runs from './lib/Runs.svelte'
   import PullsView from './lib/PullsView.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
@@ -35,8 +40,8 @@
 
   const actions: Actions = {
     cards: setCards,
-    async start(path, card, name, options, text, goal, worktree) {
-      const id = await create(path, name, options, text, { goal, worktree })
+    async start(path, card, name, options, text, goal, worktree, files) {
+      const id = await create(path, name, options, text, { goal, worktree, files })
       const cards = projects.list.find((p) => p.path === path)?.cards ?? []
       setCards(path, cards.map((c) => (c.id === card ? { ...c, agent: id, column: 'progress' } : c)))
     },
@@ -81,11 +86,13 @@
       trackHistory()
       archiveIdle()
       setInterval(() => (rescan(), archiveIdle()), 15_000)
+      showChangelogOnce()
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)
       const lookUpPulls = () => (lookUpAll(), projects.list.forEach((p) => lookUpLists(p.path)))
       lookUpPulls()
       setInterval(lookUpPulls, 3 * 60_000)
+      watchRuns()
     })
 
   $effect(() => {
@@ -143,6 +150,7 @@
   {:else if projects.list.length === 0}
     <EmptyProjects onadd={() => (ui.adding = '')} />
   {:else if project}
+    <Runs {project} />
     {#key project.path}
       {#if projects.board}
         <Board {project} agents={mirrored} {actions} onclose={() => (projects.board = false)} onpopout={popOut} />
@@ -155,6 +163,8 @@
   {/if}
   <StatusBar />
 </div>
+
+<WhatsNew />
 
 {#if ui.settings}
   <Settings onclose={() => (ui.settings = null)} />
@@ -173,6 +183,8 @@
 {/if}
 
 <Confirm />
+<Viewer />
+<Password />
 
 <style>
   .app {

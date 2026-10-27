@@ -308,6 +308,7 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
         agent.at.as_deref(),
         agent.mcp.as_deref(),
     );
+    crate::askpass::env(&mut cmd, id);
     if let Some(name) = agent.worktree.take() {
         cmd.args(["--worktree", &name]);
     }

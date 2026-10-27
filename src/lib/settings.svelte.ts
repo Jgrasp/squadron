@@ -27,6 +27,9 @@ export type Config = {
   steps: 'grouped' | 'detailed'
   thinking: 'hidden' | 'duration' | 'summary' | 'shown'
   language: Language
+  runs: boolean
+  runs_linger: number
+  runs_hidden: string[]
 }
 
 export const settings = $state<Config>({
@@ -44,6 +47,9 @@ export const settings = $state<Config>({
   steps: 'grouped',
   thinking: 'duration',
   language: 'system',
+  runs: true,
+  runs_linger: 10,
+  runs_hidden: [],
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

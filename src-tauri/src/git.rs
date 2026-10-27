@@ -34,6 +34,26 @@ fn run(cmd: &mut Command) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+pub fn files(dir: &Path) -> Result<Vec<String>, String> {
+    let out = run(git(dir).args([
+        "ls-files",
+        "--cached",
+        "--others",
+        "--exclude-standard",
+        "--deduplicate",
+    ]))?;
+    let mut paths = std::collections::BTreeSet::new();
+    for file in out.lines().filter(|l| !l.is_empty()) {
+        let mut end = 0;
+        while let Some(i) = file[end..].find('/') {
+            end += i + 1;
+            paths.insert(file[..end].to_string());
+        }
+        paths.insert(file.to_string());
+    }
+    Ok(paths.into_iter().collect())
+}
+
 pub fn is_rev(rev: &str) -> bool {
     rev == "HEAD" || (matches!(rev.len(), 40 | 64) && rev.bytes().all(|b| b.is_ascii_hexdigit()))
 }

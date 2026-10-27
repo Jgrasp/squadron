@@ -69,6 +69,10 @@ export default {
   allCaptures: 'Voir les {count} captures',
   fewerCaptures: 'Voir moins de captures',
   openCapture: 'Ouvrir la capture en grand',
+  openCaptureOutside: 'Ouvrir dans une autre application',
+  closeCapture: 'Fermer la capture',
+  previousCapture: 'Capture précédente',
+  nextCapture: 'Capture suivante',
   reviewQuestions: { one: 'Revoir la question', other: 'Revoir les questions' },
   tasks: 'Tâches · {done} sur {total}',
   messageActions: 'Actions sur le message',
@@ -160,6 +164,7 @@ export default {
   preview: 'Aperçu',
   markdown: 'Markdown',
   mockup: 'Proposition visuelle',
+  drawing: 'Création du rendu…',
 
   statusWorking: 'Au travail',
   statusWaiting: 'En attente',

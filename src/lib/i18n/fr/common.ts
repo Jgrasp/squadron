@@ -16,6 +16,7 @@ export default {
   tryAgain: 'Réessayer',
   copy: 'Copier',
   copied: 'Copié',
+  run: 'Lancer',
   browse: 'Parcourir…',
   checking: 'Vérification…',
   loading: 'Chargement…',

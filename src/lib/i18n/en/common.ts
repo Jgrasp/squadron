@@ -14,6 +14,7 @@ export default {
   tryAgain: 'Try again',
   copy: 'Copy',
   copied: 'Copied',
+  run: 'Run',
   browse: 'Browse…',
   checking: 'Checking…',
   loading: 'Loading…',

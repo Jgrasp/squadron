@@ -4,13 +4,13 @@ import { calls, type Agent, type Options } from './stream'
 
 export type Column = 'todo' | 'progress' | 'review' | 'done'
 
-export type Card = { id: string; key: string; title: string; prompt: string; goal?: string; column: Column; agent: string | null; auto?: Column | null }
+export type Card = { id: string; key: string; title: string; prompt: string; goal?: string; files?: string[]; column: Column; agent: string | null; auto?: Column | null }
 
 export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention' | 'goal'> & { detail: string; done: number; total: number; add: number; del: number }
 
 export type Actions = {
   cards(path: string, cards: Card[]): void
-  start(path: string, card: string, name: string, options: Options, text: string, goal: string, worktree: string | null): void
+  start(path: string, card: string, name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[]): void
   show(agent: string): void
   diff(agent: string): void
 }

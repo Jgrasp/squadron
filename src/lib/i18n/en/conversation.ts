@@ -67,6 +67,10 @@ export default {
   allCaptures: 'Show all {count} captures',
   fewerCaptures: 'Show fewer captures',
   openCapture: 'Open the capture full size',
+  openCaptureOutside: 'Open in another app',
+  closeCapture: 'Close the capture',
+  previousCapture: 'Previous capture',
+  nextCapture: 'Next capture',
   reviewQuestions: { one: 'Review the question', other: 'Review the questions' },
   tasks: 'Tasks · {done} of {total}',
   messageActions: 'Message actions',
@@ -158,6 +162,7 @@ export default {
   preview: 'Preview',
   markdown: 'Markdown',
   mockup: 'Visual proposal',
+  drawing: 'Creating the preview…',
 
   statusWorking: 'Working',
   statusWaiting: 'Waiting',

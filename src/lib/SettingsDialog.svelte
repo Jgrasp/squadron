@@ -6,6 +6,7 @@
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
   import AboutSquadron from './AboutSquadron.svelte'
+  import Changelog from './Changelog.svelte'
   import CodeHosting from './CodeHosting.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
   import ArchivedAgents from './ArchivedAgents.svelte'
@@ -59,7 +60,13 @@
         ['layout', 'settings.tabLayout'],
       ],
     ],
-    ['settings.groupSquadron', [['about', 'settings.tabAbout']]],
+    [
+      'settings.groupSquadron',
+      [
+        ['changelog', 'settings.tabChangelog'],
+        ['about', 'settings.tabAbout'],
+      ],
+    ],
   ]
   const current = $derived.by(() => {
     const key = groups.flatMap(([, items]) => items).find(([id]) => id === tab)?.[1]
@@ -141,7 +148,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, compact_window: compactWindow, steps, thinking, language })
+      await saveSettings({ ...$state.snapshot(settings), claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, compact_window: compactWindow, steps, thinking, language })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -185,6 +192,8 @@
       <ProjectSettings />
     {:else if tab === 'archived'}
       <ArchivedAgents />
+    {:else if tab === 'changelog'}
+      <Changelog />
     {:else if tab === 'about'}
       <AboutSquadron />
     {:else if tab === 'hosting'}
@@ -354,7 +363,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['rules', 'layout', 'projects', 'archived', 'about', 'hosting'].includes(tab)}
+  {#if !['rules', 'layout', 'projects', 'archived', 'changelog', 'about', 'hosting'].includes(tab)}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
