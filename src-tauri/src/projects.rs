@@ -19,6 +19,8 @@ pub struct Project {
     pub archived: bool,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
     pub runs_off: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub runs_quiet: bool,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub runs_hidden: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
@@ -32,6 +34,7 @@ pub struct Edit {
     pub pinned: Option<bool>,
     pub archived: Option<bool>,
     pub runs: Option<bool>,
+    pub runs_notify: Option<bool>,
     pub runs_hidden: Option<Vec<String>>,
     pub repository: Option<String>,
 }
@@ -101,6 +104,7 @@ pub struct Folder {
     pub pinned: bool,
     pub archived: bool,
     pub runs: bool,
+    pub runs_notify: bool,
     pub runs_hidden: Vec<String>,
     pub repository: String,
     pub exists: bool,
@@ -120,6 +124,7 @@ impl Folder {
             pinned: project.pinned,
             archived: project.archived,
             runs: !project.runs_off,
+            runs_notify: !project.runs_quiet,
             runs_hidden: project.runs_hidden.clone(),
             repository: project.repository.clone(),
             exists: path.is_dir(),
@@ -342,6 +347,7 @@ mod tests {
             pinned: true,
             archived: false,
             runs_off: true,
+            runs_quiet: false,
             runs_hidden: vec!["Copilot".into()],
             repository: "github.com/Jgrasp/squadron".into(),
         }];

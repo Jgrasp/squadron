@@ -29,6 +29,7 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
       ['diff', 'settings.itemDiff'],
       ['kanban', 'settings.itemKanban'],
       ['pulls', 'settings.itemPulls', 'settings.itemPullsHint'],
+      ['runs', 'settings.itemRuns', 'settings.itemRunsHint'],
     ],
   },
   'agent.menu': {

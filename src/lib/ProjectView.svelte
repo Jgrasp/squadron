@@ -21,6 +21,7 @@
   import DiffPanel from './DiffPanel.svelte'
   import EditorPanel from './EditorPanel.svelte'
   import Icon from './Icon.svelte'
+  import Runs from './Runs.svelte'
   import { needsYou } from './pulls.svelte'
   import type { Comment } from './stream'
   import TerminalPanel from './TerminalPanel.svelte'
@@ -173,6 +174,7 @@
           <button class="btn btn-ghost" title={t('shell.kanbanTitle', { key: hint('kanban') })} onclick={toggleBoard}>
             <Icon name="kanban" />{t('shell.kanban')}
           </button>
+          <Runs {project} />
         </div>
       </div>
       </div>

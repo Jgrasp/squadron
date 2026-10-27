@@ -13,6 +13,7 @@ export type Project = {
   pinned: boolean
   archived: boolean
   runs: boolean
+  runs_notify: boolean
   runs_hidden: string[]
   repository: string
   exists: boolean
@@ -68,6 +69,7 @@ export async function editProject(path: string, changes: {
     pinned?: boolean
     archived?: boolean
     runs?: boolean
+    runs_notify?: boolean
     runs_hidden?: string[]
     repository?: string
   },) {

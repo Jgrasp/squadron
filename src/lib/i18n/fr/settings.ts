@@ -129,6 +129,8 @@ export default {
   itemKanban: 'Kanban',
   itemPulls: 'Pull requests',
   itemPullsHint: 'Celles que vous relisez et celles que vous avez écrites',
+  itemRuns: 'Actions et pipelines',
+  itemRunsHint: 'Visible pendant qu’un pipeline tourne, puis un moment après sa fin',
   slotMenu: 'Menu de l’agent',
   slotMenuHint: 'Le menu ⋯ à côté d’Envoyer',
   itemReloadHint: 'Redémarre la session, garde la conversation',
