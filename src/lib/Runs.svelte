@@ -1,6 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { clock } from './agents.svelte'
+  import Avatar from './Avatar.svelte'
   import { ago, duration, time } from './format'
   import { editProject, type Project } from './projects.svelte'
   import { active, dismiss, shown, type Run } from './pipelines.svelte'
@@ -89,7 +90,14 @@
 
 {#snippet item(run: Run)}
   <li class="item {run.status}">
-    <span class="badge">{@render icon(run.status)}</span>
+    {#if run.author}
+      <span class="who" title={run.author}>
+        <Avatar name={run.author} src={run.author_avatar} size={28} />
+        <span class="badge small">{@render icon(run.status)}</span>
+      </span>
+    {:else}
+      <span class="badge">{@render icon(run.status)}</span>
+    {/if}
     <div class="body">
       <div class="head">
         <strong>{run.name || `#${run.number}`}</strong>
@@ -343,6 +351,49 @@
 
   .item.failure {
     --tone: var(--err);
+  }
+
+  .who {
+    position: relative;
+    flex: none;
+    width: 28px;
+    height: 28px;
+  }
+
+  .badge.small {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 16px;
+    height: 16px;
+    margin: 0;
+    background: var(--menu);
+    box-shadow: 0 0 0 2px var(--menu);
+  }
+
+  .badge.small::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: color-mix(in srgb, var(--tone) 22%, transparent);
+  }
+
+  .badge.small svg {
+    position: relative;
+    width: 10px;
+    height: 10px;
+  }
+
+  .badge.small .spinner {
+    width: 8px;
+    height: 8px;
+    border-width: 1.5px;
+  }
+
+  .item:hover .badge.small {
+    background: var(--menu-hover);
+    box-shadow: 0 0 0 2px var(--menu-hover);
   }
 
   .badge .spinner {

@@ -1094,6 +1094,8 @@ pub struct Run {
     pub url: String,
     pub started: String,
     pub finished: Option<String>,
+    pub author: String,
+    pub author_avatar: String,
 }
 
 const NO_PIPELINE_SCOPE: &str =
@@ -1122,7 +1124,7 @@ pub async fn runs(dir: &Path, repository: &str) -> Result<Vec<Run>, String> {
                 &[
                     ("sort", "-created_on"),
                     ("pagelen", "20"),
-                    ("fields", "values.uuid,values.build_number,values.state.name,values.state.result.name,values.state.stage.name,values.target.ref_name,values.target.selector.type,values.target.selector.pattern,values.target.commit.message,values.trigger.name,values.created_on,values.completed_on"),
+                    ("fields", "values.uuid,values.build_number,values.state.name,values.state.result.name,values.state.stage.name,values.target.ref_name,values.target.selector.type,values.target.selector.pattern,values.target.commit.message,values.trigger.name,values.creator.display_name,values.creator.links.avatar.href,values.created_on,values.completed_on"),
                 ],
                 None,
             )
@@ -1139,19 +1141,18 @@ pub async fn runs(dir: &Path, repository: &str) -> Result<Vec<Run>, String> {
             blocking(move || {
                 let out = gh(
                     &[
-                        "run",
-                        "list",
-                        "--repo",
-                        &repo.slug,
-                        "--limit",
-                        "20",
-                        "--json",
-                        "databaseId,number,workflowName,displayTitle,event,headBranch,status,conclusion,url,createdAt,startedAt,updatedAt",
+                        "api",
+                        &format!("repos/{}/actions/runs?per_page=20", repo.slug),
                     ],
                     None,
                 )?;
                 let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-                Ok(list.as_array().into_iter().flatten().map(github_run).collect())
+                Ok(list["workflow_runs"]
+                    .as_array()
+                    .into_iter()
+                    .flatten()
+                    .map(github_run)
+                    .collect())
             })
             .await
         }
@@ -1170,21 +1171,23 @@ fn github_run(value: &Value) -> Run {
         ("in_progress", _) => "running",
         _ => "queued",
     };
-    let started = Some(text(&value["startedAt"]))
+    let started = Some(text(&value["run_started_at"]))
         .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| text(&value["createdAt"]));
+        .unwrap_or_else(|| text(&value["created_at"]));
     Run {
         host: "github".into(),
-        id: value["databaseId"].as_u64().unwrap_or_default().to_string(),
-        number: value["number"].as_u64().unwrap_or_default(),
-        name: text(&value["workflowName"]),
-        title: text(&value["displayTitle"]),
+        id: value["id"].as_u64().unwrap_or_default().to_string(),
+        number: value["run_number"].as_u64().unwrap_or_default(),
+        name: text(&value["name"]),
+        title: text(&value["display_title"]),
         event: text(&value["event"]),
-        branch: text(&value["headBranch"]),
+        branch: text(&value["head_branch"]),
         status: status.into(),
-        url: text(&value["url"]),
+        url: text(&value["html_url"]),
         started,
-        finished: (value["status"] == "completed").then(|| text(&value["updatedAt"])),
+        finished: (value["status"] == "completed").then(|| text(&value["updated_at"])),
+        author: text(&value["actor"]["login"]),
+        author_avatar: text(&value["actor"]["avatar_url"]),
     }
 }
 
@@ -1227,6 +1230,8 @@ fn bitbucket_run(value: &Value, slug: &str) -> Run {
         url: format!("https://bitbucket.org/{slug}/pipelines/results/{number}"),
         started: text(&value["created_on"]),
         finished: value["completed_on"].as_str().map(str::to_string),
+        author: text(&value["creator"]["display_name"]),
+        author_avatar: text(&value["creator"]["links"]["avatar"]["href"]),
     }
 }
 
@@ -1646,7 +1651,7 @@ mod tests {
     #[test]
     fn sums_up_runs_of_both_hosts() {
         let run = github_run(
-            &json!({"databaseId": 7, "number": 14, "workflowName": "Release", "displayTitle": "Squadron 0.10.0", "event": "push", "headBranch": "main", "status": "completed", "conclusion": "timed_out", "url": "u", "createdAt": "a", "startedAt": "b", "updatedAt": "c"}),
+            &json!({"id": 7, "run_number": 14, "name": "Release", "display_title": "Squadron 0.10.0", "event": "push", "head_branch": "main", "status": "completed", "conclusion": "timed_out", "html_url": "u", "created_at": "a", "run_started_at": "b", "updated_at": "c", "actor": {"login": "Jgrasp", "avatar_url": "https://avatars.githubusercontent.com/u/1"}}),
         );
         assert_eq!(
             (
@@ -1657,13 +1662,18 @@ mod tests {
             ),
             ("7", "failure", "b", Some("c"))
         );
-        let run = github_run(&json!({"status": "waiting", "createdAt": "a", "startedAt": ""}));
+        assert_eq!(
+            (run.author.as_str(), run.author_avatar.as_str()),
+            ("Jgrasp", "https://avatars.githubusercontent.com/u/1")
+        );
+        let run =
+            github_run(&json!({"status": "waiting", "created_at": "a", "run_started_at": null}));
         assert_eq!(
             (run.status.as_str(), run.started.as_str(), run.finished),
             ("queued", "a", None)
         );
         let run = bitbucket_run(
-            &json!({"uuid": "{x}", "build_number": 42, "state": {"name": "COMPLETED", "result": {"name": "STOPPED"}}, "target": {"ref_name": "main", "selector": {"type": "custom", "pattern": "deploy-prod"}, "commit": {"message": "Ship it\n\nmore"}}, "trigger": {"name": "MANUAL"}, "created_on": "a", "completed_on": "b"}),
+            &json!({"uuid": "{x}", "build_number": 42, "state": {"name": "COMPLETED", "result": {"name": "STOPPED"}}, "target": {"ref_name": "main", "selector": {"type": "custom", "pattern": "deploy-prod"}, "commit": {"message": "Ship it\n\nmore"}}, "trigger": {"name": "MANUAL"}, "creator": {"display_name": "Quentin Briais", "links": {"avatar": {"href": "https://avatar/q"}}}, "created_on": "a", "completed_on": "b"}),
             "akki-team/fileas",
         );
         assert_eq!(
@@ -1681,6 +1691,10 @@ mod tests {
                 "manual",
                 "https://bitbucket.org/akki-team/fileas/pipelines/results/42"
             )
+        );
+        assert_eq!(
+            (run.author.as_str(), run.author_avatar.as_str()),
+            ("Quentin Briais", "https://avatar/q")
         );
         let run = bitbucket_run(
             &json!({"state": {"name": "IN_PROGRESS", "stage": {"name": "RUNNING"}}, "target": {"selector": {"type": "default"}}}),
@@ -1718,6 +1732,7 @@ mod tests {
         .unwrap();
         assert!(runs.iter().any(|r| {
             r.name == "Release"
+                && !r.author_avatar.is_empty()
                 && r.url
                     .starts_with("https://github.com/Jgrasp/squadron/actions/runs/")
         }));
