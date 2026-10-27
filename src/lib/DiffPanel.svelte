@@ -33,6 +33,7 @@
     reviewer = null,
     onagent,
     since = null,
+    own = false,
     onclose,
   }: {
     agent: Agent | null
@@ -43,13 +44,14 @@
     comments: Comment[]
     target: Comment | null
     pull?: Pull | null
-    mode: 'local' | 'pull'
+    mode: 'local' | 'pull' | 'branch'
     onhand: (quote: string) => void
     onreview: (summary: string, list: Comment[]) => void
     onposted?: () => void
     reviewer?: Agent | null
     onagent?: () => Promise<unknown>
     since?: string | null
+    own?: boolean
     onclose: () => void
   } = $props()
 
@@ -78,6 +80,18 @@
         sinceError = String(e)
         onlyNew = false
       })
+  })
+
+  const branching = $derived(mode === 'branch' && !reviewing && !!changes)
+  let branched = $state<{ changes: Changes; base: string; commits: number } | null>(null)
+  let branchError = $state('')
+
+  $effect(() => {
+    if (!branching) return
+    void changes?.now
+    invoke<{ changes: Changes; base: string; commits: number }>('branch_changes', { project: folder })
+      .then((found) => ((branched = found), (branchError = '')))
+      .catch((e) => (branchError = String(e)))
   })
 
   let remarks = $state<Remark[]>([])
@@ -146,7 +160,7 @@
     handed.push(thread.root.id)
   }
 
-  const source = $derived(reviewing ? (pull && pulled?.key === keyOf(pull) ? pulled.changes : null) : changes)
+  const source = $derived(reviewing ? (pull && pulled?.key === keyOf(pull) ? pulled.changes : null) : branching ? (branched?.changes ?? null) : changes)
 
   const STATUS: Record<string, string> = { A: 'NEW', D: 'DELETED' }
   const BADGES: Record<string, Key> = { NEW: 'review.statusNew', DELETED: 'review.statusDeleted', MODIFIED: 'review.statusModified', PROPOSED: 'review.statusProposed' }
@@ -295,7 +309,15 @@
     spot = path
     steered = Date.now()
     folded = folded.filter((p) => p !== path)
-    tick().then(() => body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`)?.scrollIntoView({ block: 'start' }))
+    tick().then(() => within(body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`), 'start'))
+  }
+
+  function within(el: Element | null | undefined, block: 'start' | 'center') {
+    const box = el?.closest<HTMLElement>('.body')
+    if (!el || !box) return
+    const r = el.getBoundingClientRect()
+    const b = box.getBoundingClientRect()
+    box.scrollTop += r.top - b.top - (block === 'center' ? Math.max(0, (b.height - r.height) / 2) : 0)
   }
 
   const notesFor = (path: string) => [...review, ...comments.filter(here)].filter((c) => c.path === path)
@@ -323,7 +345,10 @@
     target = null
   })
 
-  const reveal = (el: HTMLElement) => el.scrollIntoView({ block: 'center' })
+  function reveal(el: HTMLElement) {
+    within(el, 'center')
+    el.querySelector('textarea')?.focus({ preventScroll: true })
+  }
 
   function draft(): Comment {
     const { path, side, number, text } = commenting!
@@ -401,7 +426,7 @@
 
   function goTo(c: Comment) {
     listing = false
-    if (!c.path) return document.querySelector('.general')?.scrollIntoView({ block: 'start' })
+    if (!c.path) return within(document.querySelector('.general'), 'start')
     if (reviewing) scrollToFile(c.path)
     else file = c.path
     target = c
@@ -477,6 +502,8 @@
       {t('review.pullTag', { number: String(pull.number) })} · {pull.branch} → {pull.base}{source ? ` · ${t('review.fileCount', { count: files.length })}` : ''}{onlyNew && pulled
         ? ` · ${t('review.newCommitsSince', { count: pulled.added })}`
         : ''}
+    {:else if branching}
+      {branched ? t('review.branchSince', { base: branched.base, commits: branched.commits, count: files.length }) : branchError}
     {:else if changes}
       {t('review.uncommittedFiles', { count: files.length })}{agent ? ` · ${t('review.editedBy', { count: mine, agent: agent.name })}` : ''}
     {:else if agent}
@@ -501,10 +528,11 @@
         <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>{t('review.allChanges')}</button>
       </div>
     {/if}
-    {#if pull && agent}
+    {#if agent && (changes || pull)}
       <div class="modes" role="group" aria-label={t('review.whatToCompare')}>
-        <button aria-pressed={!reviewing} onclick={() => (mode = 'local')}>{t('review.changes')}</button>
-        <button aria-pressed={reviewing} onclick={() => (mode = 'pull')}>{t('review.pullTag', { number: String(pull.number) })}</button>
+        <button aria-pressed={mode === 'local'} onclick={() => (mode = 'local')}>{t('review.uncommitted')}</button>
+        {#if changes}<button aria-pressed={mode === 'branch'} title={t('review.branchTitle')} onclick={() => (mode = 'branch')}>{t('review.branch')}</button>{/if}
+        {#if pull}<button aria-pressed={mode === 'pull'} onclick={() => (mode = 'pull')}>{t('review.pullTag', { number: String(pull.number) })}</button>{/if}
       </div>
     {/if}
     <div class="modes" role="group" aria-label={t('review.diffLayout')}>
@@ -593,7 +621,7 @@
             <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>{t('review.sendTo', { agent: agent.name })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
-              {#each VERDICTS as [id, label] (id)}
+              {#each own ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
                 <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{t(label)}</button>
               {/each}
             </div>
@@ -818,7 +846,9 @@
           ? onlyNew
             ? t('review.footSince')
             : t('review.footPull', { base: pull.base })
-          : changes
+          : branching && branched
+            ? t('review.footBranch', { base: branched.base })
+            : changes
             ? t('review.footUncommitted')
             : t('review.footAgent')}
       </span>
@@ -849,16 +879,14 @@
       </div>
     {/each}
     {#if replying === th.root.id}
-      <form class="reply-form" onsubmit={(e) => reply(th, e)}>
+      <form class="reply-form" onsubmit={(e) => reply(th, e)} use:reveal>
         <label for="reply-{th.root.id}" class="sr-only">{t('review.replyTo', { author: th.root.author })}</label>
-        <!-- svelte-ignore a11y_autofocus -->
         <textarea
           id="reply-{th.root.id}"
           class="field"
           rows="2"
           bind:value={answer}
           placeholder={t('review.replyTo', { author: th.root.author })}
-          autofocus
           onkeydown={(e) => {
             if (e.key === 'Escape') (e.stopPropagation(), (replying = null))
             else if (e.ctrlKey && e.key === 'Enter') reply(th, e)
@@ -888,14 +916,12 @@
 {#snippet editor()}
   <form class="inline" onsubmit={comment} use:reveal>
     <label for="line-comment" class="sr-only">{t('review.commentOnLine', { line: String(commenting?.number ?? '') })}</label>
-    <!-- svelte-ignore a11y_autofocus -->
     <textarea
       id="line-comment"
       class="field"
       rows="3"
       bind:value={note}
       placeholder={agent ? t('review.whatShouldAgentChange', { agent: agent.name }) : t('review.yourComment')}
-      autofocus
       onkeydown={(e) => {
         if (e.key === 'Escape') {
           e.stopPropagation()

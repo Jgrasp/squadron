@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, note, reload, remote, rename, reply, send, setOptions, onScreen } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, note, reload, remote, rename, reply, send, setOptions, onScreen, persist } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -36,6 +36,9 @@
   $effect(() => {
     if (seen) untrack(() => markUnread(agent.id, false))
   })
+  $effect(() => {
+    if (seen && agent.status === 'error' && !agent.errorSeen) untrack(() => ((agent.errorSeen = true), persist(agent)))
+  })
 
   const saved = untrack(() => drafts[agent.id])
   let text = $state(saved?.text ?? '')
@@ -45,7 +48,7 @@
   let column: HTMLElement
   let stuck = $state(true)
   let diffFile = $state('')
-  let diffSource = $state<'local' | 'pull'>('local')
+  let diffSource = $state<'local' | 'pull' | 'branch'>('local')
   let proposal = $state<Proposal | null>(null)
 
   $effect(() => {
@@ -63,7 +66,13 @@
   const openDiff = (path: string) => ((diffFile = path), setPanel(agent.project, 'diff'))
   const WINDOW = 20
   const users = $derived(agent.entries.flatMap((e, i) => (e.kind === 'user' ? [{ entry: i, text: prompt(e.text, e.comments), at: e.at }] : [])))
-  let start = $state(untrack(() => (users.length > WINDOW ? users[users.length - WINDOW].entry : 0)))
+  const floor = $derived(agent.entries.findLastIndex((e) => e.kind === 'compacted'))
+  const foldedCount = $derived(floor > 0 ? agent.entries.slice(0, floor).filter((e) => e.kind === 'user' || e.kind === 'agent').length : 0)
+  let unfolded = $state(false)
+  let start = $state(
+    untrack(() => Math.max(users.length > WINDOW ? users[users.length - WINDOW].entry : 0, agent.entries.findLastIndex((e) => e.kind === 'compacted'))),
+  )
+  const folded = $derived(!unfolded && floor > 0 && start <= floor)
   let offsets = $state<number[]>([])
   let railHeight = $state(0)
   const buckets = $derived.by(() => {
@@ -285,7 +294,7 @@
     const first = users.findIndex((u) => u.entry >= start)
     const from = first - WINDOW
     const height = scroller.scrollHeight - scroller.scrollTop
-    start = from > 0 ? users[from].entry : 0
+    start = Math.max(from > 0 ? users[from].entry : 0, unfolded ? 0 : floor)
     await tick()
     scroller.scrollTop = scroller.scrollHeight - height
   }
@@ -325,6 +334,7 @@
     touched = Date.now()
     picked = active = i
     if (users[i].entry < start) {
+      if (users[i].entry < floor) unfolded = true
       start = users[i].entry
       await tick()
     }
@@ -767,12 +777,18 @@
         role="presentation"
       >
         <div class="column" bind:this={column}>
-          {#if start > 0}
+          {#if folded}
+            {@const mark = agent.entries[floor]}
+            <button class="earlier folded" onclick={() => ((unfolded = true), showEarlier())}>
+              {t('agent.beforeCompaction', { count: foldedCount, when: mark.kind === 'compacted' ? new Date(mark.at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '' })}
+              <span>{t('agent.showThem')}</span>
+            </button>
+          {:else if start > 0}
             <button class="earlier" bind:this={earlier} onclick={showEarlier}>{t('agent.earlierMessages')}</button>
           {/if}
           <Conversation
           {agent}
-          {start}
+          start={folded ? floor : start}
           {ondiff}
           onfork={(i) => fork(agent.id, i)}
           onsubagent={openSubagent}
@@ -1746,6 +1762,16 @@
     border-radius: 14px;
     color: var(--text-dim);
     font-size: 12.5px;
+  }
+
+  .earlier.folded {
+    display: inline-flex;
+    gap: 10px;
+    border: 1px dashed var(--border-dashed);
+  }
+
+  .earlier.folded span {
+    color: var(--accent-link);
   }
 
   .earlier:hover {

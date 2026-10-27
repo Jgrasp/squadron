@@ -52,6 +52,7 @@ export default {
   thoughtSeconds: 'Thought for {count} s',
 
   sentBy: 'Sent by {from}, approved by you · {time}',
+  sentByPeer: 'Sent by session {from} · {time}',
   sentRemote: 'Sent via remote control · {time}',
   turnDone: 'Turn {index} done · {input} in · {output} out · {duration}',
   turnLive: 'Turn in progress · {input} in · {output} out · {duration}',
@@ -63,6 +64,9 @@ export default {
   forkedFrom: 'Forked from {from} · {time} · context kept',
   reloaded: 'Session reloaded · {time} · conversation kept',
   hide: 'Hide',
+  allCaptures: 'Show all {count} captures',
+  fewerCaptures: 'Show fewer captures',
+  openCapture: 'Open the capture full size',
   reviewQuestions: { one: 'Review the question', other: 'Review the questions' },
   tasks: 'Tasks · {done} of {total}',
   messageActions: 'Message actions',

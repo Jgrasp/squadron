@@ -129,6 +129,8 @@ export default {
   panelHide: 'Masquer le panneau de l’agent',
   messagesAt: 'Messages {from} à {to} · {time}',
   earlierMessages: 'Messages précédents',
+  beforeCompaction: { one: '{count} message avant le compactage du {when}', other: '{count} messages avant le compactage du {when}' },
+  showThem: 'Afficher',
   latestMessage: 'Dernier message',
   messagesBelow: { one: '{count} message plus bas', other: '{count} messages plus bas' },
   dropToAttach: 'Déposez ici pour joindre à votre message à {agent}',

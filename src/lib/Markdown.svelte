@@ -4,6 +4,8 @@
   import { classHighlighter, highlightCode } from '@lezer/highlight'
   import MarkdownIt from 'markdown-it'
   import { t } from './i18n/index.svelte'
+  import { isImage, preview } from './Attachment.svelte'
+  import { isPullLink } from './linked.svelte'
 
   const grammars = new Map<string, Language | null>()
   let loaded = $state(0)
@@ -25,7 +27,34 @@
     return html
   }
 
-  const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') }).disable('image')
+  const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') })
+  md.core.ruler.push('pull_cards', (state) => {
+    const tokens = state.tokens
+    tokens.forEach((token, i) => {
+      if (token.type !== 'inline' || !token.children) return
+      const kids = token.children.filter((c) => c.type !== 'softbreak' && !(c.type === 'text' && !c.content.trim()))
+      const href = String(kids[0]?.attrGet('href') ?? '')
+      if (kids.length === 3 && kids[0].type === 'link_open' && kids[2].type === 'link_close' && isPullLink(href) && tokens[i - 1]?.type === 'paragraph_open') {
+        tokens[i - 1].tag = tokens[i + 1].tag = 'div'
+        tokens[i - 1].attrSet('class', 'pr-slot')
+        tokens[i - 1].attrSet('data-pr', href)
+        return
+      }
+      for (const c of token.children) if (c.type === 'link_open' && isPullLink(String(c.attrGet('href') ?? ''))) c.attrSet('data-pr-inline', '')
+    })
+  })
+
+  const shots = new Map<string, string>()
+  md.renderer.rules.image = (tokens, idx) => {
+    const alt = md.utils.escapeHtml(tokens[idx].content)
+    let path = String(tokens[idx].attrGet('src') ?? '')
+    try {
+      path = decodeURI(path)
+    } catch {}
+    if (!path.startsWith('/') || !isImage(path)) return alt
+    const at = md.utils.escapeHtml(path)
+    return `<button type="button" class="shot" data-shot="${at}" title="${at}"><img alt="${alt}"></button>`
+  }
   const fence = md.renderer.rules.fence!
   const copyButton = () => `<button type="button" class="copy" data-copy><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>${t('common.copy')}</span></button>`
   md.renderer.rules.fence = (tokens, idx, options, env, self) => {
@@ -39,9 +68,11 @@
 </script>
 
 <script lang="ts">
-  import { untrack } from 'svelte'
+  import { invoke } from '@tauri-apps/api/core'
+  import { mount, tick, unmount, untrack } from 'svelte'
+  import PullCard from './PullCard.svelte'
 
-  let { text, streaming = false }: { text: string; streaming?: boolean } = $props()
+  let { text, streaming = false, cards = false }: { text: string; streaming?: boolean; cards?: boolean } = $props()
 
   let shown = $state(untrack(() => text.length))
   let frame = 0
@@ -74,8 +105,43 @@
     return md.render(streaming ? text.slice(0, shown) : text)
   })
 
+  let box = $state<HTMLElement>()
+
+  $effect(() => {
+    void html
+    tick().then(() => {
+      for (const shot of box?.querySelectorAll<HTMLElement>('[data-shot]') ?? []) {
+        const path = shot.dataset.shot!
+        const img = shot.querySelector('img')!
+        if (shots.has(path)) img.src = shots.get(path)!
+        else
+          preview(path)
+            .then((data) => (shots.set(path, data), (img.src = data)))
+            .catch(() => shot.classList.add('gone'))
+      }
+    })
+  })
+
+  $effect(() => {
+    void html
+    if (streaming || !cards) return
+    const mounted: ReturnType<typeof mount>[] = []
+    tick().then(() => {
+      for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
+        mounted.push(mount(PullCard, { target: slot, props: { url: slot.dataset.pr!, onready: () => slot.classList.add('ready') } }))
+      for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-pr-inline]') ?? []) {
+        const spot = document.createElement('span')
+        link.before(spot)
+        mounted.push(mount(PullCard, { target: spot, props: { url: link.href, inline: true, onready: () => (link.hidden = true) } }))
+      }
+    })
+    return () => mounted.forEach((m) => unmount(m))
+  })
+
   function click(event: MouseEvent) {
     const target = event.target as HTMLElement
+    const shot = target.closest<HTMLElement>('[data-shot]')
+    if (shot) return void invoke('open_attachment', { path: shot.dataset.shot }).catch(() => shot.classList.add('gone'))
     const block = target.closest('.code')
     const view = target.closest<HTMLButtonElement>('[data-view]')
     if (block && view) {
@@ -95,12 +161,48 @@
 </script>
 
 <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
-<div class="prose" class:streaming onclick={click}>{@html html}</div>
+<div class="prose" class:streaming onclick={click} bind:this={box}>{@html html}</div>
 
 <style>
   .prose {
     line-height: 1.65;
     overflow-wrap: anywhere;
+  }
+
+  .prose :global(.pr-slot.ready > a) {
+    display: none;
+  }
+
+  .prose :global(.shot) {
+    display: block;
+    max-width: 100%;
+    margin: 4px 0 10px;
+    padding: 0;
+    border-radius: 6px;
+    box-shadow: 0 0 0 1px var(--border);
+    overflow: hidden;
+    cursor: zoom-in;
+  }
+
+  .prose :global(.shot img) {
+    display: block;
+    max-width: 100%;
+    max-height: 480px;
+  }
+
+  .prose :global(.shot.gone) {
+    padding: 8px 12px;
+    color: var(--text-dim);
+    cursor: default;
+  }
+
+  .prose :global(.shot.gone img) {
+    display: none;
+  }
+
+  .prose :global(.shot.gone)::after {
+    content: attr(title);
+    font: 12px var(--mono);
   }
 
   .prose :global(.code) {

@@ -320,7 +320,10 @@ impl Settings {
             return Err(format!("Unknown tab order: {}", config.tab_order));
         }
         if config.compact_window != 0 && !(100_000..=1_000_000).contains(&config.compact_window) {
-            return Err(format!("Unknown compaction window: {}", config.compact_window));
+            return Err(format!(
+                "Unknown compaction window: {}",
+                config.compact_window
+            ));
         }
         config.keys.retain(|_, value| !value.trim().is_empty());
         config
@@ -554,6 +557,13 @@ fn term_close(terminals: State<Terminals>, id: u32) {
 }
 
 #[tauri::command]
+async fn branch_changes(project: PathBuf) -> Result<git::Branched, String> {
+    tauri::async_runtime::spawn_blocking(move || git::branch_changes(&project))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
     tauri::async_runtime::spawn_blocking(move || git::changes(&project))
         .await
@@ -563,6 +573,11 @@ async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
 #[tauri::command]
 async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
     forge::pull(&dir).await
+}
+
+#[tauri::command]
+async fn linked_pull(url: String, projects: Vec<PathBuf>) -> Result<forge::Linked, String> {
+    forge::linked(&url, projects).await
 }
 
 #[tauri::command]
@@ -1020,6 +1035,14 @@ fn open_attachment(path: PathBuf) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn save_capture(data: String) -> Result<PathBuf, String> {
+    let dir = claude::CAPTURES.get().ok_or("No captures folder.")?.clone();
+    tauri::async_runtime::spawn_blocking(move || attach::capture(&dir, &data))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn attachment_preview(path: PathBuf) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || attach::preview(&path))
         .await
@@ -1039,24 +1062,6 @@ fn git_branch(path: PathBuf) -> Result<Option<String>, String> {
     Ok(projects::branch(&path))
 }
 
-#[cfg(target_os = "linux")]
-fn new_browser_window(url: &str) -> Result<(), String> {
-    use gtk::gio::{AppInfo, AppInfoCreateFlags, prelude::*};
-    let browser = AppInfo::default_for_uri_scheme("https").ok_or("No default browser.")?;
-    let program = browser.executable();
-    let line = format!(
-        "{} --new-window",
-        shell_words::quote(&program.to_string_lossy())
-    );
-    let window =
-        AppInfo::create_from_commandline(line, Some("Browser"), AppInfoCreateFlags::SUPPORTS_URIS)
-            .map_err(|e| e.to_string())?;
-    let context = gtk::gdk::Display::default().and_then(|d| d.app_launch_context());
-    window
-        .launch_uris(&[url], context.as_ref())
-        .map_err(|e| e.to_string())
-}
-
 #[tauri::command]
 fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
@@ -1067,14 +1072,14 @@ fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
         let parent = window.clone();
         window
             .run_on_main_thread(move || {
-                let shown = new_browser_window(&url).or_else(|_| {
-                    parent
-                        .gtk_window()
-                        .map_err(|e| e.to_string())
-                        .and_then(|w| {
-                            gtk::show_uri_on_window(Some(&w), &url, 0).map_err(|e| e.to_string())
-                        })
-                });
+                let shown = parent
+                    .gtk_window()
+                    .map_err(|e| e.to_string())
+                    .and_then(|w| {
+                        let context = gtk::prelude::WidgetExt::display(&w).app_launch_context();
+                        gtk::gio::AppInfo::launch_default_for_uri(&url, context.as_ref())
+                            .map_err(|e| e.to_string())
+                    });
                 if let Err(e) = shown {
                     log::error!("{url} did not open: {e}");
                 }
@@ -1278,9 +1283,11 @@ pub fn run() {
             detect_editors,
             open_with,
             git_changes,
+            branch_changes,
             git_patch,
             pull_request,
             pull_lists,
+            linked_pull,
             review_checkout,
             changed_files,
             pull_changes,
@@ -1310,6 +1317,7 @@ pub fn run() {
             send_message,
             save_attachment,
             attachment_preview,
+            save_capture,
             open_attachment,
             paste_image,
             project_sessions,
@@ -1355,6 +1363,15 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            let captures = app.path().app_data_dir()?.join("captures");
+            let _ = std::fs::create_dir_all(&captures);
+            let _ = claude::CAPTURES.set(captures.clone());
+            std::thread::spawn(move || {
+                loop {
+                    attach::expire(&captures, std::time::Duration::from_secs(7 * 24 * 3600));
+                    std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+                }
+            });
             let (store, agents) = (
                 app.path().app_data_dir()?.join("attachments"),
                 config.join("agents"),

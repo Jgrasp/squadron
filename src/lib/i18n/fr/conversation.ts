@@ -54,6 +54,7 @@ export default {
   thoughtSeconds: 'A réfléchi {count} s',
 
   sentBy: 'Envoyé par {from}, approuvé par vous · {time}',
+  sentByPeer: 'Envoyé par la session {from} · {time}',
   sentRemote: 'Envoyé par contrôle à distance · {time}',
   turnDone: 'Tour {index} terminé · {input} en entrée · {output} en sortie · {duration}',
   turnLive: 'Tour en cours · {input} en entrée · {output} en sortie · {duration}',
@@ -65,6 +66,9 @@ export default {
   forkedFrom: 'Dupliqué depuis {from} · {time} · contexte conservé',
   reloaded: 'Session rechargée · {time} · conversation conservée',
   hide: 'Masquer',
+  allCaptures: 'Voir les {count} captures',
+  fewerCaptures: 'Voir moins de captures',
+  openCapture: 'Ouvrir la capture en grand',
   reviewQuestions: { one: 'Revoir la question', other: 'Revoir les questions' },
   tasks: 'Tâches · {done} sur {total}',
   messageActions: 'Actions sur le message',

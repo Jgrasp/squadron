@@ -17,6 +17,7 @@
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
   import ToolRow from './ToolRow.svelte'
+  import Shots from './Shots.svelte'
 
   let {
     agent,
@@ -38,7 +39,7 @@
 
   const SPAWN = ['Agent', 'Task']
 
-  const reviewing = new SvelteSet<number>()
+  const folded = new SvelteSet<number>()
 
   let menu = $state<{ index: number; text: string; x: number; y: number } | null>(null)
 
@@ -61,6 +62,8 @@
     [['Bash'], 'conversation.commands'],
     [['WebFetch', 'WebSearch'], 'conversation.webLookups'],
   ]
+
+  const shotsOf = (list: Segment[]) => list.flatMap((s) => (s.type === 'work' ? s.calls.flatMap((c) => c.shots ?? []) : []))
 
   function summary(calls: ToolCall[]) {
     const parts: string[] = []
@@ -197,7 +200,7 @@
 {#snippet detail(list: Segment[], i: number, tail: Block | undefined, quiet: boolean)}
   {#each list as segment, s (s)}
     {#if segment.type === 'text'}
-      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} /></div>
+      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} cards /></div>
     {:else if segment.type === 'work'}
       {#if segment.thinking && (settings.thinking !== 'hidden' || segment.ms === undefined)}
         {#if segment.thought && settings.thinking === 'shown'}
@@ -213,7 +216,7 @@
       {/if}
       {#if segment.calls.length}
         <details class="tools" open={i === lastAgent && working}>
-          <summary><span class="chevron" aria-hidden="true">›</span>{summary(segment.calls)}</summary>
+          <summary><span class="chevron" aria-hidden="true">›</span>{summary(segment.calls)}{#if !quiet}<Shots paths={shotsOf([segment])} />{/if}</summary>
           <div class="calls">
             {#each segment.calls as call (call.id)}
               <ToolRow {agent} {call} {ondiff} />
@@ -238,6 +241,7 @@
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
     {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
+    {#if entry.peer !== undefined}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>{/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
   {:else if entry.kind === 'agent'}
     {@const reply = groups(entry.blocks)}
@@ -256,7 +260,7 @@
             {@render musing(chunk.thought, chunk.ms)}
           {:else if chunk.length || (live && !parts.answer.length)}
             <details class="steps" class:live={live && c === chunks.length - 1}>
-              <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span></summary>
+              <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span><Shots paths={shotsOf(chunk)} /></summary>
               <div class="step-list">{@render detail(chunk, i, tail, true)}</div>
             </details>
           {/if}
@@ -328,13 +332,13 @@
       <strong>{entry.title}</strong>
       <span class="detail">{entry.detail}</span>
       {#if entry.questions?.length}
-        <button class="review" aria-expanded={reviewing.has(i)} onclick={() => (reviewing.has(i) ? reviewing.delete(i) : reviewing.add(i))}>
-          {reviewing.has(i) ? t('conversation.hide') : t('conversation.reviewQuestions', { count: entry.questions.length })}
+        <button class="review" aria-expanded={!folded.has(i)} onclick={() => (folded.has(i) ? folded.delete(i) : folded.add(i))}>
+          {!folded.has(i) ? t('conversation.hide') : t('conversation.reviewQuestions', { count: entry.questions.length })}
         </button>
       {/if}
       <span class="at">{time(entry.at)}</span>
     </div>
-    {#if entry.questions && reviewing.has(i)}
+    {#if entry.questions && !folded.has(i)}
       <ol class="asked">
         {#each entry.questions as q (q.question)}
           {@const picked = q.answer.split(', ')}
@@ -412,6 +416,10 @@
     font-size: 13px;
     list-style: none;
     cursor: pointer;
+  }
+
+  summary:has(:global(.shots.all)) {
+    flex-wrap: wrap;
   }
 
   .steps > summary::-webkit-details-marker {

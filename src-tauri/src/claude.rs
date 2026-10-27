@@ -2,17 +2,18 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{ChildStdin, Command, Stdio};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Mutex, OnceLock};
 use std::thread;
 
 pub static COMPACT_WINDOW: AtomicU32 = AtomicU32::new(0);
+pub static CAPTURES: OnceLock<PathBuf> = OnceLock::new();
 
 pub const TESTED_VERSION: &str = "2.1.304";
 
-const PROMPT: &str = "You run inside Squadron, a desktop app that shows your replies as Markdown. When the user wants text to copy or paste (a message, a pull request or ticket description, a document, a config snippet), write it in your reply inside a fenced code block with its language, ```markdown for prose, then go on with the rest of your answer. Squadron shows each block with a Copy button. Write such text to a file only when the user asks for a file.";
+const PROMPT: &str = "You run inside Squadron, a desktop app that shows your replies as Markdown. When the user wants text to copy or paste (a message, a pull request or ticket description, a document, a config snippet), write it in your reply inside a fenced code block with its language, ```markdown for prose, then go on with the rest of your answer. Squadron shows each block with a Copy button. Write such text to a file only when the user asks for a file. To show the user an image, such as a screenshot you took while working, save it as a PNG, JPEG or WebP file in the folder named by the SQUADRON_CAPTURES environment variable and put it in your reply as ![what it shows](/absolute/path.png): Squadron shows it in the conversation and deletes it after a week.";
 
 const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 const MODES: [&str; 4] = ["default", "acceptEdits", "plan", "auto"];
@@ -106,6 +107,9 @@ pub fn command(
             "--append-system-prompt",
             PROMPT,
         ]);
+    if let Some(dir) = CAPTURES.get() {
+        cmd.env("SQUADRON_CAPTURES", dir);
+    }
     let window = COMPACT_WINDOW.load(Ordering::Relaxed);
     if window > 0 {
         cmd.env("CLAUDE_CODE_AUTO_COMPACT_WINDOW", window.to_string());

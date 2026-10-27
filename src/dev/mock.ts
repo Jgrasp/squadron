@@ -129,7 +129,37 @@ function replay(id: string, text: string) {
     return
   }
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
-  const stream = text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  if (text.startsWith('/compact')) {
+    emit('agent-line', { id, line: JSON.stringify({ type: 'system', subtype: 'compact_boundary', compact_metadata: { pre_tokens: 182_000, post_tokens: 21_000 } }) })
+    emit('agent-line', { id, line: JSON.stringify({ type: 'result', is_error: false, num_turns: 0, total_cost_usd: 0, usage: {}, duration_ms: 3000 }) })
+    return
+  }
+  const shot = 'Voici la page :\\n\\n![Accueil](/captures/home.png)\\n\\nEt une capture effacée : ![Ancienne](/captures/old.png)'
+  files.set('/captures/home.png', `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#2a2420"/><text x="40" y="190" font-size="40" fill="#e8875a">Capture</text></svg>')}`)
+  const page = () => {
+    const canvas = Object.assign(document.createElement('canvas'), { width: 1280, height: 800 })
+    const g = canvas.getContext('2d')!
+    g.fillStyle = '#1d1a18'
+    g.fillRect(0, 0, 1280, 800)
+    g.fillStyle = '#e8875a'
+    g.fillRect(0, 0, 1280, 90)
+    g.fillStyle = '#3a332e'
+    for (let y = 140; y < 760; y += 120) g.fillRect(60, y, 1160, 90)
+    return canvas.toDataURL('image/png').split(',')[1]
+  }
+  const shots = () =>
+    tools
+      .trim()
+      .split('\n')
+      .map((l) => {
+        const d = JSON.parse(l)
+        if (d.type !== 'user' || d.message?.content?.[0]?.type !== 'tool_result') return l
+        d.message.content[0].content = Array.from({ length: text.includes('many') ? 5 : 1 }, () => ({ type: 'image', source: { type: 'base64', media_type: 'image/png', data: page() } }))
+        return JSON.stringify(d)
+      })
+      .join('\n')
+  const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
+  const stream = text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -224,6 +254,32 @@ if (location.search.includes('stress'))
     }
     console.log('stress', Math.round(performance.now() - started), 'ms', agent.entries.length, 'entries')
   }, 300)
+
+const orbitPull = () => ({
+              host: 'bitbucket',
+              number: 2108,
+              title: 'feat(segments): channel-aware segment resolver',
+              description: '## Result\n\n- The resolver takes the channel into account\n- `ResolverTest` covers a missing channel\n\n## Tests\n\n```bash\nvendor/bin/phpunit tests/Segmentation\n```',
+              url: 'https://bitbucket.org/orbit/orbit/pull-requests/2108',
+              state: 'open',
+              draft: false,
+              approvals: 1,
+              changes_requested: false,
+              comments: 3,
+              checks: 'passing',
+              branch: 'feat/orbit',
+              base: 'main',
+              head: 'b'.repeat(40),
+              author: 'Quentin Briais',
+              author_avatar: '',
+              updated: new Date().toISOString(),
+              reviewed: null,
+              conflicts: false,
+              reviewers: [
+                { name: 'Sébastien Leprovost', avatar: '', verdict: 'approved' },
+                { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: 'waiting' },
+              ],
+            })
 
 mockWindows(label)
 mockIPC(
@@ -376,33 +432,38 @@ mockIPC(
         if (label === 'main') popup?.focus()
         return
       case 'pull_request':
-        return a.dir.includes('orbit')
-          ? {
-              host: 'bitbucket',
-              number: 2108,
-              title: 'feat(segments): channel-aware segment resolver',
-              description: '## Result\n\n- The resolver takes the channel into account\n- `ResolverTest` covers a missing channel\n\n## Tests\n\n```bash\nvendor/bin/phpunit tests/Segmentation\n```',
-              url: 'https://bitbucket.org/orbit/orbit/pull-requests/2108',
-              state: 'open',
-              draft: false,
-              approvals: 1,
-              changes_requested: false,
-              comments: 3,
-              checks: 'passing',
-              branch: 'feat/orbit',
-              base: 'main',
-              head: 'b'.repeat(40),
-              author: 'Quentin Briais',
-              author_avatar: '',
-              updated: new Date().toISOString(),
-              reviewed: null,
-              conflicts: false,
-              reviewers: [
-                { name: 'Sébastien Leprovost', avatar: '', verdict: 'approved' },
-                { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: 'waiting' },
-              ],
-            }
-          : null
+        return a.dir.includes('orbit') ? orbitPull() : null
+      case 'linked_pull': {
+        const url = a.url as string
+        const projectsOf = a.projects as unknown as string[]
+        if (url.includes('2108')) {
+          return { repo: 'orbit/orbit', pull: orbitPull(), additions: 214, deletions: 38, files: 9, project: projectsOf.find((p) => p.includes('orbit')) ?? null }
+        }
+        if (url.includes('/57'))
+          return {
+            repo: 'agence/nova',
+            pull: { host: 'github', number: 57, title: 'chore: bump Sylius to 2.3.4', description: '', url, state: 'merged', draft: false, approvals: 2, changes_requested: false, comments: 1, checks: 'passing', branch: 'chore/sylius', base: 'develop', head: '', author: 'Sébastien Leprovost', author_avatar: '', updated: new Date(Date.now() - 3 * 86_400_000).toISOString(), reviewed: null, conflicts: false, reviewers: [] },
+            additions: 12,
+            deletions: 12,
+            files: 2,
+            project: null,
+          }
+        if (url.includes('/61'))
+          return {
+            repo: 'agence/nova',
+            pull: { host: 'github', number: 61, title: 'fix(export): CSV separator follows the locale', description: '', url, state: 'open', draft: false, approvals: 0, changes_requested: true, comments: 7, checks: 'failing', branch: 'fix/csv-locale', base: 'develop', head: '', author: 'Adrien Dhermy', author_avatar: '', updated: new Date(Date.now() - 7_200_000).toISOString(), reviewed: null, conflicts: true, reviewers: [{ name: 'Quentin Briais', avatar: '', verdict: 'changes_requested' }] },
+            additions: 40,
+            deletions: 6,
+            files: 3,
+            project: projectsOf.find((p) => p.includes('nova')) ?? null,
+          }
+        throw 'Not found'
+      }
+      case 'save_capture': {
+        const path = `/captures/${files.size}.png`
+        files.set(path, `data:image/png;base64,${a.data}`)
+        return path
+      }
       case 'save_attachment':
         files.set(`/attachments/${a.name}`, `data:image/png;base64,${a.data}`)
         return `/attachments/${a.name}`
@@ -497,6 +558,23 @@ mockIPC(
             { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
             { path: 'src/Legacy/OldResolver.php', status: 'D', add: 0, del: 12 },
           ],
+        }
+      case 'branch_changes':
+        if (a.project.includes('nova')) throw 'not a git repository'
+        return {
+          base: 'develop',
+          commits: 4,
+          changes: {
+            from: 'c'.repeat(40),
+            now: 'b'.repeat(40),
+            files: [
+              { path: 'config/packages/segmentation.yaml', status: 'A', add: 9, del: 0 },
+              { path: 'src/Segmentation/ChannelSegmentResolver.php', status: 'M', add: 18, del: 4 },
+              { path: 'src/Segmentation/SegmentRepository.php', status: 'M', add: 22, del: 3 },
+              { path: 'tests/ResolverTest.php', status: 'A', add: 4, del: 0 },
+              { path: 'templates/admin/segment/index.html.twig', status: 'M', add: 7, del: 1 },
+            ],
+          },
         }
       case 'git_patch':
         return a.path.endsWith('Test.php')

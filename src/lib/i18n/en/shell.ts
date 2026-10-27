@@ -188,6 +188,9 @@ export default {
   linesRemoved: 'Lines removed since the last commit',
   removed: 'removed',
   saveHint: 'Ctrl S to save',
+  preview: 'Preview',
+  code: 'Code',
+  previewOf: 'Show {name} formatted',
 
   fileAdded: 'Added',
   fileModified: 'Modified',

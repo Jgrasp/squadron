@@ -190,6 +190,9 @@ export default {
   linesRemoved: 'Lignes supprimées depuis le dernier commit',
   removed: 'supprimées',
   saveHint: 'Ctrl S pour enregistrer',
+  preview: 'Aperçu',
+  code: 'Code',
+  previewOf: 'Afficher {name} mis en forme',
 
   fileAdded: 'Ajouté',
   fileModified: 'Modifié',

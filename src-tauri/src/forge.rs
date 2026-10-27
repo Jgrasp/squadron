@@ -3,7 +3,7 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
 
 const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
@@ -377,6 +377,109 @@ pub async fn pull(dir: &Path) -> Result<Option<Pull>, String> {
                 )?;
                 let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
                 Ok(list.get(0).map(|found| github_pull(found, "")))
+            })
+            .await
+        }
+    }
+}
+
+#[derive(Debug, Default, PartialEq, Serialize)]
+pub struct Linked {
+    pub repo: String,
+    pub pull: Pull,
+    pub additions: Option<u64>,
+    pub deletions: Option<u64>,
+    pub files: Option<u64>,
+    pub project: Option<PathBuf>,
+}
+
+fn pull_link(url: &str) -> Option<(Repo, u64)> {
+    let rest = url.trim().split(['?', '#']).next()?.trim_end_matches('/');
+    let rest = rest
+        .strip_prefix("https://")
+        .or_else(|| rest.strip_prefix("http://"))?;
+    let rest = rest.strip_prefix("www.").unwrap_or(rest);
+    let parts: Vec<&str> = rest.split('/').collect();
+    let (host, owner, name, kind, number) = (
+        *parts.first()?,
+        *parts.get(1)?,
+        *parts.get(2)?,
+        *parts.get(3)?,
+        parts.get(4)?.parse().ok()?,
+    );
+    let found = repo(&format!("https://{host}/{owner}/{name}"))?;
+    let expected = match found.host {
+        Host::GitHub => "pull",
+        Host::Bitbucket => "pull-requests",
+    };
+    (kind == expected).then_some((found, number))
+}
+
+pub async fn linked(url: &str, projects: Vec<PathBuf>) -> Result<Linked, String> {
+    let (repo, number) = pull_link(url).ok_or("Not a pull request link.")?;
+    let project = projects
+        .into_iter()
+        .find(|dir| repo_of(dir).is_ok_and(|r| r == repo));
+    match repo.host {
+        Host::Bitbucket => {
+            let path = format!("/repositories/{}/pullrequests/{number}", repo.slug);
+            let fields = BITBUCKET_FIELDS.replace("values.", "");
+            let found = bitbucket(Method::GET, &path, &[("fields", &fields)], None).await?;
+            let statuses = bitbucket(
+                Method::GET,
+                &format!("{path}/statuses"),
+                &[("fields", "values.state"), ("pagelen", "50")],
+                None,
+            )
+            .await
+            .unwrap_or_default();
+            let stat = bitbucket(
+                Method::GET,
+                &format!("{path}/diffstat"),
+                &[
+                    ("fields", "values.lines_added,values.lines_removed"),
+                    ("pagelen", "500"),
+                ],
+                None,
+            )
+            .await
+            .ok();
+            let files = stat.as_ref().and_then(|s| s["values"].as_array());
+            let sum = |key: &str| files.map(|f| f.iter().filter_map(|x| x[key].as_u64()).sum());
+            let me = account().ok().and_then(|a| a.uuid).unwrap_or_default();
+            Ok(Linked {
+                repo: repo.slug,
+                pull: bitbucket_pull(&found, &statuses, &me),
+                additions: sum("lines_added"),
+                deletions: sum("lines_removed"),
+                files: files.map(|f| f.len() as u64),
+                project,
+            })
+        }
+        Host::GitHub => {
+            blocking(move || {
+                let fields = format!("{GITHUB_FIELDS},additions,deletions,changedFiles");
+                let out = gh(
+                    &[
+                        "pr",
+                        "view",
+                        &number.to_string(),
+                        "--repo",
+                        &repo.slug,
+                        "--json",
+                        &fields,
+                    ],
+                    None,
+                )?;
+                let found: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
+                Ok(Linked {
+                    pull: github_pull(&found, ""),
+                    additions: found["additions"].as_u64(),
+                    deletions: found["deletions"].as_u64(),
+                    files: found["changedFiles"].as_u64(),
+                    repo: repo.slug,
+                    project,
+                })
             })
             .await
         }
@@ -980,6 +1083,25 @@ pub async fn merge(dir: &Path, number: u64) -> Result<(), String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn reads_pull_request_links_of_both_hosts() {
+        let (repo, number) =
+            pull_link("https://github.com/agence/orbit/pull/2108/files?w=1").unwrap();
+        assert_eq!(
+            (repo.host, repo.slug.as_str(), number),
+            (Host::GitHub, "agence/orbit", 2108)
+        );
+        let (repo, number) =
+            pull_link("https://bitbucket.org/steel-shed/bmc/pull-requests/412/overview").unwrap();
+        assert_eq!(
+            (repo.host, repo.slug.as_str(), number),
+            (Host::Bitbucket, "steel-shed/bmc", 412)
+        );
+        assert!(pull_link("https://github.com/agence/orbit/issues/12").is_none());
+        assert!(pull_link("https://bitbucket.org/steel-shed/bmc/pull/412").is_none());
+        assert!(pull_link("https://gitlab.com/a/b/pull/1").is_none());
+    }
+
     use super::*;
 
     #[test]
@@ -1291,6 +1413,38 @@ mod tests {
         )
         .unwrap();
         assert_eq!((by_time.added, by_time.changes.files.len()), (0, 0));
+    }
+
+    #[test]
+    #[ignore = "asks Bitbucket and GitHub with the real accounts"]
+    fn real_linked_pull_requests_of_both_hosts() {
+        let rt = tokio::runtime::Runtime::new().unwrap();
+        for dir in [
+            "/home/jgrasp/Projects/Sylius/kiosquemag",
+            "/home/jgrasp/Projects/Shopify/lr-presse-shopify",
+        ] {
+            let dir = Path::new(dir);
+            let lists = rt.block_on(lists(dir)).unwrap();
+            let url = lists
+                .review
+                .into_iter()
+                .chain(lists.mine)
+                .next()
+                .map(|p| p.url);
+            let url = url.unwrap_or_else(|| {
+                let repo = repo_of(dir).unwrap();
+                match repo.host {
+                    Host::GitHub => format!("https://github.com/{}/pull/1", repo.slug),
+                    Host::Bitbucket => {
+                        format!("https://bitbucket.org/{}/pull-requests/1", repo.slug)
+                    }
+                }
+            });
+            let found = rt.block_on(linked(&url, vec![dir.to_path_buf()])).unwrap();
+            println!("{url}\n{found:#?}");
+            assert!(found.pull.number > 0 && !found.pull.title.is_empty());
+            assert_eq!(found.project.as_deref(), Some(dir));
+        }
     }
 
     #[test]

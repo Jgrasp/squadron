@@ -13,6 +13,7 @@ export type ToolCall = {
   name: string
   input: Record<string, unknown>
   result?: { text: string; error: boolean; data?: Record<string, unknown> }
+  shots?: string[]
 }
 
 export type Block =
@@ -81,7 +82,7 @@ export type Goal = {
 }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string; peer?: string }
   | { kind: 'agent'; blocks: Block[]; uuid?: string }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
@@ -137,6 +138,7 @@ export type Agent = {
   progress?: { done: number; total: number; message: string; place: 'above' | 'below' } | null
   pinned?: boolean
   unread?: boolean
+  errorSeen?: boolean
   context?: { max: number; threshold: number | null }
   review?: { project: string; number: number; base?: string }
   imported?: string
@@ -360,6 +362,8 @@ function usage(d: Json, cost: number): Usage {
   }
 }
 
+export const flaggedWorktree = new Set<string>()
+
 export function apply(agent: Agent, d: Json) {
   agent.alive = true
   switch (d.type) {
@@ -368,7 +372,7 @@ export function apply(agent: Agent, d: Json) {
         if (d.session_id !== agent.sessionId) agent.forkOf = agent.forkAt = null
         agent.sessionId = d.session_id
       }
-      if (d.subtype === 'init' && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/.claude/worktrees/') && agent.worktree?.path !== d.cwd)
+      if (d.subtype === 'init' && flaggedWorktree.delete(agent.id) && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/.claude/worktrees/'))
         agent.worktree = { path: d.cwd, branch: '' }
       if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
         agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))
@@ -556,6 +560,13 @@ function relaunched(agent: Agent, text: string) {
 
 export const notice = (text: string) => /^<task-notification>\s*([\s\S]*?)\s*<\/task-notification>$/.exec(text.trim())?.[1]
 
+export function peerMessage(text: string) {
+  const m = /<cross-session-message\b([^>]*)>([\s\S]*?)<\/cross-session-message>/.exec(text)
+  if (!m) return
+  const attr = (key: string) => new RegExp(`(?:^|\\s)${key}="([^"]*)"`).exec(m[1])?.[1]
+  return { from: attr('from-name') || attr('name') || attr('from') || '', text: m[2].trim() }
+}
+
 export const commandEcho = (text: string) => /^<(local-command-|command-name>|command-message>)/.test(text.trim())
 
 export function commandOutput(text: string) {
@@ -574,14 +585,21 @@ function remoteMessage(agent: Agent, d: Json) {
   const inside = commandEcho(text) ? commandOutput(text) : notice(text)
   if (inside) agent.entries.push({ kind: 'note', at: d.timestamp ? Date.parse(d.timestamp) : Date.now(), command: 'notice', text: inside })
   if (inside !== undefined) return
-  userMessage(agent, text)
+  const peer = peerMessage(text)
+  userMessage(agent, peer?.text ?? text)
   const entry = agent.entries.at(-1)
   if (entry?.kind === 'user') {
-    entry.remote = true
+    if (peer) entry.peer = peer.from
+    else entry.remote = true
     entry.at = d.timestamp ? Date.parse(d.timestamp) : entry.at
   }
   if (agent.remote) agent.remote.last = Date.now()
 }
+
+export const captures: { save?: (agent: Agent, call: ToolCall, data: string) => void } = {}
+
+const imagesOf = (content: unknown) =>
+  Array.isArray(content) ? (content as Json[]).filter((x) => x.type === 'image' && x.source?.type === 'base64').map((x) => String(x.source.data)) : []
 
 function toolResults(agent: Agent, d: Json) {
   const content = d.message?.content
@@ -595,6 +613,7 @@ function toolResults(agent: Agent, d: Json) {
     if (!d.parent_tool_use_id && call?.name === 'EnterWorktree' && result?.worktreePath)
       agent.worktree = { path: String(result.worktreePath), branch: String(result.worktreeBranch ?? '') }
     if (!d.parent_tool_use_id && call?.name === 'ExitWorktree' && !c.is_error) agent.worktree = null
+    if (call && !call.result) for (const data of imagesOf(c.content)) captures.save?.(agent, call, data)
     if (call)
       call.result = {
         text: textOf(c.content),
@@ -635,6 +654,7 @@ function result(agent: Agent, d: Json) {
 export function fail(agent: Agent, message: string) {
   agent.asks = []
   agent.status = 'error'
+  agent.errorSeen = false
   agent.interrupting = false
   agent.held = false
   agent.attention = message.split('\n')[0] || t('conversation.error')

@@ -11,13 +11,16 @@ import { t } from './i18n/index.svelte'
 import {
   apply,
   argument,
+  captures,
   commandEcho,
+  peerMessage,
   commandOutput,
   subagentOf,
   INTERNAL,
   READ_ONLY,
   exited,
   fail,
+  flaggedWorktree,
   GOAL_RELAUNCHES,
   newAgent,
   notice,
@@ -64,8 +67,10 @@ export function branchOf(agent: Agent) {
     .catch(() => {})
 }
 
+export const calling = (a: Agent) => !!a.attention && !(a.status === 'error' && a.errorSeen)
+
 export function waitingAgents() {
-  return agents.list.filter((a) => a.attention).sort((a, b) => a.since - b.since)
+  return agents.list.filter(calling).sort((a, b) => a.since - b.since)
 }
 
 export function show(agent: Agent) {
@@ -95,7 +100,7 @@ export function ofProject(project: string) {
 }
 
 export function waiting(project: string) {
-  return agents.list.filter((a) => a.project === project && a.attention).length
+  return agents.list.filter((a) => a.project === project && calling(a)).length
 }
 
 export function unread(project: string) {
@@ -116,6 +121,14 @@ export function selected(project: string) {
   const list = ofProject(project)
   return list.find((a) => a.id === agents.current[project]) ?? list[0]
 }
+
+captures.save = (agent, call, data) =>
+  invoke<string>('save_capture', { data })
+    .then((path) => {
+      call.shots = [...(call.shots ?? []), path]
+      persist(agent)
+    })
+    .catch(() => {})
 
 listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const agent = find(payload.id)
@@ -243,6 +256,8 @@ async function adopt(data: Agent) {
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
   agent.entries = agent.entries.flatMap((e): Entry[] => {
     if (e.kind !== 'user') return [e]
+    const peer = peerMessage(e.text)
+    if (peer) return [{ ...e, text: peer.text, peer: peer.from, remote: undefined }]
     const text = commandEcho(e.text) ? commandOutput(e.text) : notice(e.text)
     return text === undefined ? [e] : text ? [{ kind: 'note', at: e.at, command: 'notice', text }] : []
   })
@@ -489,28 +504,29 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; dir?: string }
+type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[] }
 
-export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir }: Launch = {}) {
+export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [] }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || t('common.newAgent'), options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
+  if (worktree) flaggedWorktree.add(agent.id)
   if (!name) {
     agent.autoName = true
     if (text.trim()) entitle(agent, text)
   }
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
   else agents.current[project] = agent.id
-  if (text.trim()) userMessage(agent, text)
+  if (text.trim()) userMessage(agent, text, [], files)
   else {
     agent.status = 'done'
     agent.since = Date.now()
   }
   persist(agent)
   try {
-    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null })
+    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null, files })
     if (dir) branchOf(agent)
     if (options.mode !== 'plan') await arm(agent)
   } catch (e) {

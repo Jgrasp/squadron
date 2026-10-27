@@ -15,7 +15,7 @@
 
   let { onadd }: { onadd: () => void } = $props()
 
-  const failed = (path: string) => ofProject(path).filter((a) => a.status === 'error').length
+  const failed = (path: string) => ofProject(path).filter((a) => a.status === 'error' && !a.errorSeen).length
 
   let heard = new Set<string>()
   $effect(() => {
