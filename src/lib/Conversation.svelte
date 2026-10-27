@@ -200,7 +200,7 @@
 {#snippet detail(list: Segment[], i: number, tail: Block | undefined, quiet: boolean)}
   {#each list as segment, s (s)}
     {#if segment.type === 'text'}
-      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} /></div>
+      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} cards /></div>
     {:else if segment.type === 'work'}
       {#if segment.thinking && (settings.thinking !== 'hidden' || segment.ms === undefined)}
         {#if segment.thought && settings.thinking === 'shown'}

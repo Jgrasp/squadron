@@ -569,6 +569,11 @@ async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
 }
 
 #[tauri::command]
+async fn linked_pull(url: String, projects: Vec<PathBuf>) -> Result<forge::Linked, String> {
+    forge::linked(&url, projects).await
+}
+
+#[tauri::command]
 async fn pull_lists(dir: PathBuf) -> Result<forge::Lists, String> {
     forge::lists(&dir).await
 }
@@ -1274,6 +1279,7 @@ pub fn run() {
             git_patch,
             pull_request,
             pull_lists,
+            linked_pull,
             review_checkout,
             changed_files,
             pull_changes,

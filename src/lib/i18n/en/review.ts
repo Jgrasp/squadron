@@ -46,6 +46,8 @@ export default {
   openHostingSettings: 'Open Settings › Code hosting',
   toReview: 'To review',
   openOn: 'Open on {host}',
+  openWithSquadron: 'Open with Squadron',
+  diffSize: { one: '+{added} −{removed} · {count} file', other: '+{added} −{removed} · {count} files' },
   review: 'Review',
   nobodyWaits: 'Nobody waits for your review in {project}.',
   yours: 'Yours',

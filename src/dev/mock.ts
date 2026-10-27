@@ -153,7 +153,8 @@ function replay(id: string, text: string) {
         return JSON.stringify(d)
       })
       .join('\n')
-  const stream = text.includes('shots') ? shots() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
+  const stream = text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -248,6 +249,32 @@ if (location.search.includes('stress'))
     }
     console.log('stress', Math.round(performance.now() - started), 'ms', agent.entries.length, 'entries')
   }, 300)
+
+const orbitPull = () => ({
+              host: 'bitbucket',
+              number: 2108,
+              title: 'feat(segments): channel-aware segment resolver',
+              description: '## Result\n\n- The resolver takes the channel into account\n- `ResolverTest` covers a missing channel\n\n## Tests\n\n```bash\nvendor/bin/phpunit tests/Segmentation\n```',
+              url: 'https://bitbucket.org/orbit/orbit/pull-requests/2108',
+              state: 'open',
+              draft: false,
+              approvals: 1,
+              changes_requested: false,
+              comments: 3,
+              checks: 'passing',
+              branch: 'feat/orbit',
+              base: 'main',
+              head: 'b'.repeat(40),
+              author: 'Quentin Briais',
+              author_avatar: '',
+              updated: new Date().toISOString(),
+              reviewed: null,
+              conflicts: false,
+              reviewers: [
+                { name: 'Sébastien Leprovost', avatar: '', verdict: 'approved' },
+                { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: 'waiting' },
+              ],
+            })
 
 mockWindows(label)
 mockIPC(
@@ -400,33 +427,33 @@ mockIPC(
         if (label === 'main') popup?.focus()
         return
       case 'pull_request':
-        return a.dir.includes('orbit')
-          ? {
-              host: 'bitbucket',
-              number: 2108,
-              title: 'feat(segments): channel-aware segment resolver',
-              description: '## Result\n\n- The resolver takes the channel into account\n- `ResolverTest` covers a missing channel\n\n## Tests\n\n```bash\nvendor/bin/phpunit tests/Segmentation\n```',
-              url: 'https://bitbucket.org/orbit/orbit/pull-requests/2108',
-              state: 'open',
-              draft: false,
-              approvals: 1,
-              changes_requested: false,
-              comments: 3,
-              checks: 'passing',
-              branch: 'feat/orbit',
-              base: 'main',
-              head: 'b'.repeat(40),
-              author: 'Quentin Briais',
-              author_avatar: '',
-              updated: new Date().toISOString(),
-              reviewed: null,
-              conflicts: false,
-              reviewers: [
-                { name: 'Sébastien Leprovost', avatar: '', verdict: 'approved' },
-                { name: 'Adrien Dhermy', avatar: 'https://avatars.githubusercontent.com/u/9919?s=64', verdict: 'waiting' },
-              ],
-            }
-          : null
+        return a.dir.includes('orbit') ? orbitPull() : null
+      case 'linked_pull': {
+        const url = a.url as string
+        const projectsOf = a.projects as string[]
+        if (url.includes('2108')) {
+          return { repo: 'orbit/orbit', pull: orbitPull(), additions: 214, deletions: 38, files: 9, project: projectsOf.find((p) => p.includes('orbit')) ?? null }
+        }
+        if (url.includes('/57'))
+          return {
+            repo: 'agence/nova',
+            pull: { host: 'github', number: 57, title: 'chore: bump Sylius to 2.3.4', description: '', url, state: 'merged', draft: false, approvals: 2, changes_requested: false, comments: 1, checks: 'passing', branch: 'chore/sylius', base: 'develop', head: '', author: 'Sébastien Leprovost', author_avatar: '', updated: new Date(Date.now() - 3 * 86_400_000).toISOString(), reviewed: null, conflicts: false, reviewers: [] },
+            additions: 12,
+            deletions: 12,
+            files: 2,
+            project: null,
+          }
+        if (url.includes('/61'))
+          return {
+            repo: 'agence/nova',
+            pull: { host: 'github', number: 61, title: 'fix(export): CSV separator follows the locale', description: '', url, state: 'open', draft: false, approvals: 0, changes_requested: true, comments: 7, checks: 'failing', branch: 'fix/csv-locale', base: 'develop', head: '', author: 'Adrien Dhermy', author_avatar: '', updated: new Date(Date.now() - 7_200_000).toISOString(), reviewed: null, conflicts: true, reviewers: [{ name: 'Quentin Briais', avatar: '', verdict: 'changes_requested' }] },
+            additions: 40,
+            deletions: 6,
+            files: 3,
+            project: projectsOf.find((p) => p.includes('nova')) ?? null,
+          }
+        throw 'Not found'
+      }
       case 'save_capture': {
         const path = `/captures/${files.size}.png`
         files.set(path, `data:image/png;base64,${a.data}`)

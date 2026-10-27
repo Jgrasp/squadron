@@ -48,6 +48,8 @@ export default {
   openHostingSettings: 'Ouvrir Réglages › Hébergement du code',
   toReview: 'À relire',
   openOn: 'Ouvrir sur {host}',
+  openWithSquadron: 'Ouvrir avec Squadron',
+  diffSize: { one: '+{added} −{removed} · {count} fichier', other: '+{added} −{removed} · {count} fichiers' },
   review: 'Relire',
   nobodyWaits: 'Personne n’attend votre relecture dans {project}.',
   yours: 'Les vôtres',

@@ -5,6 +5,7 @@
   import MarkdownIt from 'markdown-it'
   import { t } from './i18n/index.svelte'
   import { isImage, preview } from './Attachment.svelte'
+  import { isPullLink } from './linked.svelte'
 
   const grammars = new Map<string, Language | null>()
   let loaded = $state(0)
@@ -27,6 +28,22 @@
   }
 
   const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') })
+  md.core.ruler.push('pull_cards', (state) => {
+    const tokens = state.tokens
+    tokens.forEach((token, i) => {
+      if (token.type !== 'inline' || !token.children) return
+      const kids = token.children.filter((c) => c.type !== 'softbreak' && !(c.type === 'text' && !c.content.trim()))
+      const href = kids[0]?.attrGet('href') ?? ''
+      if (kids.length === 3 && kids[0].type === 'link_open' && kids[2].type === 'link_close' && isPullLink(href) && tokens[i - 1]?.type === 'paragraph_open') {
+        tokens[i - 1].tag = tokens[i + 1].tag = 'div'
+        tokens[i - 1].attrSet('class', 'pr-slot')
+        tokens[i - 1].attrSet('data-pr', href)
+        return
+      }
+      for (const c of token.children) if (c.type === 'link_open' && isPullLink(c.attrGet('href') ?? '')) c.attrSet('data-pr-inline', '')
+    })
+  })
+
   const shots = new Map<string, string>()
   md.renderer.rules.image = (tokens, idx) => {
     const alt = md.utils.escapeHtml(tokens[idx].content)
@@ -52,9 +69,10 @@
 
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { tick, untrack } from 'svelte'
+  import { mount, tick, unmount, untrack } from 'svelte'
+  import PullCard from './PullCard.svelte'
 
-  let { text, streaming = false }: { text: string; streaming?: boolean } = $props()
+  let { text, streaming = false, cards = false }: { text: string; streaming?: boolean; cards?: boolean } = $props()
 
   let shown = $state(untrack(() => text.length))
   let frame = 0
@@ -104,6 +122,22 @@
     })
   })
 
+  $effect(() => {
+    void html
+    if (streaming || !cards) return
+    const mounted: ReturnType<typeof mount>[] = []
+    tick().then(() => {
+      for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
+        mounted.push(mount(PullCard, { target: slot, props: { url: slot.dataset.pr!, onready: () => slot.classList.add('ready') } }))
+      for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-pr-inline]') ?? []) {
+        const spot = document.createElement('span')
+        link.before(spot)
+        mounted.push(mount(PullCard, { target: spot, props: { url: link.href, inline: true, onready: () => (link.hidden = true) } }))
+      }
+    })
+    return () => mounted.forEach((m) => unmount(m))
+  })
+
   function click(event: MouseEvent) {
     const target = event.target as HTMLElement
     const shot = target.closest<HTMLElement>('[data-shot]')
@@ -133,6 +167,10 @@
   .prose {
     line-height: 1.65;
     overflow-wrap: anywhere;
+  }
+
+  .prose :global(.pr-slot.ready > a) {
+    display: none;
   }
 
   .prose :global(.shot) {
