@@ -1,8 +1,10 @@
 <script lang="ts">
   import Markdown from './Markdown.svelte'
-  import changelog from '../../CHANGELOG.md?raw'
+  import { locale } from './i18n/index.svelte'
 
-  const text = changelog.replace(/^# .*\n/, '')
+  const files = import.meta.glob<string>('../../CHANGELOG*.md', { query: '?raw', import: 'default', eager: true })
+
+  const text = $derived((files[`../../CHANGELOG.${locale()}.md`] ?? files['../../CHANGELOG.md']).replace(/^# .*\n/, ''))
 </script>
 
 <div class="changelog">
