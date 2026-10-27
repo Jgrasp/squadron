@@ -1,5 +1,5 @@
 <script lang="ts" module>
-  export type TreeFile = { path: string; add: number; del: number; other?: boolean; talks?: number; drafts?: number }
+  export type TreeFile = { path: string; add: number; del: number; other?: boolean; talks?: number; drafts?: number; viewed?: boolean }
 
   type Node = { name: string; path: string; dirs: Node[]; files: TreeFile[] }
 
@@ -34,7 +34,12 @@
 <script lang="ts">
   import { t } from './i18n/index.svelte'
 
-  let { files, selected, onpick }: { files: TreeFile[]; selected: string | undefined; onpick: (path: string) => void } = $props()
+  let {
+    files,
+    selected,
+    viewed = null,
+    onpick,
+  }: { files: TreeFile[]; selected: string | undefined; viewed?: number | null; onpick: (path: string) => void } = $props()
 
   let filter = $state('')
   let closed = $state<string[]>([])
@@ -45,6 +50,12 @@
 
 <nav class="tree" aria-label={t('review.changedFiles')}>
   <input class="filter" type="search" placeholder={t('review.filterFiles', { count: files.length })} bind:value={filter} />
+  {#if viewed !== null}
+    <div class="progress">
+      <span>{t('review.viewedOf', { count: viewed, total: files.length })}</span>
+      <span class="bar" aria-hidden="true"><span style:width="{(viewed / Math.max(1, files.length)) * 100}%"></span></span>
+    </div>
+  {/if}
   <div class="list">
     {@render branch(root, 0)}
   </div>
@@ -60,8 +71,11 @@
     {#if open}{@render branch(dir, depth + 1)}{/if}
   {/each}
   {#each node.files as file (file.path)}
-    <button class="file" class:other={file.other} style:--depth={depth} aria-current={file.path === selected ? 'true' : undefined} title={file.path} onclick={() => onpick(file.path)}>
+    <button class="file" class:other={file.other} class:viewed={file.viewed} style:--depth={depth} aria-current={file.path === selected ? 'true' : undefined} title={file.path} onclick={() => onpick(file.path)}>
       <span class="name">{file.path.split('/').pop()}</span>
+      {#if file.viewed}
+        <svg class="seen" width="11" height="11" viewBox="0 0 24 24" aria-label={t('review.viewed')}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
+      {/if}
       {#if file.drafts}
         <span class="drafts" title={t('review.draftsInReview', { count: file.drafts })}
           ><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>{file.drafts}</span
@@ -150,6 +164,42 @@
     color: var(--text-dim);
   }
 
+  .file.viewed {
+    color: var(--text-faint);
+  }
+
+  .seen {
+    flex: none;
+    fill: none;
+    stroke: var(--ok);
+    stroke-width: 3;
+  }
+
+  .progress {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin: -2px 10px 10px;
+    color: var(--text-dim);
+    font-size: 11.5px;
+  }
+
+  .bar {
+    height: 3px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    overflow: hidden;
+  }
+
+  .bar span {
+    display: block;
+    height: 100%;
+    border-radius: 2px;
+    background: var(--ok);
+    transition: width 0.2s;
+  }
+
   .name {
     flex: 1;
     min-width: 0;
@@ -194,7 +244,8 @@
   }
 
   @media (prefers-reduced-motion: reduce) {
-    .chevron {
+    .chevron,
+    .bar span {
       transition: none;
     }
   }
