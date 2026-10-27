@@ -121,6 +121,7 @@ function goal(id: string, condition: string) {
 }
 
 function replay(id: string, text: string) {
+  if (text.includes('sudo')) setTimeout(() => emit('askpass-request', { id: String(askId++), agent: id, prompt: '[sudo] password for demo: ' }), 400)
   if (text.startsWith('/goal ')) return goal(id, text.slice(6))
   const key = Object.keys(asks).find((k) => text.includes(k))
   if (key) {
@@ -727,6 +728,7 @@ mockIPC(
       case 'open_with':
         return
       case 'term_resize':
+      case 'answer_askpass':
         return
       case 'plugin:dialog|open':
         return '/home/demo/agence/hermes'

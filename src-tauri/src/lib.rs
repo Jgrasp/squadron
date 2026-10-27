@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod askpass;
 pub mod attach;
 pub mod claude;
 pub mod editors;
@@ -12,6 +13,7 @@ pub mod system;
 pub mod terminal;
 
 use agents::Agents;
+use askpass::Askpass;
 use permissions::Gate;
 use pilot::Pilot;
 use projects::{Card, Folder, Project};
@@ -208,8 +210,18 @@ fn answer_permission(
 }
 
 #[tauri::command]
-fn cancel_permissions(gate: State<Gate>, agent: String) {
-    gate.cancel(&agent)
+fn cancel_permissions(gate: State<Gate>, askpass: State<Askpass>, agent: String) {
+    gate.cancel(&agent);
+    askpass.cancel(&agent);
+}
+
+#[tauri::command]
+fn answer_askpass(
+    askpass: State<Askpass>,
+    id: String,
+    secret: Option<String>,
+) -> Result<(), String> {
+    askpass.answer(&id, secret)
 }
 
 #[tauri::command]
@@ -1361,6 +1373,7 @@ pub fn run() {
             remote_control,
             context_usage,
             cancel_permissions,
+            answer_askpass,
             read_project_file,
             write_project_file,
             list_dir,
@@ -1487,10 +1500,23 @@ pub fn run() {
             let pilot = Pilot::new(token.clone(), move |call| {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });
+            let handle = app.handle().clone();
+            let askpass = Askpass::new(token.clone(), move |question| {
+                let _ = handle.emit("askpass-request", question);
+            });
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
                 gate.clone(),
                 pilot.clone(),
+                askpass.clone().router(),
             ))?;
+            let helpers = app.path().app_data_dir()?.join("bin");
+            match std::env::current_exe().and_then(|exe| askpass::install(&helpers, &exe)) {
+                Ok(script) => {
+                    let _ = askpass::HELPER.set((script, port, token.clone()));
+                }
+                Err(e) => log::warn!("password helper not installed: {e}"),
+            }
+            app.manage(askpass);
             let agents = app.state::<Agents>();
             agents.endpoint(port, token);
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);

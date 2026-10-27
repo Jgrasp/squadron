@@ -8,6 +8,7 @@ import { matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
 import { deliver, take } from './shells.svelte'
+import { forget as unask } from './askpass.svelte'
 import { t } from './i18n/index.svelte'
 import {
   apply,
@@ -154,7 +155,10 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
           persist(agent)
         })
   }
-  if (d.type === 'result') invoke('cancel_permissions', { agent: agent.id })
+  if (d.type === 'result') {
+    invoke('cancel_permissions', { agent: agent.id })
+    unask(agent.id)
+  }
   if (agent.goal?.state === 'active' && agent.goal.relaunches >= GOAL_RELAUNCHES) {
     agent.goal.state = 'stopping'
     invoke('stop_turn', { id: agent.id })
@@ -359,6 +363,7 @@ listen<{ id: string; stderr: string }>('agent-exit', ({ payload }) => {
   if (!agent) return
   exited(agent, payload.stderr)
   invoke('cancel_permissions', { agent: agent.id })
+  unask(agent.id)
   persist(agent)
 })
 

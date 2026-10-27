@@ -11,6 +11,7 @@
   import Spotlight from './lib/Spotlight.svelte'
   import Confirm from './lib/Confirm.svelte'
   import Viewer from './lib/Viewer.svelte'
+  import Password from './lib/Password.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, create, find, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
@@ -180,6 +181,7 @@
 
 <Confirm />
 <Viewer />
+<Password />
 
 <style>
   .app {
