@@ -129,6 +129,11 @@ function replay(id: string, text: string) {
     return
   }
   if (claudePath === 'claude' && text.includes('notfound')) throw 'claude-not-found'
+  if (text.startsWith('/compact')) {
+    emit('agent-line', { id, line: JSON.stringify({ type: 'system', subtype: 'compact_boundary', compact_metadata: { pre_tokens: 182_000, post_tokens: 21_000 } }) })
+    emit('agent-line', { id, line: JSON.stringify({ type: 'result', is_error: false, num_turns: 0, total_cost_usd: 0, usage: {}, duration_ms: 3000 }) })
+    return
+  }
   const shot = 'Voici la page :\\n\\n![Accueil](/captures/home.png)\\n\\nEt une capture effacée : ![Ancienne](/captures/old.png)'
   files.set('/captures/home.png', `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="640" height="360"><rect width="640" height="360" fill="#2a2420"/><text x="40" y="190" font-size="40" fill="#e8875a">Capture</text></svg>')}`)
   const page = () => {

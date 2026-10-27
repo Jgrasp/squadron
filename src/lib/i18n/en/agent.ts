@@ -127,6 +127,8 @@ export default {
   panelHide: 'Hide the agent’s panel',
   messagesAt: 'Messages {from} to {to} · {time}',
   earlierMessages: 'Earlier messages',
+  beforeCompaction: { one: '{count} message before the compaction of {when}', other: '{count} messages before the compaction of {when}' },
+  showThem: 'Show',
   latestMessage: 'Latest message',
   messagesBelow: { one: '{count} message below', other: '{count} messages below' },
   dropToAttach: 'Drop to attach to your message to {agent}',
