@@ -122,6 +122,28 @@ pub fn sweep(attachments: &Path, agents: &Path, older: Duration) {
     }
 }
 
+pub fn expire(dir: &Path, older: Duration) {
+    let Ok(entries) = fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let old = entry
+            .metadata()
+            .and_then(|m| m.modified())
+            .ok()
+            .and_then(|at| SystemTime::now().duration_since(at).ok())
+            .is_some_and(|age| age > older);
+        if old {
+            let path = entry.path();
+            let _ = if path.is_dir() {
+                fs::remove_dir_all(path)
+            } else {
+                fs::remove_file(path)
+            };
+        }
+    }
+}
+
 pub fn preview(path: &Path) -> Result<String, String> {
     let kind = media_type(path).ok_or("Not an image.")?;
     let bytes = fs::read(path).map_err(|e| e.to_string())?;
@@ -219,6 +241,23 @@ mod tests {
         }
         sweep(&store, &agents, Duration::from_secs(7 * 24 * 3600));
         assert!(kept.exists() && archived.exists() && !draft.exists());
+    }
+
+    #[test]
+    fn expires_the_week_old_screenshots_agents_saved() {
+        let dir = std::env::temp_dir().join(format!("squadron-expire-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("run")).unwrap();
+        let (old, fresh, folder) = (dir.join("old.png"), dir.join("new.png"), dir.join("run"));
+        fs::write(&old, "x").unwrap();
+        fs::write(&fresh, "x").unwrap();
+        let week = SystemTime::now() - Duration::from_secs(8 * 24 * 3600);
+        for p in [&old, &folder] {
+            fs::File::open(p).unwrap().set_modified(week).unwrap();
+        }
+        expire(&dir, Duration::from_secs(7 * 24 * 3600));
+        assert!(!old.exists() && !folder.exists() && fresh.exists());
+        let _ = fs::remove_dir_all(&dir);
     }
 
     #[test]

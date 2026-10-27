@@ -5,7 +5,7 @@
 
   export const isImage = (path: string) => /\.(png|jpe?g|gif|webp)$/i.test(path)
 
-  function preview(path: string) {
+  export function preview(path: string) {
     if (!previews.has(path)) previews.set(path, invoke<string>('attachment_preview', { path }))
     return previews.get(path)!
   }

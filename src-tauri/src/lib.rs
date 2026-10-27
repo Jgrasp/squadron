@@ -320,7 +320,10 @@ impl Settings {
             return Err(format!("Unknown tab order: {}", config.tab_order));
         }
         if config.compact_window != 0 && !(100_000..=1_000_000).contains(&config.compact_window) {
-            return Err(format!("Unknown compaction window: {}", config.compact_window));
+            return Err(format!(
+                "Unknown compaction window: {}",
+                config.compact_window
+            ));
         }
         config.keys.retain(|_, value| !value.trim().is_empty());
         config
@@ -1337,6 +1340,15 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            let captures = app.path().app_data_dir()?.join("captures");
+            let _ = std::fs::create_dir_all(&captures);
+            let _ = claude::CAPTURES.set(captures.clone());
+            std::thread::spawn(move || {
+                loop {
+                    attach::expire(&captures, std::time::Duration::from_secs(7 * 24 * 3600));
+                    std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+                }
+            });
             let (store, agents) = (
                 app.path().app_data_dir()?.join("attachments"),
                 config.join("agents"),
