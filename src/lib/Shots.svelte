@@ -5,9 +5,9 @@
 </script>
 
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core'
   import { preview } from './Attachment.svelte'
   import { t } from './i18n/index.svelte'
+  import { showCapture } from './captures.svelte'
 
   let { paths }: { paths: string[] } = $props()
 
@@ -34,12 +34,12 @@
   function open(event: MouseEvent, path: string) {
     event.preventDefault()
     event.stopPropagation()
-    invoke('open_attachment', { path }).catch(() => (gone = [...gone, path]))
+    showCapture(event.currentTarget as Element, path)
   }
 </script>
 
 {#if shown.length}
-  <span class="shots" class:all>
+  <span class="shots" class:all data-captures={JSON.stringify(shown)}>
     {#each all ? shown : shown.slice(0, 4) as path (path)}
       {#if seen[path]}
         <button type="button" title={t('conversation.openCapture')} onclick={(e) => open(e, path)}><img src={seen[path]} alt="" /></button>

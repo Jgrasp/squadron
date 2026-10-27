@@ -82,7 +82,7 @@
         </header>
         <div class="scroller">
           {#key current.id}
-            <div class="column"><Conversation agent={preview} ondiff={() => {}} /></div>
+            <div class="column" data-gallery><Conversation agent={preview} ondiff={() => {}} /></div>
           {/key}
         </div>
       {:else if list}
