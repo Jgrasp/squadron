@@ -362,6 +362,8 @@ function usage(d: Json, cost: number): Usage {
   }
 }
 
+export const flaggedWorktree = new Set<string>()
+
 export function apply(agent: Agent, d: Json) {
   agent.alive = true
   switch (d.type) {
@@ -370,7 +372,7 @@ export function apply(agent: Agent, d: Json) {
         if (d.session_id !== agent.sessionId) agent.forkOf = agent.forkAt = null
         agent.sessionId = d.session_id
       }
-      if (d.subtype === 'init' && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/.claude/worktrees/') && agent.worktree?.path !== d.cwd)
+      if (d.subtype === 'init' && flaggedWorktree.delete(agent.id) && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/.claude/worktrees/'))
         agent.worktree = { path: d.cwd, branch: '' }
       if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
         agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))

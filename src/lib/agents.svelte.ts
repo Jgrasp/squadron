@@ -20,6 +20,7 @@ import {
   READ_ONLY,
   exited,
   fail,
+  flaggedWorktree,
   GOAL_RELAUNCHES,
   newAgent,
   notice,
@@ -503,28 +504,29 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; dir?: string }
+type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[] }
 
-export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir }: Launch = {}) {
+export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [] }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || t('common.newAgent'), options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
+  if (worktree) flaggedWorktree.add(agent.id)
   if (!name) {
     agent.autoName = true
     if (text.trim()) entitle(agent, text)
   }
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
   else agents.current[project] = agent.id
-  if (text.trim()) userMessage(agent, text)
+  if (text.trim()) userMessage(agent, text, [], files)
   else {
     agent.status = 'done'
     agent.since = Date.now()
   }
   persist(agent)
   try {
-    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null })
+    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null, files })
     if (dir) branchOf(agent)
     if (options.mode !== 'plan') await arm(agent)
   } catch (e) {

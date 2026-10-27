@@ -13,7 +13,7 @@ import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
 import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?raw'
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
-import { apply, calls, exited, fail, newAgent, prompt, replayLog, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
+import { apply, calls, exited, fail, flaggedWorktree, newAgent, prompt, replayLog, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -49,10 +49,25 @@ describe('worktree', () => {
 
   it('reads the worktree of a session started with --worktree, until ExitWorktree', () => {
     const agent = fresh()
+    flaggedWorktree.add(agent.id)
     const lines = worktreeFlag.trim().split('\n')
     replay(agent, lines[0])
     expect(agent.worktree).toEqual({ path: '/project/.claude/worktrees/demo2', branch: '' })
     replay(agent, lines.slice(1).join('\n'))
+    expect(agent.worktree).toBeNull()
+  })
+
+  it('ignores a Claude Code worktree the agent only went into with cd', () => {
+    const agent = fresh()
+    apply(agent, { type: 'system', subtype: 'init', session_id: 's', cwd: '/project/.claude/worktrees/demo2' })
+    expect(agent.worktree).toBeNull()
+  })
+
+  it('reads the --worktree folder from the first start only', () => {
+    const agent = fresh()
+    flaggedWorktree.add(agent.id)
+    apply(agent, { type: 'system', subtype: 'init', session_id: 's', cwd: '/project' })
+    apply(agent, { type: 'system', subtype: 'init', session_id: 's', cwd: '/project/.claude/worktrees/demo2' })
     expect(agent.worktree).toBeNull()
   })
 

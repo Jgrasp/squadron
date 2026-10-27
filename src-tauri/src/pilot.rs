@@ -14,7 +14,7 @@ pub const INSTRUCTIONS: &str = "You run inside Squadron, the desktop app where t
 These tools act on Squadron itself: its projects and agents, the Kanban cards, and the layout of its buttons and menus. \
 When the user asks to change Squadron (move or hide a button, add a card, start an agent), use these tools and never edit Squadron's source code. \
 You can prepare and start new agents as the user would, and send an instruction to another agent with message_agent: the user approves each message. You never answer another agent's questions or permission requests in the user's place. \
-When you start working in a git worktree that you entered yourself (a script, git worktree add, cd), call set_worktree so Squadron shows its branch. \
+When your task moves into a git worktree that you made yourself (a script, git worktree add), call set_worktree so Squadron shows its branch. Going into another agent's worktree to look at it, or cd for a command, is not working there: leave your worktree as it is. \
 To start an agent in a worktree a script made, pass its path to start_agent. \
 During a long task made of many items, show where you are on your card with set_progress. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel.";
@@ -259,7 +259,7 @@ impl Pilot {
         self.forward(&parts, "move_card", json!(args)).await
     }
 
-    /// Tells Squadron which git worktree an agent works in, yours by default, when it was entered by hand (a script, git worktree add, cd): Squadron shows its branch and runs the agent there from its next start. Not needed when Claude Code created it (--worktree, EnterWorktree).
+    /// Tells Squadron which git worktree an agent works in, yours by default, when the task moved there by hand (a script, git worktree add), not for a folder only visited with cd: Squadron shows its branch and runs the agent there from its next start. Not needed when Claude Code created it (--worktree, EnterWorktree).
     #[tool]
     async fn set_worktree(
         &self,
