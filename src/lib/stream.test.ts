@@ -385,7 +385,7 @@ describe('stream', () => {
   })
 
   it('settles a relaunched subagent, not the stopped one it resumes', () => {
-    const agent = newAgent('a', '/p', 'a')
+    const agent = newAgent('a', '/p', 'a', { model: 'haiku', effort: 'low', mode: 'default' })
     const started = (id: string) => ({ type: 'system', subtype: 'task_started', task_type: 'local_agent', tool_use_id: id, task_id: 't1', description: 'Explore', is_backgrounded: true })
     apply(agent, started('first'))
     exited(agent, '')
