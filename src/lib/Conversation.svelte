@@ -38,7 +38,7 @@
 
   const SPAWN = ['Agent', 'Task']
 
-  const reviewing = new SvelteSet<number>()
+  const folded = new SvelteSet<number>()
 
   let menu = $state<{ index: number; text: string; x: number; y: number } | null>(null)
 
@@ -328,13 +328,13 @@
       <strong>{entry.title}</strong>
       <span class="detail">{entry.detail}</span>
       {#if entry.questions?.length}
-        <button class="review" aria-expanded={reviewing.has(i)} onclick={() => (reviewing.has(i) ? reviewing.delete(i) : reviewing.add(i))}>
-          {reviewing.has(i) ? t('conversation.hide') : t('conversation.reviewQuestions', { count: entry.questions.length })}
+        <button class="review" aria-expanded={!folded.has(i)} onclick={() => (folded.has(i) ? folded.delete(i) : folded.add(i))}>
+          {!folded.has(i) ? t('conversation.hide') : t('conversation.reviewQuestions', { count: entry.questions.length })}
         </button>
       {/if}
       <span class="at">{time(entry.at)}</span>
     </div>
-    {#if entry.questions && reviewing.has(i)}
+    {#if entry.questions && !folded.has(i)}
       <ol class="asked">
         {#each entry.questions as q (q.question)}
           {@const picked = q.answer.split(', ')}
