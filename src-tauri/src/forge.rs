@@ -1416,7 +1416,6 @@ mod tests {
     }
 
     #[test]
-    #[test]
     #[ignore = "asks Bitbucket and GitHub with the real accounts"]
     fn real_linked_pull_requests_of_both_hosts() {
         let rt = tokio::runtime::Runtime::new().unwrap();
@@ -1448,6 +1447,7 @@ mod tests {
         }
     }
 
+    #[test]
     #[ignore = "uses the system keyring"]
     fn real_keyring_keeps_a_secret() {
         let entry = keyring::Entry::new("squadron", "keyring-check").unwrap();
