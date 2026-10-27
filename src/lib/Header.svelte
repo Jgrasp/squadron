@@ -531,7 +531,15 @@
   }
 
   .tab[style] {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 32%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 55%, transparent);
+  }
+
+  .tab.ring:not([aria-current='page']) {
+    background: color-mix(in srgb, var(--project, var(--accent)) 10%, transparent);
+    box-shadow:
+      inset 0 0 0 1.5px var(--project, var(--accent)),
+      0 0 14px color-mix(in srgb, var(--project, var(--accent)) 40%, transparent);
+    color: var(--text);
   }
 
   .tab[aria-current='page'] {
