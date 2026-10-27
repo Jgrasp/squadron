@@ -122,7 +122,28 @@ export function markReviewed(dir: string, pull: Pull) {
   } catch {}
 }
 
-const same = (a: string, b: string) => a.startsWith(b) || b.startsWith(a)
+export const viewedFiles = $state<Record<string, Record<string, string>>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.viewed') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+export function setViewed(pull: Pull, path: string, blob: string | null) {
+  const files = { ...viewedFiles[pull.url] }
+  if (blob === null) delete files[path]
+  else files[path] = blob
+  if (Object.keys(files).length) viewedFiles[pull.url] = files
+  else delete viewedFiles[pull.url]
+  try {
+    localStorage.setItem('squadron.viewed', JSON.stringify(viewedFiles))
+  } catch {}
+}
+
+const same = (a: string, b: string) =>a.startsWith(b) || b.startsWith(a)
 
 export function sinceOf(dir: string, pull: Pull) {
   return reviewedHeads[`${dir}#${pull.number}`] ?? pull.reviewed_head ?? pull.reviewed_at

@@ -8,10 +8,10 @@
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
-  import { ask } from '@tauri-apps/plugin-dialog'
+  import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { hostName, markReviewed, post, reviews, type Pull, type Remark } from './pulls.svelte'
+  import { hostName, markReviewed, merge, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
   import Trans from './Trans.svelte'
@@ -254,7 +254,7 @@
     note = found ? found.list[found.index].note : ''
   }
 
-  type Patch = { hunks: Hunk[]; status: string; binary: boolean }
+  type Patch = { hunks: Hunk[]; status: string; binary: boolean; blob: string }
   let patches = $state<Record<string, Patch | { error: string } | 'loading'>>({})
   const patchOf = (path: string) => patches[`${source?.from}:${source?.now}:${path}`]
 
@@ -266,7 +266,12 @@
     invoke<string>('git_patch', { project: folder, from: source.from, now: source.now, path })
       .then(
         (text) =>
-          (patches[key] = { hunks: (parsePatch(text)[0]?.hunks ?? []) as Hunk[], status: STATUS[status] ?? 'MODIFIED', binary: /^Binary files /m.test(text) }),
+          (patches[key] = {
+            hunks: (parsePatch(text)[0]?.hunks ?? []) as Hunk[],
+            status: STATUS[status] ?? 'MODIFIED',
+            binary: /^Binary files /m.test(text),
+            blob: /^index \w+\.\.(\w+)/m.exec(text)?.[1] ?? '',
+          }),
       )
       .catch((e) => (patches[key] = { error: String(e) }))
   }
@@ -282,7 +287,36 @@
 
   let body = $state<HTMLElement>()
   let spot = $state('')
-  let folded = $state<string[]>([])
+  let flipped = $state<string[]>([])
+  const seen = $derived(reviewing && pull ? (viewedFiles[pull.url] ?? {}) : {})
+  const viewedCount = $derived(files.filter((f) => viewed(f.path) === 'yes').length)
+
+  function viewed(path: string) {
+    if (!(path in seen)) return 'no'
+    const patch = patchOf(path)
+    if (!patch || patch === 'loading' || 'error' in patch) return 'yes'
+    return patch.blob === seen[path] ? 'yes' : 'changed'
+  }
+
+  const isOpen = (path: string) => (viewed(path) === 'yes') === flipped.includes(path)
+  const setOpen = (path: string, open: boolean) => {
+    if (isOpen(path) !== open) flipped = flipped.includes(path) ? flipped.filter((p) => p !== path) : [...flipped, path]
+  }
+
+  function toggleViewed(path: string, event: Event) {
+    const patch = patchOf(path)
+    if (!pull || !patch || patch === 'loading' || 'error' in patch) return
+    const on = viewed(path) !== 'yes'
+    setViewed(pull, path, on ? patch.blob : null)
+    flipped = flipped.filter((p) => p !== path)
+    const section = (event.currentTarget as HTMLElement).closest<HTMLElement>('[data-file]')
+    if (on && body && section && section.getBoundingClientRect().top < body.getBoundingClientRect().top) tick().then(() => within(section, 'start'))
+  }
+
+  $effect(() => {
+    if (!reviewing || !source) return
+    for (const path of Object.keys(seen)) if (files.some((f) => f.path === path)) untrack(() => loadPatch(path))
+  })
   let wholes = $state<string[]>([])
   const toggleWhole = (path: string) => (wholes = wholes.includes(path) ? wholes.filter((p) => p !== path) : [...wholes, path])
 
@@ -308,7 +342,7 @@
   function scrollToFile(path: string) {
     spot = path
     steered = Date.now()
-    folded = folded.filter((p) => p !== path)
+    setOpen(path, true)
     tick().then(() => within(body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`), 'start'))
   }
 
@@ -470,6 +504,28 @@
     onposted?.()
   }
 
+  let merging = $state(false)
+
+  async function mergeIt() {
+    if (!pull) return
+    const sure = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {
+      title: t('review.mergeTitle'),
+      kind: 'warning',
+      okLabel: t('review.merge'),
+      cancelLabel: t('common.cancel'),
+    })
+    if (!sure) return
+    merging = true
+    postError = null
+    try {
+      await merge(folder, pull)
+      onposted?.()
+    } catch (e) {
+      postError = { text: String(e), done: 0 }
+    }
+    merging = false
+  }
+
   function handOver() {
     const list = $state.snapshot(review)
     reviews[reviewKey] = []
@@ -587,6 +643,12 @@
         >
       {/if}
       {#if review.length}<button class="btn btn-secondary" onclick={discard}>{t('review.discard')}</button>{/if}
+      {#if own && pull.mergeable && !review.length}
+        <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
+      {/if}
+      {#if !own && !agent}
+        <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'approve'} onclick={() => ((verdict = 'approve'), (finishing = true))}>{t('review.verdictApprove')}</button>
+      {/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>{t('review.finishReview')}</button>
     </div>
     {#if listing && review.length}
@@ -662,6 +724,7 @@
           role="tab"
           aria-selected={reviewing ? f.path === spot : f === selected}
           class:other={!f.edits && !reviewing && !!agent}
+          class:viewed={reviewing && viewed(f.path) === 'yes'}
           title={f.edits || !agent ? f.path : t('review.notEditedByShort', { path: f.path, agent: agent.name })}
           onclick={() => (reviewing ? scrollToFile(f.path) : (file = f.path))}
         >
@@ -676,7 +739,14 @@
     <div class="columns">
     {#if layout.fileTree}
       <ChangedFiles
-        files={files.map((f) => ({ ...f, other: !f.edits && !reviewing && !!agent, talks: reviewing ? talks(f.path) : 0, drafts: reviewing ? draftsIn(f.path) : 0 }))}
+        files={files.map((f) => ({
+          ...f,
+          other: !f.edits && !reviewing && !!agent,
+          talks: reviewing ? talks(f.path) : 0,
+          drafts: reviewing ? draftsIn(f.path) : 0,
+          viewed: reviewing && viewed(f.path) === 'yes',
+        }))}
+        viewed={reviewing ? viewedCount : null}
         selected={reviewing ? spot : selected?.path}
         onpick={(path) => (reviewing ? scrollToFile(path) : (file = path))}
       />
@@ -715,14 +785,15 @@
       {#if reviewing}
         {#each files as f (f.path)}
           {@const patch = patchOf(f.path)}
-          {@const open = !folded.includes(f.path)}
+          {@const open = isOpen(f.path)}
+          {@const seenAs = viewed(f.path)}
           <section class="file" data-file={f.path} use:approach={f.path}>
             <div class="file-head">
               <button
                 class="fold-file"
                 aria-expanded={open}
                 aria-label={open ? t('review.foldFile', { path: f.path }) : t('review.unfoldFile', { path: f.path })}
-                onclick={() => (folded = open ? [...folded, f.path] : folded.filter((p) => p !== f.path))}
+                onclick={() => setOpen(f.path, !open)}
               >
                 <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
               </button>
@@ -734,6 +805,18 @@
               {#if open && patch && typeof patch === 'object' && 'status' in patch && patch.status === 'MODIFIED' && !patch.binary && patch.hunks.length}
                 <button class="whole" aria-pressed={wholes.includes(f.path)} onclick={() => toggleWhole(f.path)}>{t('review.wholeFile')}</button>
               {/if}
+              <button
+                class="mark-viewed"
+                class:changed={seenAs === 'changed'}
+                role="checkbox"
+                aria-checked={seenAs === 'yes'}
+                disabled={!patch || patch === 'loading' || 'error' in patch}
+                title={seenAs === 'changed' ? t('review.changedSinceViewed') : undefined}
+                onclick={(e) => toggleViewed(f.path, e)}
+              >
+                <span class="box" aria-hidden="true"><svg width="10" height="10" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5" /></svg></span>
+                {seenAs === 'changed' ? t('review.changedViewed') : t('review.viewed')}
+              </button>
             </div>
             {#if open}
               {#if !patch || patch === 'loading'}
@@ -1501,6 +1584,62 @@
     color: var(--text-strong);
   }
 
+  .mark-viewed {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 8px 0 6px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-dim);
+    font-size: 11.5px;
+  }
+
+  .mark-viewed:hover:not(:disabled) {
+    color: var(--text-strong);
+  }
+
+  .mark-viewed:disabled {
+    opacity: 0.5;
+  }
+
+  .mark-viewed .box {
+    width: 12px;
+    height: 12px;
+    display: grid;
+    place-items: center;
+    border-radius: 2px;
+    box-shadow: inset 0 0 0 1px var(--text-faint);
+  }
+
+  .mark-viewed svg {
+    fill: none;
+    stroke: var(--accent-ink);
+    stroke-width: 3.5;
+    visibility: hidden;
+  }
+
+  .mark-viewed[aria-checked='true'] {
+    background: var(--surface-3);
+    color: var(--text-strong);
+  }
+
+  .mark-viewed[aria-checked='true'] .box {
+    background: var(--accent);
+    box-shadow: none;
+  }
+
+  .mark-viewed[aria-checked='true'] svg {
+    visibility: visible;
+  }
+
+  .mark-viewed.changed {
+    color: var(--accent-soft);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+  }
+
   .ahead {
     flex: none;
     margin: 0;
@@ -1543,6 +1682,10 @@
   .tabs button.other {
     color: var(--text-dim);
     box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .tabs button.viewed {
+    color: var(--text-faint);
   }
 
   .add {

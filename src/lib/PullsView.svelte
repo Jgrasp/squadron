@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { ask } from '@tauri-apps/plugin-dialog'
+  import { ask } from './asking.svelte'
   import { agents, clock, find, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
@@ -174,7 +174,7 @@
               `review-${pull.number}`,
               { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) },
               waitsFor(project.path, pull),
-              [openOn(pull), ...approving(pull), ...merging(pull)],
+              [openOn(pull), ...approving(pull)],
               opened?.number === pull.number,
             )}
           </article>
@@ -193,7 +193,7 @@
             <span class="verdict {standing(pull)[0]}">{standing(pull)[1]}</span>
             {@render about(pull)}
             {#if pull.mergeable}
-              {@render split(`mine-${pull.number}`, merging(pull)[0], true, [reviewing, openOn(pull), ...others])}
+              {@render split(`mine-${pull.number}`, merging(pull)[0], true, [openOn(pull), ...others], false, reviewing, opened?.number === pull.number)}
             {:else}
               {@render split(`mine-${pull.number}`, reviewing, false, [openOn(pull), ...others], opened?.number === pull.number)}
             {/if}
@@ -229,8 +229,11 @@
 {/if}
 </div>
 
-{#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean)}
+{#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean)}
   <div class="split" data-menu>
+    {#if lead}
+      <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
+    {/if}
     <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={!!busy && !main.always} onclick={() => ((menu = ''), main.run())}>
       {main.label}
     </button>
@@ -612,6 +615,10 @@
     height: 32px;
     padding: 0 12px;
     white-space: nowrap;
+  }
+
+  .split .lead {
+    margin-right: 8px;
   }
 
   .main:not(.alone) {

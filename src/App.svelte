@@ -9,6 +9,7 @@
   import ProjectView from './lib/ProjectView.svelte'
   import Settings from './lib/SettingsDialog.svelte'
   import Spotlight from './lib/Spotlight.svelte'
+  import Confirm from './lib/Confirm.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, create, find, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
@@ -25,7 +26,7 @@
   import { lookForUpdate } from './lib/update.svelte'
   import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
   import PullsView from './lib/PullsView.svelte'
-  import { current, load, popOut, projects, setCards } from './lib/projects.svelte'
+  import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
   const mirrored = $derived(
@@ -101,7 +102,9 @@
 
   $effect(() => {
     const unlisten = getCurrentWebview().onDragDropEvent((event) => {
-      if (event.payload.type === 'drop' && event.payload.paths.length) ui.adding = event.payload.paths[0]
+      if (event.payload.type !== 'drop' || !event.payload.paths.length || ui.drops) return
+      const [path] = event.payload.paths
+      inspect(path).then((info) => info.exists && ui.adding === null && (ui.adding = path))
     })
     return () => {
       unlisten.then((stop) => stop())
@@ -114,6 +117,7 @@
     if (!href || href.startsWith('#')) return
     event.preventDefault()
     if (/^https?:\/\//.test(href)) invoke('open_link', { url: href })
+    else if (/^(\/|file:\/\/)/.test(href)) invoke('open_attachment', { path: decodeURI(href.replace(/^file:\/\//, '')) }).catch(() => {})
   }
 
   const SCOPED = ['newAgent', 'interrupt', 'editor', 'terminal', 'diff', 'sidebar']
@@ -167,6 +171,8 @@
 {#if ui.searching}
   <Spotlight onclose={() => (ui.searching = false)} />
 {/if}
+
+<Confirm />
 
 <style>
   .app {

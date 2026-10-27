@@ -1043,6 +1043,13 @@ async fn save_capture(data: String) -> Result<PathBuf, String> {
 }
 
 #[tauri::command]
+fn attachment_size(path: PathBuf) -> Result<u64, String> {
+    std::fs::metadata(&path)
+        .map(|meta| meta.len())
+        .map_err(|_| "The file is gone.".into())
+}
+
+#[tauri::command]
 async fn attachment_preview(path: PathBuf) -> Result<String, String> {
     tauri::async_runtime::spawn_blocking(move || attach::preview(&path))
         .await
@@ -1317,6 +1324,7 @@ pub fn run() {
             send_message,
             save_attachment,
             attachment_preview,
+            attachment_size,
             save_capture,
             open_attachment,
             paste_image,

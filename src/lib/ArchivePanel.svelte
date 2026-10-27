@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ask } from '@tauri-apps/plugin-dialog'
+  import { ask } from './asking.svelte'
   import { archived, forget, unarchive, type Archived } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import Dialog from './Dialog.svelte'

@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { ask } from '@tauri-apps/plugin-dialog'
+  import { ask } from './asking.svelte'
   import { untrack } from 'svelte'
   import { ofProject } from './agents.svelte'
   import CodeEditor, { forget, languageOf } from './CodeEditor.svelte'

@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { ask } from '@tauri-apps/plugin-dialog'
+  import { ask } from './asking.svelte'
   import { agents, archive, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
   import { ago, short } from './format'
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'

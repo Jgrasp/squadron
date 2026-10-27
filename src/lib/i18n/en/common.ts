@@ -1,5 +1,6 @@
 export default {
   cancel: 'Cancel',
+  ok: 'OK',
   close: 'Close',
   save: 'Save',
   saved: 'Saved',

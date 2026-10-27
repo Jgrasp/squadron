@@ -301,7 +301,7 @@ function subagentEvent(agent: Agent, d: Json) {
       background: !!d.is_backgrounded,
       log: [],
     })
-  const sub = agent.subagents.find((s) => s.task === d.task_id)
+  const sub = agent.subagents.findLast((s) => s.task === d.task_id)
   if (!sub) return
   const u = d.usage
   if (u) {
@@ -576,7 +576,7 @@ export function commandOutput(text: string) {
 
 function remoteMessage(agent: Agent, d: Json) {
   if (d.origin?.handback) {
-    const sub = agent.subagents.find((s) => s.task === d.origin.senderTaskId)
+    const sub = agent.subagents.findLast((s) => s.task === d.origin.senderTaskId)
     if (sub && d.origin.handbackReportText) sub.result = String(d.origin.handbackReportText)
     return
   }

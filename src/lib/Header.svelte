@@ -72,7 +72,7 @@
   }
 
   function choose(path: string) {
-    projects.overview = false
+    projects.overview = projects.pulls = projects.board = false
     projects.current = path
     moreOpen = false
     search = ''
@@ -169,7 +169,7 @@
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         class:ring={settings.tab_ring !== 'off' && waiting(project.path) > 0}
         style:--project={project.color}
-        onclick={() => ((projects.overview = false), (projects.current = project.path))}
+        onclick={() => choose(project.path)}
         oncontextmenu={(e) => (e.preventDefault(), (context = { path: project.path, x: e.clientX, y: e.clientY }))}
       >
         <span class="dot" aria-hidden="true"></span>
@@ -531,7 +531,15 @@
   }
 
   .tab[style] {
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 32%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 55%, transparent);
+  }
+
+  .tab.ring:not([aria-current='page']) {
+    background: color-mix(in srgb, var(--project, var(--accent)) 10%, transparent);
+    box-shadow:
+      inset 0 0 0 1.5px var(--project, var(--accent)),
+      0 0 14px color-mix(in srgb, var(--project, var(--accent)) 40%, transparent);
+    color: var(--text);
   }
 
   .tab[aria-current='page'] {

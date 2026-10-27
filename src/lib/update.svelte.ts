@@ -1,5 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app'
-import { ask, message } from '@tauri-apps/plugin-dialog'
+import { ask, message } from './asking.svelte'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { agents, saveAll } from './agents.svelte'

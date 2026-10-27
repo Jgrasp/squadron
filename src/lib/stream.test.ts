@@ -383,4 +383,17 @@ describe('stream', () => {
     expect(sub.log[0].at).toBe(Date.parse('2026-10-21T14:02:41.000Z'))
     expect(sub.log.some((b) => b.type === 'tools' && b.calls[0].result)).toBe(true)
   })
+
+  it('settles a relaunched subagent, not the stopped one it resumes', () => {
+    const agent = newAgent('a', '/p', 'a', { model: 'haiku', effort: 'low', mode: 'default' })
+    const started = (id: string) => ({ type: 'system', subtype: 'task_started', task_type: 'local_agent', tool_use_id: id, task_id: 't1', description: 'Explore', is_backgrounded: true })
+    apply(agent, started('first'))
+    exited(agent, '')
+    apply(agent, started('again'))
+    apply(agent, { type: 'system', subtype: 'task_notification', task_id: 't1', status: 'completed', summary: 'done' })
+    expect(agent.subagents.map((s) => [s.id, s.status])).toEqual([
+      ['first', 'stopped'],
+      ['again', 'done'],
+    ])
+  })
 })

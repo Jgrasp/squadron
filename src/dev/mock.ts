@@ -472,6 +472,8 @@ mockIPC(
         throw 'Not an image.'
       case 'open_attachment':
         return
+      case 'attachment_size':
+        return a.path.length * 3_917
       case 'project_sessions':
         return [
           { id: '271982a4-ba81-4f9b-ac49-2c87f1ef6e88', title: '[ORB-809] Pilotage tickets', cwd: a.project, here: true, updated: Date.now() - 3_600_000, size: 34_000_000, app: true, archived: false, model: 'opus', effort: 'high', mode: 'default' },
@@ -579,7 +581,7 @@ mockIPC(
       case 'git_patch':
         return a.path.endsWith('Test.php')
           ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
-          : `diff --git a/${a.path} b/${a.path}\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
+          : `diff --git a/${a.path} b/${a.path}\nindex 3f2a91c..${a.now.slice(0, 7)} 100644\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
       case 'list_dir': {
         const tree: Record<string, [string, boolean][]> = {
           '': [['config', true], ['src', true], ['tests', true], ['vendor', true], ['composer.json', false], ['composer.lock', false], ['resume.txt', false]],
