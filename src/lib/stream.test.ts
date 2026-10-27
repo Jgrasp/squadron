@@ -13,7 +13,7 @@ import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
 import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?raw'
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
-import { apply, calls, exited, fail, newAgent, prompt, replayLog, subagentOf, userMessage, type Agent, type Entry } from './stream'
+import { apply, calls, exited, fail, newAgent, prompt, replayLog, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -324,6 +324,15 @@ describe('stream', () => {
     expect(agent.remote.last).toBeGreaterThan(0)
     apply(agent, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 'x', content: 'ok' }] } })
     expect(agent.entries.filter((e) => e.kind === 'user')).toHaveLength(2)
+  })
+
+  it('shows a message from another Claude session without its wrapper', () => {
+    const agent = fresh()
+    const content = 'Another Claude session sent a message:\n<cross-session-message from="uds:/run/x.sock" from-name="mercure2-62" from-mode="prompting">\nBAT-809 DÉBUT T5A\n</cross-session-message>\n\nThis came from another Claude session.'
+    apply(agent, { type: 'user', isReplay: true, parent_tool_use_id: null, origin: { kind: 'peer' }, message: { role: 'user', content } })
+    expect(agent.entries.at(-1)).toEqual(expect.objectContaining({ kind: 'user', text: 'BAT-809 DÉBUT T5A', peer: 'mercure2-62' }))
+    expect(agent.entries.at(-1)).not.toHaveProperty('remote')
+    expect(peerMessage('<cross-session-message from="local_1" name="[BAT-809] : Pilotage">x</cross-session-message>')?.from).toBe('[BAT-809] : Pilotage')
   })
 
   it('keeps the waiting label while the agent keeps streaming', () => {

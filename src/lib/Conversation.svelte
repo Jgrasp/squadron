@@ -241,6 +241,7 @@
       {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
     </div>
     {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
+    {#if entry.peer !== undefined}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>{/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
   {:else if entry.kind === 'agent'}
     {@const reply = groups(entry.blocks)}

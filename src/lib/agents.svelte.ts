@@ -13,6 +13,7 @@ import {
   argument,
   captures,
   commandEcho,
+  peerMessage,
   commandOutput,
   subagentOf,
   INTERNAL,
@@ -254,6 +255,8 @@ async function adopt(data: Agent) {
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
   agent.entries = agent.entries.flatMap((e): Entry[] => {
     if (e.kind !== 'user') return [e]
+    const peer = peerMessage(e.text)
+    if (peer) return [{ ...e, text: peer.text, peer: peer.from, remote: undefined }]
     const text = commandEcho(e.text) ? commandOutput(e.text) : notice(e.text)
     return text === undefined ? [e] : text ? [{ kind: 'note', at: e.at, command: 'notice', text }] : []
   })

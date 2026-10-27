@@ -82,7 +82,7 @@ export type Goal = {
 }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string; peer?: string }
   | { kind: 'agent'; blocks: Block[]; uuid?: string }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
@@ -558,6 +558,13 @@ function relaunched(agent: Agent, text: string) {
 
 export const notice = (text: string) => /^<task-notification>\s*([\s\S]*?)\s*<\/task-notification>$/.exec(text.trim())?.[1]
 
+export function peerMessage(text: string) {
+  const m = /<cross-session-message\b([^>]*)>([\s\S]*?)<\/cross-session-message>/.exec(text)
+  if (!m) return
+  const attr = (key: string) => new RegExp(`(?:^|\\s)${key}="([^"]*)"`).exec(m[1])?.[1]
+  return { from: attr('from-name') || attr('name') || attr('from') || '', text: m[2].trim() }
+}
+
 export const commandEcho = (text: string) => /^<(local-command-|command-name>|command-message>)/.test(text.trim())
 
 export function commandOutput(text: string) {
@@ -576,10 +583,12 @@ function remoteMessage(agent: Agent, d: Json) {
   const inside = commandEcho(text) ? commandOutput(text) : notice(text)
   if (inside) agent.entries.push({ kind: 'note', at: d.timestamp ? Date.parse(d.timestamp) : Date.now(), command: 'notice', text: inside })
   if (inside !== undefined) return
-  userMessage(agent, text)
+  const peer = peerMessage(text)
+  userMessage(agent, peer?.text ?? text)
   const entry = agent.entries.at(-1)
   if (entry?.kind === 'user') {
-    entry.remote = true
+    if (peer) entry.peer = peer.from
+    else entry.remote = true
     entry.at = d.timestamp ? Date.parse(d.timestamp) : entry.at
   }
   if (agent.remote) agent.remote.last = Date.now()

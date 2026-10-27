@@ -52,6 +52,7 @@ export default {
   thoughtSeconds: 'Thought for {count} s',
 
   sentBy: 'Sent by {from}, approved by you · {time}',
+  sentByPeer: 'Sent by session {from} · {time}',
   sentRemote: 'Sent via remote control · {time}',
   turnDone: 'Turn {index} done · {input} in · {output} out · {duration}',
   turnLive: 'Turn in progress · {input} in · {output} out · {duration}',
