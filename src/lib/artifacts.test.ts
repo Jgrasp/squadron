@@ -1,17 +1,32 @@
 import { describe, expect, it } from 'vitest'
-import { docsOf, fileName } from './artifacts'
+import { docsOf, fileName, freeId, insideArtifacts } from './artifacts'
 import { newAgent, type ToolCall } from './stream'
 
 describe('fileName', () => {
-  const artifact = { id: 'a', content: '', version: 1, at: 0 }
-
   it('turns the title into a file name with the extension of its kind', () => {
-    expect(fileName({ ...artifact, title: 'Plan de migration : étape 2', kind: 'markdown' })).toBe('plan-de-migration-etape-2.md')
-    expect(fileName({ ...artifact, title: 'Schéma', kind: 'svg' })).toBe('schema.svg')
+    expect(fileName({ title: 'Plan de migration : étape 2', kind: 'markdown' })).toBe('plan-de-migration-etape-2.md')
+    expect(fileName({ title: 'Schéma', kind: 'svg' })).toBe('schema.svg')
+    expect(fileName({ title: '« »', kind: 'html' })).toBe('artifact.html')
   })
+})
 
-  it('falls back to artifact when nothing is left of the title', () => {
-    expect(fileName({ ...artifact, title: '« »', kind: 'html' })).toBe('artifact.html')
+describe('freeId', () => {
+  it('names the folder after the title, numbered when taken', () => {
+    expect(freeId('Maquette accueil', [])).toBe('maquette-accueil')
+    expect(freeId('Maquette accueil', ['maquette-accueil', 'maquette-accueil-2'])).toBe('maquette-accueil-3')
+  })
+})
+
+describe('insideArtifacts', () => {
+  const root = '/data/artifacts'
+
+  it('lets an agent write only inside its own artifacts folder', () => {
+    expect(insideArtifacts(root, 'a1', '/data/artifacts/a1/page/index.html')).toBe(true)
+    expect(insideArtifacts(root, 'a1', '/data/artifacts/a2/page/index.html')).toBe(false)
+    expect(insideArtifacts(root, 'a1', '/data/artifacts/a1/../a2/index.html')).toBe(false)
+    expect(insideArtifacts(root, 'a1', '/data/artifacts/a1')).toBe(false)
+    expect(insideArtifacts('', 'a1', '/a1/page/index.html')).toBe(false)
+    expect(insideArtifacts(root, 'a1', undefined)).toBe(false)
   })
 })
 
@@ -39,8 +54,6 @@ describe('docsOf', () => {
     const hidden = agentWith([birth(link)])
     hidden.hiddenDocs = [link]
     expect(docsOf(hidden)).toEqual([])
-    const linked = agentWith([birth(link)])
-    linked.artifacts = [{ id: 'a', title: 'Plan', kind: 'markdown', content: '#', version: 1, at: 0, link }]
-    expect(docsOf(linked)).toEqual([])
+    expect(docsOf(agentWith([birth(link)]), [link])).toEqual([])
   })
 })

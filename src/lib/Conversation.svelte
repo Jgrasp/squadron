@@ -216,7 +216,7 @@
 {#snippet detail(list: Segment[], i: number, tail: Block | undefined, quiet: boolean)}
   {#each list as segment, s (s)}
     {#if segment.type === 'text'}
-      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} cards {onrun} /></div>
+      <div class:quiet><Markdown text={segment.text} streaming={!!tail && segment === tail} cards project={agent.project} {onrun} /></div>
     {:else if segment.type === 'work'}
       {#if segment.thinking && (settings.thinking !== 'hidden' || segment.ms === undefined)}
         {#if segment.thought && settings.thinking === 'shown'}
@@ -246,9 +246,9 @@
 
 {#each agent.entries.slice(start) as entry, k (start + k)}
   {@const i = start + k}
-  {#if entry.kind === 'user' && entry.peer !== undefined}
+  {#if entry.kind === 'user' && (entry.peer !== undefined || entry.from)}
     <div class="peer" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
-      <span class="from"><span class="dot" aria-hidden="true"></span>{t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>
+      <span class="from"><span class="dot" aria-hidden="true"></span>{entry.from ? t('conversation.sentBy', { from: entry.from, time: time(entry.at) }) : t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>
       <Markdown text={entry.text} />
     </div>
   {:else if entry.kind === 'user'}
@@ -270,7 +270,6 @@
         {/each}
       </div>
     {/if}
-    {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
   {:else if entry.kind === 'shell'}
     <ShellCard {entry} {onreplay} {onterminal} />

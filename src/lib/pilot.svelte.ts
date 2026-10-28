@@ -9,11 +9,12 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { editProject, projects, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { pulls, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
+import { pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
-import { ARTIFACT_MAX, ARTIFACT_KINDS, DOC_LINK } from './artifacts'
+import { ARTIFACT_MAX, ARTIFACT_KINDS, DOC_LINK, freeId, type ArtifactInfo } from './artifacts'
+import { refresh } from './artifacts.svelte'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
@@ -239,7 +240,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
   read_pull_comments: async (caller, args) => {
     const project = projectFor(caller, args.project)
     const own = project.path === caller.project
-    const number = Number(args.number) || (own ? (caller.review?.number ?? pulls[workdir(caller)]?.number) : undefined)
+    const number = Number(args.number) || (own ? (caller.review?.number ?? pullOf(caller)?.number) : undefined)
     if (!number) throw new Error('No pull request found for your branch. Pass its number.')
     const remarks = await invoke<Remark[]>('pull_remarks', { dir: project.path, number })
     const byId = new Map(remarks.map((r) => [r.id, r]))
@@ -308,33 +309,35 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Your panel shows under the header of your conversation, ${height}px high.${hidden ? ' The user has hidden it: they see it when they show it again.' : ''}`
   },
 
-  publish_artifact: (caller, args) => {
+  publish_artifact: async (caller, args) => {
     const id = String(args.id ?? '').trim()
     const content = String(args.content ?? '')
     const link = String(args.link ?? '').trim()
-    const list = caller.artifacts ?? []
+    const list = await invoke<ArtifactInfo[]>('list_artifacts', { agent: caller.id })
     const found = id ? list.find((a) => a.id === id) : undefined
     if (id && !found) throw new Error(`You have no artifact ${id}. Your artifacts: ${list.map((a) => `${a.id} “${a.title}”`).join(', ') || 'none'}.`)
     if (link && !DOC_LINK.test(link)) throw new Error(`${link} is not the link of a claude.ai doc.`)
     if (!content.trim()) {
       if (!found) throw new Error('The content is empty.')
       if (link) {
-        caller.artifacts = list.map((a) => (a === found ? { ...a, link } : a))
-        persist(caller)
+        await invoke('set_artifact_link', { agent: caller.id, id, link })
+        await refresh(caller.id)
         return `Artifact ${id} now links to ${link}: the user opens and shares it from the Artifacts panel.`
       }
-      caller.artifacts = list.filter((a) => a !== found)
-      persist(caller)
+      await invoke('delete_artifact', { agent: caller.id, id })
+      await refresh(caller.id)
       return `Artifact ${id} deleted.`
     }
     if (content.length > ARTIFACT_MAX) throw new Error(`The content is ${content.length} characters long; keep it under ${ARTIFACT_MAX}.`)
     const kind = pick(args.kind, ARTIFACT_KINDS, found?.kind ?? 'markdown', 'kind')
     const title = String(args.title ?? '').trim() || found?.title || ''
     if (!title) throw new Error('The title is empty.')
-    const artifact = { id: found?.id ?? crypto.randomUUID().slice(0, 8), title, kind, content, version: (found?.version ?? 0) + 1, at: Date.now(), link: link || found?.link }
-    caller.artifacts = found ? list.map((a) => (a === found ? artifact : a)) : [...list, artifact]
-    persist(caller)
-    return `Artifact ${artifact.id} “${title}” published${found ? ` as version ${artifact.version}` : ''}. The user sees it in the Artifacts panel of your conversation. Call publish_artifact with id ${artifact.id} to update it.`
+    const named = kind === 'markdown' && !/^# /m.test(content) ? `# ${title}\n\n${content}` : content
+    const folder = found?.id ?? freeId(title, list.map((a) => a.id))
+    const path = await invoke<string>('write_artifact', { agent: caller.id, id: folder, kind, content: named })
+    if (link) await invoke('set_artifact_link', { agent: caller.id, id: folder, link })
+    await refresh(caller.id)
+    return `Artifact ${folder} “${title}” ${found ? 'updated' : 'published'} at ${path}. The user sees it in the Artifacts panel of your conversation. Edit that file, or add files beside it, to change it: the panel reloads on each save.`
   },
 
   ask_values: async (caller, args) => {

@@ -8,6 +8,7 @@ import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
+import picker from '../../src-tauri/src/artifact-pick.js?raw'
 
 type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; tickets?: unknown[] }
 
@@ -311,6 +312,16 @@ const replies = new Map<string, (result: string) => void>()
     emit('pilot-request', { id, agent, tool, args })
   })
 const files = new Map<string, string>()
+type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; content: string }
+const shelves = new Map<string, Shelved[]>()
+const ENTRY = { html: 'index.html', markdown: 'index.md', svg: 'index.svg' }
+const titled = (kind: string, content: string, id: string) =>
+  (kind === 'markdown' ? /^# (.+)$/m.exec(content)?.[1] : /<title>([^<]*)<\/title>/i.exec(content)?.[1])?.trim() || id
+;(window as unknown as { __artifactUrl: unknown }).__artifactUrl = (agent: string, artifact: { id: string }) => {
+  const found = shelves.get(agent)?.find((a) => a.id === artifact.id)
+  const body = found?.kind === 'html' ? found.content.replace(/<\/body>|$/i, (end) => `<script>${picker}<\/script>${end}`) : (found?.content ?? '')
+  return URL.createObjectURL(new Blob([body], { type: found?.kind === 'svg' ? 'image/svg+xml' : 'text/html;charset=utf-8' }))
+}
 let terminal = 0
 let line = ''
 const shells = new Map<number, number>()
@@ -476,6 +487,26 @@ mockIPC(
       case 'restore_agent':
         projectOf.set(a.id, a.project)
         return
+      case 'artifacts_dir':
+        return '/home/demo/.local/share/squadron/artifacts'
+      case 'list_artifacts':
+        return (shelves.get(a.agent) ?? []).map(({ content, ...rest }) => rest)
+      case 'read_artifact':
+        return shelves.get(a.agent)?.find((x) => x.id === a.id)?.content ?? ''
+      case 'write_artifact': {
+        const list = (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id)
+        const old = shelves.get(a.agent)?.find((x) => x.id === a.id)
+        shelves.set(a.agent, [...list, { id: a.id, kind: a.kind as Shelved['kind'], entry: ENTRY[a.kind as keyof typeof ENTRY], title: titled(a.kind, a.content, a.id), modified: Date.now(), link: old?.link ?? null, content: a.content }])
+        return `/home/demo/.local/share/squadron/artifacts/${a.agent}/${a.id}/${ENTRY[a.kind as keyof typeof ENTRY]}`
+      }
+      case 'set_artifact_link':
+        for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.link = a.link
+        return null
+      case 'delete_artifact':
+        shelves.set(a.agent, (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id))
+        return null
+      case 'open_artifact_folder':
+        return null
       case 'read_project_file':
         if (files.has(a.path)) return files.get(a.path)
         if (a.path.endsWith('.php')) return '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'

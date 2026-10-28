@@ -4,7 +4,7 @@
   import { agents, clock, find, reply, send, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pulls, fixWithAgent, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, fixWithAgent, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
@@ -99,7 +99,7 @@
     lookUpLists(project.path)
   })
 
-  const agentOn = (pull: Pull) => agents.list.find((a) => a.project === project.path && pulls[workdir(a)]?.number === pull.number)
+  const agentOn = (pull: Pull) => agents.list.find((a) => a.project === project.path && pullOf(a)?.number === pull.number)
   const reviewerOf = (pull: Pull) => agents.list.find((a) => a.review?.project === project.path && a.review.number === pull.number)
 
   function since(at: string) {

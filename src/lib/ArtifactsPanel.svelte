@@ -2,28 +2,64 @@
   import { invoke } from '@tauri-apps/api/core'
   import { save } from '@tauri-apps/plugin-dialog'
   import { persist, send } from './agents.svelte'
-  import { docsOf, fileName, sharePrompt, type Doc } from './artifacts'
+  import { artifactUrl, docsOf, fileName, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
+  import { refresh, shelf } from './artifacts.svelte'
   import { ask } from './asking.svelte'
   import { time } from './format'
   import { errorText, t } from './i18n/index.svelte'
-  import { panelDocument, themeOf } from './infopanel'
   import Markdown from './Markdown.svelte'
   import SidePanel from './SidePanel.svelte'
-  import type { Agent, Artifact } from './stream'
+  import type { Agent } from './stream'
 
-  let { agent, onclose }: { agent: Agent; onclose: () => void } = $props()
+  let { agent, onpoint, onclose }: { agent: Agent; onpoint: (text: string) => void; onclose: () => void } = $props()
 
-  let selected = $state<string | null>(null)
+  let selected = $state<{ id: string; at: number } | null>(null)
   let copied = $state('')
   let asked = $state<string[]>([])
-  let host = $state<HTMLElement>()
+  let pointing = $state(false)
+  let markdown = $state('')
+  let frame = $state<HTMLIFrameElement>()
 
-  const local = $derived(agent.artifacts ?? [])
-  const docs = $derived(docsOf(agent))
-  const list = $derived<(Artifact | Doc)[]>([...local, ...docs])
-  const latest = $derived(local.reduce<Artifact | undefined>((best, a) => (!best || a.at > best.at ? a : best), undefined) ?? docs.at(-1))
-  const open = $derived(list.find((a) => a.id === selected) ?? latest)
-  const doc = $derived(host && open && open.kind !== 'markdown' && open.kind !== 'doc' ? panelDocument(open.content, themeOf(host), true) : '')
+  const local = $derived(shelf.of[agent.id] ?? [])
+  const docs = $derived(docsOf(agent, local.flatMap((a) => (a.link ? [a.link] : []))))
+  const list = $derived<(ArtifactInfo | Doc)[]>([...local, ...docs])
+  const latest = $derived(local.reduce<ArtifactInfo | undefined>((best, a) => (!best || a.modified > best.modified ? a : best), undefined))
+  const open = $derived.by(() => {
+    const picked = selected && list.find((a) => a.id === selected!.id)
+    return picked && !(latest && latest.id !== picked.id && latest.modified > selected!.at) ? picked : (latest ?? docs.at(-1))
+  })
+
+  $effect(() => {
+    if (open?.kind !== 'markdown') return
+    const { id } = open
+    void open.modified
+    invoke<string>('read_artifact', { agent: agent.id, id })
+      .then((text) => (markdown = text))
+      .catch(() => (markdown = ''))
+  })
+
+  $effect(() => {
+    void open?.id
+    pointing = false
+  })
+
+  function aim(on: boolean) {
+    pointing = on
+    frame?.contentWindow?.postMessage({ squadron: 'pick', on }, '*')
+  }
+
+  function message(e: MessageEvent) {
+    if (!frame || e.source !== frame.contentWindow || !open || open.kind === 'doc') return
+    if (e.data?.squadron === 'pick-off') pointing = false
+    if (e.data?.squadron !== 'picked') return
+    pointing = false
+    const { selector, html, page } = e.data as { selector: string; html: string; page: string }
+    onpoint(`${t('agent.artifactPointed', { title: open.title, page: page || open.entry, selector: String(selector) })}\n\n\`\`\`html\n${String(html)}\n\`\`\``)
+  }
+
+  function choose(id: string) {
+    selected = { id, at: Date.now() }
+  }
 
   function copy(what: string, text: string) {
     navigator.clipboard.writeText(text)
@@ -31,40 +67,56 @@
     setTimeout(() => (copied = ''), 1500)
   }
 
-  async function keep(artifact: Artifact) {
-    const path = await save({ defaultPath: fileName(artifact) })
-    if (path) await invoke('save_text_file', { path, text: artifact.content }).catch((e) => ask(errorText(e), { kind: 'error' }))
+  async function source(artifact: ArtifactInfo) {
+    copy('source', await invoke<string>('read_artifact', { agent: agent.id, id: artifact.id }))
   }
 
-  async function share(artifact: Artifact) {
+  async function keep(artifact: ArtifactInfo) {
+    const path = await save({ defaultPath: fileName(artifact) })
+    if (!path) return
+    const text = await invoke<string>('read_artifact', { agent: agent.id, id: artifact.id })
+    await invoke('save_text_file', { path, text }).catch((e) => ask(errorText(e), { kind: 'error' }))
+  }
+
+  async function share(artifact: ArtifactInfo) {
     asked = [...asked, artifact.id]
     if (!(await ask(t('agent.artifactShareAsk', { title: artifact.title, name: agent.name }), { title: t('agent.artifactShareTitle'), okLabel: t('agent.artifactShare') })))
       return void (asked = asked.filter((id) => id !== artifact.id))
     await send(agent.id, sharePrompt(artifact))
   }
 
-  async function remove(item: Artifact | Doc) {
+  async function remove(item: ArtifactInfo | Doc) {
     if (item.kind === 'doc') {
       agent.hiddenDocs = [...(agent.hiddenDocs ?? []), item.link]
+      persist(agent)
     } else {
       if (!(await ask(t('agent.artifactDeleteAsk', { title: item.title }), { title: t('agent.artifactDeleteTitle'), kind: 'warning', okLabel: t('agent.artifactDelete') }))) return
-      agent.artifacts = local.filter((a) => a.id !== item.id)
+      await invoke('delete_artifact', { agent: agent.id, id: item.id }).catch((e) => ask(errorText(e), { kind: 'error' }))
+      await refresh(agent.id)
     }
-    persist(agent)
     if (list.length <= 1) onclose()
   }
 </script>
 
+<svelte:window onmessage={message} />
+
 <SidePanel kind="artifacts" title={t('agent.artifactsTitle')} {onclose}>
   {#snippet sub()}
-    {#if open?.kind === 'doc'}{open.title} · {t('agent.artifactOnClaude')}{:else if open}{open.title} · {t('agent.artifactVersion', { version: open.version, time: time(open.at) })}{:else}{t('agent.artifactsOf', { name: agent.name })}{/if}
+    {#if open?.kind === 'doc'}{open.title} · {t('agent.artifactOnClaude')}{:else if open}{open.title} · {t('agent.artifactModified', { time: time(open.modified) })}{:else}{t('agent.artifactsOf', { name: agent.name })}{/if}
   {/snippet}
   {#snippet actions()}
     {#if open?.kind === 'doc'}
       <button class="btn btn-ghost danger" onclick={() => remove(open)}>{t('agent.artifactHide')}</button>
     {:else if open}
-      <button class="btn btn-ghost" onclick={() => copy('source', open.content)}>{copied === 'source' ? t('common.copied') : t('agent.artifactCopy')}</button>
-      <button class="btn btn-ghost" onclick={() => keep(open)}>{t('agent.artifactSave')}</button>
+      {#if open.kind === 'html'}
+        <button class="btn btn-ghost" aria-pressed={pointing} title={t('agent.artifactPointTitle')} onclick={() => aim(!pointing)}>{pointing ? t('agent.artifactPointing') : t('agent.artifactPoint')}</button>
+      {/if}
+      <button class="btn btn-ghost" onclick={() => source(open)}>{copied === 'source' ? t('common.copied') : t('agent.artifactCopy')}</button>
+      {#if open.kind === 'html'}
+        <button class="btn btn-ghost" onclick={() => invoke('open_artifact_folder', { agent: agent.id, id: open.id }).catch((e) => ask(errorText(e), { kind: 'error' }))}>{t('agent.artifactFolder')}</button>
+      {:else}
+        <button class="btn btn-ghost" onclick={() => keep(open)}>{t('agent.artifactSave')}</button>
+      {/if}
       <button class="btn btn-ghost danger" onclick={() => remove(open)}>{t('agent.artifactDelete')}</button>
     {/if}
   {/snippet}
@@ -72,7 +124,7 @@
   {#if list.length > 1}
     <div class="tabs" role="tablist" aria-label={t('agent.artifactList')}>
       {#each list as artifact (artifact.id)}
-        <button role="tab" aria-selected={artifact === open} title={artifact.title} onclick={() => (selected = artifact.id)}>
+        <button role="tab" aria-selected={artifact === open} title={artifact.title} onclick={() => choose(artifact.id)}>
           <span class="name">{artifact.title}</span>
           <span class="kind">{artifact.kind === 'doc' ? 'claude.ai' : artifact.kind}</span>
         </button>
@@ -96,15 +148,22 @@
     </div>
   {/if}
 
-  <div class="view" bind:this={host}>
+  <div class="view" class:pointing>
     {#if open?.kind === 'doc'}
       <div class="remote">
         <p>{t('agent.artifactRemote')}</p>
       </div>
     {:else if open?.kind === 'markdown'}
-      <div class="markdown"><Markdown text={open.content} /></div>
+      <div class="markdown"><Markdown text={markdown} /></div>
     {:else if open}
-      <iframe title={open.title} sandbox="" referrerpolicy="no-referrer" srcdoc={doc}></iframe>
+      <iframe
+        bind:this={frame}
+        title={open.title}
+        src={artifactUrl(agent.id, open)}
+        sandbox="allow-scripts allow-forms allow-modals"
+        referrerpolicy="no-referrer"
+        onload={() => pointing && aim(true)}
+      ></iframe>
     {/if}
   </div>
 </SidePanel>
@@ -170,6 +229,12 @@
     flex: 1;
     width: 100%;
     border: 0;
+    background: #fff;
+  }
+
+  .pointing iframe {
+    outline: 2px solid var(--accent);
+    outline-offset: -2px;
   }
 
   .share {

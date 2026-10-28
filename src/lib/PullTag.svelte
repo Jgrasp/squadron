@@ -1,12 +1,12 @@
 <script lang="ts">
-  import { progress, pulls, stateLabel } from './pulls.svelte'
-  import { workdir, type Agent } from './stream'
+  import { progress, pullOf, stateLabel } from './pulls.svelte'
+  import type { Agent } from './stream'
   import { t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
 
   let { agent, gutter = false }: { agent: Agent; gutter?: boolean } = $props()
 
-  const pull = $derived(pulls[workdir(agent)])
+  const pull = $derived(pullOf(agent))
   const review = (p: NonNullable<typeof pull>) => (p.changes_requested ? t('review.changesRequestedTag') : p.reviewers.length || p.approvals ? progress(p) : '')
 </script>
 

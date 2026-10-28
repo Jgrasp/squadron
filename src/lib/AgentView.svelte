@@ -22,6 +22,7 @@
   import SubagentsPanel from './SubagentsPanel.svelte'
   import ArtifactsPanel from './ArtifactsPanel.svelte'
   import { docsOf } from './artifacts'
+  import { refresh as refreshArtifacts, shelf } from './artifacts.svelte'
   import TicketPanel from './TicketPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
@@ -33,7 +34,7 @@
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUp, needsYou, openReview, progress, pulls, reviews, stateLabel } from './pulls.svelte'
+  import { lookUpAgent, needsYou, openReview, progress, pullOf, reviews, stateLabel } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
@@ -121,12 +122,12 @@
       })
   })
 
-  const pull = $derived(pulls[workdir(agent)] ?? null)
+  const pull = $derived(pullOf(agent))
   const project = $derived(projects.list.find((p) => p.path === agent.project))
   const ran = $derived(!!project && runsShown(project).length > 0)
   $effect(() => {
     void agent.turns
-    lookUp(workdir(agent))
+    lookUpAgent(agent)
   })
 
   let comments = $state<Comment[]>(saved?.comments ?? [])
@@ -158,7 +159,11 @@
   const branch = $derived(
     agent.worktree ? agent.worktree.branch || agent.worktree.path.split('/').at(-1) : projects.list.find((p) => p.path === agent.project)?.branch,
   )
-  const shared = $derived([...(agent.artifacts ?? []), ...docsOf(agent)])
+  const shelved = $derived(shelf.of[agent.id] ?? [])
+  const shared = $derived([...shelved, ...docsOf(agent, shelved.flatMap((a) => (a.link ? [a.link] : [])))])
+  $effect(() => {
+    refreshArtifacts(agent.id)
+  })
   const ticket = $derived(projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket)
   let reading = $state(false)
   $effect(() => {
@@ -1004,7 +1009,11 @@
       onclose={() => setPanel(agent.project, null)}
     />
   {:else if panel === 'artifacts' && shared.length}
-    <ArtifactsPanel {agent} onclose={() => setPanel(agent.project, null)} />
+    <ArtifactsPanel
+      {agent}
+      onpoint={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}\n\n` : `${quote}\n\n`), composer.focus())}
+      onclose={() => setPanel(agent.project, null)}
+    />
   {/if}
 </main>
 

@@ -354,6 +354,13 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
         agent.mcp.as_deref(),
     );
     crate::askpass::env(&mut cmd, id);
+    if let Some(dir) = crate::artifacts::ROOT
+        .get()
+        .and_then(|root| crate::artifacts::agent_dir(root, id).ok())
+    {
+        let _ = std::fs::create_dir_all(&dir);
+        cmd.env("SQUADRON_ARTIFACTS", dir);
+    }
     if let Some(name) = agent.worktree.take() {
         cmd.args(["--worktree", &name]);
     }

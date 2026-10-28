@@ -23,6 +23,7 @@ export type Config = {
   pilot: boolean
   pilot_all: boolean
   archive_after_days: number
+  artifacts_after_days: number
   compact_window: number
   steps: 'grouped' | 'detailed'
   thinking: 'hidden' | 'duration' | 'summary' | 'shown'
@@ -46,6 +47,7 @@ export const settings = $state<Config>({
   pilot: true,
   pilot_all: false,
   archive_after_days: 0,
+  artifacts_after_days: 30,
   compact_window: 0,
   steps: 'grouped',
   thinking: 'duration',

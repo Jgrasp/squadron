@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.16.0 · 2026-10-28
+
+### Artifacts
+
+- **Artifacts as files**: each agent writes its artifacts in a folder of its own, served apart from the app. Pages run their scripts, reload on each save and let you point at an element to quote it; they go away with their agent.
+- **Cleanup**: the artifacts of an agent archived for a month are deleted.
+
+### Kanban
+
+- **Tasks in replies**: a Kanban task an agent names at the head of a list item shows as a card with its column, agent, pull request and Jira ticket. A click opens a window with its goal, description, attachments and links to the Kanban, the agent and the pull request.
+
+### Fixes
+
+- **Messages between agents**: a message sent by another agent shows as a card on the left with its sender, no longer as if you wrote it.
+- **Pull request of an agent**: found from the branch it pushed or the link it gave.
+
 ## 0.15.0 · 2026-10-28
 
 ### Tickets

@@ -2,6 +2,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
+import { insideArtifacts } from './artifacts'
+import { migrate, shelf } from './artifacts.svelte'
 import { addRule, editProject, projects, type Project } from './projects.svelte'
 import { ask } from './asking.svelte'
 import { matches, ruleFor, ruleLabel } from './rules'
@@ -330,6 +332,8 @@ async function adopt(data: Agent) {
     return text === undefined ? [e] : text ? [{ kind: 'note', at: e.at, command: 'notice', text }] : []
   })
   agents.list.push(agent)
+  const moved = find(agent.id)!
+  if (moved.artifacts?.length) migrate(moved).then(() => persist(moved))
   await invoke('restore_agent', {
     id: agent.id,
     project: agent.project,
@@ -432,6 +436,7 @@ listen<Ask>('permission-request', ({ payload: ask }) => {
     INTERNAL.includes(ask.tool_name) ||
     (READ_ONLY.includes(ask.tool_name) && !(ask.tool_name.endsWith('__set_worktree') && ask.input.agent && ask.input.agent !== agent.id)) ||
     (agent.allowEdits && EDITS.includes(ask.tool_name)) ||
+    (EDITS.includes(ask.tool_name) && insideArtifacts(shelf.root, agent.id, ask.input.file_path ?? ask.input.notebook_path)) ||
     rules.some((r) => matches(r, ask.tool_name, ask.input))
   )
     return decide(ask.id, { behavior: 'allow', updatedInput: ask.input })

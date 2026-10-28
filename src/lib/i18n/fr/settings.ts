@@ -75,6 +75,8 @@ export default {
   agentsAndSquadron: 'Les agents et Squadron',
   archiveIdle: 'Archiver les agents inactifs',
   archiveIdleHint: 'Un agent terminé, interrompu ou arrêté sur une erreur depuis ce délai rejoint les agents archivés. Les agents au travail et ceux qui vous attendent restent.',
+  artifactsExpire: 'Supprimer les artifacts des agents archivés',
+  artifactsExpireHint: 'Quand un agent est archivé depuis ce délai, les pages et documents qu’il a publiés sont supprimés. L’agent reste dans les archives et peut être restauré, sans eux.',
   compactWindow: 'Compacter les conversations automatiquement',
   compactDefault: 'Quand Claude Code le décide (vers 967k avec une fenêtre de 1M)',
   compactAround: 'Vers {tokens} tokens',
