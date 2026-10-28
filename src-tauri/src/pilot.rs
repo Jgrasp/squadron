@@ -19,7 +19,7 @@ To start an agent in a worktree a script made, pass its path to start_agent. \
 During a long task made of many items, show where you are on your card with set_progress. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
 When you produce a document the user will read, keep or come back to, such as a report, a plan, a diagram or a page mock-up, publish it with publish_artifact instead of only writing it in the conversation, and update it under the same id as it changes. \
-When the user must put values such as keys, tokens, secrets or passwords into a file, write {{squadron:NAME}} in the file where each one goes, then call ask_values: Squadron asks the user and fills the file without you seeing them. Never ask for such values in the conversation.";
+When the user must put values such as keys, tokens, secrets, passwords or personal data into a file, call ask_values without editing the file yourself: Squadron asks the user and writes the file without you seeing them. Never ask for such values in the conversation.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -199,18 +199,20 @@ struct Artifact {
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct Field {
-    /// The NAME of the {{squadron:NAME}} placeholder in the file.
+    /// The name of the value, such as STRIPE_SECRET_KEY.
     key: String,
     /// A short line telling the user what to enter or where to find it.
     hint: Option<String>,
     /// True for a password, token or secret key: the field is masked.
     secret: Option<bool>,
+    /// The line Squadron adds at the end of the file when it has no {{squadron:KEY}} placeholder, with {{squadron:KEY}} where the value goes, such as `stripe_key: \"{{squadron:STRIPE_SECRET_KEY}}\"`. KEY={{squadron:KEY}} when left empty, the .env form.
+    line: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct AskValues {
-    /// The file, absolute or relative to your working folder, already holding a {{squadron:NAME}} placeholder for each field. Any format: .env, YAML, JSON, PHP…
+    /// The file, absolute or relative to your working folder, in any format: .env, YAML, JSON, PHP… Squadron creates it when it does not exist.
     path: String,
     /// The values to ask for, in the order the user fills them.
     fields: Vec<Field>,
@@ -422,7 +424,7 @@ impl Pilot {
         self.forward(&parts, "publish_artifact", json!(args)).await
     }
 
-    /// Asks the user, in a card of your conversation, for values to put into a file, such as API keys, tokens or passwords, and waits for them. Before calling it, write {{squadron:NAME}} in the file where each value goes, inside quotes when the format needs them. Squadron replaces each placeholder with what the user types and tells you which ones were filled: you never see the values, so never read them back, print them or copy them elsewhere.
+    /// Asks the user, in a card of your conversation, for values to put into a file, such as API keys, tokens, passwords or a phone number, and waits for them. Do not edit the file yourself, even to prepare it: Squadron writes each value where a {{squadron:KEY}} placeholder already is, or else adds the field's line at the end of the file. It tells you which values were filled: you never see them, so never read them back, print them or copy them elsewhere.
     #[tool]
     async fn ask_values(
         &self,
