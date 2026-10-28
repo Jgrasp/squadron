@@ -568,7 +568,7 @@ export function answer(agent: Agent, ask: Ask, answers: Record<string, string>) 
   )
 }
 
-export function plan(agent: Agent, ask: Ask, choice: 'edits' | 'ask' | 'continue', remark = '') {
+export function plan(agent: Agent, ask: Ask, choice: 'auto' | 'edits' | 'ask' | 'continue', remark = '') {
   if (choice === 'continue')
     return settle(
       agent,
@@ -577,10 +577,12 @@ export function plan(agent: Agent, ask: Ask, choice: 'edits' | 'ask' | 'continue
       { tone: 'bad', title: t('shell.planToRevise'), detail: t('shell.keepPlanning'), note: remark ? t('shell.withFeedback', { remark }) : undefined },
     )
   if (choice === 'edits') agent.allowEdits = true
-  const approved = settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
+  const mode = choice === 'auto' ? 'auto' : 'default'
+  agent.options = { ...agent.options, mode }
+  const approved = settle(agent, ask, { behavior: 'allow', updatedInput: ask.input, updatedPermissions: [{ type: 'setMode', mode, destination: 'session' }] }, {
     tone: 'ok',
     title: t('shell.planApproved'),
-    detail: choice === 'edits' ? t('shell.startedAcceptEdits') : t('shell.startedAsking'),
+    detail: choice === 'auto' ? t('shell.startedAuto') : choice === 'edits' ? t('shell.startedAcceptEdits') : t('shell.startedAsking'),
   })
   arm(agent)
   return approved

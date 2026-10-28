@@ -19,7 +19,8 @@
   </div>
   <div class="plan"><Markdown text={String(ask.input.plan ?? '')} /></div>
   <div class="actions">
-    <button class="btn go" onclick={() => plan(agent, ask, 'edits')}>{t('agent.startAcceptEdits')}</button>
+    <button class="btn go" onclick={() => plan(agent, ask, 'auto')}>{t('agent.startAuto')}</button>
+    <button class="btn ask" onclick={() => plan(agent, ask, 'edits')}>{t('agent.startAcceptEdits')}</button>
     <button class="btn ask" onclick={() => plan(agent, ask, 'ask')}>{t('agent.startAskEach')}</button>
     <button class="btn more" onclick={() => plan(agent, ask, 'continue')}>{t('agent.keepPlanning')}</button>
   </div>

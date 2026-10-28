@@ -273,6 +273,7 @@ export default {
   keepPlanning: 'Keep planning',
   withFeedback: 'With your feedback: “{remark}”',
   planApproved: 'Plan approved',
+  startedAuto: 'Started in auto mode',
   startedAcceptEdits: 'Started in “accept edits”',
   startedAsking: 'Started, asking for each edit',
   forkName: '{name} (fork)',

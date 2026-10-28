@@ -275,6 +275,7 @@ export default {
   keepPlanning: 'Continuer à planifier',
   withFeedback: 'Avec votre retour : « {remark} »',
   planApproved: 'Plan approuvé',
+  startedAuto: 'Lancé en mode auto',
   startedAcceptEdits: 'Lancé en « accepter les modifications »',
   startedAsking: 'Lancé, avec une demande pour chaque modification',
   forkName: '{name} (copie)',
