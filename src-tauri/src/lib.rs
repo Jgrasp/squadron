@@ -966,7 +966,7 @@ fn restore_agent(
     dir: Option<PathBuf>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, session_id, fork)?;
-    agents.set_dir(&id, dir)?;
+    agents.set_dir(&id, dir.filter(|d| d.join(".git").exists()))?;
     match at {
         Some(at) => agents.fork_at(&id, &at),
         None => Ok(()),
