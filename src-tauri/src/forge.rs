@@ -313,9 +313,9 @@ async fn blocking<T: Send + 'static>(
         .map_err(|e| e.to_string())?
 }
 
-pub async fn pull(dir: &Path) -> Result<Option<Pull>, String> {
+pub async fn pull(dir: &Path, branch: Option<String>) -> Result<Option<Pull>, String> {
     let repo = repo_of(dir)?;
-    let Some(branch) = projects::branch(dir) else {
+    let Some(branch) = branch.or_else(|| projects::branch(dir)) else {
         return Ok(None);
     };
     match repo.host {

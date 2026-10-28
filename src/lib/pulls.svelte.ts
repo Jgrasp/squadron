@@ -2,7 +2,9 @@ import { invoke } from '@tauri-apps/api/core'
 import { agents, create, persist, send } from './agents.svelte'
 import { projects } from './projects.svelte'
 import { settings } from './settings.svelte'
-import { prompt, workdir, type Comment } from './stream'
+import { prompt, workdir, type Agent, type Comment } from './stream'
+import { pushedTo } from './pushed'
+import type { Linked } from './linked.svelte'
 import { t, type Key } from './i18n/index.svelte'
 
 export type Pull = {
@@ -175,13 +177,43 @@ export async function lookUp(dir: string, force = false) {
   }
 }
 
-export const lookUpAll = (force = false) => new Set(agents.list.map(workdir)).forEach((dir) => lookUp(dir, force))
+export const owned = $state<Record<string, Pull>>({})
+const ownChecked: Record<string, number> = {}
+
+async function lookUpOwned(agent: Agent, force = false) {
+  if (!force && Date.now() - (ownChecked[agent.id] ?? 0) < 60_000) return
+  ownChecked[agent.id] = Date.now()
+  const ref = pushedTo(agent)
+  try {
+    const found = !ref
+      ? null
+      : 'url' in ref
+        ? (await invoke<Linked>('linked_pull', { url: ref.url, projects: [] })).pull
+        : await invoke<Pull | null>('pull_request', { dir: workdir(agent), branch: ref.branch })
+    if (found) owned[agent.id] = found
+    else delete owned[agent.id]
+  } catch {
+    delete owned[agent.id]
+  }
+}
+
+export const pullOf = (agent: Agent) => owned[agent.id] ?? pulls[workdir(agent)] ?? null
+
+export function lookUpAgent(agent: Agent, force = false) {
+  lookUp(workdir(agent), force)
+  lookUpOwned(agent, force)
+}
+
+export const lookUpAll = (force = false) => {
+  new Set(agents.list.map(workdir)).forEach((dir) => lookUp(dir, force))
+  agents.list.forEach((agent) => lookUpOwned(agent, force))
+}
 
 const VERDICTS: Record<string, string> = { approve: 'approved it', request_changes: 'asked for changes', '': 'commented on it' }
 
 function tell(pull: Pull, text: string, comments: Comment[] = []) {
   for (const agent of agents.list)
-    if (!agent.review && agent.alive && !agent.asks.length && agent.status !== 'error' && pulls[workdir(agent)]?.url === pull.url)
+    if (!agent.review && agent.alive && !agent.asks.length && agent.status !== 'error' && pullOf(agent)?.url === pull.url)
       send(agent.id, `${text}\n\nThis is for your information: wait for the user before you change, commit or push anything about it.`, comments)
 }
 

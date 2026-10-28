@@ -34,7 +34,7 @@
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUp, needsYou, openReview, progress, pulls, reviews, stateLabel } from './pulls.svelte'
+  import { lookUpAgent, needsYou, openReview, progress, pullOf, reviews, stateLabel } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
@@ -122,12 +122,12 @@
       })
   })
 
-  const pull = $derived(pulls[workdir(agent)] ?? null)
+  const pull = $derived(pullOf(agent))
   const project = $derived(projects.list.find((p) => p.path === agent.project))
   const ran = $derived(!!project && runsShown(project).length > 0)
   $effect(() => {
     void agent.turns
-    lookUp(workdir(agent))
+    lookUpAgent(agent)
   })
 
   let comments = $state<Comment[]>(saved?.comments ?? [])

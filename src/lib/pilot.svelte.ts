@@ -9,7 +9,7 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { editProject, projects, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { pulls, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
+import { pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -240,7 +240,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
   read_pull_comments: async (caller, args) => {
     const project = projectFor(caller, args.project)
     const own = project.path === caller.project
-    const number = Number(args.number) || (own ? (caller.review?.number ?? pulls[workdir(caller)]?.number) : undefined)
+    const number = Number(args.number) || (own ? (caller.review?.number ?? pullOf(caller)?.number) : undefined)
     if (!number) throw new Error('No pull request found for your branch. Pass its number.')
     const remarks = await invoke<Remark[]>('pull_remarks', { dir: project.path, number })
     const byId = new Map(remarks.map((r) => [r.id, r]))

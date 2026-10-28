@@ -742,8 +742,8 @@ async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
 }
 
 #[tauri::command]
-async fn pull_request(dir: PathBuf) -> Result<Option<forge::Pull>, String> {
-    forge::pull(&dir).await
+async fn pull_request(dir: PathBuf, branch: Option<String>) -> Result<Option<forge::Pull>, String> {
+    forge::pull(&dir, branch).await
 }
 
 #[tauri::command]
