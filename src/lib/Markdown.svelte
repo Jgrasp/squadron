@@ -112,10 +112,19 @@
 <script lang="ts">
   import { mount, tick, unmount, untrack } from 'svelte'
   import PullCard from './PullCard.svelte'
+  import TaskRef from './TaskRef.svelte'
+  import { projects } from './projects.svelte'
+  import { codeOf, leading, taskAt } from './taskref'
   import Attachment from './Attachment.svelte'
   import { showCapture } from './captures.svelte'
 
-  let { text, streaming = false, cards = false, onrun }: { text: string; streaming?: boolean; cards?: boolean; onrun?: (command: string) => void } = $props()
+  let {
+    text,
+    streaming = false,
+    cards = false,
+    project = '',
+    onrun,
+  }: { text: string; streaming?: boolean; cards?: boolean; project?: string; onrun?: (command: string) => void } = $props()
 
   let shown = $state(untrack(() => text.length))
   let frame = 0
@@ -190,11 +199,16 @@
     return () => watching.forEach((w) => w.disconnect())
   })
 
+  const projectCards = $derived(cards && project ? (projects.list.find((p) => p.path === project)?.cards ?? []) : [])
+  const taskTitles = $derived(projectCards.map((c) => `${c.id} ${c.title}`).join('\n'))
+
   $effect(() => {
     void html
+    void taskTitles
     if (streaming || !cards) return
     const mounted: ReturnType<typeof mount>[] = []
     const added: Element[] = []
+    const undo: (() => void)[] = []
     tick().then(() => {
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-file]') ?? []) {
         slot.querySelector('a')?.setAttribute('hidden', '')
@@ -221,10 +235,33 @@
         link.before(spot)
         mounted.push(mount(PullCard, { target: spot, props: { url: link.href, inline: true, short: shown.has(href), onready: () => (link.hidden = true) } }))
       }
+      const tasks = untrack(() => projectCards)
+      for (const item of box?.querySelectorAll<HTMLLIElement>('li') ?? []) {
+        const card = taskAt(tasks, item.textContent ?? '')
+        if (!card) continue
+        const note = document.createElement('div')
+        note.className = 'task-note'
+        note.append(...item.childNodes)
+        const first = document.createTreeWalker(note, NodeFilter.SHOW_TEXT).nextNode()
+        const said = first?.textContent ?? ''
+        const code = leading(codeOf(card.title)!)
+        if (first && code.test(said)) first.textContent = said.replace(code, '')
+        const slot = document.createElement('span')
+        slot.className = 'task-slot'
+        item.append(slot, note)
+        item.classList.add('task-item')
+        mounted.push(mount(TaskRef, { target: slot, props: { id: card.id, project, host: item } }))
+        undo.push(() => {
+          if (first) first.textContent = said
+          item.classList.remove('task-item')
+          item.replaceChildren(...note.childNodes)
+        })
+      }
     })
     return () => {
       mounted.forEach((m) => unmount(m))
       added.forEach((el) => el.remove())
+      undo.forEach((f) => f())
     }
   })
 
@@ -275,6 +312,39 @@
 
   .prose :global(li:has(> .file-slot)) {
     list-style: none;
+  }
+
+  .prose :global(:is(ul, ol):not(:has(> li:not(.task-item)))) {
+    padding-left: 0;
+  }
+
+  .prose :global(li.task-item) {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 12px;
+    margin: 8px 0;
+    padding: 10px 14px;
+    border-radius: 8px;
+    box-shadow: inset 0 0 0 1px var(--border);
+    list-style: none;
+    cursor: pointer;
+  }
+
+  .prose :global(li.task-item:hover) {
+    background: var(--surface-2);
+  }
+
+  .prose :global(.task-slot) {
+    display: contents;
+  }
+
+  .prose :global(.task-note) {
+    grid-column: 2;
+    font-size: 13px;
+  }
+
+  .prose :global(.task-note:empty) {
+    display: none;
   }
 
   .prose :global(.shot) {
