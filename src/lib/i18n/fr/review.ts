@@ -207,4 +207,12 @@ export default {
   discardTitle: 'Abandonner la relecture',
   keepIt: 'La garder',
   agentName: 'Relecture #{number}',
+  reviewingTag: 'Relit #{number}',
+  reviewingTitle: 'Relit la pull request #{number} : ses remarques vont dans votre brouillon de relecture',
+  promptTitle: 'Consigne de relecture',
+  promptIntro: 'Squadron dit à l’agent relecteur quelle pull request il relit, où se trouve son checkout et comment déposer ses remarques dans votre brouillon de relecture. Ajoutez ici ce qu’il doit chercher et comment conclure.',
+  promptReset: 'Revenir à la consigne de Squadron',
+  projectPrompt: 'Consigne de relecture propre',
+  projectPromptHint: 'À la place de la consigne globale, pour les agents qui relisent les pull requests de ce projet.',
+  projectPromptOf: 'Consigne de relecture de {name}',
 } satisfies Catalog['review']

@@ -115,6 +115,24 @@ struct ReviewComment {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct GetReviewPrompt {
+    /// Project name or path. Your own project when left empty.
+    project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SetReviewPrompt {
+    /// The instructions in the user's words: what to look for, what to leave out, how to end. An empty string goes back to the default: Squadron's own for scope global, the global prompt for scope project.
+    prompt: String,
+    /// global for every project, or project for one project only. project by default.
+    scope: Option<String>,
+    /// Project name or path when scope is project. Your own project when left empty.
+    project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MoveCard {
     /// The card id, as listed by `overview`.
     card: String,
@@ -309,6 +327,26 @@ impl Pilot {
     ) -> String {
         self.forward(&parts, "add_review_comment", json!(args))
             .await
+    }
+
+    /// Returns the instructions given to the agents Squadron starts to review a pull request of a project: the global prompt, the project's own when it has one, and the one used.
+    #[tool]
+    async fn get_review_prompt(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<GetReviewPrompt>,
+    ) -> String {
+        self.forward(&parts, "get_review_prompt", json!(args)).await
+    }
+
+    /// Sets the instructions given to the agents Squadron starts to review a pull request, for every project (scope global) or for one project, which then no longer follows the global prompt. Squadron always adds what the pull request is, where its checkout is, and how to leave comments with add_review_comment.
+    #[tool]
+    async fn set_review_prompt(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<SetReviewPrompt>,
+    ) -> String {
+        self.forward(&parts, "set_review_prompt", json!(args)).await
     }
 
     /// Sends a message to another agent, as the next message of its conversation, marked as coming from you. The user approves each message before it is sent. It cannot answer that agent's pending question or permission request: only the user can.

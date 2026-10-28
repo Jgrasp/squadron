@@ -59,7 +59,7 @@ export type Subagent = {
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_info_panel', 'ask_values'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_info_panel', 'ask_values', 'get_review_prompt'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
@@ -141,7 +141,7 @@ export type Agent = {
   unread?: boolean
   errorSeen?: boolean
   context?: { max: number; threshold: number | null }
-  review?: { project: string; number: number; base?: string }
+  review?: { project: string; number: number; base?: string; title?: string }
   imported?: string
   infoPanel?: { html: string; height: number; hidden?: boolean }
 }

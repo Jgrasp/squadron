@@ -6,10 +6,10 @@ import { ask } from './asking.svelte'
 import { askValues, branchOf, create, find, importSession, knownSessions, ofProject, persist, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
-import { projects, setCards, type Project } from './projects.svelte'
-import { settings } from './settings.svelte'
+import { editProject, projects, setCards, type Project } from './projects.svelte'
+import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { reviews } from './pulls.svelte'
+import { REVIEW_PROMPT, reviewPrompt, reviews } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -222,6 +222,28 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
     const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
     return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
+  },
+
+  get_review_prompt: (caller, args) => {
+    const project = projectFor(caller, args.project)
+    return {
+      global: settings.review_prompt || REVIEW_PROMPT,
+      global_is_default: !settings.review_prompt || undefined,
+      project: project.review_prompt || undefined,
+      used_for_this_project: reviewPrompt(project.path),
+    }
+  },
+
+  set_review_prompt: async (caller, args) => {
+    const scope = pick<'global' | 'project'>(args.scope, ['global', 'project'], 'project', 'scope')
+    const prompt = String(args.prompt ?? '').trim()
+    if (scope === 'global') {
+      await saveSettings({ ...$state.snapshot(settings), review_prompt: prompt === REVIEW_PROMPT ? '' : prompt })
+      return prompt ? 'The global review prompt is set. Projects with their own prompt keep it.' : 'The global review prompt is back to Squadron’s default.'
+    }
+    const project = projectFor(caller, args.project)
+    await editProject(project.path, { review_prompt: prompt })
+    return prompt ? `${project.name} now has its own review prompt.` : `${project.name} follows the global review prompt again.`
   },
 
   set_info_panel: (caller, args) => {

@@ -262,6 +262,9 @@ fn edit_project(
         if let Some(repository) = changes.repository {
             project.repository = repository.trim().to_string();
         }
+        if let Some(prompt) = changes.review_prompt {
+            project.review_prompt = prompt.trim().to_string();
+        }
         Ok(())
     })
 }
@@ -315,6 +318,7 @@ struct Config {
     runs_linger: u32,
     runs_hidden: Vec<String>,
     runs_notify: bool,
+    review_prompt: String,
 }
 
 impl Default for Config {
@@ -342,6 +346,7 @@ impl Default for Config {
             runs_linger: 10,
             runs_hidden: Vec::new(),
             runs_notify: false,
+            review_prompt: String::new(),
         }
     }
 }

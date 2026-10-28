@@ -25,6 +25,8 @@ pub struct Project {
     pub runs_hidden: Vec<String>,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub repository: String,
+    #[serde(default, skip_serializing_if = "String::is_empty")]
+    pub review_prompt: String,
 }
 
 #[derive(Deserialize)]
@@ -37,6 +39,7 @@ pub struct Edit {
     pub runs_notify: Option<bool>,
     pub runs_hidden: Option<Vec<String>>,
     pub repository: Option<String>,
+    pub review_prompt: Option<String>,
 }
 
 pub fn reorder(list: &mut [Project], paths: &[PathBuf]) {
@@ -107,6 +110,7 @@ pub struct Folder {
     pub runs_notify: bool,
     pub runs_hidden: Vec<String>,
     pub repository: String,
+    pub review_prompt: String,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
@@ -127,6 +131,7 @@ impl Folder {
             runs_notify: !project.runs_quiet,
             runs_hidden: project.runs_hidden.clone(),
             repository: project.repository.clone(),
+            review_prompt: project.review_prompt.clone(),
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -350,6 +355,7 @@ mod tests {
             runs_quiet: false,
             runs_hidden: vec!["Copilot".into()],
             repository: "github.com/Jgrasp/squadron".into(),
+            review_prompt: "Check the Sylius upgrade notes.".into(),
         }];
         save(&file, &projects).unwrap();
         assert!(
