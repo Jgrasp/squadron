@@ -146,7 +146,7 @@
     padding: 10px 14px;
     border-radius: 6px;
     background: var(--surface-1);
-    box-shadow: inset 3px 0 0 var(--accent);
+    box-shadow: inset 0 0 0 1px var(--border);
   }
 
   .files {
