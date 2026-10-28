@@ -9,10 +9,10 @@ import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; tickets?: unknown[] }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
-  { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
+  { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [], tickets: [{ connection: 'akki', key: 'RING', name: 'RingApp' }] },
   { name: 'Nova', path: '/home/demo/agence/nova', rules: [] },
   { name: 'Lumen', path: '/home/demo/agence/lumen-absent', rules: [] },
 ]
@@ -39,7 +39,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '' }))
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', tickets: p.tickets ?? [] }))
 
 const loaded = Date.now()
 const timers = new Map<string, number>()
@@ -50,6 +50,55 @@ let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 let language = 'system'
+let ticketFieldsOff: string[] = []
+let ticketConnections = JSON.parse(localStorage.getItem('ticket-connections') ?? 'null') ?? [
+  { id: 'akki', name: 'Akki', site: 'akki.atlassian.net', email: 'quentin@akki.fr' },
+  { id: 'ringover', name: 'Client Ringover', site: 'ringover.atlassian.net', email: 'quentin@akki.fr' },
+]
+const jiraProjects: Record<string, { key: string; name: string }[]> = {
+  akki: [{ key: 'RING', name: 'RingApp' }, { key: 'TMA', name: 'Maintenance' }, { key: 'SQD', name: 'Squadron' }],
+  ringover: [{ key: 'RBK', name: 'RingBack' }, { key: 'ORB', name: 'Orbit' }],
+}
+const person = (name: string) => ({ name, avatar: '' })
+const sprintTickets = [
+  ['RING-482', 'Export CSV des appels manqués depuis le tableau de bord', 'À faire', 'Quentin Briais'],
+  ['RING-479', 'Le webhook Twilio rejoue deux fois l’événement hangup', 'En cours', 'Marie Laurent'],
+  ['RING-471', 'Pagination de l’API /v2/calls', 'Revue', 'Quentin Briais'],
+  ['RING-468', 'Traduire les libellés du module SVI', 'À faire', ''],
+  ['RING-460', 'Mise à jour Symfony 7.3 → 7.4', 'À faire', 'Julien Durand'],
+] as const
+const fullTicket = (key: string) => {
+  const found = sprintTickets.find(([k]) => k === key) ?? sprintTickets[0]
+  return {
+    connection: 'akki',
+    key,
+    url: `https://akki.atlassian.net/browse/${key}`,
+    title: found[1],
+    kind: 'Story',
+    status: found[2],
+    priority: 'High',
+    assignee: found[3] ? person(found[3]) : null,
+    reporter: person('Julien Durand'),
+    labels: ['dashboard', 'export'],
+    components: ['Back'],
+    versions: ['2.14'],
+    epic: { relation: 'Epic', key: 'RING-400', title: 'Tableau de bord superviseur', status: 'En cours' },
+    sprint: 'RING Sprint 42',
+    updated: new Date(Date.now() - 2 * 3600_000).toISOString(),
+    description: 'En tant que superviseur, je veux exporter la liste des appels manqués de la période affichée pour la transmettre au service client.\n\n## Critères d’acceptation\n\n- Bouton « Exporter » au-dessus du tableau\n- Colonnes : date, numéro, ligne, durée d’attente\n- Respecte les filtres actifs et le fuseau du compte\n- Au-delà de 50 000 lignes, export asynchrone par e-mail',
+    subtasks: [{ relation: '', key: 'RING-483', title: 'Bouton front', status: 'À faire' }],
+    links: [{ relation: 'relates to', key: 'RING-301', title: 'Fuseau horaire du compte', status: 'Terminé' }],
+    attachments: ['maquette-export.png', 'exemple.csv'],
+    comments: [
+      { id: '1', parent: null, author: person('Julien Durand'), created: '2025-10-20T09:00:00Z', body: 'Le client est en Guyane, donc fuseau UTC−3 à tester.' },
+      { id: '2', parent: null, author: person('Marie Laurent'), created: '2025-10-24T10:00:00Z', body: 'Attention, le fuseau doit être celui du compte, pas du navigateur. Cf. RING-301.' },
+      { id: '3', parent: '2', author: person('Quentin Briais'), created: '2025-10-24T11:00:00Z', body: 'Le fuseau du compte est dans `Account::timezone`, je m’appuie dessus.' },
+      { id: '4', parent: '3', author: person('Marie Laurent'), created: '2025-10-25T08:00:00Z', body: 'Parfait 👍' },
+      { id: '5', parent: null, author: person('Julien Durand'), created: '2025-10-26T08:00:00Z', body: 'Le client veut aussi le numéro de ligne SVI dans l’export.' },
+    ],
+    custom: [{ name: 'Story Points', value: '3' }],
+  }
+}
 let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[], runs_notify: false }
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
@@ -434,7 +483,7 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ...runsConfig }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ticket_fields_off: ticketFieldsOff, ...runsConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
@@ -443,6 +492,7 @@ mockIPC(
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
         reviewPrompt = (a as unknown as { config: { review_prompt: string } }).config.review_prompt
+        ticketFieldsOff = (a as unknown as { config: { ticket_fields_off: string[] } }).config.ticket_fields_off
         runsConfig = (({ runs, runs_linger, runs_hidden, runs_notify }) => ({ runs, runs_linger, runs_hidden, runs_notify }))((a as unknown as { config: typeof runsConfig }).config)
         return
       case 'suggest_title':
@@ -567,6 +617,47 @@ mockIPC(
           ],
         }
       }
+      case 'ticket_connections':
+        return ticketConnections
+      case 'ticket_connect': {
+        if ((a as { token: string }).token === 'bad') throw 'Jira refused this email and token.'
+        const id = a.id ?? a.site.split('.')[0]
+        const found = { id, name: a.name || id, site: a.site, email: a.email }
+        ticketConnections = [...ticketConnections.filter((c: { id: string }) => c.id !== id), found]
+        localStorage.setItem('ticket-connections', JSON.stringify(ticketConnections))
+        return ticketConnections
+      }
+      case 'ticket_disconnect':
+        ticketConnections = ticketConnections.filter((c: { id: string }) => c.id !== a.id)
+        localStorage.setItem('ticket-connections', JSON.stringify(ticketConnections))
+        return ticketConnections
+      case 'ticket_projects':
+        if (a.connection === 'ringover') return new Promise((_, reject) => setTimeout(() => reject('Jira refused this email and token.'), 400))
+        return new Promise((resolve) => setTimeout(() => resolve(jiraProjects[a.connection] ?? []), 300))
+      case 'ticket_mentions':
+        return { RING: [38, 4], TMA: [23, 4], ORB: [3, 0], UTF: [2, 0] }
+      case 'ticket_sprint':
+        return new Promise((resolve) =>
+          setTimeout(
+            () => resolve({ tickets: sprintTickets.map(([key, title, status, who]) => ({ connection: 'akki', key, title, status, assignee: who ? person(who) : null })), sprints: ['RING Sprint 42'], errors: [] }),
+            600,
+          ),
+        )
+      case 'ticket_get':
+        return new Promise((resolve) => setTimeout(() => resolve(fullTicket(a.key)), 300))
+      case 'ticket_context':
+        return `<ticket source="jira" key="${a.key}">\n# ${a.key}\n</ticket>`
+      case 'ticket_brief':
+        return new Promise((resolve) =>
+          setTimeout(
+            () =>
+              resolve({
+                prompt: `Ajouter un export CSV des appels manqués sur le tableau de bord superviseur (${a.key}).\n- Colonnes : date, numéro, ligne, ligne SVI, durée d’attente.\n- Respecter les filtres actifs et le fuseau du compte (Account::timezone, cf. RING-301).`,
+                goal: `Les critères d’acceptation de ${a.key} sont couverts par des tests fonctionnels.`,
+              }),
+            1800,
+          ),
+        )
       case 'forge_accounts':
         return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, github: 'octo' }
       case 'bitbucket_sign_in':

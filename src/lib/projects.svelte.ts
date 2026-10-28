@@ -3,6 +3,7 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { Card } from './board'
 import { ofProject } from './agents.svelte'
 import { settings } from './settings.svelte'
+import type { Source } from './tickets.svelte'
 
 export type Project = {
   name: string
@@ -17,6 +18,7 @@ export type Project = {
   runs_hidden: string[]
   repository: string
   review_prompt: string
+  tickets: Source[]
   exists: boolean
   git: boolean
   branch: string | null
@@ -74,6 +76,7 @@ export async function editProject(path: string, changes: {
     runs_hidden?: string[]
     repository?: string
     review_prompt?: string
+    tickets?: Source[]
   },) {
   set(await invoke<Project[]>('edit_project', { path, changes }))
 }

@@ -27,6 +27,8 @@ pub struct Project {
     pub repository: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub review_prompt: String,
+    #[serde(default, skip_serializing_if = "Vec::is_empty")]
+    pub tickets: Vec<crate::tickets::Source>,
 }
 
 #[derive(Deserialize)]
@@ -40,6 +42,7 @@ pub struct Edit {
     pub runs_hidden: Option<Vec<String>>,
     pub repository: Option<String>,
     pub review_prompt: Option<String>,
+    pub tickets: Option<Vec<crate::tickets::Source>>,
 }
 
 pub fn reorder(list: &mut [Project], paths: &[PathBuf]) {
@@ -95,6 +98,16 @@ pub struct Card {
     pub agent: Option<String>,
     #[serde(default)]
     pub auto: Option<Column>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub ticket: Option<TicketLink>,
+}
+
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
+pub struct TicketLink {
+    pub connection: String,
+    pub key: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub fields: Option<Vec<String>>,
 }
 
 #[derive(Serialize)]
@@ -111,6 +124,7 @@ pub struct Folder {
     pub runs_hidden: Vec<String>,
     pub repository: String,
     pub review_prompt: String,
+    pub tickets: Vec<crate::tickets::Source>,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
@@ -132,6 +146,7 @@ impl Folder {
             runs_hidden: project.runs_hidden.clone(),
             repository: project.repository.clone(),
             review_prompt: project.review_prompt.clone(),
+            tickets: project.tickets.clone(),
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -347,6 +362,7 @@ mod tests {
                 column: Column::Review,
                 agent: Some("a1".into()),
                 auto: Some(Column::Review),
+                ticket: None,
             }],
             color: "#A78BFA".into(),
             pinned: true,
@@ -356,6 +372,7 @@ mod tests {
             runs_hidden: vec!["Copilot".into()],
             repository: "github.com/Jgrasp/squadron".into(),
             review_prompt: "Check the Sylius upgrade notes.".into(),
+            tickets: Vec::new(),
         }];
         save(&file, &projects).unwrap();
         assert!(

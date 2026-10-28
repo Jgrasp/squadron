@@ -1,15 +1,18 @@
 <script lang="ts">
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import Attachment from './Attachment.svelte'
+  import Avatar from './Avatar.svelte'
   import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
-  import { t, type Key } from './i18n/index.svelte'
+  import { errorText, t, type Key } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import { imagePaste } from './paste'
   import { home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { GOAL_RELAUNCHES, type Goal, type Options } from './stream'
+  import TicketPanel from './TicketPanel.svelte'
+  import { defaultFields, FIELDS, loadSprint, sameTicket, ticketBrief, ticketContext, tickets, type TicketLink } from './tickets.svelte'
 
   let {
     project,
@@ -39,6 +42,62 @@
   let drag = $state<{ id: string; x: number; y: number; over: Column | null; before: string | null } | null>(null)
   let focusId = ''
   let picking = $state(false)
+  let viewing = $state<{ connection: string; key: string } | null>(null)
+  let brief = $state<{ running: boolean; error: string } | null>(null)
+  let touched = false
+
+  $effect(() => {
+    loadSprint(project)
+  })
+  const sprint = $derived(tickets.sprints[project.path])
+  const showTickets = $derived(project.tickets.length > 0)
+  const linkedCard = (ticket: { connection: string; key: string }) => project.cards.find((c) => sameTicket(c.ticket, ticket))
+
+  function fromTicket(ticket: { connection: string; key: string; title: string }) {
+    attachError = ''
+    viewing = null
+    editing = {
+      card: { id: crypto.randomUUID(), key: '', title: ticket.title, prompt: '', goal: '', files: [], column: 'todo', agent: null, ticket: { connection: ticket.connection, key: ticket.key } },
+      fresh: true,
+      options: defaults(),
+      worktree: null,
+    }
+    prepare()
+  }
+
+  function prepare() {
+    const link = editing?.card.ticket
+    if (!editing || !link) return
+    touched = false
+    brief = { running: true, error: '' }
+    const id = editing.card.id
+    ticketBrief(project.path, $state.snapshot(link))
+      .then((found) => {
+        if (editing?.card.id !== id) return
+        if (touched) return (brief = null)
+        editing.card.prompt = found.prompt
+        editing.card.goal = found.goal
+        brief = { running: false, error: '' }
+      })
+      .catch((e) => editing?.card.id === id && (brief = { running: false, error: errorText(e) }))
+  }
+
+  const fieldsOf = (link: TicketLink) => link.fields ?? defaultFields()
+
+  function setField(field: string, on: boolean) {
+    const link = editing?.card.ticket
+    if (!link) return
+    const current = fieldsOf(link)
+    link.fields = on ? FIELDS.map(([f]) => f).filter((f) => f === field || current.includes(f)) : current.filter((f) => f !== field)
+    if (!touched) prepare()
+  }
+
+  function setAllFields(on: boolean) {
+    const link = editing?.card.ticket
+    if (!link) return
+    link.fields = on ? FIELDS.map(([f]) => f) : []
+    if (!touched) prepare()
+  }
 
   const GOALS: Record<Goal['state'], Key> = {
     planned: 'board.goalPlanned',
@@ -87,21 +146,27 @@
 
   function create(column: Column = 'todo') {
     attachError = ''
+    brief = null
     editing = { card: { id: crypto.randomUUID(), key: '', title: '', prompt: '', goal: '', files: [], column, agent: null }, fresh: true, options: defaults(), worktree: null }
   }
 
   function edit(card: Card) {
     attachError = ''
+    brief = null
     editing = { card: $state.snapshot(card), fresh: false, options: defaults(), worktree: null }
   }
 
-  function submit(event: Event, start = false) {
+  async function submit(event: Event, start = false) {
     event.preventDefault()
     if (!editing?.card.title.trim()) return
-    const card = { ...editing.card, title: editing.card.title.trim(), prompt: editing.card.prompt.trim(), goal: editing.card.goal?.trim() ?? '' }
+    const card = { ...$state.snapshot(editing.card), title: editing.card.title.trim(), prompt: editing.card.prompt.trim(), goal: editing.card.goal?.trim() ?? '' }
+    const { options, worktree } = $state.snapshot(editing)
     save(editing.fresh ? [...project.cards, card] : cards.map((c) => (c.id === card.id ? card : c)), card.id)
-    if (start) actions.start(project.path, card.id, card.title, $state.snapshot(editing.options), [card.title, card.prompt].filter(Boolean).join('\n\n'), card.goal ?? '', editing.worktree, card.files ?? [])
     editing = null
+    brief = null
+    if (!start) return
+    const context = card.ticket ? await ticketContext(card.ticket).catch(() => `Jira ticket: ${card.ticket?.key}`) : ''
+    actions.start(project.path, card.id, card.title, options, [card.title, card.prompt, context].filter(Boolean).join('\n\n'), card.goal ?? '', worktree, card.files ?? [])
   }
 
   function remove() {
@@ -170,7 +235,7 @@
   onkeydown={(e) => e.key === 'Escape' && (picking = false)}
 />
 
-<main class:popout>
+<main class:popout class:tickets={showTickets}>
   <div class="top">
     <div>
       <div class="heading">
@@ -223,7 +288,35 @@
     </div>
   </div>
 
-  <div class="columns">
+  <div class="columns" style:--count={COLUMNS.length + (showTickets ? 1 : 0)}>
+    {#if showTickets}
+      <section class="ticket-column" aria-labelledby="column-tickets">
+        <h2 id="column-tickets">
+          {t('tickets.column')} <span class="count">{sprint?.tickets.length ?? 0}</span>
+          <span class="spacer"></span>
+          <button class="sprint" title={t('tickets.refresh')} aria-label={t('tickets.refresh')} disabled={sprint?.loading} onclick={() => loadSprint(project, true)}>
+            {sprint?.sprints.join(' · ') ?? ''} <span class:spin={sprint?.loading} aria-hidden="true">↻</span>
+          </button>
+        </h2>
+        <ul>
+          {#each sprint?.errors ?? [] as error, i (i)}<li class="ticket-error" role="alert">{errorText(error)}</li>{/each}
+          {#if sprint && !sprint.loading && !sprint.tickets.length && !sprint.errors.length}<li class="ticket-empty">{t('tickets.noSprint')}</li>{/if}
+          {#each sprint?.tickets ?? [] as ticket (`${ticket.connection}:${ticket.key}`)}
+            {@const linked = !!linkedCard(ticket)}
+            <li class="ticket" class:linked class:open={sameTicket(viewing, ticket)}>
+              <button class="ticket-open" title={ticket.title} onclick={() => (viewing = { connection: ticket.connection, key: ticket.key })}>
+                <span class="ticket-key">{ticket.key}</span>
+                <span class="ticket-title">{ticket.title}</span>
+              </button>
+              <span class="ticket-who" title={ticket.assignee?.name ?? t('tickets.unassigned')}>
+                {#if ticket.assignee}<Avatar name={ticket.assignee.name} src={ticket.assignee.avatar} size={22} />{:else}<span class="nobody" aria-hidden="true">?</span>{/if}
+              </span>
+              {#if !linked}<button class="ticket-create" onclick={() => fromTicket(ticket)}>+ {t('tickets.createTask')}</button>{/if}
+            </li>
+          {/each}
+        </ul>
+      </section>
+    {/if}
     {#each COLUMNS as [column, title] (column)}
       {@const list = cards.filter((c) => follow(c, agentOf(c)).column === column)}
       <section data-column={column} class:over={drag?.over === column} aria-labelledby="column-{column}">
@@ -271,11 +364,17 @@
                       {t('board.seeDiff')} <span class="add">+{agent.add}</span>{#if agent.del}<span class="del">−{agent.del}</span>{/if}
                     </button>
                   {/if}
+                  {@render ref(card)}
                 </span>
-              {:else if column !== 'done'}
-                <button class="act start" disabled={!project.exists} onclick={() => edit(card)}>
-                  <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>{t('board.startAnAgent')}
-                </button>
+              {:else}
+                <span class="buttons">
+                  {#if column !== 'done'}
+                    <button class="act start" disabled={!project.exists} onclick={() => edit(card)}>
+                      <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>{t('board.startAnAgent')}
+                    </button>
+                  {/if}
+                  {@render ref(card)}
+                </span>
               {/if}
             </li>
           {/each}
@@ -286,7 +385,27 @@
       </section>
     {/each}
   </div>
+  {#if viewing}
+    {@const open = viewing}
+    <TicketPanel
+      connection={open.connection}
+      ticketKey={open.key}
+      linked={!!linkedCard(open)}
+      oncreate={(ticket) => fromTicket(ticket)}
+      onclose={() => (viewing = null)}
+    />
+  {/if}
 </main>
+
+{#snippet ref(card: Card)}
+  {#if card.ticket}
+    {@const link = card.ticket}
+    <button class="ref" title={t('tickets.linkTitle', { key: link.key })} onclick={() => (viewing = { connection: link.connection, key: link.key })}>
+      <span class="logo" aria-hidden="true">J</span>{link.key}
+    </button>
+  {/if}
+{/snippet}
+
 
 {#if drag && dragged}
   <div class="ghost" style:left="{drag.x}px" style:top="{drag.y}px" aria-hidden="true">{dragged.title}</div>
@@ -294,14 +413,53 @@
 
 {#if editing}
   {@const linked = cards.some((c) => c.id === editing?.card.id && c.agent)}
-  <Dialog title={editing.fresh ? t('board.newTask') : t('board.task')} width={640} onclose={() => (editing = null)}>
+  <Dialog title={editing.fresh ? t('board.newTask') : t('board.task')} width={640} onclose={() => ((editing = null), (brief = null))}>
     <form onsubmit={(e) => submit(e)}>
       <div class="fields">
+        {#if editing.card.ticket}
+          {@const link = editing.card.ticket}
+          {@const summary = sprint?.tickets.find((x) => sameTicket(x, link))}
+          <div class="linked-ticket">
+            <span class="logo" aria-hidden="true">J</span><span class="ticket-key">{link.key}</span>
+            <span class="ticket-title">{summary?.title ?? ''}</span>
+            {#if !linked}
+              <button type="button" aria-label={t('tickets.removeLink')} title={t('tickets.removeLink')} onclick={() => editing && ((editing.card.ticket = undefined), (brief = null))}>✕</button>
+            {/if}
+          </div>
+        {/if}
         <div class="group">
           <label for="card-title">{t('common.title')}</label>
           <!-- svelte-ignore a11y_autofocus -->
           <input id="card-title" class="field" bind:value={editing.card.title} autofocus />
         </div>
+        {#if editing.card.ticket && !linked}
+          {@const on = fieldsOf(editing.card.ticket)}
+          <details class="agent context">
+            <summary>
+              <span class="chevron" aria-hidden="true">›</span>{t('tickets.context')}
+              <span class="context-count">· {on.length === FIELDS.length ? t('tickets.contextAll', { count: FIELDS.length }) : t('tickets.contextSome', { count: on.length, total: FIELDS.length })}</span>
+            </summary>
+            <div class="context-fields">
+              <label class="all"><input type="checkbox" checked={on.length === FIELDS.length} onchange={(e) => setAllFields(e.currentTarget.checked)} />{t('tickets.all')}</label>
+              {#each FIELDS as [field, label] (field)}
+                <label><input type="checkbox" checked={on.includes(field)} onchange={(e) => setField(field, e.currentTarget.checked)} />{t(label)}</label>
+              {/each}
+            </div>
+          </details>
+          {#if brief}
+            <div class="brief" role="status">
+              {#if brief.running}
+                <span class="pulse" aria-hidden="true"></span>{t('tickets.briefRunning')}
+              {:else if brief.error}
+                <span class="brief-error">{t('tickets.briefFailed', { error: brief.error })}</span>
+              {:else}
+                <span class="pulse done" aria-hidden="true"></span>{t('tickets.briefDone')}
+              {/if}
+              <span class="spacer"></span>
+              {#if !brief.running}<button type="button" class="regen" onclick={prepare}>↻ {t('tickets.regenerate')}</button>{/if}
+            </div>
+          {/if}
+        {/if}
         <div class="group">
           <label for="card-prompt">{t('common.description')}</label>
           <textarea
@@ -311,6 +469,7 @@
             bind:value={editing.card.prompt}
             placeholder={t('board.taskPromptPlaceholder')}
             onkeydown={(e) => (clip.key(e), e.ctrlKey && e.key === 'Enter' && submit(e))}
+            oninput={() => (touched = true)}
             onpaste={clip.paste}
           ></textarea>
           <div class="files" aria-label={t('board.taskFiles')}>
@@ -333,6 +492,7 @@
               class="field"
               rows="2"
               bind:value={editing.card.goal}
+              oninput={() => (touched = true)}
               placeholder={t('board.taskGoalPlaceholder')}
             ></textarea>
           </div>
@@ -347,7 +507,7 @@
           <button type="button" class="btn btn-danger" onclick={remove}>{t('common.delete')}</button>
         {/if}
         <span class="spacer"></span>
-        <button type="button" class="btn btn-secondary" onclick={() => (editing = null)}>{t('common.cancel')}</button>
+        <button type="button" class="btn btn-secondary" onclick={() => ((editing = null), (brief = null))}>{t('common.cancel')}</button>
         {#if linked}
           <button class="btn btn-primary" disabled={!editing.card.title.trim()}>{t('common.save')}</button>
         {:else}
@@ -369,6 +529,7 @@
 
 <style>
   main {
+    position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
@@ -534,7 +695,7 @@
     flex: 1;
     min-height: 0;
     display: grid;
-    grid-template-columns: repeat(4, minmax(220px, 1fr));
+    grid-template-columns: repeat(var(--count), minmax(220px, 1fr));
     gap: 12px;
     padding: 0 32px 24px;
     overflow-x: auto;
@@ -765,9 +926,289 @@
   }
 
   .buttons {
+    align-self: stretch;
     display: flex;
     flex-wrap: wrap;
+    align-items: center;
     gap: 6px;
+  }
+
+  .buttons:empty {
+    display: none;
+  }
+
+  .ref {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin: 4px 0 0 auto;
+    padding: 2px 4px;
+    border-radius: 3px;
+    font: 500 11px var(--mono);
+    color: var(--ticket-text);
+  }
+
+  .ref:hover {
+    background: var(--ticket-button);
+  }
+
+  .logo {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--jira);
+    color: #fff;
+    font: 700 8px var(--sans);
+  }
+
+  .ticket-column {
+    background: var(--ticket-bg);
+    box-shadow: inset 0 0 0 1px var(--ticket-border);
+  }
+
+  .ticket-column h2 {
+    color: var(--ticket-muted);
+  }
+
+  .spacer {
+    flex: 1;
+  }
+
+  .sprint {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 60%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 2px 6px;
+    border-radius: 4px;
+    font: 500 11.5px var(--sans);
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--ticket-muted);
+  }
+
+  .sprint:not(:disabled):hover {
+    background: var(--ticket-button);
+    color: var(--ticket-text);
+  }
+
+  .spin {
+    display: inline-block;
+    animation: spin 1s linear infinite;
+  }
+
+  @keyframes spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+
+  .ticket {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    column-gap: 8px;
+    border: 1px solid var(--ticket-border);
+    border-radius: 5px;
+    background: var(--ticket-card);
+  }
+
+  .ticket:hover,
+  .ticket.open {
+    border-color: var(--ticket-border-hover);
+    background: var(--ticket-card-hover);
+  }
+
+  .ticket.open {
+    box-shadow: 0 0 0 1px var(--remote-dot);
+  }
+
+  .ticket.linked:not(:hover):not(.open) {
+    opacity: 0.5;
+  }
+
+  .ticket-open {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 1px;
+    padding: 7px 0 7px 10px;
+    text-align: left;
+  }
+
+  .ticket-key {
+    font: 600 11px var(--mono);
+    color: var(--ticket-text);
+    white-space: nowrap;
+  }
+
+  .ticket-title {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
+  }
+
+  .ticket-who {
+    padding-right: 8px;
+  }
+
+  .nobody {
+    width: 22px;
+    height: 22px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--text-faint);
+    border-radius: 50%;
+    font-size: 10px;
+    color: var(--text-faint);
+  }
+
+  .ticket-create {
+    display: none;
+    grid-column: 1 / -1;
+    justify-self: start;
+    margin: 0 8px 8px 10px;
+    padding: 3px 9px;
+    border-radius: 4px;
+    background: var(--ticket-button);
+    color: var(--ticket-text);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .ticket:hover .ticket-create,
+  .ticket:focus-within .ticket-create {
+    display: block;
+  }
+
+  .ticket-error,
+  .ticket-empty {
+    padding: 4px 6px;
+    font-size: 12.5px;
+    color: var(--ticket-muted);
+  }
+
+  .ticket-error {
+    color: var(--err-text);
+  }
+
+  .linked-ticket {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .linked-ticket .logo {
+    width: 14px;
+    height: 14px;
+    font-size: 9px;
+    border-radius: 3px;
+  }
+
+  .linked-ticket .ticket-title {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .linked-ticket button {
+    width: 22px;
+    height: 22px;
+    border-radius: 4px;
+    color: var(--text-faint);
+  }
+
+  .linked-ticket button:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .context-count {
+    font-weight: 400;
+    color: var(--text-dim);
+  }
+
+  .context-fields {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 7px 14px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-sidebar);
+    font-size: 12.5px;
+  }
+
+  .context-fields label {
+    font-weight: 400;
+    display: flex;
+    align-items: center;
+    gap: 7px;
+    cursor: pointer;
+  }
+
+  .context-fields input {
+    accent-color: var(--accent);
+  }
+
+  .context-fields .all {
+    grid-column: 1 / -1;
+    padding-bottom: 7px;
+    border-bottom: 1px solid var(--border);
+    font-weight: 600;
+  }
+
+  .brief {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .pulse {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ok);
+    animation: breathe 1.4s ease-in-out infinite;
+  }
+
+  .pulse.done {
+    animation: none;
+  }
+
+  @keyframes breathe {
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  .brief-error {
+    color: var(--err-text);
+  }
+
+  .regen {
+    padding: 2px 6px;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .regen:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
   }
 
   .diff .add {

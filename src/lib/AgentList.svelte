@@ -4,7 +4,7 @@
   import { ago, short } from './format'
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
-  import type { Project } from './projects.svelte'
+  import { projects, type Project } from './projects.svelte'
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
   import ImportPanel from './ImportPanel.svelte'
@@ -193,6 +193,7 @@
 </script>
 
 {#snippet card(agent: Agent)}
+  {@const ticket = projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket}
   <span class="line">
     <StatusIcon status={look(agent)} />
     {#if editing === agent.id}
@@ -211,7 +212,7 @@
       {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
     {/if}
   </span>
-  <span class="state">{label(agent)}</span>
+  <span class="state">{#if ticket}<span class="ticket" title={t('tickets.linkTitle', { key: ticket.key })}><span class="logo" aria-hidden="true">J</span>{ticket.key}</span>{/if}{label(agent)}</span>
   <PullTag {agent} gutter />
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
@@ -984,6 +985,28 @@
 
   .state {
     font: 12px var(--sans);
+  }
+
+  .ticket {
+    float: right;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 8px;
+    font: 500 11px var(--mono);
+    color: var(--ticket-text);
+  }
+
+  .ticket .logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 11px;
+    height: 11px;
+    border-radius: 2px;
+    background: var(--jira);
+    color: #fff;
+    font: 700 7.5px var(--sans);
   }
 
   .done .state,
