@@ -22,6 +22,7 @@
   import SubagentsPanel from './SubagentsPanel.svelte'
   import ArtifactsPanel from './ArtifactsPanel.svelte'
   import { docsOf } from './artifacts'
+  import TicketPanel from './TicketPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
   import { run } from './shells.svelte'
@@ -158,18 +159,25 @@
     agent.worktree ? agent.worktree.branch || agent.worktree.path.split('/').at(-1) : projects.list.find((p) => p.path === agent.project)?.branch,
   )
   const shared = $derived([...(agent.artifacts ?? []), ...docsOf(agent)])
+  const ticket = $derived(projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket)
+  let reading = $state(false)
+  $effect(() => {
+    void agent.id
+    reading = false
+  })
   const info = $derived(
     shown('agent.info').filter(
       (id) =>
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'artifacts' || shared.length) &&
         (id !== 'branch' || branch) &&
+        (id !== 'ticket' || ticket) &&
         (id !== 'pull' || pull || agent.review) &&
         (id !== 'tasks' || agent.tasks.length) &&
         (id !== 'turns' || agent.turns),
     ),
   )
-  const CHIPS = ['remote', 'branch', 'pull', 'subagents', 'artifacts']
+  const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'subagents', 'artifacts']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
@@ -309,9 +317,7 @@
               ? t('agent.newInstruction')
               : agent.status === 'error'
                 ? t('agent.writeReload', { agent: agent.name })
-                : agent.guess
-                  ? t('agent.guess', { guess: agent.guess })
-                  : t('agent.writeTo', { agent: agent.name }),
+                : agent.guess || t('agent.writeTo', { agent: agent.name }),
   )
 
   function measure() {
@@ -482,7 +488,7 @@
         return
       }
     }
-    if (event.key === 'ArrowRight' && !text && placeholder === t('agent.guess', { guess: agent.guess ?? '' })) {
+    if (event.key === 'ArrowRight' && !text && agent.guess && placeholder === agent.guess) {
       event.preventDefault()
       show(area, agent.guess!)
       return
@@ -538,6 +544,9 @@
 
 <main>
   <section class="conversation" aria-label={t('agent.conversation')}>
+    {#if reading && ticket}
+      <TicketPanel connection={ticket.connection} ticketKey={ticket.key} linked oncreate={() => {}} onclose={() => (reading = false)} />
+    {/if}
     <div class="top">
       <div class="title">
         {#if renaming}
@@ -688,6 +697,16 @@
                   </div>
                 {/if}
               </span>
+            {:else if id === 'ticket' && ticket}
+              <button
+                class="chip ticket"
+                data-item={id}
+                aria-pressed={reading}
+                title={t(reading ? 'tickets.closeTicket' : 'tickets.openTicket', { key: ticket.key })}
+                onclick={() => (reading = !reading)}
+              >
+                <span class="jira" aria-hidden="true">J</span><span class="mono">{ticket.key}</span><span class="go" aria-hidden="true">›</span>
+              </button>
             {:else if id === 'branch'}
               <span
                 class="chip branch"
@@ -1271,6 +1290,23 @@
   .context .anchor {
     position: relative;
     display: inline-flex;
+  }
+
+  .ticket .mono {
+    color: var(--ticket-text);
+  }
+
+  .jira {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    background: var(--jira);
+    color: #fff;
+    font: 700 9px var(--sans);
   }
 
   .chip {

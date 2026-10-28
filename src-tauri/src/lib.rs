@@ -11,6 +11,7 @@ pub mod projects;
 pub mod sessions;
 pub mod system;
 pub mod terminal;
+pub mod tickets;
 
 use agents::Agents;
 use askpass::Askpass;
@@ -267,6 +268,9 @@ fn edit_project(
         if let Some(prompt) = changes.review_prompt {
             project.review_prompt = prompt.trim().to_string();
         }
+        if let Some(tickets) = changes.tickets {
+            project.tickets = tickets;
+        }
         Ok(())
     })
 }
@@ -321,6 +325,7 @@ struct Config {
     runs_hidden: Vec<String>,
     runs_notify: bool,
     review_prompt: String,
+    ticket_fields_off: Vec<String>,
 }
 
 impl Default for Config {
@@ -349,6 +354,7 @@ impl Default for Config {
             runs_hidden: Vec::new(),
             runs_notify: false,
             review_prompt: String::new(),
+            ticket_fields_off: Vec::new(),
         }
     }
 }
@@ -791,6 +797,75 @@ async fn bitbucket_sign_in(email: String, token: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn ticket_connections() -> Result<Vec<tickets::Connection>, String> {
+    tickets::connections()
+}
+
+#[tauri::command]
+async fn ticket_connect(
+    id: Option<String>,
+    name: String,
+    site: String,
+    email: String,
+    token: String,
+) -> Result<Vec<tickets::Connection>, String> {
+    tickets::connect(id, name, site, email, token).await
+}
+
+#[tauri::command]
+fn ticket_disconnect(id: String) -> Result<Vec<tickets::Connection>, String> {
+    tickets::disconnect(&id)
+}
+
+#[tauri::command]
+async fn ticket_projects(connection: String) -> Result<Vec<tickets::JiraProject>, String> {
+    tickets::projects(&connection).await
+}
+
+#[tauri::command]
+async fn ticket_mentions(path: PathBuf) -> std::collections::BTreeMap<String, (u32, u32)> {
+    tauri::async_runtime::spawn_blocking(move || tickets::mentions(&path))
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
+async fn ticket_sprint(sources: Vec<tickets::Source>) -> tickets::Sprint {
+    tickets::sprint(sources).await
+}
+
+#[tauri::command]
+async fn ticket_get(connection: String, key: String) -> Result<tickets::Ticket, String> {
+    tickets::ticket(&connection, &key).await
+}
+
+#[tauri::command]
+async fn ticket_context(
+    connection: String,
+    key: String,
+    fields: Vec<String>,
+) -> Result<String, String> {
+    let ticket = tickets::ticket(&connection, &key).await?;
+    Ok(tickets::context(&ticket, &fields))
+}
+
+#[tauri::command]
+async fn ticket_brief(
+    settings: State<'_, Settings>,
+    path: PathBuf,
+    connection: String,
+    key: String,
+    fields: Vec<String>,
+) -> Result<tickets::Brief, String> {
+    let ticket = tickets::ticket(&connection, &key).await?;
+    let context = tickets::context(&ticket, &fields);
+    let program = settings.claude();
+    tauri::async_runtime::spawn_blocking(move || tickets::brief(&program, &path, &context))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn bitbucket_sign_out() -> Result<(), String> {
     forge::sign_out()
 }
@@ -891,7 +966,7 @@ fn restore_agent(
     dir: Option<PathBuf>,
 ) -> Result<(), String> {
     agents.register(&id, project, options, session_id, fork)?;
-    agents.set_dir(&id, dir)?;
+    agents.set_dir(&id, dir.filter(|d| d.join(".git").exists()))?;
     match at {
         Some(at) => agents.fork_at(&id, &at),
         None => Ok(()),
@@ -1444,6 +1519,15 @@ pub fn run() {
             forge_accounts,
             bitbucket_sign_in,
             bitbucket_sign_out,
+            ticket_connections,
+            ticket_connect,
+            ticket_disconnect,
+            ticket_projects,
+            ticket_mentions,
+            ticket_sprint,
+            ticket_get,
+            ticket_context,
+            ticket_brief,
             subagent_log,
             get_settings,
             set_settings,

@@ -1,5 +1,23 @@
 # Nouveautés
 
+## 0.15.0 · 2026-10-28
+
+### Tickets
+
+- **Jira** : connexions Jira dans Réglages › Tickets, projets Jira liés à chaque projet avec des suggestions tirées de git, une colonne Tickets dans le Kanban avec le sprint en cours, un panneau de ticket en lecture seule avec ses commentaires en fils, et une tâche créée depuis un ticket dont Haiku prépare les instructions.
+- **Ticket dans l’en-tête** : un agent qui travaille sur une tâche créée depuis un ticket Jira affiche le ticket dans son en-tête, où il s’ouvre pour être relu.
+
+### Pull requests
+
+- **Retour à l’agent relecteur** : une pull request relue par un agent propose d’aller à cet agent depuis son menu, pour reprendre la conversation.
+- **Relecture confiée à un agent** : une relecture en cours part à l’agent qui travaille sur la branche, ou à un nouvel agent dans un checkout de la pull request, au lieu d’être seulement publiée sur Bitbucket ou GitHub.
+- **Commentaires lus par les agents** : les agents lisent les commentaires d’une pull request, en fils avec leurs réponses, avec read_pull_comments.
+
+### Agents
+
+- **Worktree supprimé** : un agent dont le worktree a été supprimé s’ouvre dans le dossier de son projet au démarrage suivant, au lieu d’afficher une session arrêtée.
+- **Réponse prévue** : elle s’affiche sans flèche après elle.
+
 ## 0.14.0 · 2026-10-28
 
 ### Agents

@@ -32,6 +32,7 @@ export type Config = {
   runs_hidden: string[]
   runs_notify: boolean
   review_prompt: string
+  ticket_fields_off: string[]
 }
 
 export const settings = $state<Config>({
@@ -54,6 +55,7 @@ export const settings = $state<Config>({
   runs_hidden: [],
   runs_notify: false,
   review_prompt: '',
+  ticket_fields_off: [],
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

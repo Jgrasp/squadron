@@ -3,6 +3,7 @@
   import { ui } from './actions.svelte'
   import { shelve, unshelve } from './agents.svelte'
   import ColorPick from './ColorPick.svelte'
+  import ProjectTickets from './ProjectTickets.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
   import { saveSettings, settings, type TabOrder } from './settings.svelte'
   import { lookUpRuns, names, runs } from './pipelines.svelte'
@@ -143,6 +144,7 @@
             ></textarea>
           {/if}
         {/if}
+        <ProjectTickets {project} />
       </span>
     </li>
   {/each}

@@ -13,6 +13,7 @@ export type SettingsTab =
   | 'claude'
   | 'editors'
   | 'hosting'
+  | 'tickets'
   | 'preferences'
   | 'shortcuts'
   | 'layout'

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { ticketBlocks } from './tickets.svelte'
   import { SvelteSet } from 'svelte/reactivity'
   import { clock, forkPoint, VALUES } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
@@ -251,6 +252,7 @@
       <Markdown text={entry.text} />
     </div>
   {:else if entry.kind === 'user'}
+    {@const said = ticketBlocks(entry.text)}
     {#if entry.files?.length}
       <div class="files" data-user={i}>{#each entry.files as file (file)}<Attachment path={file} large look="card" />{/each}</div>
     {/if}
@@ -259,7 +261,13 @@
         {#if entry.comments}
           <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
         {/if}
-        {#if entry.text}<div class="said">{#each highlight(entry.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+        {#if said.text}<div class="said">{#each highlight(said.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+        {#each said.blocks as block, b (b)}
+          <details class="ticket-context">
+            <summary><span class="logo" aria-hidden="true">J</span><strong>{block.key}</strong> · {t('tickets.contextOf')}</summary>
+            <div class="said">{block.body}</div>
+          </details>
+        {/each}
       </div>
     {/if}
     {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
@@ -573,6 +581,54 @@
 
   .menu button:hover {
     background: var(--menu-hover);
+  }
+
+  .ticket-context {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(36, 18, 10, 0.2);
+    font-size: 12.5px;
+  }
+
+  .ticket-context summary {
+    color: var(--accent-ink);
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    cursor: pointer;
+    list-style: none;
+    opacity: 0.75;
+  }
+
+  .ticket-context summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .ticket-context summary:hover {
+    opacity: 1;
+  }
+
+  .ticket-context strong {
+    font: 600 12px var(--mono);
+    color: var(--accent-ink);
+  }
+
+  .ticket-context .logo {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 12px;
+    height: 12px;
+    border-radius: 2px;
+    background: var(--jira);
+    color: #fff;
+    font: 700 8px var(--sans);
+  }
+
+  .ticket-context .said {
+    margin-top: 8px;
+    max-height: 320px;
+    overflow-y: auto;
   }
 
   .user {

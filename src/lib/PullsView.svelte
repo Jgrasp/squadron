@@ -1,14 +1,14 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { ask } from './asking.svelte'
-  import { agents, clock, find, show } from './agents.svelte'
+  import { agents, clock, find, reply, send, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pulls, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pulls, fixWithAgent, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
-  import { workdir, type Comment } from './stream'
+  import { prompt, workdir, type Comment } from './stream'
   import Trans from './Trans.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
@@ -38,6 +38,14 @@
     if (before) agents.current[project.path] = before
     else delete agents.current[project.path]
     launched = { id, number: pull.number }
+  }
+  async function handOver(pull: Pull, summary: string, list: Comment[]) {
+    opened = null
+    const agent = agentOn(pull)
+    if (!agent) return show(find(await fixWithAgent(project.path, pull, summary, list))!)
+    const message = summary || `Review of pull request #${pull.number}`
+    if (!reply(agent, prompt(message, list))) send(agent.id, message, list)
+    show(agent)
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
@@ -92,6 +100,7 @@
   })
 
   const agentOn = (pull: Pull) => agents.list.find((a) => a.project === project.path && pulls[workdir(a)]?.number === pull.number)
+  const reviewerOf = (pull: Pull) => agents.list.find((a) => a.review?.project === project.path && a.review.number === pull.number)
 
   function since(at: string) {
     const min = Math.max(0, Math.floor((clock.now - Date.parse(at)) / 60_000))
@@ -139,6 +148,7 @@
       <section>
         <h2>{t('review.toReview')} <span class="n">{found.review.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
+          {@const reviewer = reviewerOf(pull)}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
@@ -146,7 +156,7 @@
               `review-${pull.number}`,
               { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) },
               waitsFor(project.path, pull),
-              [openOn(pull), ...approving(pull)],
+              [openOn(pull), ...(reviewer ? [{ label: t('review.goToAgent', { name: reviewer.name }), title: t('review.agentReviewing', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...approving(pull)],
               opened?.number === pull.number,
             )}
           </article>
@@ -191,9 +201,10 @@
       bind:comments={notes}
       bind:target
       onhand={() => {}}
-      onreview={() => {}}
+      onreview={(summary, list) => handOver(opened!, summary, list)}
+      handTo={(opened && agentOn(opened)?.name) || t('review.newAgent')}
       onposted={() => ((opened = null), lookUpLists(project.path, true))}
-      reviewer={agents.list.find((a) => a.review?.project === project.path && a.review.number === opened?.number) ?? null}
+      reviewer={reviewerOf(opened) ?? null}
       onagent={() => askAgent(opened!)}
       banner={flashes}
       onclose={() => (opened = null)}

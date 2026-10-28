@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.15.0 · 2026-10-28
+
+### Tickets
+
+- **Jira**: Jira connections in Settings › Tickets, Jira projects linked to each project with suggestions from git, a Tickets column in the Kanban with the current sprint, a read-only ticket panel with threaded comments, and a task made from a ticket whose instructions Haiku prepares.
+- **Ticket in the header**: an agent working on a task made from a Jira ticket shows the ticket in its header, where it opens to be read again.
+
+### Pull requests
+
+- **Back to the reviewing agent**: a pull request an agent has reviewed offers to go to that agent from its menu, to resume the conversation.
+- **Review handed to an agent**: a review in progress goes to the agent working on the branch, or to a new agent in a checkout of the pull request, instead of only being posted on Bitbucket or GitHub.
+- **Comments read by agents**: agents read the comments of a pull request, in threads with their replies, with read_pull_comments.
+
+### Agents
+
+- **Removed worktree**: an agent whose worktree was removed opens in its project folder at the next start, instead of showing a stopped session.
+- **Predicted reply**: it shows without an arrow after it.
+
 ## 0.14.0 · 2026-10-28
 
 ### Agents

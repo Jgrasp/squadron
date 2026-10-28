@@ -7,5 +7,6 @@ import review from './review'
 import runs from './runs'
 import settings from './settings'
 import shell from './shell'
+import tickets from './tickets'
 
-export default { common, format, settings, board, review, runs, agent, conversation, shell }
+export default { common, format, settings, board, review, runs, agent, conversation, shell, tickets }
