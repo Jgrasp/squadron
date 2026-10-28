@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.16.1 · 2026-10-28
+
+### Kanban
+
+- **Tâches dans les réponses** : un agent cite une tâche par un lien vers sa carte, qui s’affiche en puce dans une phrase ou en carte en tête d’un élément de liste, pour toutes les tâches, avec ou sans code. Une tâche dont le titre commence par un code (T52) est aussi reconnue quand l’agent écrit le code seul. La puce porte la couleur de la colonne de la tâche et ouvre sa fenêtre.
+
 ## 0.16.0 · 2026-10-28
 
 ### Artifacts
