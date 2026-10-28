@@ -411,7 +411,7 @@
 {/each}
 
 {#if agent.tasks.length}
-  <details class="tasks" open={working}>
+  <details class="tasks" open={agent.tasks.some((task) => task.status !== 'completed')}>
     <summary>
       <span class="chevron" aria-hidden="true">›</span>
       {t('conversation.tasks', { done: agent.tasks.filter((task) => task.status === 'completed').length, total: agent.tasks.length })}
