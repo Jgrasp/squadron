@@ -87,4 +87,6 @@ export default {
   removeLink: 'Délier le ticket',
   linkTitle: 'Ticket Jira {key}',
   contextOf: 'Contexte du ticket',
+  openTicket: 'Relire le ticket Jira {key}',
+  closeTicket: 'Fermer le ticket Jira {key}',
 } satisfies Catalog['tickets']
