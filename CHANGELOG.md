@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.13.1 · 2026-10-28
+
+### Agents
+
+- **Values and secrets**: the agent no longer edits the file to prepare it. Squadron writes each value where its placeholder is, or adds the line at the end of the file, and creates the file when it does not exist. Auto mode no longer blocks the request.
+
 ## 0.13.0 · 2026-10-28
 
 ### Agents
