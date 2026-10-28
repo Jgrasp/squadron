@@ -25,8 +25,8 @@
 </script>
 
 {#if card}
-  <span class="code">{codeOf(card.title)}</span>
-  <span class="head">
+  {#if codeOf(card.title)}<span class="code">{codeOf(card.title)}</span>{/if}
+  <span class="head" class:wide={!codeOf(card.title)}>
     <strong>{nameOf(card.title)}</strong>
     <span class="meta">
       {#if agent}<StatusIcon status={agent.status} />{/if}
@@ -48,8 +48,13 @@
   }
 
   .head {
+    grid-column: 2;
     display: flex;
     flex-direction: column;
+  }
+
+  .wide {
+    grid-column: 1 / -1;
   }
 
   strong {

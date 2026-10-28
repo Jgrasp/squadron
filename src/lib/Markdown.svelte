@@ -115,7 +115,7 @@
   import TaskRef from './TaskRef.svelte'
   import TaskDialog from './TaskDialog.svelte'
   import { projects } from './projects.svelte'
-  import { leads, taskId } from './taskref'
+  import { codeOf, leading, leads, mentions, taskAt, taskId } from './taskref'
   import Attachment from './Attachment.svelte'
   import { showCapture } from './captures.svelte'
 
@@ -267,12 +267,55 @@
         const chip = document.createElement(card ? 'button' : 'span')
         chip.textContent = link.textContent
         if (card) {
-          Object.assign(chip, { type: 'button', className: 'task-chip', title: card.title })
+          Object.assign(chip, { type: 'button', className: `task-chip${chip.textContent?.trim() === codeOf(card.title) ? '' : ' named'}`, title: card.title })
           chip.dataset.task = card.id
           chip.dataset.column = card.column
         }
         link.replaceWith(chip)
         undo.unshift(() => chip.replaceWith(link))
+      }
+      for (const item of box?.querySelectorAll<HTMLLIElement>('li:not(.task-item)') ?? []) {
+        const card = taskAt(tasks, item.textContent ?? '')
+        if (!card) continue
+        const note = document.createElement('div')
+        note.className = 'task-note'
+        note.append(...item.childNodes)
+        const first = document.createTreeWalker(note, NodeFilter.SHOW_TEXT).nextNode()
+        const said = first?.textContent ?? ''
+        const code = leading(codeOf(card.title)!)
+        if (first && code.test(said)) first.textContent = said.replace(code, '')
+        const slot = document.createElement('span')
+        slot.className = 'task-slot'
+        item.append(slot, note)
+        item.classList.add('task-item')
+        mounted.push(mount(TaskRef, { target: slot, props: { id: card.id, project, host: item } }))
+        undo.unshift(() => {
+          if (first) first.textContent = said
+          item.classList.remove('task-item')
+          item.replaceChildren(...note.childNodes)
+        })
+      }
+      const walker = document.createTreeWalker(box!, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => (node.parentElement?.closest('pre, code, a, button, .task-slot, .code') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      })
+      const texts: Text[] = []
+      while (walker.nextNode()) texts.push(walker.currentNode as Text)
+      for (const text of texts) {
+        const parts = mentions(tasks, text.data)
+        if (!parts.some((part) => typeof part !== 'string')) continue
+        const nodes = parts.map((part) => {
+          if (typeof part === 'string') return document.createTextNode(part)
+          const chip = document.createElement('button')
+          Object.assign(chip, { type: 'button', className: 'task-chip', title: part.card.title, textContent: part.code })
+          chip.dataset.task = part.card.id
+          chip.dataset.column = part.card.column
+          return chip
+        })
+        text.replaceWith(...nodes)
+        undo.unshift(() => {
+          nodes[0].replaceWith(text)
+          nodes.slice(1).forEach((n) => n.remove())
+        })
       }
     })
     return () => {
@@ -381,6 +424,11 @@
     cursor: pointer;
   }
 
+  .prose :global(.task-chip.named) {
+    font-family: inherit;
+    font-size: inherit;
+  }
+
   .prose :global(.task-chip::before) {
     content: '';
     width: 6px;
@@ -408,6 +456,10 @@
   .prose :global(.task-note) {
     grid-column: 2;
     font-size: 13px;
+  }
+
+  .prose :global(.task-slot:has(.wide) + .task-note) {
+    grid-column: 1 / -1;
   }
 
   .prose :global(.task-note:empty) {
