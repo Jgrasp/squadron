@@ -9,7 +9,7 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { editProject, projects, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { REVIEW_PROMPT, reviewPrompt, reviews } from './pulls.svelte'
+import { pulls, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -234,6 +234,41 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
     const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
     return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
+  },
+
+  read_pull_comments: async (caller, args) => {
+    const project = projectFor(caller, args.project)
+    const own = project.path === caller.project
+    const number = Number(args.number) || (own ? (caller.review?.number ?? pulls[workdir(caller)]?.number) : undefined)
+    if (!number) throw new Error('No pull request found for your branch. Pass its number.')
+    const remarks = await invoke<Remark[]>('pull_remarks', { dir: project.path, number })
+    const byId = new Map(remarks.map((r) => [r.id, r]))
+    const rootOf = (r: Remark): Remark => {
+      const seen = new Set<number>()
+      while (r.reply_to && byId.has(r.reply_to) && !seen.has(r.id)) {
+        seen.add(r.id)
+        r = byId.get(r.reply_to)!
+      }
+      return r
+    }
+    const threads = new Map<number, { id: number; author: string; at: string; path?: string; line?: number; removed?: true; outdated?: true; body: string; replies: { id: number; author: string; at: string; body: string }[] }>()
+    for (const r of remarks.filter((r) => rootOf(r) === r))
+      threads.set(r.id, {
+        id: r.id,
+        author: r.author,
+        at: r.at,
+        path: r.path ?? undefined,
+        line: r.line ?? undefined,
+        removed: r.removed || undefined,
+        outdated: (!!r.path && r.line === null) || undefined,
+        body: r.body,
+        replies: [],
+      })
+    for (const r of remarks) {
+      const root = rootOf(r)
+      if (root !== r) threads.get(root.id)?.replies.push({ id: r.id, author: r.author, at: r.at, body: r.body })
+    }
+    return { pull: number, threads: [...threads.values()] }
   },
 
   get_review_prompt: (caller, args) => {

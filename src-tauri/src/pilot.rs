@@ -125,6 +125,15 @@ struct ReviewComment {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct ReadPullComments {
+    /// The pull request number. The one you review, or else the one of your branch, when left empty.
+    number: Option<u64>,
+    /// Project name or path. Your own project when left empty.
+    project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct GetReviewPrompt {
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
@@ -363,6 +372,17 @@ impl Pilot {
         Parameters(args): Parameters<ReviewComment>,
     ) -> String {
         self.forward(&parts, "add_review_comment", json!(args))
+            .await
+    }
+
+    /// Returns the comments posted on a pull request on Bitbucket or GitHub, in threads with their replies: on the whole pull request or on a file line (outdated when the line no longer exists). Squadron reads them with the user's account: no token needed.
+    #[tool]
+    async fn read_pull_comments(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<ReadPullComments>,
+    ) -> String {
+        self.forward(&parts, "read_pull_comments", json!(args))
             .await
     }
 
