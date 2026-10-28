@@ -82,7 +82,7 @@ export type Goal = {
 }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string; peer?: string }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string; peer?: string; squadron?: true }
   | { kind: 'agent'; blocks: Block[]; uuid?: string }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)

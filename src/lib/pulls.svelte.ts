@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { agents, create, persist, send } from './agents.svelte'
+import { agents, create, FOR_INFO, persist, send } from './agents.svelte'
 import { projects } from './projects.svelte'
 import { settings } from './settings.svelte'
 import { prompt, workdir, type Agent, type Comment } from './stream'
@@ -214,7 +214,7 @@ const VERDICTS: Record<string, string> = { approve: 'approved it', request_chang
 function tell(pull: Pull, text: string, comments: Comment[] = []) {
   for (const agent of agents.list)
     if (!agent.review && agent.alive && !agent.asks.length && agent.status !== 'error' && pullOf(agent)?.url === pull.url)
-      send(agent.id, `${text}\n\nThis is for your information: wait for the user before you change, commit or push anything about it.`, comments)
+      send(agent.id, text, comments, [], '', FOR_INFO)
 }
 
 export async function post(dir: string, pull: Pull, list: Comment[], summary = '', verdict = '') {

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.2 · 2026-10-28
+
+### Fixes
+
+- **Notices from Squadron**: the notice an agent gets when you merge its pull request or post a review of it shows as a discreet card from Squadron, no longer as if you wrote it.
+
 ## 0.16.1 · 2026-10-28
 
 ### Kanban
