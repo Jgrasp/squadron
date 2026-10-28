@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.16.2 · 2026-10-28
+
+### Correctifs
+
+- **Avis de Squadron** : l’avis qu’un agent reçoit quand vous mergez sa pull request ou publiez une relecture s’affiche en carte discrète de Squadron, et non plus comme si vous l’aviez écrit.
+
 ## 0.16.1 · 2026-10-28
 
 ### Kanban
