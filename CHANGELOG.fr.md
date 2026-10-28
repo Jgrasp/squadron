@@ -1,5 +1,25 @@
 # Nouveautés
 
+## 0.14.0 · 2026-10-28
+
+### Agents
+
+- **Du plan au mode auto** : un plan peut être approuvé directement en mode auto. Une fois son plan approuvé, l’agent n’affiche plus le mode plan.
+- **Réponse prévue** : après chaque tour, le champ de message vide affiche la réponse que Claude Code attend de vous. La flèche droite la reprend.
+- **Messages entre agents** : le message d’un autre agent s’affiche comme une carte à gauche, avec son Markdown rendu et son expéditeur en haut.
+
+### Pull requests
+
+- Publier une review, approuver ou merger une pull request prévient les agents en cours qui travaillent dessus.
+
+### Artifacts
+
+- Le panneau liste les Claude Docs qu’un agent crée sur claude.ai. Un artifact Markdown peut y être publié pour le partager, avec son lien à ouvrir ou copier.
+
+### Correctifs
+
+- Les agents coupés par un redémarrage de mise à jour reprennent de nouveau au démarrage suivant.
+
 ## 0.13.1 · 2026-10-28
 
 ### Agents
