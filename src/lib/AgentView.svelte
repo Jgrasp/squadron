@@ -482,7 +482,7 @@
         return
       }
     }
-    if (event.key === 'Tab' && !event.shiftKey && !text && placeholder === t('agent.guess', { guess: agent.guess ?? '' })) {
+    if (event.key === 'ArrowRight' && !text && placeholder === t('agent.guess', { guess: agent.guess ?? '' })) {
       event.preventDefault()
       show(area, agent.guess!)
       return
