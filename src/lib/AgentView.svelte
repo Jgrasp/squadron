@@ -20,6 +20,7 @@
   import Trans from './Trans.svelte'
   import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
+  import ArtifactsPanel from './ArtifactsPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
   import { run } from './shells.svelte'
@@ -159,13 +160,14 @@
     shown('agent.info').filter(
       (id) =>
         (id !== 'subagents' || agent.subagents.length) &&
+        (id !== 'artifacts' || agent.artifacts?.length) &&
         (id !== 'branch' || branch) &&
         (id !== 'pull' || pull || agent.review) &&
         (id !== 'tasks' || agent.tasks.length) &&
         (id !== 'turns' || agent.turns),
     ),
   )
-  const CHIPS = ['remote', 'branch', 'pull', 'subagents']
+  const CHIPS = ['remote', 'branch', 'pull', 'subagents', 'artifacts']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
@@ -715,6 +717,16 @@
                 {#if pull.checks}<span class="checks {pull.checks}" title={t(pull.checks === 'passing' ? 'agent.buildsPassing' : pull.checks === 'failing' ? 'agent.buildsFailing' : 'agent.buildsPending')}></span>{/if}
                 {#if pull.comments}<span class="fact">{t('agent.comments', { count: pull.comments })}</span>{/if}
               </button>
+            {:else if id === 'artifacts'}
+              <button
+                class="chip"
+                aria-pressed={panel === 'artifacts'}
+                title={t(panel === 'artifacts' ? 'agent.artifactsClose' : 'agent.artifactsOpen')}
+                data-item={id}
+                onclick={() => toggle('artifacts')}
+              >
+                <Icon name="artifact" size={16} />{t('agent.artifacts', { count: agent.artifacts?.length ?? 0 })}<span class="go" aria-hidden="true">›</span>
+              </button>
             {:else}
               <button
                 class="chip subagents {running > 0 ? `effect-${settings.tab_effect}` : ''}"
@@ -963,6 +975,8 @@
       onquote={(quote) => ((text = text.trim() ? `${text.trimEnd()} ${quote} ` : `${quote} `), composer.focus())}
       onclose={() => setPanel(agent.project, null)}
     />
+  {:else if panel === 'artifacts' && agent.artifacts?.length}
+    <ArtifactsPanel {agent} onclose={() => setPanel(agent.project, null)} />
   {/if}
 </main>
 

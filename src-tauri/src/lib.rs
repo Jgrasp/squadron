@@ -539,6 +539,11 @@ fn write_project_file(project: PathBuf, path: PathBuf, text: String) -> Result<(
     std::fs::write(file, text).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn save_text_file(path: PathBuf, text: String) -> Result<(), String> {
+    std::fs::write(path, text).map_err(|e| e.to_string())
+}
+
 #[derive(Serialize)]
 struct Entry {
     name: String,
@@ -1387,6 +1392,7 @@ pub fn run() {
             answer_askpass,
             read_project_file,
             write_project_file,
+            save_text_file,
             list_dir,
             project_files,
             git_file,

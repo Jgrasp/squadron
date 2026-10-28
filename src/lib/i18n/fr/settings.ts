@@ -113,6 +113,8 @@ export default {
   itemRemoteInfoHint: 'L’active, et montre quand la conversation peut être suivie depuis claude.ai',
   itemSubagents: 'Sous-agents',
   itemSubagentsHint: 'Affichés dès que l’agent a lancé des sous-agents',
+  itemArtifacts: 'Artifacts',
+  itemArtifactsHint: 'Affichés dès que l’agent a publié un artifact',
   itemCost: 'Coût',
   itemContext: 'Tokens de contexte',
   itemTurns: 'Tours',

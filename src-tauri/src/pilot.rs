@@ -18,6 +18,7 @@ When your task moves into a git worktree that you made yourself (a script, git w
 To start an agent in a worktree a script made, pass its path to start_agent. \
 During a long task made of many items, show where you are on your card with set_progress. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
+When you produce a document the user will read, keep or come back to, such as a report, a plan, a diagram or a page mock-up, publish it with publish_artifact instead of only writing it in the conversation, and update it under the same id as it changes. \
 When the user must put values such as keys, tokens, secrets or passwords into a file, write {{squadron:NAME}} in the file where each one goes, then call ask_values: Squadron asks the user and fills the file without you seeing them. Never ask for such values in the conversation.";
 
 #[derive(Clone, Debug, Serialize)]
@@ -180,6 +181,19 @@ struct InfoPanel {
     html: String,
     /// The panel height in pixels, from 24 to 240, 64 by default. Content beyond it is cut.
     height: Option<u32>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct Artifact {
+    /// A short title, shown in the list of your artifacts.
+    title: String,
+    /// The whole document, up to 500,000 characters. An empty string, with id, deletes the artifact.
+    content: String,
+    /// markdown (the default), html or svg.
+    kind: Option<String>,
+    /// The id publish_artifact returned, to replace that artifact with a new version. A new artifact when left empty.
+    id: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -396,6 +410,16 @@ impl Pilot {
         Parameters(args): Parameters<InfoPanel>,
     ) -> String {
         self.forward(&parts, "set_info_panel", json!(args)).await
+    }
+
+    /// Publishes a document in the Artifacts panel beside your conversation, where the user reads it, copies it or saves it as a file: a report, a plan, a table, a diagram, a page mock-up. Returns its id: call again with that id to publish a new version, or with an empty content to delete it. html and svg are rendered without scripts, network, links or forms (images and fonts only as data: URLs), on Squadron's dark background with the CSS variables --text, --text-strong, --text-muted, --text-faint, --accent, --accent-soft, --ok, --done, --err, --surface-1, --surface-3, --surface-5, --border, --sans and --mono. markdown is rendered like your replies.
+    #[tool]
+    async fn publish_artifact(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<Artifact>,
+    ) -> String {
+        self.forward(&parts, "publish_artifact", json!(args)).await
     }
 
     /// Asks the user, in a card of your conversation, for values to put into a file, such as API keys, tokens or passwords, and waits for them. Before calling it, write {{squadron:NAME}} in the file where each value goes, inside quotes when the format needs them. Squadron replaces each placeholder with what the user types and tells you which ones were filled: you never see the values, so never read them back, print them or copy them elsewhere.

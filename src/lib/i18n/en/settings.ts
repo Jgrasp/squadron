@@ -111,6 +111,8 @@ export default {
   itemRemoteInfoHint: 'Turns it on, and shows when the conversation can be followed from claude.ai',
   itemSubagents: 'Subagents',
   itemSubagentsHint: 'Shown once the agent has launched subagents',
+  itemArtifacts: 'Artifacts',
+  itemArtifactsHint: 'Shown once the agent has published an artifact',
   itemCost: 'Cost',
   itemContext: 'Context tokens',
   itemTurns: 'Turns',
