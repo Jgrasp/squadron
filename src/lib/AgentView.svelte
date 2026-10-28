@@ -317,9 +317,7 @@
               ? t('agent.newInstruction')
               : agent.status === 'error'
                 ? t('agent.writeReload', { agent: agent.name })
-                : agent.guess
-                  ? t('agent.guess', { guess: agent.guess })
-                  : t('agent.writeTo', { agent: agent.name }),
+                : agent.guess || t('agent.writeTo', { agent: agent.name }),
   )
 
   function measure() {
@@ -490,7 +488,7 @@
         return
       }
     }
-    if (event.key === 'ArrowRight' && !text && placeholder === t('agent.guess', { guess: agent.guess ?? '' })) {
+    if (event.key === 'ArrowRight' && !text && agent.guess && placeholder === agent.guess) {
       event.preventDefault()
       show(area, agent.guess!)
       return

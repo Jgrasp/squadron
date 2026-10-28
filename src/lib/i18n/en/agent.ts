@@ -35,7 +35,6 @@ export default {
   planApproval: 'Plan approval',
   approvePlan: 'Approve the plan?',
   planWaiting: '{agent} has not changed anything yet. It waits for your go-ahead.',
-  guess: '{guess}  →',
   startAuto: 'Start · auto mode',
   startAcceptEdits: 'Start · accept edits',
   startAskEach: 'Start · ask for each edit',

@@ -37,7 +37,6 @@ export default {
   planApproval: 'Validation du plan',
   approvePlan: 'Approuver le plan ?',
   planWaiting: '{agent} n’a encore rien modifié. Il attend votre feu vert.',
-  guess: '{guess}  →',
   startAuto: 'Démarrer · mode auto',
   startAcceptEdits: 'Démarrer · accepter les modifications',
   startAskEach: 'Démarrer · demander pour chaque modification',
