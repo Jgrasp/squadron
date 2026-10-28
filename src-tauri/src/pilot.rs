@@ -17,7 +17,9 @@ You can prepare and start new agents as the user would, and send an instruction 
 When your task moves into a git worktree that you made yourself (a script, git worktree add), call set_worktree so Squadron shows its branch. Going into another agent's worktree to look at it, or cd for a command, is not working there: leave your worktree as it is. \
 To start an agent in a worktree a script made, pass its path to start_agent. \
 During a long task made of many items, show where you are on your card with set_progress. \
-To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel.";
+To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
+When you produce a document the user will read, keep or come back to, such as a report, a plan, a diagram or a page mock-up, publish it with publish_artifact instead of only writing it in the conversation, and update it under the same id as it changes. \
+When the user must put values such as keys, tokens, secrets or passwords into a file, write {{squadron:NAME}} in the file where each one goes, then call ask_values: Squadron asks the user and fills the file without you seeing them. Never ask for such values in the conversation.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -83,6 +85,15 @@ struct SetWorktree {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct SetPinned {
+    /// Whether the agent stays pinned at the top of the agent list.
+    pinned: bool,
+    /// The agent id, as listed by overview, to pin another agent of the same project. Yourself when left empty.
+    agent: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MessageAgent {
     /// The agent id, as listed by overview.
     agent: String,
@@ -110,6 +121,24 @@ struct ReviewComment {
     removed: Option<bool>,
     /// The comment in Markdown: what is wrong and what to do.
     body: String,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct GetReviewPrompt {
+    /// Project name or path. Your own project when left empty.
+    project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct SetReviewPrompt {
+    /// The instructions in the user's words: what to look for, what to leave out, how to end. An empty string goes back to the default: Squadron's own for scope global, the global prompt for scope project.
+    prompt: String,
+    /// global for every project, or project for one project only. project by default.
+    scope: Option<String>,
+    /// Project name or path when scope is project. Your own project when left empty.
+    project: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -152,6 +181,39 @@ struct InfoPanel {
     html: String,
     /// The panel height in pixels, from 24 to 240, 64 by default. Content beyond it is cut.
     height: Option<u32>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct Artifact {
+    /// A short title, shown in the list of your artifacts.
+    title: String,
+    /// The whole document, up to 500,000 characters. An empty string, with id, deletes the artifact.
+    content: String,
+    /// markdown (the default), html or svg.
+    kind: Option<String>,
+    /// The id publish_artifact returned, to replace that artifact with a new version. A new artifact when left empty.
+    id: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct Field {
+    /// The NAME of the {{squadron:NAME}} placeholder in the file.
+    key: String,
+    /// A short line telling the user what to enter or where to find it.
+    hint: Option<String>,
+    /// True for a password, token or secret key: the field is masked.
+    secret: Option<bool>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AskValues {
+    /// The file, absolute or relative to your working folder, already holding a {{squadron:NAME}} placeholder for each field. Any format: .env, YAML, JSON, PHP…
+    path: String,
+    /// The values to ask for, in the order the user fills them.
+    fields: Vec<Field>,
 }
 
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
@@ -269,6 +331,16 @@ impl Pilot {
         self.forward(&parts, "set_worktree", json!(args)).await
     }
 
+    /// Pins an agent at the top of Squadron's agent list, or unpins it, as the user does by hand. Pin each agent you start or that works on a task when the task begins, and unpin it once the task is over (pull request merged).
+    #[tool]
+    async fn set_pinned(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<SetPinned>,
+    ) -> String {
+        self.forward(&parts, "set_pinned", json!(args)).await
+    }
+
     /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps.
     #[tool]
     async fn set_progress(
@@ -288,6 +360,26 @@ impl Pilot {
     ) -> String {
         self.forward(&parts, "add_review_comment", json!(args))
             .await
+    }
+
+    /// Returns the instructions given to the agents Squadron starts to review a pull request of a project: the global prompt, the project's own when it has one, and the one used.
+    #[tool]
+    async fn get_review_prompt(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<GetReviewPrompt>,
+    ) -> String {
+        self.forward(&parts, "get_review_prompt", json!(args)).await
+    }
+
+    /// Sets the instructions given to the agents Squadron starts to review a pull request, for every project (scope global) or for one project, which then no longer follows the global prompt. Squadron always adds what the pull request is, where its checkout is, and how to leave comments with add_review_comment.
+    #[tool]
+    async fn set_review_prompt(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<SetReviewPrompt>,
+    ) -> String {
+        self.forward(&parts, "set_review_prompt", json!(args)).await
     }
 
     /// Sends a message to another agent, as the next message of its conversation, marked as coming from you. The user approves each message before it is sent. It cannot answer that agent's pending question or permission request: only the user can.
@@ -318,6 +410,26 @@ impl Pilot {
         Parameters(args): Parameters<InfoPanel>,
     ) -> String {
         self.forward(&parts, "set_info_panel", json!(args)).await
+    }
+
+    /// Publishes a document in the Artifacts panel beside your conversation, where the user reads it, copies it or saves it as a file: a report, a plan, a table, a diagram, a page mock-up. Returns its id: call again with that id to publish a new version, or with an empty content to delete it. html and svg are rendered without scripts, network, links or forms (images and fonts only as data: URLs), on Squadron's dark background with the CSS variables --text, --text-strong, --text-muted, --text-faint, --accent, --accent-soft, --ok, --done, --err, --surface-1, --surface-3, --surface-5, --border, --sans and --mono. markdown is rendered like your replies.
+    #[tool]
+    async fn publish_artifact(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<Artifact>,
+    ) -> String {
+        self.forward(&parts, "publish_artifact", json!(args)).await
+    }
+
+    /// Asks the user, in a card of your conversation, for values to put into a file, such as API keys, tokens or passwords, and waits for them. Before calling it, write {{squadron:NAME}} in the file where each value goes, inside quotes when the format needs them. Squadron replaces each placeholder with what the user types and tells you which ones were filled: you never see the values, so never read them back, print them or copy them elsewhere.
+    #[tool]
+    async fn ask_values(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<AskValues>,
+    ) -> String {
+        self.forward(&parts, "ask_values", json!(args)).await
     }
 
     /// Returns Squadron's layout: each slot (a bar of buttons or a menu), its items and which are hidden.

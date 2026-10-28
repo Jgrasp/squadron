@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { lookUpAll } from './pulls.svelte'
+  import { lookUpAll, REVIEW_PROMPT } from './pulls.svelte'
   import { projects } from './projects.svelte'
   import { names } from './pipelines.svelte'
   import { saveSettings, settings } from './settings.svelte'
@@ -118,6 +118,21 @@
     <p class="intro"><Trans k="settings.githubSignedIn">{#snippet login()}<strong>{accounts?.github}</strong>{/snippet}</Trans></p>
   {:else}
     <p class="intro"><Trans k="settings.githubHow">{#snippet command()}<code>gh auth login</code>{/snippet}</Trans></p>
+  {/if}
+</section>
+
+<section>
+  <h3>{t('review.promptTitle')}</h3>
+  <p class="intro">{t('review.promptIntro')}</p>
+  <textarea
+    class="field prompt"
+    rows="5"
+    aria-label={t('review.promptTitle')}
+    value={settings.review_prompt || REVIEW_PROMPT}
+    onchange={(e) => change({ review_prompt: e.currentTarget.value.trim() === REVIEW_PROMPT ? '' : e.currentTarget.value.trim() })}
+  ></textarea>
+  {#if settings.review_prompt}
+    <div class="row"><button class="btn btn-secondary" onclick={() => change({ review_prompt: '' })}>{t('review.promptReset')}</button></div>
   {/if}
 </section>
 
@@ -292,6 +307,13 @@
 
   .mono {
     font: 13px var(--mono);
+  }
+
+  .prompt {
+    height: auto;
+    padding: 8px 10px;
+    resize: vertical;
+    line-height: 1.5;
   }
 
   .row {

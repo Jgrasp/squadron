@@ -16,6 +16,7 @@ export type Project = {
   runs_notify: boolean
   runs_hidden: string[]
   repository: string
+  review_prompt: string
   exists: boolean
   git: boolean
   branch: string | null
@@ -72,6 +73,7 @@ export async function editProject(path: string, changes: {
     runs_notify?: boolean
     runs_hidden?: string[]
     repository?: string
+    review_prompt?: string
   },) {
   set(await invoke<Project[]>('edit_project', { path, changes }))
 }

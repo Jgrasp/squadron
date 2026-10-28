@@ -13,7 +13,7 @@
   import Viewer from './lib/Viewer.svelte'
   import Password from './lib/Password.svelte'
   import { loadSettings, shortcut } from './lib/settings.svelte'
-  import { agents, archiveIdle, create, find, rescan, restore, saveAll, selected, show, waitingDetail } from './lib/agents.svelte'
+  import { agents, archiveIdle, closeAll, create, find, rescan, restore, selected, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
@@ -84,7 +84,7 @@
     .then(() => {
       trackHistory()
       archiveIdle()
-      setInterval(() => (rescan(), archiveIdle()), 15_000)
+      setInterval(() => (rescan(), archiveIdle(), sleepIdle()), 15_000)
       showChangelogOnce()
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)
@@ -98,7 +98,7 @@
     const appWindow = getCurrentWindow()
     const unlisten = appWindow.onCloseRequested(async (event) => {
       event.preventDefault()
-      await saveAll().catch(() => {})
+      await closeAll().catch(() => {})
       await appWindow.destroy()
     })
     return () => {

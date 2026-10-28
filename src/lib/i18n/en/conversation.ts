@@ -63,6 +63,7 @@ export default {
   launchedBy: 'Launched by {by} · {time}',
   forkedFrom: 'Forked from {from} · {time} · context kept',
   reloaded: 'Session reloaded · {time} · conversation kept',
+  resumed: 'Resumed after Squadron restarted · {time}',
   hide: 'Hide',
   allCaptures: 'Show all {count} captures',
   fewerCaptures: 'Show fewer captures',

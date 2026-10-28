@@ -205,4 +205,12 @@ export default {
   discardTitle: 'Discard the review',
   keepIt: 'Keep it',
   agentName: 'Review #{number}',
+  reviewingTag: 'Reviews #{number}',
+  reviewingTitle: 'Reviews pull request #{number}: its remarks go to your draft review',
+  promptTitle: 'Review instructions',
+  promptIntro: 'Squadron tells the reviewing agent which pull request it reviews, where its checkout is, and how to leave its remarks in your draft review. Add here what it should look for and how to end.',
+  promptReset: 'Back to Squadron’s prompt',
+  projectPrompt: 'Own review instructions',
+  projectPromptHint: 'Instead of the global ones, for the agents that review this project’s pull requests.',
+  projectPromptOf: 'Review instructions for {name}',
 }

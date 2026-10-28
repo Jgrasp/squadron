@@ -1,6 +1,5 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::collections::HashSet;
 use std::io::{self, BufRead, BufReader, Read, Write};
 use std::path::{Path, PathBuf};
 use std::process::{ChildStdin, Command, Stdio};
@@ -139,7 +138,7 @@ pub struct Session {
     stdin: ChildStdin,
     alive: Arc<AtomicBool>,
     busy: Arc<AtomicBool>,
-    sent: Arc<Mutex<HashSet<String>>>,
+    sent: Arc<Mutex<Vec<(String, Value)>>>,
 }
 
 impl Session {
@@ -166,7 +165,7 @@ impl Session {
         let busy = Arc::new(AtomicBool::new(false));
         let turn = busy.clone();
         let pid = child.id() as libc::pid_t;
-        let sent = Arc::new(Mutex::new(HashSet::new()));
+        let sent = Arc::new(Mutex::new(Vec::new()));
         let own = sent.clone();
         thread::spawn(move || {
             for line in BufReader::new(stdout).lines().map_while(Result::ok) {
@@ -190,7 +189,7 @@ impl Session {
                             uuid: Some(uuid),
                             ..
                         } = &event
-                            && own.lock().unwrap().remove(uuid)
+                            && take(&mut own.lock().unwrap(), uuid)
                         {
                             continue;
                         }
@@ -220,13 +219,26 @@ impl Session {
         self.busy.load(Ordering::SeqCst)
     }
 
+    /// What was sent and that Claude Code has not taken into the conversation yet.
+    pub fn unread(&self) -> Vec<Value> {
+        self.sent
+            .lock()
+            .unwrap()
+            .drain(..)
+            .map(|(_, content)| content)
+            .collect()
+    }
+
     pub fn send(&mut self, text: &str) -> io::Result<()> {
         self.send_content(json!(text))
     }
 
     pub fn send_content(&mut self, content: Value) -> io::Result<()> {
         let uuid = uuid::Uuid::new_v4().to_string();
-        self.sent.lock().unwrap().insert(uuid.clone());
+        self.sent
+            .lock()
+            .unwrap()
+            .push((uuid.clone(), content.clone()));
         let message =
             json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": content}});
         writeln!(self.stdin, "{message}")?;
@@ -264,6 +276,11 @@ impl Session {
         }
         Ok(())
     }
+}
+
+fn take(sent: &mut Vec<(String, Value)>, uuid: &str) -> bool {
+    let at = sent.iter().position(|(id, _)| id == uuid);
+    at.map(|i| sent.remove(i)).is_some()
 }
 
 #[cfg(test)]
@@ -361,6 +378,35 @@ mod tests {
             rx.recv_timeout(Duration::from_millis(100)),
             Err(RecvTimeoutError::Disconnected)
         );
+    }
+
+    #[test]
+    fn keeps_the_messages_claude_has_not_read() {
+        let mut session = Session::start(
+            fake_claude(
+                r#"read -r l; printf '%s\n' "$l" | sed 's/"type":"user"/"type":"user","isReplay":true/'; exec sleep 30"#,
+                "",
+            ),
+            |_, _| {},
+            |_| {},
+        )
+        .unwrap();
+        session.send("read").unwrap();
+        let deadline = std::time::Instant::now() + Duration::from_secs(5);
+        while !session.sent.lock().unwrap().is_empty() {
+            assert!(std::time::Instant::now() < deadline);
+            thread::sleep(Duration::from_millis(20));
+        }
+        session.send("second").unwrap();
+        session
+            .send_content(json!([{"type": "text", "text": "third"}]))
+            .unwrap();
+        session.stop().unwrap();
+        assert_eq!(
+            session.unread(),
+            [json!("second"), json!([{"type": "text", "text": "third"}])]
+        );
+        assert!(session.unread().is_empty());
     }
 
     #[test]

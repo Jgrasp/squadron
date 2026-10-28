@@ -5,7 +5,8 @@
   import ColorPick from './ColorPick.svelte'
   import { editProject, home, move, ordered, orderProjects, projects } from './projects.svelte'
   import { saveSettings, settings, type TabOrder } from './settings.svelte'
-  import { names, runs } from './pipelines.svelte'
+  import { lookUpRuns, names, runs } from './pipelines.svelte'
+  import { REVIEW_PROMPT } from './pulls.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
 
   let error = $state('')
@@ -101,7 +102,7 @@
               aria-label={t('runs.repository')}
               title={t('runs.repositoryHint')}
               spellcheck="false"
-              onchange={(e) => act(() => editProject(project.path, { repository: e.currentTarget.value }))}
+              onchange={(e) => act(() => editProject(project.path, { repository: e.currentTarget.value }).then(() => lookUpRuns(projects.list.find((p) => p.path === project.path)!, true)))}
             />
           {/if}
         </span>
@@ -121,6 +122,25 @@
                 </button>
               {/each}
             </span>
+          {/if}
+        {/if}
+        {#if project.git}
+          <label class="toggle own" title={t('review.projectPromptHint')}>
+            <input
+              type="checkbox"
+              checked={!!project.review_prompt}
+              onchange={(e) => act(() => editProject(project.path, { review_prompt: e.currentTarget.checked ? settings.review_prompt || REVIEW_PROMPT : '' }))}
+            />
+            {t('review.projectPrompt')}
+          </label>
+          {#if project.review_prompt}
+            <textarea
+              class="field prompt"
+              rows="4"
+              aria-label={t('review.projectPromptOf', { name: project.name })}
+              value={project.review_prompt}
+              onchange={(e) => act(() => editProject(project.path, { review_prompt: e.currentTarget.value }))}
+            ></textarea>
           {/if}
         {/if}
       </span>
@@ -335,6 +355,20 @@
 
   .toggle input {
     accent-color: var(--accent);
+  }
+
+  .own {
+    align-self: flex-start;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .prompt {
+    height: auto;
+    padding: 8px 10px;
+    resize: vertical;
+    font-size: 12.5px;
+    line-height: 1.5;
   }
 
   .repo {

@@ -18,6 +18,8 @@ use permissions::Gate;
 use pilot::Pilot;
 use projects::{Card, Folder, Project};
 use serde::Serialize;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
@@ -262,6 +264,9 @@ fn edit_project(
         if let Some(repository) = changes.repository {
             project.repository = repository.trim().to_string();
         }
+        if let Some(prompt) = changes.review_prompt {
+            project.review_prompt = prompt.trim().to_string();
+        }
         Ok(())
     })
 }
@@ -315,6 +320,7 @@ struct Config {
     runs_linger: u32,
     runs_hidden: Vec<String>,
     runs_notify: bool,
+    review_prompt: String,
 }
 
 impl Default for Config {
@@ -342,6 +348,7 @@ impl Default for Config {
             runs_linger: 10,
             runs_hidden: Vec::new(),
             runs_notify: false,
+            review_prompt: String::new(),
         }
     }
 }
@@ -532,6 +539,11 @@ fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, 
 fn write_project_file(project: PathBuf, path: PathBuf, text: String) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     std::fs::write(file, text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn save_text_file(path: PathBuf, text: String) -> Result<(), String> {
+    std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -1219,6 +1231,27 @@ fn archive_agent(agents: State<Agents>, id: String) {
     agents.archive(&id)
 }
 
+#[tauri::command]
+async fn close_agents(agents: State<'_, Agents>) -> Result<HashMap<String, Vec<Value>>, ()> {
+    Ok(agents.close_all())
+}
+
+#[tauri::command]
+fn sleep_agent(agents: State<Agents>, id: String) -> bool {
+    agents.sleep(&id)
+}
+
+#[tauri::command]
+fn resume_agent(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    content: Value,
+) -> Result<(), String> {
+    agents.send(&app, &settings.claude(), &id, content)
+}
+
 #[cfg(target_os = "macos")]
 fn login_path() {
     use std::io::Read;
@@ -1382,6 +1415,7 @@ pub fn run() {
             answer_askpass,
             read_project_file,
             write_project_file,
+            save_text_file,
             list_dir,
             project_files,
             git_file,
@@ -1437,7 +1471,10 @@ pub fn run() {
             read_session,
             interrupt_agent,
             reload_agent,
-            archive_agent
+            archive_agent,
+            close_agents,
+            sleep_agent,
+            resume_agent
         ])
         .setup(|app| {
             if cfg!(debug_assertions) && app.config().identifier != DEV_ID {

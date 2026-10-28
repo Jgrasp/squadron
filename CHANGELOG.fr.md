@@ -1,5 +1,26 @@
 # Nouveautés
 
+## 0.13.0 · 2026-10-28
+
+### Agents
+
+- **Reprise après un redémarrage** : un agent coupé par la fermeture ou la mise à jour de Squadron reprend là où il en était au démarrage suivant, avec les messages qu'il n'avait pas encore lus. Il ne repart pas s'il attendait votre réponse.
+- **Agents inactifs** : le processus Claude Code d'un agent inactif depuis une heure s'arrête, et repart avec sa conversation au message suivant. Un travail en arrière-plan, un /loop ou Remote Control le garde actif.
+- **Artefacts** : un agent peut publier un rapport, un plan ou une maquette dans un panneau à côté de sa conversation, où on peut le copier, l'enregistrer en fichier ou le supprimer.
+- **Valeurs et secrets** : un agent peut demander des clés ou des secrets dans une carte de sa conversation, et Squadron les écrit dans le fichier sans que l'agent les voie.
+- Une session arrêtée propose Continuer, qui demande à l'agent de reprendre là où il s'est arrêté.
+- Le pilote peut épingler ou désépingler un agent avec set_pinned, et overview indique quels agents sont épinglés.
+
+### Pull requests
+
+- L'agent qui relit une pull request indique laquelle, et ses instructions se règlent pour tous les projets, par projet, ou via le pilote.
+
+### Actions et pipelines
+
+- Chaque action ou pipeline affiche le visage de la personne qui l'a lancé, avec son état dans une pastille sur l'avatar.
+- Changer le dépôt d'un projet recherche aussitôt ses actions et pipelines.
+- Une capture que vous avez jointe s'ouvre aussi dans la visionneuse de Squadron.
+
 ## 0.12.0 · 2026-10-27
 
 ### Actions et pipelines

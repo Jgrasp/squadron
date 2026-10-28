@@ -1,6 +1,6 @@
 <script lang="ts">
   import { SvelteSet } from 'svelte/reactivity'
-  import { clock, forkPoint } from './agents.svelte'
+  import { clock, forkPoint, VALUES } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
   import Attachment from './Attachment.svelte'
   import CommentChip from './CommentChip.svelte'
@@ -13,6 +13,7 @@
   import PermissionCard from './PermissionCard.svelte'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
+  import ValuesCard from './ValuesCard.svelte'
   import { doing, INTERNAL, type Agent, type Block, type Subagent, type ToolCall } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
@@ -340,6 +341,12 @@
       {t('conversation.reloaded', { time: time(entry.at) })}
       <span></span>
     </div>
+  {:else if entry.kind === 'resumed'}
+    <div class="separator" role="separator">
+      <span></span>
+      {t('conversation.resumed', { time: time(entry.at) })}
+      <span></span>
+    </div>
   {:else if entry.kind === 'error'}
     <ErrorCard {agent} {entry} />
   {:else if entry.kind === 'decision'}
@@ -381,6 +388,8 @@
     <QuestionCard {agent} {ask} />
   {:else if ask.tool_name === 'ExitPlanMode'}
     <PlanCard {agent} {ask} />
+  {:else if ask.tool_name === VALUES}
+    <ValuesCard {agent} {ask} />
   {:else}
     <PermissionCard {agent} {ask} onlog={onsubagent} {onpreview} />
   {/if}

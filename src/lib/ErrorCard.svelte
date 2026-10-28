@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { open } from '@tauri-apps/plugin-dialog'
-  import { reload, retry } from './agents.svelte'
+  import { reload, retry, send } from './agents.svelte'
   import { time } from './format'
   import { t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
@@ -74,7 +74,8 @@
     <pre>{entry.message}</pre>
     <p>{t('agent.sessionStoppedHint')}</p>
     <div class="row">
-      <button class="btn btn-primary" onclick={() => reload(agent.id)}>{t('common.reload')}</button>
+      <button class="btn btn-primary" onclick={() => send(agent.id, t('agent.continue'))}>{t('agent.continue')}</button>
+      <button class="btn btn-danger" onclick={() => reload(agent.id)}>{t('common.reload')}</button>
       <button class="btn btn-danger" onclick={() => copy(entry.message)}>{copied ? t('common.copied') : t('agent.copyError')}</button>
     </div>
   {/if}

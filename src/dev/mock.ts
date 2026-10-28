@@ -9,7 +9,7 @@ import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string }
+type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
@@ -39,11 +39,12 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '' }))
+const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '' }))
 
 const loaded = Date.now()
 const timers = new Map<string, number>()
 let claudePath = 'claude'
+let reviewPrompt = ''
 let tabEffect = 'pulse'
 let tabOrder = 'manual'
 let keyMap: Record<string, string> = {}
@@ -406,7 +407,7 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, ...runsConfig }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ...runsConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
@@ -414,6 +415,7 @@ mockIPC(
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
+        reviewPrompt = (a as unknown as { config: { review_prompt: string } }).config.review_prompt
         runsConfig = (({ runs, runs_linger, runs_hidden, runs_notify }) => ({ runs, runs_linger, runs_hidden, runs_notify }))((a as unknown as { config: typeof runsConfig }).config)
         return
       case 'suggest_title':
@@ -445,7 +447,7 @@ mockIPC(
         const at = (ms: number) => new Date(loaded + ms).toISOString()
         const elapsed = Date.now() - loaded
         const run = (id: number, name: string, title: string, status: string, started: number, finished: number | null, event = 'push') => ({
-          host: 'github', id: String(id), number: id, name, title, event, branch: 'main', url: `https://github.com/orbit/orbit/actions/runs/${id}`,
+          host: 'github', id: String(id), number: id, name, title, event, branch: 'main', url: `https://github.com/orbit/orbit/actions/runs/${id}`, author: id === 6 ? 'Copilot' : id % 2 ? 'Sébastien Leprovost' : 'adhermy', author_avatar: id === 4 ? 'https://avatars.githubusercontent.com/u/9919?s=64' : '',
           status: finished !== null && elapsed > finished ? status : elapsed > started ? 'running' : 'queued', started: at(started), finished: finished !== null && elapsed > finished ? at(finished) : null,
         })
         return [

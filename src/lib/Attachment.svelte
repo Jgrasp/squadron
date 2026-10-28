@@ -35,6 +35,7 @@
 
 <script lang="ts">
   import { errorText, number, t, type Key } from './i18n/index.svelte'
+  import { showCapture } from './captures.svelte'
 
   let {
     path,
@@ -71,14 +72,15 @@
     if (isImage(path)) preview(path).then((data) => (src = data)).catch(() => {})
   })
 
-  function open() {
+  function open(event: MouseEvent) {
     error = ''
+    if (src) return showCapture(event.currentTarget as Element, path)
     invoke('open_attachment', { path }).catch((e) => (error = errorText(e)))
   }
 </script>
 
 <span class="attachment {look} {kind}" class:large class:picture={!!src} title={error || path}>
-  <button type="button" class="open" aria-label={t('agent.openFile', { name })} onclick={open}>
+  <button type="button" class="open" data-shot={src ? path : undefined} aria-label={t('agent.openFile', { name })} onclick={open}>
     {#if src}
       <img {src} alt={name} />
     {:else if look !== 'chip'}

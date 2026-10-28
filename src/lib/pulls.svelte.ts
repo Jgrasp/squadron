@@ -199,18 +199,22 @@ export async function merge(dir: string, pull: Pull) {
   lookUpAll(true)
 }
 
+export const REVIEW_PROMPT = 'Leave out style nitpicks.\n\nEnd with a short summary of the pull request and of your main concerns.'
+
+export const reviewPrompt = (project: string) => projects.list.find((p) => p.path === project)?.review_prompt || settings.review_prompt || REVIEW_PROMPT
+
 export async function reviewWithAgent(project: string, pull: Pull) {
   const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base })
   const prompt = [
     `Review pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
     `This folder is a checkout of the pull request branch: git diff origin/${pull.base}...HEAD shows what it changes. Read the code around the changes too.`,
-    'Do not change any file. For each problem worth raising, call add_review_comment with the file, a line the diff shows (changed or within its context: the line in the new version, or the removed line with removed: true) and a short comment. When it is about code the diff does not show, put it on the changed line it relates to best, or leave path and line out to comment on the whole pull request: what is wrong and what to do. Leave out style nitpicks.',
-    'End with a short summary of the pull request and of your main concerns.',
+    'Do not change any file. For each problem worth raising, call add_review_comment with the file, a line the diff shows (changed or within its context: the line in the new version, or the removed line with removed: true) and a short comment. When it is about code the diff does not show, put it on the changed line it relates to best, or leave path and line out to comment on the whole pull request: what is wrong and what to do.',
+    reviewPrompt(project),
   ].join('\n\n')
   const id = await create(project, t('review.agentName', { number: String(pull.number) }), { ...settings.defaults }, prompt, { dir })
   const agent = agents.list.find((a) => a.id === id)
   if (agent) {
-    agent.review = { project, number: pull.number, base: pull.base }
+    agent.review = { project, number: pull.number, base: pull.base, title: pull.title }
     persist(agent)
   }
   return id

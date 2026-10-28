@@ -397,3 +397,30 @@ describe('stream', () => {
     ])
   })
 })
+
+describe('background work', () => {
+  it('counts what lives in the process until it ends, and forgets it when the process exits', () => {
+    const agent = fresh()
+    apply(agent, { type: 'system', subtype: 'task_started', task_id: 'b1', task_type: 'local_bash' })
+    apply(agent, { type: 'system', subtype: 'task_started', task_id: 'm1', task_type: 'monitor_mcp' })
+    apply(agent, { type: 'system', subtype: 'task_notification', task_id: 'b1', status: 'completed' })
+    expect(agent.jobs).toEqual(['m1'])
+    apply(agent, { type: 'system', subtype: 'task_updated', task_id: 'm1', patch: { status: 'killed' } })
+    expect(agent.jobs).toEqual([])
+    apply(agent, {
+      type: 'assistant',
+      message: {
+        id: 'msg',
+        model: 'haiku',
+        content: [
+          { type: 'tool_use', id: 'w1', name: 'ScheduleWakeup', input: { delaySeconds: 600 } },
+          { type: 'tool_use', id: 'w2', name: 'ScheduleWakeup', input: { stop: true } },
+          { type: 'tool_use', id: 'c1', name: 'CronCreate', input: { cron: '*/5 * * * *', prompt: 'check' } },
+        ],
+      },
+    })
+    expect(agent.jobs).toEqual(['w1', 'c1'])
+    exited(agent, '')
+    expect(agent.jobs).toEqual([])
+  })
+})

@@ -123,35 +123,7 @@
     <button class="btn btn-secondary" disabled={refreshing} onclick={refresh}>{refreshing ? t('review.refreshing') : t('review.refresh')}</button>
   </div>
 
-  {#if launched && launchedAgent}
-    <div class="flash" role="status">
-      <span class="dot" aria-hidden="true"></span>
-      <span class="grow"
-        ><Trans
-          k={launchedAgent.status === 'working'
-            ? 'review.launchedWorking'
-            : launchedAgent.status === 'waiting'
-              ? 'review.launchedWaiting'
-              : launchedAgent.status === 'error'
-                ? 'review.launchedError'
-                : launchedAgent.status === 'interrupted'
-                  ? 'review.launchedInterrupted'
-                  : 'review.launchedDone'}
-          >{#snippet name()}<strong>{launchedAgent.name}</strong>{/snippet}</Trans
-        ></span
-      >
-      <button class="btn btn-secondary" onclick={() => show(launchedAgent)}>{t('review.openConversation')}</button>
-      <button class="close" aria-label={t('review.hideMessage')} title={t('review.hide')} onclick={() => (launched = null)}>×</button>
-    </div>
-  {/if}
-
-  {#if failure}
-    <div class="flash bad" role="alert">
-      <span class="dot" aria-hidden="true"></span>
-      <span class="grow">{failure}</span>
-      <button class="close" aria-label={t('review.hideMessage')} title={t('review.hide')} onclick={() => (failure = '')}>×</button>
-    </div>
-  {/if}
+  {#if !opened}{@render flashes()}{/if}
 
   <div class="scroll">
     {#if !found}
@@ -223,11 +195,44 @@
       onposted={() => ((opened = null), lookUpLists(project.path, true))}
       reviewer={agents.list.find((a) => a.review?.project === project.path && a.review.number === opened?.number) ?? null}
       onagent={() => askAgent(opened!)}
+      banner={flashes}
       onclose={() => (opened = null)}
     />
   {/key}
 {/if}
 </div>
+
+{#snippet flashes()}
+  {#if launched && launchedAgent}
+    <div class="flash" role="status">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="grow"
+        ><Trans
+          k={launchedAgent.status === 'working'
+            ? 'review.launchedWorking'
+            : launchedAgent.status === 'waiting'
+              ? 'review.launchedWaiting'
+              : launchedAgent.status === 'error'
+                ? 'review.launchedError'
+                : launchedAgent.status === 'interrupted'
+                  ? 'review.launchedInterrupted'
+                  : 'review.launchedDone'}
+          >{#snippet name()}<strong>{launchedAgent.name}</strong>{/snippet}</Trans
+        ></span
+      >
+      <button class="btn btn-secondary" onclick={() => show(launchedAgent)}>{t('review.openConversation')}</button>
+      <button class="close" aria-label={t('review.hideMessage')} title={t('review.hide')} onclick={() => (launched = null)}>×</button>
+    </div>
+  {/if}
+
+  {#if failure}
+    <div class="flash bad" role="alert">
+      <span class="dot" aria-hidden="true"></span>
+      <span class="grow">{failure}</span>
+      <button class="close" aria-label={t('review.hideMessage')} title={t('review.hide')} onclick={() => (failure = '')}>×</button>
+    </div>
+  {/if}
+{/snippet}
 
 {#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean)}
   <div class="split" data-menu>

@@ -3,16 +3,17 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { branchOf, create, find, importSession, knownSessions, ofProject, persist, send, waitingFor, type Elsewhere } from './agents.svelte'
+import { askValues, branchOf, create, find, importSession, knownSessions, ofProject, persist, pin, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
-import { projects, setCards, type Project } from './projects.svelte'
-import { settings } from './settings.svelte'
+import { editProject, projects, setCards, type Project } from './projects.svelte'
+import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { reviews } from './pulls.svelte'
+import { REVIEW_PROMPT, reviewPrompt, reviews } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
+import { ARTIFACT_MAX, ARTIFACT_KINDS } from './artifacts'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
@@ -62,6 +63,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
         id: a.id,
         name: a.name,
         status: a.status,
+        pinned: !!a.pinned,
         waiting_for_user: waitingOf(a),
         doing: a.status === 'working' ? a.action : undefined,
         cost_usd: Math.round(a.cost * 100) / 100,
@@ -158,6 +160,16 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
   },
 
+  set_pinned: (caller, args) => {
+    const target = args.agent ? find(String(args.agent)) : caller
+    if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    if (target.project !== caller.project) throw new Error(`${target.name} belongs to another project. You can only pin the agents of your own project.`)
+    if (typeof args.pinned !== 'boolean') throw new Error('pinned must be true or false.')
+    pin(target.id, args.pinned)
+    const who = target === caller ? 'You are' : `${target.name} is`
+    return args.pinned ? `${who} pinned at the top of the agent list.` : `${who} no longer pinned.`
+  },
+
   set_progress: (caller, args) => {
     if (args.total === null || args.total === undefined) {
       caller.progress = null
@@ -224,6 +236,28 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
   },
 
+  get_review_prompt: (caller, args) => {
+    const project = projectFor(caller, args.project)
+    return {
+      global: settings.review_prompt || REVIEW_PROMPT,
+      global_is_default: !settings.review_prompt || undefined,
+      project: project.review_prompt || undefined,
+      used_for_this_project: reviewPrompt(project.path),
+    }
+  },
+
+  set_review_prompt: async (caller, args) => {
+    const scope = pick<'global' | 'project'>(args.scope, ['global', 'project'], 'project', 'scope')
+    const prompt = String(args.prompt ?? '').trim()
+    if (scope === 'global') {
+      await saveSettings({ ...$state.snapshot(settings), review_prompt: prompt === REVIEW_PROMPT ? '' : prompt })
+      return prompt ? 'The global review prompt is set. Projects with their own prompt keep it.' : 'The global review prompt is back to Squadron’s default.'
+    }
+    const project = projectFor(caller, args.project)
+    await editProject(project.path, { review_prompt: prompt })
+    return prompt ? `${project.name} now has its own review prompt.` : `${project.name} follows the global review prompt again.`
+  },
+
   set_info_panel: (caller, args) => {
     const html = String(args.html ?? '').trim()
     if (!html) {
@@ -237,6 +271,57 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     caller.infoPanel = { html, height, hidden }
     persist(caller)
     return `Your panel shows under the header of your conversation, ${height}px high.${hidden ? ' The user has hidden it: they see it when they show it again.' : ''}`
+  },
+
+  publish_artifact: (caller, args) => {
+    const id = String(args.id ?? '').trim()
+    const content = String(args.content ?? '')
+    const list = caller.artifacts ?? []
+    const found = id ? list.find((a) => a.id === id) : undefined
+    if (id && !found) throw new Error(`You have no artifact ${id}. Your artifacts: ${list.map((a) => `${a.id} “${a.title}”`).join(', ') || 'none'}.`)
+    if (!content.trim()) {
+      if (!found) throw new Error('The content is empty.')
+      caller.artifacts = list.filter((a) => a !== found)
+      persist(caller)
+      return `Artifact ${id} deleted.`
+    }
+    if (content.length > ARTIFACT_MAX) throw new Error(`The content is ${content.length} characters long; keep it under ${ARTIFACT_MAX}.`)
+    const kind = pick(args.kind, ARTIFACT_KINDS, found?.kind ?? 'markdown', 'kind')
+    const title = String(args.title ?? '').trim() || found?.title || ''
+    if (!title) throw new Error('The title is empty.')
+    const artifact = { id: found?.id ?? crypto.randomUUID().slice(0, 8), title, kind, content, version: (found?.version ?? 0) + 1, at: Date.now() }
+    caller.artifacts = found ? list.map((a) => (a === found ? artifact : a)) : [...list, artifact]
+    persist(caller)
+    return `Artifact ${artifact.id} “${title}” published${found ? ` as version ${artifact.version}` : ''}. The user sees it in the Artifacts panel of your conversation. Call publish_artifact with id ${artifact.id} to update it.`
+  },
+
+  ask_values: async (caller, args) => {
+    const path = String(args.path ?? '').trim()
+    if (!path) throw new Error('The path is empty.')
+    const fields = ((args.fields ?? []) as { key?: unknown; hint?: unknown; secret?: unknown }[]).map((f) => ({
+      key: String(f.key ?? '').trim(),
+      hint: String(f.hint ?? '').trim() || undefined,
+      secret: f.secret === true,
+    }))
+    if (!fields.length || fields.some((f) => !f.key)) throw new Error('Give each field a key.')
+    const root = workdir(caller)
+    const read = () =>
+      invoke<string | null>('read_project_file', { project: root, path }).then((text) => {
+        if (text === null) throw new Error(`${path} does not exist. Write it first with a {{squadron:NAME}} placeholder for each value.`)
+        return text
+      })
+    const mark = (key: string) => `{{squadron:${key}}}`
+    const text = await read()
+    const missing = fields.filter((f) => !text.includes(mark(f.key)))
+    if (missing.length) throw new Error(`${path} has no ${missing.map((f) => mark(f.key)).join(', ')}. Write each placeholder where its value goes, then call ask_values again.`)
+    const values = await askValues(caller, path, fields)
+    if (typeof values === 'string')
+      return `The user closed the card without filling ${path}${values ? `, and wrote: ${values}` : ''}. The placeholders are still in the file.`
+    let now = await read()
+    for (const [key, value] of Object.entries(values)) now = now.split(mark(key)).join(value)
+    await invoke('write_project_file', { project: root, path, text: now })
+    const left = fields.filter((f) => !(f.key in values)).map((f) => f.key)
+    return `Filled ${Object.keys(values).join(', ')} in ${path}.${left.length ? ` The user left ${left.join(', ')} empty: their placeholders are still in the file.` : ''} You never see these values: do not read them back, print them or copy them elsewhere.`
   },
 
   get_layout: () =>

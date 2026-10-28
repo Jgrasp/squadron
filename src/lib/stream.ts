@@ -59,7 +59,7 @@ export type Subagent = {
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_info_panel'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
@@ -87,6 +87,7 @@ export type Entry =
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
   | { kind: 'reloaded'; at: number }
+  | { kind: 'resumed'; at: number }
   | { kind: 'forked'; at: number; from: string }
   | { kind: 'launched'; at: number; by: string }
   | { kind: 'compacted'; at: number; before: number; after: number }
@@ -121,6 +122,7 @@ export type Agent = {
   processCost: number
   interrupting: boolean
   held: boolean
+  jobs: string[]
   asks: Ask[]
   allowEdits: boolean
   sessionId: string | null
@@ -141,10 +143,15 @@ export type Agent = {
   unread?: boolean
   errorSeen?: boolean
   context?: { max: number; threshold: number | null }
-  review?: { project: string; number: number; base?: string }
+  review?: { project: string; number: number; base?: string; title?: string }
   imported?: string
+  unsent?: unknown[]
+  resumes?: number
   infoPanel?: { html: string; height: number; hidden?: boolean }
+  artifacts?: Artifact[]
 }
+
+export type Artifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number }
 
 type Json = Record<string, any>
 
@@ -168,6 +175,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     processCost: 0,
     interrupting: false,
     held: false,
+    jobs: [],
     asks: [],
     allowEdits: false,
     sessionId: null,
@@ -324,6 +332,15 @@ function subagentEvent(agent: Agent, d: Json) {
   if (d.subtype === 'task_notification' && d.summary) sub.result = String(d.summary)
 }
 
+const SCHEDULES = ['CronCreate', 'ScheduleWakeup']
+
+function job(agent: Agent, d: Json) {
+  const id = String(d.task_id ?? '')
+  if (d.subtype === 'task_started' && id && !agent.jobs.includes(id)) agent.jobs.push(id)
+  const ended = d.subtype === 'task_notification' || (d.subtype === 'task_updated' && SETTLED[d.patch?.status])
+  if (ended) agent.jobs = agent.jobs.filter((j) => j !== id)
+}
+
 export const running = (agent: Agent) => agent.subagents.filter((s) => s.status === 'running').length
 
 export const waitingOn = (n: number) => t('conversation.waitingOnSubagents', { count: n })
@@ -393,7 +410,10 @@ export function apply(agent: Agent, d: Json) {
         agent.entries.push({ kind: 'compacted', at: Date.now(), before: meta.pre_tokens ?? 0, after: meta.post_tokens ?? 0 })
         if (meta.post_tokens) agent.tokens = meta.post_tokens
       }
-      if (String(d.subtype).startsWith('task_')) subagentEvent(agent, d)
+      if (String(d.subtype).startsWith('task_')) {
+        subagentEvent(agent, d)
+        job(agent, d)
+      }
       if (d.subtype === 'notification' && d.key === 'stop-hook-block-cap' && agent.goal?.state === 'active') agent.goal.state = 'stopping'
       if (d.subtype === 'post_turn_summary' && d.status_detail) agent.summary = d.status_detail
       if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
@@ -498,8 +518,11 @@ function assistant(agent: Agent, d: Json) {
       }
       const action = doing({ name: c.name, input: c.input })
       if (sub) sub.last = action
-      else if (INTERNAL.includes(c.name)) track(agent, c)
-      else act(agent, action)
+      else {
+        if (SCHEDULES.includes(c.name) && !c.input?.stop && !agent.jobs.includes(c.id)) agent.jobs.push(c.id)
+        if (INTERNAL.includes(c.name)) track(agent, c)
+        else act(agent, action)
+      }
     } else if (c.type === 'text' && (sub || !blocks().some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`)))) {
       blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, ...at })
     }
@@ -643,6 +666,7 @@ function result(agent: Agent, d: Json) {
   } else {
     const left = running(agent)
     const goal = agent.goal?.state === 'sent'
+    agent.resumes = undefined
     agent.held = !goal && left > 0
     agent.status = goal || left ? 'working' : 'done'
     agent.action = goal ? t('conversation.startingGoal') : left ? waitingOn(left) : ''
@@ -673,6 +697,7 @@ export function fail(agent: Agent, message: string) {
 export function exited(agent: Agent, stderr: string) {
   agent.alive = false
   agent.remote = null
+  agent.jobs = []
   agent.asks = []
   agent.held = false
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
@@ -687,6 +712,7 @@ export function reloaded(agent: Agent) {
   agent.attention = ''
   agent.entries.push({ kind: 'reloaded', at: Date.now() })
   agent.processCost = 0
+  agent.jobs = []
   agent.alive = true
   agent.interrupting = false
   agent.held = false

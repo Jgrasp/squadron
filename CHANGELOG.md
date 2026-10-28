@@ -1,5 +1,26 @@
 # Changelog
 
+## 0.13.0 · 2026-10-28
+
+### Agents
+
+- **Picking up after a restart**: an agent cut short by Squadron closing or updating picks up where it left off at the next start, with the messages it had not read yet. It does not restart when it was waiting for your answer.
+- **Idle agents**: the Claude Code process of an agent idle for an hour stops, and starts again with its conversation at the next message. Background work, a /loop or Remote Control keeps it running.
+- **Artifacts**: an agent can publish a report, a plan or a mock-up in a panel beside its conversation, where it can be copied, saved as a file or deleted.
+- **Values and secrets**: an agent can ask for keys or secrets in a card of its conversation, and Squadron writes them into the file without the agent seeing them.
+- A stopped session offers Continue, which asks the agent to pick up where it stopped.
+- The pilot can pin or unpin an agent with set_pinned, and overview tells which agents are pinned.
+
+### Pull requests
+
+- The agent reviewing a pull request shows which one it reviews, and its instructions can be set for every project, overridden per project, or through the pilot.
+
+### Actions and pipelines
+
+- Each action or pipeline shows the face of the person who started it, with its state in a small badge on the avatar.
+- Changing a project's repository looks its actions and pipelines up again right away.
+- A screenshot you attached opens in Squadron's viewer too.
+
 ## 0.12.0 · 2026-10-27
 
 ### Actions and pipelines
