@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, note, reload, remote, rename, reply, send, setOptions, onScreen, persist } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, note, reload, remote, rename, reply, send, setOptions, onScreen, persist, VALUES } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -295,7 +295,9 @@
       ? t('agent.freeAnswer', { agent: agent.name })
       : pending === 'ExitPlanMode'
         ? t('agent.planChange')
-        : pending
+        : pending === VALUES
+          ? t('agent.valuesSkip', { agent: agent.name })
+          : pending
           ? t('agent.denyWith', { agent: agent.name })
           : agent.status === 'working' && !agent.held
             ? t('agent.addInstruction')
@@ -922,7 +924,7 @@
           {/if}
         </div>
         <button class="btn btn-primary send" disabled={!text.trim() && !comments.length && !attachments.length}>
-          {pending === 'AskUserQuestion' ? t('agent.answer') : pending === 'ExitPlanMode' ? t('agent.sendFeedback') : pending ? t('agent.deny') : t('common.send')}
+          {pending === 'AskUserQuestion' ? t('agent.answer') : pending === 'ExitPlanMode' ? t('agent.sendFeedback') : pending && pending !== VALUES ? t('agent.deny') : t('common.send')}
         </button>
       </div>
       {#if bang}

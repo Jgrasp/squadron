@@ -17,7 +17,8 @@ You can prepare and start new agents as the user would, and send an instruction 
 When your task moves into a git worktree that you made yourself (a script, git worktree add), call set_worktree so Squadron shows its branch. Going into another agent's worktree to look at it, or cd for a command, is not working there: leave your worktree as it is. \
 To start an agent in a worktree a script made, pass its path to start_agent. \
 During a long task made of many items, show where you are on your card with set_progress. \
-To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel.";
+To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
+When the user must put values such as keys, tokens, secrets or passwords into a file, write {{squadron:NAME}} in the file where each one goes, then call ask_values: Squadron asks the user and fills the file without you seeing them. Never ask for such values in the conversation.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -152,6 +153,26 @@ struct InfoPanel {
     html: String,
     /// The panel height in pixels, from 24 to 240, 64 by default. Content beyond it is cut.
     height: Option<u32>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct Field {
+    /// The NAME of the {{squadron:NAME}} placeholder in the file.
+    key: String,
+    /// A short line telling the user what to enter or where to find it.
+    hint: Option<String>,
+    /// True for a password, token or secret key: the field is masked.
+    secret: Option<bool>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AskValues {
+    /// The file, absolute or relative to your working folder, already holding a {{squadron:NAME}} placeholder for each field. Any format: .env, YAML, JSON, PHP…
+    path: String,
+    /// The values to ask for, in the order the user fills them.
+    fields: Vec<Field>,
 }
 
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
@@ -318,6 +339,16 @@ impl Pilot {
         Parameters(args): Parameters<InfoPanel>,
     ) -> String {
         self.forward(&parts, "set_info_panel", json!(args)).await
+    }
+
+    /// Asks the user, in a card of your conversation, for values to put into a file, such as API keys, tokens or passwords, and waits for them. Before calling it, write {{squadron:NAME}} in the file where each value goes, inside quotes when the format needs them. Squadron replaces each placeholder with what the user types and tells you which ones were filled: you never see the values, so never read them back, print them or copy them elsewhere.
+    #[tool]
+    async fn ask_values(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<AskValues>,
+    ) -> String {
+        self.forward(&parts, "ask_values", json!(args)).await
     }
 
     /// Returns Squadron's layout: each slot (a bar of buttons or a menu), its items and which are hidden.

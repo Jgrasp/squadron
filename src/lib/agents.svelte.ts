@@ -400,7 +400,38 @@ function waitFor(agent: Agent) {
   agent.attention = agent.action
 }
 
+export const VALUES = 'squadron:ask_values'
+
+export type ValueField = { key: string; hint?: string; secret?: boolean }
+
+const filling = new Map<string, (values: Record<string, string> | string) => void>()
+
+export function askValues(agent: Agent, path: string, fields: ValueField[]) {
+  const ask: Ask = { id: crypto.randomUUID(), agent: agent.id, tool_name: VALUES, input: { path, fields }, tool_use_id: null }
+  agent.asks.push(ask)
+  waitFor(agent)
+  return new Promise<Record<string, string> | string>((resolve) => filling.set(ask.id, resolve))
+}
+
+export function giveValues(agent: Agent, ask: Ask, values: Record<string, string> | string) {
+  agent.asks = agent.asks.filter((a) => a.id !== ask.id)
+  const keys = typeof values === 'string' ? [] : Object.keys(values)
+  agent.entries.push({
+    kind: 'decision',
+    at: Date.now(),
+    tone: keys.length ? 'ok' : 'bad',
+    title: keys.length ? t('shell.valuesFilled') : t('shell.valuesCancelled'),
+    detail: `${ask.input.path}${keys.length ? ` · ${keys.join(', ')}` : ''}`,
+    note: typeof values === 'string' && values ? t('shell.withInstruction', { message: values }) : undefined,
+  })
+  waitFor(agent)
+  persist(agent)
+  filling.get(ask.id)?.(values)
+  filling.delete(ask.id)
+}
+
 export function waitingFor(ask: Ask, say = t) {
+  if (ask.tool_name === VALUES) return say('shell.waitingValues')
   if (ask.tool_name === 'AskUserQuestion') return say('shell.waitingAnswerQuestion')
   if (ask.tool_name === 'ExitPlanMode') return say('shell.waitingApprovalPlan')
   return say('shell.waitingApprovalTool', { tool: toolLabel(ask.tool_name).split(' · ')[0] })
@@ -410,6 +441,7 @@ export function waitingDetail(agent: Agent) {
   const ask = agent.asks[0]
   if (!ask) return ''
   if (ask.tool_name === 'AskUserQuestion') return String(ask.input.questions?.[0]?.question ?? '')
+  if (ask.tool_name === VALUES) return String(ask.input.path)
   if (ask.tool_name === 'ExitPlanMode')
     return (String(ask.input.plan ?? '').split('\n').find((l) => l.trim()) ?? '').replace(/^#+\s*/, '')
   const sub = subagentOf(agent, ask.tool_use_id)
@@ -511,7 +543,8 @@ export function reply(agent: Agent, text: string) {
     const answers: Record<string, string> = {}
     for (const q of ask.input.questions ?? []) answers[q.question] = text
     answer(agent, ask, answers)
-  } else if (ask.tool_name === 'ExitPlanMode') plan(agent, ask, 'continue', text)
+  } else if (ask.tool_name === VALUES) giveValues(agent, ask, text)
+  else if (ask.tool_name === 'ExitPlanMode') plan(agent, ask, 'continue', text)
   else deny(agent, ask, text)
   return true
 }

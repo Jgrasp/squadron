@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { branchOf, create, find, importSession, knownSessions, ofProject, persist, send, waitingFor, type Elsewhere } from './agents.svelte'
+import { askValues, branchOf, create, find, importSession, knownSessions, ofProject, persist, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { projects, setCards, type Project } from './projects.svelte'
@@ -237,6 +237,35 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     caller.infoPanel = { html, height, hidden }
     persist(caller)
     return `Your panel shows under the header of your conversation, ${height}px high.${hidden ? ' The user has hidden it: they see it when they show it again.' : ''}`
+  },
+
+  ask_values: async (caller, args) => {
+    const path = String(args.path ?? '').trim()
+    if (!path) throw new Error('The path is empty.')
+    const fields = ((args.fields ?? []) as { key?: unknown; hint?: unknown; secret?: unknown }[]).map((f) => ({
+      key: String(f.key ?? '').trim(),
+      hint: String(f.hint ?? '').trim() || undefined,
+      secret: f.secret === true,
+    }))
+    if (!fields.length || fields.some((f) => !f.key)) throw new Error('Give each field a key.')
+    const root = workdir(caller)
+    const read = () =>
+      invoke<string | null>('read_project_file', { project: root, path }).then((text) => {
+        if (text === null) throw new Error(`${path} does not exist. Write it first with a {{squadron:NAME}} placeholder for each value.`)
+        return text
+      })
+    const mark = (key: string) => `{{squadron:${key}}}`
+    const text = await read()
+    const missing = fields.filter((f) => !text.includes(mark(f.key)))
+    if (missing.length) throw new Error(`${path} has no ${missing.map((f) => mark(f.key)).join(', ')}. Write each placeholder where its value goes, then call ask_values again.`)
+    const values = await askValues(caller, path, fields)
+    if (typeof values === 'string')
+      return `The user closed the card without filling ${path}${values ? `, and wrote: ${values}` : ''}. The placeholders are still in the file.`
+    let now = await read()
+    for (const [key, value] of Object.entries(values)) now = now.split(mark(key)).join(value)
+    await invoke('write_project_file', { project: root, path, text: now })
+    const left = fields.filter((f) => !(f.key in values)).map((f) => f.key)
+    return `Filled ${Object.keys(values).join(', ')} in ${path}.${left.length ? ` The user left ${left.join(', ')} empty: their placeholders are still in the file.` : ''} You never see these values: do not read them back, print them or copy them elsewhere.`
   },
 
   get_layout: () =>
