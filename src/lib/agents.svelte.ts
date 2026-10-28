@@ -231,7 +231,7 @@ export function archiveIdle() {
       archive(agent.id)
 }
 
-let scanning = false
+let scanning = true
 const elsewhere = new Set<string>()
 
 export async function rescan() {
@@ -255,6 +255,14 @@ export async function rescan() {
 }
 
 export async function restore() {
+  try {
+    await adoptSaved()
+  } finally {
+    scanning = false
+  }
+}
+
+async function adoptSaved() {
   const known = new Set([...projects.list, ...projects.archived].map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
