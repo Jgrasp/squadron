@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.16.3 · 2026-10-28
+
+### Fixes
+
+- **Task list**: an agent's task list stays open while some of its tasks are left and folds once they are all done, instead of opening and folding with each turn, which moved the conversation.
+- **Mock-ups**: an html block opens straight on its preview once written, instead of showing its HTML for a moment.
+- **Messages from another session**: they show offset with an accent line and a « From another session » label.
+
 ## 0.16.2 · 2026-10-28
 
 ### Fixes

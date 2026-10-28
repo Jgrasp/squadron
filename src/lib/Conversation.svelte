@@ -248,7 +248,10 @@
   {@const i = start + k}
   {#if entry.kind === 'user' && (entry.peer !== undefined || entry.from || entry.squadron)}
     <div class="peer" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
-      <span class="from"><span class="dot" aria-hidden="true"></span>{entry.squadron ? t('conversation.sentBySquadron', { time: time(entry.at) }) : entry.from ? t('conversation.sentBy', { from: entry.from, time: time(entry.at) }) : t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>
+      <div class="head">
+        <span class="origin">{entry.squadron ? t('conversation.fromSquadron') : t('conversation.fromSession')}</span>
+        <span class="from">{#if !entry.squadron}<strong>{entry.from || entry.peer || '?'}</strong>{' · '}{/if}{time(entry.at)}{#if entry.from}{' · '}{t('conversation.approvedByYou')}{/if}</span>
+      </div>
       {#if entry.comments}<div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} />{/each}</div>{/if}
       <Markdown text={entry.text} />
     </div>
@@ -408,7 +411,7 @@
 {/each}
 
 {#if agent.tasks.length}
-  <details class="tasks" open={working}>
+  <details class="tasks" open={agent.tasks.some((task) => task.status !== 'completed')}>
     <summary>
       <span class="chevron" aria-hidden="true">›</span>
       {t('conversation.tasks', { done: agent.tasks.filter((task) => task.status === 'completed').length, total: agent.tasks.length })}
@@ -524,27 +527,35 @@
     align-self: flex-start;
     display: flex;
     flex-direction: column;
-    gap: 8px;
+    gap: 10px;
     max-width: 640px;
-    padding: 12px 16px;
-    border-radius: 6px;
-    box-shadow: inset 0 0 0 1px var(--border);
+    margin-left: 20px;
+    padding-left: 14px;
+    border-left: 2px solid var(--accent);
     overflow-wrap: anywhere;
   }
 
-  .peer .from {
+  .peer .head {
     display: flex;
-    align-items: center;
-    gap: 6px;
-    font-size: 11.5px;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .peer .origin {
+    font-size: 11px;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--accent);
+  }
+
+  .peer .from {
+    font-size: 12px;
     color: var(--text-dim);
   }
 
-  .peer .dot {
-    width: 6px;
-    height: 6px;
-    border-radius: 3px;
-    background: var(--remote-dot);
+  .peer .from strong {
+    font-weight: 600;
+    color: var(--text);
   }
 
   .notice .from {
