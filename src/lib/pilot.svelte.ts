@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askValues, branchOf, create, find, importSession, knownSessions, ofProject, persist, send, waitingFor, type Elsewhere } from './agents.svelte'
+import { askValues, branchOf, create, find, importSession, knownSessions, ofProject, persist, pin, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { editProject, projects, setCards, type Project } from './projects.svelte'
@@ -62,6 +62,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
         id: a.id,
         name: a.name,
         status: a.status,
+        pinned: !!a.pinned,
         waiting_for_user: waitingOf(a),
         doing: a.status === 'working' ? a.action : undefined,
         cost_usd: Math.round(a.cost * 100) / 100,
@@ -156,6 +157,16 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     await invoke('set_workdir', { id: target.id, dir: path })
     persist(target)
     return `Squadron now shows that ${who} in the worktree ${path}${branch ? ` on ${branch}` : ''}, and starts ${target === caller ? 'you' : 'it'} there next time.`
+  },
+
+  set_pinned: (caller, args) => {
+    const target = args.agent ? find(String(args.agent)) : caller
+    if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    if (target.project !== caller.project) throw new Error(`${target.name} belongs to another project. You can only pin the agents of your own project.`)
+    if (typeof args.pinned !== 'boolean') throw new Error('pinned must be true or false.')
+    pin(target.id, args.pinned)
+    const who = target === caller ? 'You are' : `${target.name} is`
+    return args.pinned ? `${who} pinned at the top of the agent list.` : `${who} no longer pinned.`
   },
 
   set_progress: (caller, args) => {

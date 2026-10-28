@@ -84,6 +84,15 @@ struct SetWorktree {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct SetPinned {
+    /// Whether the agent stays pinned at the top of the agent list.
+    pinned: bool,
+    /// The agent id, as listed by overview, to pin another agent of the same project. Yourself when left empty.
+    agent: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MessageAgent {
     /// The agent id, as listed by overview.
     agent: String,
@@ -306,6 +315,16 @@ impl Pilot {
         Parameters(args): Parameters<SetWorktree>,
     ) -> String {
         self.forward(&parts, "set_worktree", json!(args)).await
+    }
+
+    /// Pins an agent at the top of Squadron's agent list, or unpins it, as the user does by hand. Pin each agent you start or that works on a task when the task begins, and unpin it once the task is over (pull request merged).
+    #[tool]
+    async fn set_pinned(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<SetPinned>,
+    ) -> String {
+        self.forward(&parts, "set_pinned", json!(args)).await
     }
 
     /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps.
