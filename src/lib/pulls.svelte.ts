@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { agents, create, persist, send } from './agents.svelte'
 import { projects } from './projects.svelte'
 import { settings } from './settings.svelte'
-import { workdir, type Comment } from './stream'
+import { prompt, workdir, type Comment } from './stream'
 import { t, type Key } from './i18n/index.svelte'
 
 export type Pull = {
@@ -234,6 +234,16 @@ export async function reviewWithAgent(project: string, pull: Pull) {
     persist(agent)
   }
   return id
+}
+
+export async function fixWithAgent(project: string, pull: Pull, summary: string, list: Comment[]) {
+  const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base })
+  const intro = [
+    `These remarks come from a review of pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
+    `This folder is a detached checkout of origin/${pull.branch}: git diff origin/${pull.base}...HEAD shows what the pull request changes.`,
+    `Address each remark in the code and commit the fixes. Do not push: say what is ready, the user pushes with git push origin HEAD:${pull.branch} or asks you to.`,
+  ].join('\n\n')
+  return create(project, t('review.fixAgentName', { number: String(pull.number) }), { ...settings.defaults }, `${intro}\n\n${prompt(summary, list)}`, { dir })
 }
 
 export const hostName = (pull: Pull) => (pull.host === 'github' ? 'GitHub' : 'Bitbucket')

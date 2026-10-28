@@ -205,6 +205,8 @@ export default {
   },
   discardTitle: 'Discard the review',
   keepIt: 'Keep it',
+  fixAgentName: 'Fixes #{number}',
+  newAgent: 'a new agent',
   agentName: 'Review #{number}',
   reviewingTag: 'Reviews #{number}',
   reviewingTitle: 'Reviews pull request #{number}: its remarks go to your draft review',

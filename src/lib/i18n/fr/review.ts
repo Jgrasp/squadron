@@ -207,6 +207,8 @@ export default {
   },
   discardTitle: 'Abandonner la relecture',
   keepIt: 'La garder',
+  fixAgentName: 'Corrections #{number}',
+  newAgent: 'un nouvel agent',
   agentName: 'Relecture #{number}',
   reviewingTag: 'Relit #{number}',
   reviewingTitle: 'Relit la pull request #{number} : ses remarques vont dans votre brouillon de relecture',

@@ -31,6 +31,7 @@
     onreview,
     onposted,
     reviewer = null,
+    handTo = null,
     onagent,
     since = null,
     own = false,
@@ -50,6 +51,7 @@
     onreview: (summary: string, list: Comment[]) => void
     onposted?: () => void
     reviewer?: Agent | null
+    handTo?: string | null
     onagent?: () => Promise<unknown>
     since?: string | null
     own?: boolean
@@ -680,10 +682,11 @@
           autofocus
         ></textarea>
         <div class="actions">
-          {#if agent}
-            <span class="hint">{t('review.sendOrPost', { count: review.length, agent: agent.name, host: hostName(pull) })}</span>
+          {#if agent || handTo}
+            {@const to = agent?.name ?? handTo ?? ''}
+            <span class="hint">{t('review.sendOrPost', { count: review.length, agent: to, host: hostName(pull) })}</span>
             <button class="btn btn-secondary" disabled={posting || !review.length} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
-            <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>{t('review.sendTo', { agent: agent.name })}</button>
+            <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
               {#each own ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}

@@ -1,14 +1,14 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { ask } from './asking.svelte'
-  import { agents, clock, find, show } from './agents.svelte'
+  import { agents, clock, find, reply, send, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pulls, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pulls, fixWithAgent, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
-  import { workdir, type Comment } from './stream'
+  import { prompt, workdir, type Comment } from './stream'
   import Trans from './Trans.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
@@ -38,6 +38,14 @@
     if (before) agents.current[project.path] = before
     else delete agents.current[project.path]
     launched = { id, number: pull.number }
+  }
+  async function handOver(pull: Pull, summary: string, list: Comment[]) {
+    opened = null
+    const agent = agentOn(pull)
+    if (!agent) return show(find(await fixWithAgent(project.path, pull, summary, list))!)
+    const message = summary || `Review of pull request #${pull.number}`
+    if (!reply(agent, prompt(message, list))) send(agent.id, message, list)
+    show(agent)
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
@@ -193,7 +201,8 @@
       bind:comments={notes}
       bind:target
       onhand={() => {}}
-      onreview={() => {}}
+      onreview={(summary, list) => handOver(opened!, summary, list)}
+      handTo={(opened && agentOn(opened)?.name) || t('review.newAgent')}
       onposted={() => ((opened = null), lookUpLists(project.path, true))}
       reviewer={reviewerOf(opened) ?? null}
       onagent={() => askAgent(opened!)}
