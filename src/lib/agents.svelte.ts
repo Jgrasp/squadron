@@ -29,6 +29,7 @@ import {
   prompt,
   reloaded,
   running,
+  starting,
   userMessage,
   waitingOn,
   type Agent,
@@ -186,13 +187,38 @@ export function persist(agent: Agent) {
 function save(agent: Agent, extra: Record<string, unknown> = {}) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
-  const { live, alive, processCost, interrupting, held, asks, ...kept } = $state.snapshot(agent)
+  const { live, alive, processCost, interrupting, held, jobs, asks, ...kept } = $state.snapshot(agent)
   const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
   return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents, ...extra }) })
 }
 
 export function saveAll() {
   return Promise.all(agents.list.map((a) => save(a)))
+}
+
+export async function closeAll() {
+  const unsent = await invoke<Record<string, unknown[]>>('close_agents').catch(() => ({}) as Record<string, unknown[]>)
+  for (const [id, contents] of Object.entries(unsent)) {
+    const agent = find(id)
+    if (agent) agent.unsent = contents
+  }
+  await saveAll()
+}
+
+const IDLE = 60 * 60_000
+
+export function sleepIdle() {
+  for (const agent of agents.list)
+    if (
+      agent.alive &&
+      ['done', 'interrupted', 'error'].includes(agent.status) &&
+      !agent.asks.length &&
+      !agent.held &&
+      !agent.remote &&
+      !agent.jobs.length &&
+      Date.now() - agent.since > IDLE
+    )
+      invoke('sleep_agent', { id: agent.id }).catch(() => {})
 }
 
 export function archiveIdle() {
@@ -238,11 +264,33 @@ export async function restore() {
     }
   })
   saved.sort((a, b) => (a.entries[0]?.kind === 'user' ? a.entries[0].at : 0) - (b.entries[0]?.kind === 'user' ? b.entries[0].at : 0))
+  const cut: Agent[] = []
   for (const data of saved) {
     if (find(data.id)) continue
     if (!known.has(data.project)) invoke('delete_agent_file', { id: data.id })
-    else await adopt(data)
+    else {
+      await adopt(data)
+      if (data.status === 'working' && (data.resumes ?? 0) < 3 && Date.now() - data.since < 86_400_000) cut.push(find(data.id)!)
+    }
   }
+  for (const agent of cut) if (agent.status === 'interrupted') resume(agent)
+}
+
+const RESUME =
+  'Squadron was closed while you were working, which cut your last turn short. Please continue from where you left off. If your last tool call reads as interrupted or refused, the restart did that, not the user: check whether it already took effect before running it again.'
+
+const blocks = (content: unknown) => (typeof content === 'string' ? [{ type: 'text', text: content }] : Array.isArray(content) ? content : [])
+
+async function resume(agent: Agent) {
+  const unsent = agent.unsent ?? []
+  const note = unsent.length ? `${RESUME}\n\nThese messages reached you while you were working, and you had not read them yet:` : RESUME
+  agent.unsent = undefined
+  agent.resumes = (agent.resumes ?? 0) + 1
+  agent.entries.push({ kind: 'resumed', at: Date.now() })
+  starting(agent)
+  agent.action = t('shell.resuming')
+  persist(agent)
+  await invoke('resume_agent', { id: agent.id, content: [{ type: 'text', text: note }, ...unsent.flatMap(blocks)] }).catch((e) => fail(agent, String(e)))
 }
 
 async function adopt(data: Agent) {
@@ -258,6 +306,7 @@ async function adopt(data: Agent) {
     agent.status = 'interrupted'
     agent.action = t('shell.stoppedOnClose')
   }
+  if (agent.status !== 'interrupted') agent.unsent = undefined
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   for (const e of agent.entries)
     if (e.kind === 'shell' && e.state === 'running') {

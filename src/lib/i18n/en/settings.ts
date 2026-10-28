@@ -244,8 +244,8 @@ export default {
   updateAsk: 'Squadron {version} is available. Install it now?',
   later: 'Later',
   updateRestart: {
-    one: 'Squadron restarts to install {version}. {count} agent is still at work and will stop.',
-    other: 'Squadron restarts to install {version}. {count} agents are still at work and will stop.',
+    one: 'Squadron restarts to install {version}. {count} agent is still at work: its turn is cut, then picks up where it left off.',
+    other: 'Squadron restarts to install {version}. {count} agents are still at work: their turn is cut, then picks up where it left off.',
   },
   updateTitle: 'Update Squadron',
   updateNow: 'Update now',

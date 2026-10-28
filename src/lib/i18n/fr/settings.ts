@@ -246,8 +246,8 @@ export default {
   updateAsk: 'Squadron {version} est disponible. L’installer maintenant ?',
   later: 'Plus tard',
   updateRestart: {
-    one: 'Squadron redémarre pour installer {version}. {count} agent est encore au travail et va s’arrêter.',
-    other: 'Squadron redémarre pour installer {version}. {count} agents sont encore au travail et vont s’arrêter.',
+    one: 'Squadron redémarre pour installer {version}. {count} agent est encore au travail : son tour est coupé, puis il reprend là où il en était.',
+    other: 'Squadron redémarre pour installer {version}. {count} agents sont encore au travail : leur tour est coupé, puis ils reprennent là où ils en étaient.',
   },
   updateTitle: 'Mettre à jour Squadron',
   updateNow: 'Mettre à jour maintenant',

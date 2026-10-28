@@ -3,7 +3,7 @@ import { ask, message } from './asking.svelte'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { ui } from './actions.svelte'
-import { agents, saveAll } from './agents.svelte'
+import { agents, closeAll } from './agents.svelte'
 import { errorText, t } from './i18n/index.svelte'
 
 export const update = $state<{ found: Update | null; progress: number | null; error: string; checking: boolean }>({
@@ -76,7 +76,7 @@ export async function install() {
         update.progress = total ? done / total : 0
       }
     })
-    await saveAll()
+    await closeAll()
     await relaunch()
   } catch (e) {
     update.progress = null

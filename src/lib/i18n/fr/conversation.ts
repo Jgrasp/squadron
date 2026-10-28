@@ -65,6 +65,7 @@ export default {
   launchedBy: 'Lancé par {by} · {time}',
   forkedFrom: 'Dupliqué depuis {from} · {time} · contexte conservé',
   reloaded: 'Session rechargée · {time} · conversation conservée',
+  resumed: 'Reprise après le redémarrage de Squadron · {time}',
   hide: 'Masquer',
   allCaptures: 'Voir les {count} captures',
   fewerCaptures: 'Voir moins de captures',

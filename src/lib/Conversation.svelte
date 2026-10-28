@@ -341,6 +341,12 @@
       {t('conversation.reloaded', { time: time(entry.at) })}
       <span></span>
     </div>
+  {:else if entry.kind === 'resumed'}
+    <div class="separator" role="separator">
+      <span></span>
+      {t('conversation.resumed', { time: time(entry.at) })}
+      <span></span>
+    </div>
   {:else if entry.kind === 'error'}
     <ErrorCard {agent} {entry} />
   {:else if entry.kind === 'decision'}

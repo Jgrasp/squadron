@@ -6,6 +6,7 @@ use std::io::ErrorKind;
 use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
+use std::time::{Duration, Instant};
 use tauri::{AppHandle, Emitter};
 
 pub const NOT_FOUND: &str = "claude-not-found";
@@ -255,6 +256,50 @@ impl Agents {
             .unwrap()
             .drain()
             .for_each(|(_, agent)| stop(agent));
+    }
+
+    /// Stops every Claude Code process before the app quits, and returns per agent the messages it had not read yet.
+    pub fn close_all(&self) -> HashMap<String, Vec<Value>> {
+        let closing: Vec<(String, Session)> = self
+            .list
+            .lock()
+            .unwrap()
+            .iter_mut()
+            .filter_map(|(id, agent)| {
+                agent.run.fetch_add(1, Ordering::SeqCst);
+                let session = agent.session.take()?;
+                let _ = session.stop();
+                Some((id.clone(), session))
+            })
+            .collect();
+        let deadline = Instant::now() + Duration::from_secs(3);
+        while Instant::now() < deadline && closing.iter().any(|(_, s)| s.alive()) {
+            std::thread::sleep(Duration::from_millis(50));
+        }
+        closing
+            .into_iter()
+            .filter_map(|(id, session)| {
+                let unread = session.unread();
+                (!unread.is_empty()).then_some((id, unread))
+            })
+            .collect()
+    }
+
+    /// Stops the process of an agent that has nothing left to do; its next message starts it again with `--resume`.
+    pub fn sleep(&self, id: &str) -> bool {
+        let mut list = self.list.lock().unwrap();
+        let Some(agent) = list.get_mut(id) else {
+            return false;
+        };
+        if !agent
+            .session
+            .as_ref()
+            .is_some_and(|s| s.alive() && !s.busy())
+        {
+            return false;
+        }
+        let _ = agent.session.take().unwrap().stop();
+        true
     }
 }
 

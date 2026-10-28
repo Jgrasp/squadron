@@ -18,6 +18,8 @@ use permissions::Gate;
 use pilot::Pilot;
 use projects::{Card, Folder, Project};
 use serde::Serialize;
+use serde_json::Value;
+use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::Ordering;
@@ -1229,6 +1231,27 @@ fn archive_agent(agents: State<Agents>, id: String) {
     agents.archive(&id)
 }
 
+#[tauri::command]
+async fn close_agents(agents: State<'_, Agents>) -> Result<HashMap<String, Vec<Value>>, ()> {
+    Ok(agents.close_all())
+}
+
+#[tauri::command]
+fn sleep_agent(agents: State<Agents>, id: String) -> bool {
+    agents.sleep(&id)
+}
+
+#[tauri::command]
+fn resume_agent(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    content: Value,
+) -> Result<(), String> {
+    agents.send(&app, &settings.claude(), &id, content)
+}
+
 #[cfg(target_os = "macos")]
 fn login_path() {
     use std::io::Read;
@@ -1448,7 +1471,10 @@ pub fn run() {
             read_session,
             interrupt_agent,
             reload_agent,
-            archive_agent
+            archive_agent,
+            close_agents,
+            sleep_agent,
+            resume_agent
         ])
         .setup(|app| {
             if cfg!(debug_assertions) && app.config().identifier != DEV_ID {
