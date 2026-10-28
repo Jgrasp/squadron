@@ -1,4 +1,5 @@
 pub mod agents;
+pub mod artifacts;
 pub mod askpass;
 pub mod attach;
 pub mod claude;
@@ -547,6 +548,56 @@ fn write_project_file(project: PathBuf, path: PathBuf, text: String) -> Result<(
     std::fs::write(file, text).map_err(|e| e.to_string())
 }
 
+fn artifacts_root() -> Result<&'static PathBuf, String> {
+    artifacts::ROOT
+        .get()
+        .ok_or_else(|| "No artifacts folder.".into())
+}
+
+#[tauri::command]
+fn artifacts_dir() -> Result<PathBuf, String> {
+    artifacts_root().cloned()
+}
+
+#[tauri::command]
+fn list_artifacts(agent: String) -> Result<Vec<artifacts::Artifact>, String> {
+    artifacts::list(artifacts_root()?, &agent)
+}
+
+#[tauri::command]
+fn read_artifact(agent: String, id: String) -> Result<String, String> {
+    artifacts::read(artifacts_root()?, &agent, &id)
+}
+
+#[tauri::command]
+fn write_artifact(
+    agent: String,
+    id: String,
+    kind: String,
+    content: String,
+) -> Result<PathBuf, String> {
+    artifacts::write(artifacts_root()?, &agent, &id, &kind, &content)
+}
+
+#[tauri::command]
+fn set_artifact_link(agent: String, id: String, link: String) -> Result<(), String> {
+    artifacts::set_link(artifacts_root()?, &agent, &id, &link)
+}
+
+#[tauri::command]
+fn delete_artifact(agent: String, id: String) -> Result<(), String> {
+    artifacts::remove(artifacts_root()?, &agent, &id)
+}
+
+#[tauri::command]
+fn open_artifact_folder(agent: String, id: String) -> Result<(), String> {
+    let dir = artifacts::agent_dir(artifacts_root()?, &agent)?.join(&id);
+    if id.is_empty() || id.starts_with('.') || id.contains('/') || !dir.is_dir() {
+        return Err("The artifact is gone.".into());
+    }
+    tauri_plugin_opener::open_path(dir, None::<&str>).map_err(|e| e.to_string())
+}
+
 #[tauri::command]
 fn save_text_file(path: PathBuf, text: String) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| e.to_string())
@@ -1060,6 +1111,9 @@ fn delete_agent_file(app: AppHandle, files: State<AgentFiles>, id: String) -> Re
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
         _ => {
             forget_attachments(&app, &files.0, &gone);
+            if let Some(root) = artifacts::ROOT.get() {
+                artifacts::forget(root, &id);
+            }
             Ok(())
         }
     }
@@ -1093,6 +1147,9 @@ fn delete_archived(app: AppHandle, files: State<AgentFiles>, id: String) -> Resu
     let gone = std::fs::read_to_string(&path).unwrap_or_default();
     std::fs::remove_file(path).map_err(|e| e.to_string())?;
     forget_attachments(&app, &files.0, &gone);
+    if let Some(root) = artifacts::ROOT.get() {
+        artifacts::forget(root, &id);
+    }
     Ok(())
 }
 
@@ -1452,6 +1509,18 @@ pub fn run() {
         let _ = std::fs::remove_dir_all(data.join(DEV_ID).join("WebKitCache"));
     }
     tauri::Builder::default()
+        .register_asynchronous_uri_scheme_protocol("artifact", |_, request, responder| {
+            let path = request.uri().path().to_string();
+            std::thread::spawn(move || match artifacts::ROOT.get() {
+                Some(root) => responder.respond(artifacts::serve(root, &path)),
+                None => responder.respond(
+                    http::Response::builder()
+                        .status(503)
+                        .body(Vec::new())
+                        .unwrap(),
+                ),
+            });
+        })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
@@ -1491,6 +1560,13 @@ pub fn run() {
             read_project_file,
             write_project_file,
             save_text_file,
+            artifacts_dir,
+            list_artifacts,
+            read_artifact,
+            write_artifact,
+            set_artifact_link,
+            delete_artifact,
+            open_artifact_folder,
             list_dir,
             project_files,
             git_file,
@@ -1597,6 +1673,24 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            let root = app.path().app_data_dir()?.join("artifacts");
+            let _ = std::fs::create_dir_all(&root);
+            let ids = |dir: PathBuf| {
+                std::fs::read_dir(dir)
+                    .into_iter()
+                    .flatten()
+                    .flatten()
+                    .filter_map(|f| f.file_name().to_str()?.strip_suffix(".json").map(String::from))
+                    .collect::<Vec<_>>()
+            };
+            let agents = config.join("agents");
+            let keep = ids(agents.clone()).into_iter().chain(ids(agents.join("archived"))).collect();
+            artifacts::sweep(&root, &keep);
+            let _ = artifacts::ROOT.set(root.clone());
+            let handle = app.handle().clone();
+            artifacts::watch(root, move |agent| {
+                let _ = handle.emit("artifacts-changed", agent);
+            });
             let captures = app.path().app_data_dir()?.join("captures");
             let _ = std::fs::create_dir_all(&captures);
             let _ = claude::CAPTURES.set(captures.clone());

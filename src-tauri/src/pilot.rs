@@ -18,7 +18,7 @@ When your task moves into a git worktree that you made yourself (a script, git w
 To start an agent in a worktree a script made, pass its path to start_agent. \
 During a long task made of many items, show where you are on your card with set_progress. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
-When you produce a document the user will read, keep or come back to, such as a report, a plan, a diagram or a page mock-up, publish it with publish_artifact instead of only writing it in the conversation, and update it under the same id as it changes. \
+When you produce a document or a page the user will read, keep or iterate on, such as a report, a plan, a diagram, a mock-up or a clickable prototype, make it an artifact (a folder in $SQUADRON_ARTIFACTS, or publish_artifact for a single file) instead of only writing it in the conversation, and update it as it changes. \
 When the user must put values such as keys, tokens, secrets, passwords or personal data into a file, call ask_values without editing the file yourself: Squadron asks the user and writes the file without you seeing them. Never ask for such values in the conversation.";
 
 #[derive(Clone, Debug, Serialize)]
@@ -197,11 +197,11 @@ struct InfoPanel {
 struct Artifact {
     /// A short title, shown in the list of your artifacts.
     title: String,
-    /// The whole document, up to 500,000 characters. Left empty with id, deletes the artifact, unless link is given.
+    /// The whole index file, up to 500,000 characters. Left empty with id, deletes the artifact, unless link is given.
     content: Option<String>,
     /// markdown (the default), html or svg.
     kind: Option<String>,
-    /// The id publish_artifact returned, to replace that artifact with a new version. A new artifact when left empty.
+    /// The artifact's folder name in $SQUADRON_ARTIFACTS, to replace its index file. A new artifact when left empty.
     id: Option<String>,
     /// The claude.ai link of the Claude Doc you published this artifact as, when the user asked you to share it. With id and no content, only sets the link.
     link: Option<String>,
@@ -436,7 +436,7 @@ impl Pilot {
         self.forward(&parts, "set_info_panel", json!(args)).await
     }
 
-    /// Publishes a document in the Artifacts panel beside your conversation, where the user reads it, copies it or saves it as a file: a report, a plan, a table, a diagram, a page mock-up. Returns its id: call again with that id to publish a new version, or with an empty content to delete it. html and svg are rendered without scripts, network, links or forms (images and fonts only as data: URLs), on Squadron's dark background with the CSS variables --text, --text-strong, --text-muted, --text-faint, --accent, --accent-soft, --ok, --done, --err, --surface-1, --surface-3, --surface-5, --border, --sans and --mono. markdown is rendered like your replies. A doc the user must share with other people goes to claude.ai as a Claude Doc: when the user asks for it, publish it there with the Claude Docs connector, then pass its link here.
+    /// Writes a single-file artifact: index.md (markdown, the default), index.html or index.svg in a folder of its own in $SQUADRON_ARTIFACTS, and returns its folder name and path. Squadron shows it in the Artifacts panel beside your conversation, where the user reads it, points at its elements, copies or saves it. For a page with its own CSS, scripts or images, write the files in that folder yourself: Squadron reloads the panel on each save. Call again with the id to replace the index file, with an empty content to delete the artifact. A markdown artifact the user wants to share goes to claude.ai as a Claude Doc: when they ask for it, publish it there with the Claude Docs connector, then pass its link here.
     #[tool]
     async fn publish_artifact(
         &self,

@@ -17,10 +17,9 @@ export function strip(html: string) {
     .replace(/<\/?(script|meta|base|link|iframe|frame|frameset|object|embed|portal)\b[^>]*>?/gi, '')
 }
 
-export function panelDocument(html: string, theme: Record<string, string>, scroll = false) {
+export function panelDocument(html: string, theme: Record<string, string>) {
   const vars = THEME.filter((name) => theme[name]).map((name) => `${name}:${theme[name]}`).join(';')
-  const body = scroll ? 'html,body{margin:0;background:transparent}body{padding:16px 20px;color:var(--text);font:400 14px/1.5 var(--sans)}' : 'html,body{margin:0;overflow:hidden;background:transparent}body{padding:8px 20px;color:var(--text);font:400 13px/1.4 var(--sans)}'
-  return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${CSP}"><style>:root{${vars};color-scheme:dark}${body}</style></head><body>${strip(html)}</body></html>`
+  return `<!doctype html><html><head><meta http-equiv="Content-Security-Policy" content="${CSP}"><style>:root{${vars};color-scheme:dark}html,body{margin:0;overflow:hidden;background:transparent}body{padding:8px 20px;color:var(--text);font:400 13px/1.4 var(--sans)}</style></head><body>${strip(html)}</body></html>`
 }
 
 export function themeOf(element: Element) {
