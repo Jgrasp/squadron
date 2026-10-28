@@ -52,6 +52,7 @@ export default {
   nobodyWaits: 'Nobody waits for your review in {project}.',
   yours: 'Yours',
   agentWorkingOn: 'The agent working on {branch}',
+  agentReviewing: 'Resume the conversation of {name}, who reviews this pull request',
   goToAgent: 'Go to {name}',
   moreActions: 'More actions',
   noPullsOfYours: 'You have no open pull request in {project}.',

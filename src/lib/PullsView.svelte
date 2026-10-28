@@ -92,6 +92,7 @@
   })
 
   const agentOn = (pull: Pull) => agents.list.find((a) => a.project === project.path && pulls[workdir(a)]?.number === pull.number)
+  const reviewerOf = (pull: Pull) => agents.list.find((a) => a.review?.project === project.path && a.review.number === pull.number)
 
   function since(at: string) {
     const min = Math.max(0, Math.floor((clock.now - Date.parse(at)) / 60_000))
@@ -139,6 +140,7 @@
       <section>
         <h2>{t('review.toReview')} <span class="n">{found.review.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
+          {@const reviewer = reviewerOf(pull)}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
@@ -146,7 +148,7 @@
               `review-${pull.number}`,
               { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) },
               waitsFor(project.path, pull),
-              [openOn(pull), ...approving(pull)],
+              [openOn(pull), ...(reviewer ? [{ label: t('review.goToAgent', { name: reviewer.name }), title: t('review.agentReviewing', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...approving(pull)],
               opened?.number === pull.number,
             )}
           </article>
@@ -193,7 +195,7 @@
       onhand={() => {}}
       onreview={() => {}}
       onposted={() => ((opened = null), lookUpLists(project.path, true))}
-      reviewer={agents.list.find((a) => a.review?.project === project.path && a.review.number === opened?.number) ?? null}
+      reviewer={reviewerOf(opened) ?? null}
       onagent={() => askAgent(opened!)}
       banner={flashes}
       onclose={() => (opened = null)}
