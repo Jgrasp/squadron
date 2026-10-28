@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { Card } from './board'
-import { codeOf, leading, nameOf, taskAt } from './taskref'
+import { codeOf, leading, mentions, nameOf, taskAt, taskId } from './taskref'
 
 const card = (title: string): Card => ({ id: title, key: '', title, prompt: '', column: 'todo', agent: null })
 
@@ -22,5 +22,16 @@ describe('taskref', () => {
   it('strips the code only when a separator follows it', () => {
     expect('T7B — corrige'.replace(leading('T7B'), '')).toBe('corrige')
     expect(leading('T7B').test('T7B (admin)')).toBe(false)
+  })
+
+  it('splits a text around the tasks it names', () => {
+    const cards = [card('T61 — BMC layout'), card('T65 — TMC layout'), card('T5 — Autre')]
+    const parts = mentions(cards, 'Prêtes : T61 et T65 (layout), T52, T5B.')
+    expect(parts.map((p) => (typeof p === 'string' ? p : `[${p.code}]`)).join('')).toBe('Prêtes : [T61] et [T65] (layout), T52, T5B.')
+    expect(mentions([], 'T61')).toEqual(['T61'])
+  })
+
+  it('reads the card id of a task link', () => {
+    expect(taskId('squadron:task/abb24043-bd0a-4de0-b8a8-8a1247146687')).toBe('abb24043-bd0a-4de0-b8a8-8a1247146687')
   })
 })

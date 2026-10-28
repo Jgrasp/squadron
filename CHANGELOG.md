@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.16.1 · 2026-10-28
+
+### Kanban
+
+- **Tasks in replies**: an agent names a task with a link to its card, which shows as a chip in a sentence or as a card at the head of a list item, for every task, with or without a code. A task whose title starts with a code (T52) is also found when the agent writes the code alone. A chip shows the color of the task's column and opens its window.
+
 ## 0.16.0 · 2026-10-28
 
 ### Artifacts

@@ -17,6 +17,7 @@ You can prepare and start new agents as the user would, and send an instruction 
 When your task moves into a git worktree that you made yourself (a script, git worktree add), call set_worktree so Squadron shows its branch. Going into another agent's worktree to look at it, or cd for a command, is not working there: leave your worktree as it is. \
 To start an agent in a worktree a script made, pass its path to start_agent. \
 During a long task made of many items, show where you are on your card with set_progress. \
+To name a Kanban task in a reply, link it as [its code or title](squadron:task/<card id>), with the card id that overview or create_card gives: Squadron shows a chip the user clicks to see the task, or a card when the link opens a list item. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
 When you produce a document or a page the user will read, keep or iterate on, such as a report, a plan, a diagram, a mock-up or a clickable prototype, make it an artifact (a folder in $SQUADRON_ARTIFACTS, or publish_artifact for a single file) instead of only writing it in the conversation, and update it as it changes. \
 When the user must put values such as keys, tokens, secrets, passwords or personal data into a file, call ask_values without editing the file yourself: Squadron asks the user and writes the file without you seeing them. Never ask for such values in the conversation.";
