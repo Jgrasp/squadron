@@ -113,8 +113,9 @@
   import { mount, tick, unmount, untrack } from 'svelte'
   import PullCard from './PullCard.svelte'
   import TaskRef from './TaskRef.svelte'
+  import TaskDialog from './TaskDialog.svelte'
   import { projects } from './projects.svelte'
-  import { codeOf, leading, taskAt } from './taskref'
+  import { codeOf, leading, mentions, taskAt } from './taskref'
   import Attachment from './Attachment.svelte'
   import { showCapture } from './captures.svelte'
 
@@ -200,7 +201,7 @@
   })
 
   const projectCards = $derived(cards && project ? (projects.list.find((p) => p.path === project)?.cards ?? []) : [])
-  const taskTitles = $derived(projectCards.map((c) => `${c.id} ${c.title}`).join('\n'))
+  const taskTitles = $derived(projectCards.map((c) => `${c.id} ${c.column} ${c.title}`).join('\n'))
 
   $effect(() => {
     void html
@@ -257,6 +258,31 @@
           item.replaceChildren(...note.childNodes)
         })
       }
+      const walker = document.createTreeWalker(box!, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => (node.parentElement?.closest('pre, code, a, button, .task-slot, .code') ? NodeFilter.FILTER_REJECT : NodeFilter.FILTER_ACCEPT),
+      })
+      const texts: Text[] = []
+      while (walker.nextNode()) texts.push(walker.currentNode as Text)
+      for (const text of texts) {
+        const parts = mentions(tasks, text.data)
+        if (!parts.some((part) => typeof part !== 'string')) continue
+        const nodes = parts.map((part) => {
+          if (typeof part === 'string') return document.createTextNode(part)
+          const chip = document.createElement('button')
+          chip.type = 'button'
+          chip.className = 'task-chip'
+          chip.dataset.task = part.card.id
+          chip.dataset.column = part.card.column
+          chip.title = part.card.title
+          chip.textContent = part.code
+          return chip
+        })
+        text.replaceWith(...nodes)
+        undo.unshift(() => {
+          nodes[0].replaceWith(text)
+          nodes.slice(1).forEach((n) => n.remove())
+        })
+      }
     })
     return () => {
       mounted.forEach((m) => unmount(m))
@@ -272,6 +298,11 @@
 
   function click(event: MouseEvent) {
     const target = event.target as HTMLElement
+    const task = target.closest<HTMLElement>('[data-task]')
+    if (task) {
+      const dialog = mount(TaskDialog, { target: document.body, props: { id: task.dataset.task!, onclose: () => unmount(dialog) } })
+      return
+    }
     const shot = target.closest<HTMLElement>('[data-shot]')
     if (shot) return void (shot.classList.contains('gone') || showCapture(shot, shot.dataset.shot!))
     const block = target.closest('.code')
@@ -336,6 +367,45 @@
 
   .prose :global(.task-slot) {
     display: contents;
+  }
+
+  .prose :global(.task-chip) {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 0 6px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px var(--border);
+    font: inherit;
+    font-family: var(--mono);
+    font-size: 0.9em;
+    color: var(--text-strong);
+    cursor: pointer;
+  }
+
+  .prose :global(.task-chip::before) {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--text-faint);
+  }
+
+  .prose :global(.task-chip[data-column='progress']::before) {
+    background: var(--ok);
+  }
+
+  .prose :global(.task-chip[data-column='review']::before) {
+    background: var(--accent);
+  }
+
+  .prose :global(.task-chip[data-column='done']::before) {
+    background: var(--done);
+  }
+
+  .prose :global(.task-chip:hover) {
+    box-shadow: inset 0 0 0 1px var(--text-faint);
   }
 
   .prose :global(.task-note) {
