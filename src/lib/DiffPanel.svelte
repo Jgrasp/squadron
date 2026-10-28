@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { tick, untrack } from 'svelte'
+  import { tick, untrack, type Snippet } from 'svelte'
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, rows, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
@@ -34,6 +34,7 @@
     onagent,
     since = null,
     own = false,
+    banner,
     onclose,
   }: {
     agent: Agent | null
@@ -52,6 +53,7 @@
     onagent?: () => Promise<unknown>
     since?: string | null
     own?: boolean
+    banner?: Snippet
     onclose: () => void
   } = $props()
 
@@ -596,6 +598,7 @@
       <button aria-pressed={layout.split} onclick={() => setSplit(true)}>{t('review.split')}</button>
     </div>
   {/snippet}
+  {@render banner?.()}
   {#if reviewing && pull}
     <div class="pr-head">
       <strong class="pr-title">{pull.title}</strong>
