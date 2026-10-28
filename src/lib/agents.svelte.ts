@@ -655,6 +655,7 @@ export async function send(id: string, text: string, comments: Comment[] = [], f
   if (!agent) return
   if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
   userMessage(agent, text, comments, files, from)
+  agent.guess = ''
   persist(agent)
   const said = [take(agent), from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments)]
     .filter(Boolean)

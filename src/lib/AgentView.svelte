@@ -309,7 +309,9 @@
               ? t('agent.newInstruction')
               : agent.status === 'error'
                 ? t('agent.writeReload', { agent: agent.name })
-                : t('agent.writeTo', { agent: agent.name }),
+                : agent.guess
+                  ? t('agent.guess', { guess: agent.guess })
+                  : t('agent.writeTo', { agent: agent.name }),
   )
 
   function measure() {
@@ -479,6 +481,11 @@
         complete(suggestions[pick])
         return
       }
+    }
+    if (event.key === 'Tab' && !event.shiftKey && !text && placeholder === t('agent.guess', { guess: agent.guess ?? '' })) {
+      event.preventDefault()
+      show(area, agent.guess!)
+      return
     }
     if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && area.selectionStart === text.length) {
       event.preventDefault()
