@@ -149,9 +149,10 @@ export type Agent = {
   resumes?: number
   infoPanel?: { html: string; height: number; hidden?: boolean }
   artifacts?: Artifact[]
+  hiddenDocs?: string[]
 }
 
-export type Artifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number }
+export type Artifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number; link?: string }
 
 type Json = Record<string, any>
 
