@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.14.0 · 2026-10-28
+
+### Agents
+
+- **Plan to auto mode**: a plan can be approved straight into auto mode. Once its plan is approved, the agent no longer shows the plan mode.
+- **Predicted reply**: after each turn, the empty message field shows the reply Claude Code expects from you. The right arrow takes it.
+- **Messages between agents**: a message from another agent shows as a card on the left, with its Markdown rendered and its sender on top.
+
+### Pull requests
+
+- Posting a review, approving or merging a pull request tells the running agents working on it.
+
+### Artifacts
+
+- The panel lists the Claude Docs an agent creates on claude.ai. A Markdown artifact can be published there to share it, with its link to open or copy.
+
+### Fixes
+
+- Agents cut short by an update restart resume again at the next start.
+
 ## 0.13.1 · 2026-10-28
 
 ### Agents

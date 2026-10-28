@@ -162,8 +162,35 @@ function replay(id: string, text: string) {
         return JSON.stringify(d)
       })
       .join('\n')
+  const claudeDoc = () => {
+    let first = ''
+    return tools
+      .trim()
+      .split('\n')
+      .map((l) => {
+        const d = JSON.parse(l)
+        const start = d.event?.type === 'content_block_start' && d.event.content_block.type === 'tool_use' ? d.event.content_block : null
+        if (start && (!first || start.id === first)) {
+          first = start.id
+          start.name = 'mcp__claude_ai_Claude_Docs__batch'
+          return JSON.stringify(d)
+        }
+        const use = d.type === 'assistant' ? d.message?.content?.find((c: { type: string; id: string }) => c.type === 'tool_use' && c.id === first) : null
+        if (use) {
+          use.name = 'mcp__claude_ai_Claude_Docs__batch'
+          use.input = { container: { kind: 'project', create: { name: 'Plan de migration', doc: { markdown: '# Plan de migration' } } }, batch: [] }
+          return JSON.stringify(d)
+        }
+        if (d.type === 'user' && d.message?.content?.[0]?.tool_use_id === first) {
+          d.message.content[0].content = 'created.bound:true\nhttps://claude.ai/artifact/plan-de-migration-3f2a9c1e-5b7d-4e8a-9c21-7d4e5f6a8b90'
+          return JSON.stringify(d)
+        }
+        return l
+      })
+      .join('\n')
+  }
   const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
-  const stream = text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -710,6 +737,8 @@ mockIPC(
           setTimeout(() => {
             const message = { type: 'user', isReplay: true, parent_tool_use_id: null, timestamp: new Date().toISOString(), message: { role: 'user', content: 'Sent from my phone: what is left to do?' } }
             emit('agent-line', { id: a.id, line: JSON.stringify(message) })
+            const peer = `Another Claude session sent a message:\n<cross-session-message from="uds:/run/x.sock" from-name="ORB-809 : T7C admin grafts" from-mode="prompting">\nPR T7C (6/6) open: #1554, \`ia/ORB-809-T7C\` → \`dev/ORB-809\`.\n\nFixed in the PR:\n- attribute grid in 500: \`ProductAttributeRepository\` now extends the Sylius one.\n- tax rate grid in 500: filter \`zone.channelIds.id\` → \`zone.channels.id\`.\n</cross-session-message>\n\nThis came from another Claude session.`
+            emit('agent-line', { id: a.id, line: JSON.stringify({ ...message, origin: { kind: 'peer' }, message: { role: 'user', content: peer } }) })
             replay(a.id, 'ok')
           }, 2500)
         return

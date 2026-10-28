@@ -231,7 +231,7 @@ export function archiveIdle() {
       archive(agent.id)
 }
 
-let scanning = false
+let scanning = true
 const elsewhere = new Set<string>()
 
 export async function rescan() {
@@ -255,6 +255,14 @@ export async function rescan() {
 }
 
 export async function restore() {
+  try {
+    await adoptSaved()
+  } finally {
+    scanning = false
+  }
+}
+
+async function adoptSaved() {
   const known = new Set([...projects.list, ...projects.archived].map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
@@ -560,7 +568,7 @@ export function answer(agent: Agent, ask: Ask, answers: Record<string, string>) 
   )
 }
 
-export function plan(agent: Agent, ask: Ask, choice: 'edits' | 'ask' | 'continue', remark = '') {
+export function plan(agent: Agent, ask: Ask, choice: 'auto' | 'edits' | 'ask' | 'continue', remark = '') {
   if (choice === 'continue')
     return settle(
       agent,
@@ -569,10 +577,12 @@ export function plan(agent: Agent, ask: Ask, choice: 'edits' | 'ask' | 'continue
       { tone: 'bad', title: t('shell.planToRevise'), detail: t('shell.keepPlanning'), note: remark ? t('shell.withFeedback', { remark }) : undefined },
     )
   if (choice === 'edits') agent.allowEdits = true
-  const approved = settle(agent, ask, { behavior: 'allow', updatedInput: ask.input }, {
+  const mode = choice === 'auto' ? 'auto' : 'default'
+  agent.options = { ...agent.options, mode }
+  const approved = settle(agent, ask, { behavior: 'allow', updatedInput: ask.input, updatedPermissions: [{ type: 'setMode', mode, destination: 'session' }] }, {
     tone: 'ok',
     title: t('shell.planApproved'),
-    detail: choice === 'edits' ? t('shell.startedAcceptEdits') : t('shell.startedAsking'),
+    detail: choice === 'auto' ? t('shell.startedAuto') : choice === 'edits' ? t('shell.startedAcceptEdits') : t('shell.startedAsking'),
   })
   arm(agent)
   return approved
@@ -645,6 +655,7 @@ export async function send(id: string, text: string, comments: Comment[] = [], f
   if (!agent) return
   if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
   userMessage(agent, text, comments, files, from)
+  agent.guess = ''
   persist(agent)
   const said = [take(agent), from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments)]
     .filter(Boolean)

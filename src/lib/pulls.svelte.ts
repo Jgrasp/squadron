@@ -1,5 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
-import { agents, create, persist } from './agents.svelte'
+import { agents, create, persist, send } from './agents.svelte'
 import { projects } from './projects.svelte'
 import { settings } from './settings.svelte'
 import { workdir, type Comment } from './stream'
@@ -177,10 +177,25 @@ export async function lookUp(dir: string, force = false) {
 
 export const lookUpAll = (force = false) => new Set(agents.list.map(workdir)).forEach((dir) => lookUp(dir, force))
 
+const VERDICTS: Record<string, string> = { approve: 'approved it', request_changes: 'asked for changes', '': 'commented on it' }
+
+function tell(pull: Pull, text: string, comments: Comment[] = []) {
+  for (const agent of agents.list)
+    if (!agent.review && agent.alive && !agent.asks.length && agent.status !== 'error' && pulls[workdir(agent)]?.url === pull.url)
+      send(agent.id, `${text}\n\nThis is for your information: wait for the user before you change, commit or push anything about it.`, comments)
+}
+
 export async function post(dir: string, pull: Pull, list: Comment[], summary = '', verdict = '') {
   const drafts = list.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
   try {
-    return await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary, verdict })
+    const result = await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary, verdict })
+    if (!result.error)
+      tell(
+        pull,
+        [`The user posted a review of your pull request #${pull.number} on ${hostName(pull)}: they ${VERDICTS[verdict] ?? VERDICTS['']}.`, summary.trim()].filter(Boolean).join('\n\n'),
+        list,
+      )
+    return result
   } catch (e) {
     return { done: 0, error: String(e) }
   } finally {
@@ -196,6 +211,7 @@ export async function approve(dir: string, pull: Pull) {
 
 export async function merge(dir: string, pull: Pull) {
   await invoke('merge_pull', { dir, number: pull.number })
+  tell(pull, `The user merged your pull request #${pull.number} into ${pull.base} on ${hostName(pull)}.`)
   lookUpAll(true)
 }
 

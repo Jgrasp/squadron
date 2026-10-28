@@ -245,7 +245,12 @@
 
 {#each agent.entries.slice(start) as entry, k (start + k)}
   {@const i = start + k}
-  {#if entry.kind === 'user'}
+  {#if entry.kind === 'user' && entry.peer !== undefined}
+    <div class="peer" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
+      <span class="from"><span class="dot" aria-hidden="true"></span>{t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>
+      <Markdown text={entry.text} />
+    </div>
+  {:else if entry.kind === 'user'}
     {#if entry.files?.length}
       <div class="files" data-user={i}>{#each entry.files as file (file)}<Attachment path={file} large look="card" />{/each}</div>
     {/if}
@@ -258,7 +263,6 @@
       </div>
     {/if}
     {#if entry.from}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentBy', { from: entry.from, time: time(entry.at) })}</span>{/if}
-    {#if entry.peer !== undefined}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>{/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
   {:else if entry.kind === 'shell'}
     <ShellCard {entry} {onreplay} {onterminal} />
@@ -506,6 +510,33 @@
     font-size: 12.5px;
     line-height: 1.5;
     overflow-wrap: anywhere;
+  }
+
+  .peer {
+    align-self: flex-start;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 640px;
+    padding: 12px 16px;
+    border-radius: 6px;
+    box-shadow: inset 0 0 0 1px var(--border);
+    overflow-wrap: anywhere;
+  }
+
+  .peer .from {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  .peer .dot {
+    width: 6px;
+    height: 6px;
+    border-radius: 3px;
+    background: var(--remote-dot);
   }
 
   .notice .from {

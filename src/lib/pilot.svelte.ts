@@ -13,7 +13,7 @@ import { REVIEW_PROMPT, reviewPrompt, reviews } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
-import { ARTIFACT_MAX, ARTIFACT_KINDS } from './artifacts'
+import { ARTIFACT_MAX, ARTIFACT_KINDS, DOC_LINK } from './artifacts'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
@@ -276,11 +276,18 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
   publish_artifact: (caller, args) => {
     const id = String(args.id ?? '').trim()
     const content = String(args.content ?? '')
+    const link = String(args.link ?? '').trim()
     const list = caller.artifacts ?? []
     const found = id ? list.find((a) => a.id === id) : undefined
     if (id && !found) throw new Error(`You have no artifact ${id}. Your artifacts: ${list.map((a) => `${a.id} “${a.title}”`).join(', ') || 'none'}.`)
+    if (link && !DOC_LINK.test(link)) throw new Error(`${link} is not the link of a claude.ai doc.`)
     if (!content.trim()) {
       if (!found) throw new Error('The content is empty.')
+      if (link) {
+        caller.artifacts = list.map((a) => (a === found ? { ...a, link } : a))
+        persist(caller)
+        return `Artifact ${id} now links to ${link}: the user opens and shares it from the Artifacts panel.`
+      }
       caller.artifacts = list.filter((a) => a !== found)
       persist(caller)
       return `Artifact ${id} deleted.`
@@ -289,7 +296,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const kind = pick(args.kind, ARTIFACT_KINDS, found?.kind ?? 'markdown', 'kind')
     const title = String(args.title ?? '').trim() || found?.title || ''
     if (!title) throw new Error('The title is empty.')
-    const artifact = { id: found?.id ?? crypto.randomUUID().slice(0, 8), title, kind, content, version: (found?.version ?? 0) + 1, at: Date.now() }
+    const artifact = { id: found?.id ?? crypto.randomUUID().slice(0, 8), title, kind, content, version: (found?.version ?? 0) + 1, at: Date.now(), link: link || found?.link }
     caller.artifacts = found ? list.map((a) => (a === found ? artifact : a)) : [...list, artifact]
     persist(caller)
     return `Artifact ${artifact.id} “${title}” published${found ? ` as version ${artifact.version}` : ''}. The user sees it in the Artifacts panel of your conversation. Call publish_artifact with id ${artifact.id} to update it.`

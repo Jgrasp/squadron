@@ -21,6 +21,7 @@
   import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
   import ArtifactsPanel from './ArtifactsPanel.svelte'
+  import { docsOf } from './artifacts'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
   import { run } from './shells.svelte'
@@ -156,11 +157,12 @@
   const branch = $derived(
     agent.worktree ? agent.worktree.branch || agent.worktree.path.split('/').at(-1) : projects.list.find((p) => p.path === agent.project)?.branch,
   )
+  const shared = $derived([...(agent.artifacts ?? []), ...docsOf(agent)])
   const info = $derived(
     shown('agent.info').filter(
       (id) =>
         (id !== 'subagents' || agent.subagents.length) &&
-        (id !== 'artifacts' || agent.artifacts?.length) &&
+        (id !== 'artifacts' || shared.length) &&
         (id !== 'branch' || branch) &&
         (id !== 'pull' || pull || agent.review) &&
         (id !== 'tasks' || agent.tasks.length) &&
@@ -307,7 +309,9 @@
               ? t('agent.newInstruction')
               : agent.status === 'error'
                 ? t('agent.writeReload', { agent: agent.name })
-                : t('agent.writeTo', { agent: agent.name }),
+                : agent.guess
+                  ? t('agent.guess', { guess: agent.guess })
+                  : t('agent.writeTo', { agent: agent.name }),
   )
 
   function measure() {
@@ -477,6 +481,11 @@
         complete(suggestions[pick])
         return
       }
+    }
+    if (event.key === 'ArrowRight' && !text && placeholder === t('agent.guess', { guess: agent.guess ?? '' })) {
+      event.preventDefault()
+      show(area, agent.guess!)
+      return
     }
     if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && area.selectionStart === text.length) {
       event.preventDefault()
@@ -725,7 +734,7 @@
                 data-item={id}
                 onclick={() => toggle('artifacts')}
               >
-                <Icon name="artifact" size={16} />{t('agent.artifacts', { count: agent.artifacts?.length ?? 0 })}<span class="go" aria-hidden="true">›</span>
+                <Icon name="artifact" size={16} />{t('agent.artifacts', { count: shared.length })}<span class="go" aria-hidden="true">›</span>
               </button>
             {:else}
               <button
@@ -975,7 +984,7 @@
       onquote={(quote) => ((text = text.trim() ? `${text.trimEnd()} ${quote} ` : `${quote} `), composer.focus())}
       onclose={() => setPanel(agent.project, null)}
     />
-  {:else if panel === 'artifacts' && agent.artifacts?.length}
+  {:else if panel === 'artifacts' && shared.length}
     <ArtifactsPanel {agent} onclose={() => setPanel(agent.project, null)} />
   {/if}
 </main>

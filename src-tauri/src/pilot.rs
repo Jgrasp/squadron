@@ -188,12 +188,14 @@ struct InfoPanel {
 struct Artifact {
     /// A short title, shown in the list of your artifacts.
     title: String,
-    /// The whole document, up to 500,000 characters. An empty string, with id, deletes the artifact.
-    content: String,
+    /// The whole document, up to 500,000 characters. Left empty with id, deletes the artifact, unless link is given.
+    content: Option<String>,
     /// markdown (the default), html or svg.
     kind: Option<String>,
     /// The id publish_artifact returned, to replace that artifact with a new version. A new artifact when left empty.
     id: Option<String>,
+    /// The claude.ai link of the Claude Doc you published this artifact as, when the user asked you to share it. With id and no content, only sets the link.
+    link: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -414,7 +416,7 @@ impl Pilot {
         self.forward(&parts, "set_info_panel", json!(args)).await
     }
 
-    /// Publishes a document in the Artifacts panel beside your conversation, where the user reads it, copies it or saves it as a file: a report, a plan, a table, a diagram, a page mock-up. Returns its id: call again with that id to publish a new version, or with an empty content to delete it. html and svg are rendered without scripts, network, links or forms (images and fonts only as data: URLs), on Squadron's dark background with the CSS variables --text, --text-strong, --text-muted, --text-faint, --accent, --accent-soft, --ok, --done, --err, --surface-1, --surface-3, --surface-5, --border, --sans and --mono. markdown is rendered like your replies.
+    /// Publishes a document in the Artifacts panel beside your conversation, where the user reads it, copies it or saves it as a file: a report, a plan, a table, a diagram, a page mock-up. Returns its id: call again with that id to publish a new version, or with an empty content to delete it. html and svg are rendered without scripts, network, links or forms (images and fonts only as data: URLs), on Squadron's dark background with the CSS variables --text, --text-strong, --text-muted, --text-faint, --accent, --accent-soft, --ok, --done, --err, --surface-1, --surface-3, --surface-5, --border, --sans and --mono. markdown is rendered like your replies. A doc the user must share with other people goes to claude.ai as a Claude Doc: when the user asks for it, publish it there with the Claude Docs connector, then pass its link here.
     #[tool]
     async fn publish_artifact(
         &self,

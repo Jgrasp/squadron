@@ -149,9 +149,11 @@ export type Agent = {
   resumes?: number
   infoPanel?: { html: string; height: number; hidden?: boolean }
   artifacts?: Artifact[]
+  hiddenDocs?: string[]
+  guess?: string
 }
 
-export type Artifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number }
+export type Artifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number; link?: string }
 
 type Json = Record<string, any>
 
@@ -419,6 +421,7 @@ export function apply(agent: Agent, d: Json) {
       if (d.subtype === 'post_turn_summary' && d.status_category === 'blocked')
         agent.attention = String(d.needs_action || d.status_detail || t('conversation.waitingForYou'))
       if (d.subtype === 'status' && d.status === 'requesting') {
+        agent.guess = ''
         agent.held = false
         if (agent.status !== 'waiting') agent.status = 'working'
       }
@@ -431,6 +434,9 @@ export function apply(agent: Agent, d: Json) {
       }
       if (d.response?.response?.session_url)
         agent.remote = { ...agent.remote, state: agent.remote?.state ?? 'ready', url: d.response.response.session_url, since: agent.remote?.since ?? Date.now() }
+      return
+    case 'prompt_suggestion':
+      agent.guess = String(d.suggestion ?? '')
       return
     case 'conversation_reset':
       agent.entries.push({ kind: 'cleared', at: Date.now() })

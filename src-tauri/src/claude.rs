@@ -97,6 +97,7 @@ pub fn command(
             "--replay-user-messages",
             "--thinking-display",
             "summarized",
+            "--prompt-suggestions",
             "--model",
             &options.model,
             "--effort",
