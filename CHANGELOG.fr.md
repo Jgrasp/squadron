@@ -1,5 +1,21 @@
 # Nouveautés
 
+## 0.16.0 · 2026-10-28
+
+### Artifacts
+
+- **Artifacts en fichiers** : chaque agent écrit ses artifacts dans un dossier à lui, servi à part de l’app. Les pages exécutent leurs scripts, se rechargent à chaque sauvegarde et permettent de pointer un élément pour le citer ; elles partent avec leur agent.
+- **Nettoyage** : les artifacts d’un agent archivé depuis un mois sont supprimés.
+
+### Kanban
+
+- **Tâches dans les réponses** : une tâche du Kanban qu’un agent cite en tête d’un élément de liste s’affiche en carte, avec sa colonne, son agent, sa pull request et son ticket Jira. Un clic ouvre une fenêtre avec son objectif, sa description, ses pièces jointes et des liens vers le Kanban, l’agent et la pull request.
+
+### Correctifs
+
+- **Messages entre agents** : un message envoyé par un autre agent s’affiche en carte à gauche avec son expéditeur, et non plus comme si vous l’aviez écrit.
+- **Pull request d’un agent** : retrouvée depuis la branche qu’il a poussée ou le lien qu’il a donné.
+
 ## 0.15.0 · 2026-10-28
 
 ### Tickets
