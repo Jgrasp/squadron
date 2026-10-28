@@ -328,6 +328,7 @@ async function adopt(data: Agent) {
     if (e.kind !== 'user') return [e]
     const peer = peerMessage(e.text)
     if (peer) return [{ ...e, text: peer.text, peer: peer.from, remote: undefined }]
+    if (e.text.endsWith(`\n\n${FOR_INFO}`)) return [{ ...e, text: e.text.slice(0, -FOR_INFO.length - 2), squadron: true }]
     const text = commandEcho(e.text) ? commandOutput(e.text) : notice(e.text)
     return text === undefined ? [e] : text ? [{ kind: 'note', at: e.at, command: 'notice', text }] : []
   })
@@ -655,14 +656,20 @@ function entitle(agent: Agent, text: string) {
     .catch(() => {})
 }
 
-export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = [], from = '') {
+export const FOR_INFO = 'This is for your information: wait for the user before you change, commit or push anything about it.'
+
+export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = [], from = '', hint = '') {
   const agent = find(id)
   if (!agent) return
   if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
   userMessage(agent, text, comments, files, from)
+  if (hint) {
+    const entry = agent.entries.at(-1)
+    if (entry?.kind === 'user') entry.squadron = true
+  }
   agent.guess = ''
   persist(agent)
-  const said = [take(agent), from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments)]
+  const said = [take(agent), from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments), hint]
     .filter(Boolean)
     .join('\n\n')
   try {

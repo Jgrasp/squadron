@@ -246,9 +246,10 @@
 
 {#each agent.entries.slice(start) as entry, k (start + k)}
   {@const i = start + k}
-  {#if entry.kind === 'user' && (entry.peer !== undefined || entry.from)}
+  {#if entry.kind === 'user' && (entry.peer !== undefined || entry.from || entry.squadron)}
     <div class="peer" data-user={i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
-      <span class="from"><span class="dot" aria-hidden="true"></span>{entry.from ? t('conversation.sentBy', { from: entry.from, time: time(entry.at) }) : t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>
+      <span class="from"><span class="dot" aria-hidden="true"></span>{entry.squadron ? t('conversation.sentBySquadron', { time: time(entry.at) }) : entry.from ? t('conversation.sentBy', { from: entry.from, time: time(entry.at) }) : t('conversation.sentByPeer', { from: entry.peer || '?', time: time(entry.at) })}</span>
+      {#if entry.comments}<div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} />{/each}</div>{/if}
       <Markdown text={entry.text} />
     </div>
   {:else if entry.kind === 'user'}
