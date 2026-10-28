@@ -53,9 +53,9 @@ export default {
   thoughtForTitle: 'A réfléchi {duration}',
   thoughtSeconds: 'A réfléchi {count} s',
 
-  sentBy: 'Envoyé par {from}, approuvé par vous · {time}',
-  sentByPeer: 'Envoyé par la session {from} · {time}',
-  sentBySquadron: 'De Squadron · {time}',
+  fromSession: 'Depuis une autre session',
+  fromSquadron: 'De Squadron',
+  approvedByYou: 'approuvé par vous',
   sentRemote: 'Envoyé par contrôle à distance · {time}',
   turnDone: 'Tour {index} terminé · {input} en entrée · {output} en sortie · {duration}',
   turnLive: 'Tour en cours · {input} en entrée · {output} en sortie · {duration}',

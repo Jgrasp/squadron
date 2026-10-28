@@ -51,9 +51,9 @@ export default {
   thoughtForTitle: 'Thought for {duration}',
   thoughtSeconds: 'Thought for {count} s',
 
-  sentBy: 'Sent by {from}, approved by you · {time}',
-  sentByPeer: 'Sent by session {from} · {time}',
-  sentBySquadron: 'From Squadron · {time}',
+  fromSession: 'From another session',
+  fromSquadron: 'From Squadron',
+  approvedByYou: 'approved by you',
   sentRemote: 'Sent via remote control · {time}',
   turnDone: 'Turn {index} done · {input} in · {output} out · {duration}',
   turnLive: 'Turn in progress · {input} in · {output} out · {duration}',
