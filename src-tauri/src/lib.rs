@@ -317,6 +317,7 @@ struct Config {
     pilot: bool,
     pilot_all: bool,
     archive_after_days: u32,
+    artifacts_after_days: u32,
     compact_window: u32,
     steps: String,
     thinking: String,
@@ -346,6 +347,7 @@ impl Default for Config {
             pilot: true,
             pilot_all: false,
             archive_after_days: 0,
+            artifacts_after_days: 30,
             compact_window: 0,
             steps: "grouped".into(),
             thinking: "duration".into(),
@@ -430,7 +432,16 @@ fn set_settings(
     if config.compact_window != window {
         agents.refresh_all();
     }
-    settings.save(config)
+    let days = config.artifacts_after_days;
+    settings.save(config)?;
+    if let Some(root) = artifacts::ROOT.get() {
+        artifacts::expire(
+            root,
+            &settings.file.with_file_name("agents").join("archived"),
+            days,
+        );
+    }
+    Ok(())
 }
 
 #[tauri::command]
@@ -1687,6 +1698,13 @@ pub fn run() {
             let keep = ids(agents.clone()).into_iter().chain(ids(agents.join("archived"))).collect();
             artifacts::sweep(&root, &keep);
             let _ = artifacts::ROOT.set(root.clone());
+            let (handle, archived) = (app.handle().clone(), agents.join("archived"));
+            let expiring = root.clone();
+            std::thread::spawn(move || loop {
+                let days = handle.state::<Settings>().config.lock().unwrap().artifacts_after_days;
+                artifacts::expire(&expiring, &archived, days);
+                std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
+            });
             let handle = app.handle().clone();
             artifacts::watch(root, move |agent| {
                 let _ = handle.emit("artifacts-changed", agent);

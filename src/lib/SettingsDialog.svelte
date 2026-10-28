@@ -91,6 +91,7 @@
   let pilot = $state(settings.pilot)
   let pilotAll = $state(settings.pilot_all)
   let archiveAfter = $state(settings.archive_after_days)
+  let artifactsAfter = $state(settings.artifacts_after_days)
   let compactWindow = $state(settings.compact_window)
   const WINDOWS = [0, 600_000, 400_000, 200_000]
   let steps = $state(settings.steps)
@@ -113,6 +114,12 @@
     [7, 'settings.archiveWeek'],
     [14, 'settings.archiveTwoWeeks'],
     [30, 'settings.archiveMonth'],
+  ]
+  const KEEP: [number, Key][] = [
+    [0, 'settings.archiveNever'],
+    [7, 'settings.archiveWeek'],
+    [30, 'settings.archiveMonth'],
+    [90, 'settings.archiveDays'],
   ]
   let keys = $state<Record<string, string>>({ ...settings.keys })
   let editors = $state<App[]>(settings.editors.map((e) => ({ ...e })))
@@ -150,7 +157,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ ...$state.snapshot(settings), claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, compact_window: compactWindow, steps, thinking, language })
+      await saveSettings({ ...$state.snapshot(settings), claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -324,6 +331,11 @@
         {#each AGES as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
       </select>
       <p class="intro">{t('settings.archiveIdleHint')}</p>
+      <label for="artifacts-after">{t('settings.artifactsExpire')}</label>
+      <select id="artifacts-after" class="field" bind:value={artifactsAfter}>
+        {#each KEEP as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
+      </select>
+      <p class="intro">{t('settings.artifactsExpireHint')}</p>
       <label for="compact-window">{t('settings.compactWindow')}</label>
       <select id="compact-window" class="field" bind:value={compactWindow}>
         {#each WINDOWS as size (size)}<option value={size}>{size ? t('settings.compactAround', { tokens: tokens(size) }) : t('settings.compactDefault')}</option>{/each}

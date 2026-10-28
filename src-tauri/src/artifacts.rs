@@ -193,6 +193,30 @@ pub fn sweep(root: &Path, keep: &HashSet<String>) {
     }
 }
 
+pub fn expire(root: &Path, archived: &Path, days: u32) {
+    if days == 0 {
+        return;
+    }
+    let now = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64);
+    let limit = now.saturating_sub(u64::from(days) * 86_400_000);
+    for item in std::fs::read_dir(archived).into_iter().flatten().flatten() {
+        let name = item.file_name().to_string_lossy().to_string();
+        let Some(id) = name.strip_suffix(".json") else {
+            continue;
+        };
+        let since = std::fs::read_to_string(item.path())
+            .ok()
+            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+            .and_then(|data| data["archived"].as_u64())
+            .or_else(|| item.metadata().ok().map(|m| millis(&m)));
+        if since.is_some_and(|at| at < limit) {
+            forget(root, id);
+        }
+    }
+}
+
 fn decode(path: &str) -> Option<String> {
     let bytes = path.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
@@ -425,6 +449,36 @@ mod tests {
         ] {
             assert_eq!(serve(&root, bad).status(), 404, "{bad}");
         }
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn deletes_the_artifacts_of_agents_archived_for_too_long() {
+        let root = root();
+        let archived = root.join("archived-agents");
+        std::fs::create_dir_all(&archived).unwrap();
+        let day = 86_400_000u64;
+        let now = std::time::SystemTime::now()
+            .duration_since(UNIX_EPOCH)
+            .unwrap()
+            .as_millis() as u64;
+        for (id, since) in [("old", now - 31 * day), ("recent", now - 2 * day)] {
+            write(&root, id, "a", "markdown", "x").unwrap();
+            std::fs::write(
+                archived.join(format!("{id}.json")),
+                format!("{{\"archived\":{since}}}"),
+            )
+            .unwrap();
+        }
+        write(&root, "active", "a", "markdown", "x").unwrap();
+        expire(&root, &archived, 0);
+        assert!(root.join("old").exists());
+        expire(&root, &archived, 30);
+        assert!(
+            !root.join("old").exists()
+                && root.join("recent").exists()
+                && root.join("active").exists()
+        );
         std::fs::remove_dir_all(root).unwrap();
     }
 
