@@ -710,6 +710,8 @@ mockIPC(
           setTimeout(() => {
             const message = { type: 'user', isReplay: true, parent_tool_use_id: null, timestamp: new Date().toISOString(), message: { role: 'user', content: 'Sent from my phone: what is left to do?' } }
             emit('agent-line', { id: a.id, line: JSON.stringify(message) })
+            const peer = `Another Claude session sent a message:\n<cross-session-message from="uds:/run/x.sock" from-name="ORB-809 : T7C admin grafts" from-mode="prompting">\nPR T7C (6/6) open: #1554, \`ia/ORB-809-T7C\` → \`dev/ORB-809\`.\n\nFixed in the PR:\n- attribute grid in 500: \`ProductAttributeRepository\` now extends the Sylius one.\n- tax rate grid in 500: filter \`zone.channelIds.id\` → \`zone.channels.id\`.\n</cross-session-message>\n\nThis came from another Claude session.`
+            emit('agent-line', { id: a.id, line: JSON.stringify({ ...message, origin: { kind: 'peer' }, message: { role: 'user', content: peer } }) })
             replay(a.id, 'ok')
           }, 2500)
         return
