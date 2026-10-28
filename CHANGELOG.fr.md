@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.13.1 · 2026-10-28
+
+### Agents
+
+- **Valeurs et secrets** : l'agent ne modifie plus le fichier pour le préparer. Squadron écrit chaque valeur à l'emplacement de son repère, ou ajoute la ligne en fin de fichier, et crée le fichier s'il n'existe pas. Le mode auto ne bloque plus la demande.
+
 ## 0.13.0 · 2026-10-28
 
 ### Agents
