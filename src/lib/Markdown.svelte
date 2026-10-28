@@ -602,14 +602,6 @@
     border: 0;
   }
 
-  .prose :global(.code:has(> .mockup:empty) > .source) {
-    display: block;
-  }
-
-  .prose :global(.code:has(> .mockup:empty) > .mockup) {
-    display: none;
-  }
-
   .prose :global(.drawing) {
     display: grid;
     place-items: center;
