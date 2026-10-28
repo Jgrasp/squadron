@@ -1,5 +1,13 @@
 # Nouveautés
 
+## 0.16.3 · 2026-10-28
+
+### Correctifs
+
+- **Liste des tâches** : la liste des tâches d’un agent reste ouverte tant qu’il en reste à faire et se replie quand elles sont toutes terminées, au lieu de s’ouvrir et se replier à chaque tour, ce qui faisait bouger la conversation.
+- **Maquettes** : un bloc html s’ouvre directement sur son aperçu une fois écrit, au lieu d’afficher un instant son HTML.
+- **Messages d’une autre session** : ils s’affichent en retrait, avec un trait d’accent et l’étiquette « D’une autre session ».
+
 ## 0.16.2 · 2026-10-28
 
 ### Correctifs
