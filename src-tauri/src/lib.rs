@@ -19,7 +19,7 @@ use agents::Agents;
 use askpass::Askpass;
 use permissions::Gate;
 use pilot::Pilot;
-use projects::{Card, Folder, Project};
+use projects::{Card, Folder, Group, Project};
 use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
@@ -35,6 +35,14 @@ const DEV_ID: &str = "dev.squadron.desktop.dev";
 struct Projects {
     file: PathBuf,
     list: Mutex<Vec<Project>>,
+    groups_file: PathBuf,
+    groups: Mutex<Vec<Group>>,
+}
+
+#[derive(Serialize)]
+struct Tree {
+    groups: Vec<Group>,
+    projects: Vec<Folder>,
 }
 
 impl Projects {
@@ -53,6 +61,25 @@ impl Projects {
         projects::save(&self.file, &next).map_err(|e| format!("Could not save: {e}"))?;
         *list = next;
         Ok(Self::views(&list))
+    }
+
+    fn arrange(
+        &self,
+        change: impl FnOnce(&mut Vec<Group>, &mut Vec<Project>) -> Result<(), String>,
+    ) -> Result<Tree, String> {
+        let mut list = self.list.lock().unwrap();
+        let mut groups = self.groups.lock().unwrap();
+        let (mut next_list, mut next_groups) = (list.clone(), groups.clone());
+        change(&mut next_groups, &mut next_list)?;
+        projects::save_groups(&self.groups_file, &next_groups)
+            .map_err(|e| format!("Could not save: {e}"))?;
+        projects::save(&self.file, &next_list).map_err(|e| format!("Could not save: {e}"))?;
+        *list = next_list;
+        *groups = next_groups;
+        Ok(Tree {
+            groups: groups.clone(),
+            projects: Self::views(&list),
+        })
     }
 }
 
@@ -78,6 +105,45 @@ struct Inspection {
 #[tauri::command]
 fn list_projects(projects: State<Projects>) -> Vec<Folder> {
     Projects::views(&projects.list.lock().unwrap())
+}
+
+#[tauri::command]
+fn list_groups(projects: State<Projects>) -> Vec<Group> {
+    projects.groups.lock().unwrap().clone()
+}
+
+#[tauri::command]
+fn add_group(
+    projects: State<Projects>,
+    id: String,
+    name: String,
+    parent: String,
+) -> Result<Tree, String> {
+    projects.arrange(|groups, _| projects::add_group(groups, id, &name, parent))
+}
+
+#[tauri::command]
+fn edit_group(
+    projects: State<Projects>,
+    id: String,
+    name: Option<String>,
+    parent: Option<String>,
+) -> Result<Tree, String> {
+    projects.arrange(|groups, _| projects::edit_group(groups, &id, name.as_deref(), parent))
+}
+
+#[tauri::command]
+fn remove_group(projects: State<Projects>, id: String) -> Result<Tree, String> {
+    projects.arrange(|groups, list| projects::dissolve(groups, list, &id))
+}
+
+#[tauri::command]
+fn move_projects(
+    projects: State<Projects>,
+    paths: Vec<PathBuf>,
+    group: String,
+) -> Result<Tree, String> {
+    projects.arrange(|groups, list| projects::place(groups, list, &paths, &group))
 }
 
 #[tauri::command]
@@ -323,6 +389,7 @@ struct Config {
     tab_effect: String,
     tab_ring: String,
     tab_order: String,
+    tab_hours: u32,
     keys: std::collections::BTreeMap<String, String>,
     editors: Vec<editors::App>,
     pilot: bool,
@@ -354,6 +421,7 @@ impl Default for Config {
             tab_effect: "pulse".into(),
             tab_ring: "shake".into(),
             tab_order: "manual".into(),
+            tab_hours: 4,
             keys: Default::default(),
             editors: Vec::new(),
             pilot: true,
@@ -401,6 +469,9 @@ impl Settings {
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
+        }
+        if config.tab_hours > 24 * 30 {
+            return Err(format!("Unknown tab delay: {}", config.tab_hours));
         }
         if config.compact_window != 0 && !(100_000..=1_000_000).contains(&config.compact_window) {
             return Err(format!(
@@ -1579,6 +1650,11 @@ pub fn run() {
             agent_ids,
             load_agent,
             list_projects,
+            list_groups,
+            add_group,
+            edit_group,
+            remove_group,
+            move_projects,
             inspect_folder,
             add_project,
             scratch_project,
@@ -1692,7 +1768,7 @@ pub fn run() {
             if cfg!(debug_assertions) && !config.exists() {
                 std::fs::create_dir_all(&config)?;
                 if let Some(release) = config.parent().map(|p| p.join(RELEASE_ID)) {
-                    for name in ["projects.json", "settings.json", "layout.json"] {
+                    for name in ["projects.json", "groups.json", "settings.json", "layout.json"] {
                         let _ = std::fs::copy(release.join(name), config.join(name));
                     }
                 }
@@ -1708,9 +1784,12 @@ pub fn run() {
             if projects::paint(&mut list) {
                 let _ = projects::save(&file, &list);
             }
+            let groups_file = config.join("groups.json");
             app.manage(Projects {
                 list: Mutex::new(list),
                 file,
+                groups: Mutex::new(projects::load_groups(&groups_file)),
+                groups_file,
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));

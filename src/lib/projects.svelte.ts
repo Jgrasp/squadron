@@ -16,6 +16,7 @@ export type Project = {
   color: string
   pinned: boolean
   archived: boolean
+  group: string
   runs: boolean
   runs_notify: boolean
   runs_hidden: string[]
@@ -28,9 +29,13 @@ export type Project = {
   branch: string | null
 }
 
+export type Group = { id: string; name: string; parent: string }
+
+type Tree = { groups: Group[]; projects: Project[] }
+
 export type Inspection = Project & { taken_by: string | null; taken_archived: boolean; near: string | null }
 
-export const projects = $state({ list: [] as Project[], archived: [] as Project[], current: '', overview: false, board: false, pulls: false })
+export const projects = $state({ list: [] as Project[], archived: [] as Project[], groups: [] as Group[], current: '', overview: false, board: false, pulls: false })
 
 export function defaultsFor(path: string): Options {
   const own = projects.list.find((p) => p.path === path)?.defaults
@@ -50,7 +55,31 @@ export function set(all: Project[]) {
 }
 
 export async function load() {
+  projects.groups = await invoke<Group[]>('list_groups')
   set(await invoke<Project[]>('list_projects'))
+}
+
+function setTree(tree: Tree) {
+  projects.groups = tree.groups
+  set(tree.projects)
+}
+
+export async function addGroup(name: string, parent = '') {
+  const id = crypto.randomUUID()
+  setTree(await invoke<Tree>('add_group', { id, name, parent }))
+  return id
+}
+
+export async function editGroup(id: string, changes: { name?: string; parent?: string }) {
+  setTree(await invoke<Tree>('edit_group', { id, name: changes.name ?? null, parent: changes.parent ?? null }))
+}
+
+export async function removeGroup(id: string) {
+  setTree(await invoke<Tree>('remove_group', { id }))
+}
+
+export async function moveProjects(paths: string[], group: string) {
+  setTree(await invoke<Tree>('move_projects', { paths, group }))
 }
 
 export async function add(path: string, name: string, color = '') {

@@ -23,6 +23,7 @@
   import Board from './lib/Board.svelte'
   import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
+  import ProjectsPanel from './lib/ProjectsPanel.svelte'
   import WhatsNew from './lib/WhatsNew.svelte'
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
@@ -130,6 +131,7 @@
 
   function shortcuts(event: KeyboardEvent) {
     if (ui.customizing && event.key === 'Escape') return (ui.customizing = false)
+    if (ui.projects && event.key === 'Escape' && !document.querySelector('dialog[open]')) return (ui.projects = false)
     if ((event.target as HTMLElement).closest?.('.xterm, .cm-editor')) return
     const action = shortcut(event)
     if (!action || (action !== 'quit' && document.querySelector('dialog[open]'))) return
@@ -161,6 +163,10 @@
   {/if}
   <StatusBar />
 </div>
+
+{#if ui.projects}
+  <ProjectsPanel />
+{/if}
 
 <WhatsNew />
 

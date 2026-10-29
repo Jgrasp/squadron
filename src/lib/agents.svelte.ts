@@ -108,6 +108,10 @@ export function waiting(project: string) {
   return agents.list.filter((a) => a.project === project && calling(a)).length
 }
 
+export function failed(project: string) {
+  return agents.list.filter((a) => a.project === project && a.status === 'error' && !a.errorSeen).length
+}
+
 export function unread(project: string) {
   return agents.list.filter((a) => a.project === project && a.unread && !a.attention).length
 }

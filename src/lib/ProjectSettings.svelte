@@ -17,6 +17,7 @@
     ['name', 'common.name', 'settings.orderNameHint'],
     ['activity', 'settings.orderActivity', 'settings.orderActivityHint'],
   ]
+  const HOURS = [1, 4, 12, 24, 0]
   const movable = (index: number, by: number) => list[index + by]?.pinned === list[index].pinned
 
   async function act(work: () => Promise<unknown>) {
@@ -44,6 +45,15 @@
 <div class="top">
   <p class="intro">{t('settings.projectsIntro')}</p>
   <button class="btn btn-primary" onclick={() => (ui.adding = '')}>{t('settings.addProject')}</button>
+</div>
+<span class="label">{t('settings.tabHours')}</span>
+<p class="hint lead">{t('settings.tabHoursHint')}</p>
+<div class="orders hours" role="group" aria-label={t('settings.tabHours')}>
+  {#each HOURS as hours (hours)}
+    <button aria-pressed={settings.tab_hours === hours} onclick={() => act(() => saveSettings({ ...$state.snapshot(settings), tab_hours: hours }))}>
+      <strong>{hours ? t('settings.tabHoursOption', { count: hours }) : t('settings.tabHoursPinned')}</strong>
+    </button>
+  {/each}
 </div>
 <span class="label">{t('settings.tabOrder')}</span>
 <div class="orders" role="group" aria-label={t('settings.tabOrder')}>
@@ -215,6 +225,19 @@
   .orders button[aria-pressed='true'] {
     background: var(--surface-3);
     box-shadow: inset 0 0 0 2px var(--text);
+  }
+
+  .orders.hours {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+  }
+
+  .orders.hours button {
+    padding: 10px 14px;
+  }
+
+  .hint.lead {
+    margin: 0 0 8px;
+    color: var(--text-dim);
   }
 
   .orders strong {

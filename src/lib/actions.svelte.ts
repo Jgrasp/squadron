@@ -20,7 +20,7 @@ export type SettingsTab =
   | 'changelog'
   | 'about'
 
-export const ui = $state({ creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, adding: null as string | null, drops: 0 })
+export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, adding: null as string | null, drops: 0 })
 
 export type Context = { project?: Project; agent?: Agent }
 
@@ -42,6 +42,9 @@ export function run(action: Action, { project, agent }: Context) {
       return agent && interrupt(agent.id)
     case 'search':
       ui.searching = true
+      return
+    case 'projects':
+      ui.projects = !ui.projects
       return
     case 'back':
       return history.back()
