@@ -1528,6 +1528,11 @@ pub fn run() {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::remove_var(leaked) };
     }
+    #[cfg(target_os = "linux")]
+    {
+        // SAFETY: runs first, before Squadron starts any thread.
+        unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
+    }
     #[cfg(any(target_os = "macos", target_os = "linux"))]
     login_path();
     #[cfg(all(debug_assertions, target_os = "linux"))]
