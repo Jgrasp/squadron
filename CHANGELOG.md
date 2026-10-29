@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.17.0 · 2026-10-29
+
+### Agent mode
+
+- **Start as an agent**: a new session can run as one of Claude Code's agents (project, user or plugin), picked in the new agent form. Its model and effort are prefilled and stay yours to change. The agent stays for the whole session.
+- **Agent chip**: the agent shows next to the session title and in the agent list. A click opens its definition, read-only: description, model, effort, skills, the tools it gets sorted by what they let it do, and its prompt with a table of contents.
+- **Pilot**: start_agent takes an agent, and overview tells which agent each session runs as.
+
 ## 0.16.3 · 2026-10-28
 
 ### Fixes
