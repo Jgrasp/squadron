@@ -8,6 +8,7 @@
   import { hint } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
   import ImportPanel from './ImportPanel.svelte'
+  import PersonaChip from './PersonaChip.svelte'
   import PullTag from './PullTag.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
@@ -212,7 +213,7 @@
       {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
     {/if}
   </span>
-  <span class="state">{#if ticket}<span class="ticket" title={t('tickets.linkTitle', { key: ticket.key })}><span class="logo" aria-hidden="true">J</span>{ticket.key}</span>{/if}{label(agent)}</span>
+  <span class="state">{#if ticket}<span class="ticket" title={t('tickets.linkTitle', { key: ticket.key })}><span class="logo" aria-hidden="true">J</span>{ticket.key}</span>{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{label(agent)}</span>
   <PullTag {agent} gutter />
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
@@ -985,6 +986,11 @@
 
   .state {
     font: 12px var(--sans);
+  }
+
+  .persona {
+    float: right;
+    margin-left: 8px;
   }
 
   .ticket {

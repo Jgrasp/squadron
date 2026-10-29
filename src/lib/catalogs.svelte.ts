@@ -1,4 +1,5 @@
-import { UNLISTED, type Catalog, type Command } from './commands'
+import { invoke } from '@tauri-apps/api/core'
+import { UNLISTED, type AgentType, type Catalog, type Command } from './commands'
 import { known, type Agent } from './stream'
 
 const KEY = 'squadron.catalogs'
@@ -32,6 +33,7 @@ export function remember(project: string, response: Record<string, any>) {
     commands: response.commands ?? [],
     models: response.models ?? [],
     styles: response.available_output_styles ?? [],
+    agents: response.agents ?? [],
   }
   try {
     localStorage.setItem(KEY, JSON.stringify($state.snapshot(catalogs)))
@@ -39,6 +41,23 @@ export function remember(project: string, response: Record<string, any>) {
 }
 
 export const models = () => Object.values(catalogs).reverse().find((c) => c.models?.length)?.models ?? []
+
+export const agentTypes = (project: string): AgentType[] =>
+  catalogs[project]?.agents ?? Object.values(catalogs).reverse().find((c) => c.agents?.length)?.agents ?? []
+
+export type Definition = {
+  path: string
+  source: 'project' | 'user' | 'plugin'
+  plugin: string | null
+  description: string
+  model: string | null
+  effort: string | null
+  tools: string[] | null
+  skills: string[]
+  body: string
+}
+
+export const definition = (project: string, name: string) => invoke<Definition | null>('agent_definition', { project, name }).catch(() => null)
 
 export function catalogOf(agent: Agent): Catalog | undefined {
   return catalogs[agent.project] ?? Object.values(catalogs)[0]

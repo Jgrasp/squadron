@@ -301,6 +301,13 @@ const catalog = {
         { value: 'claude-opus-4-6', displayName: 'Opus 4.6', description: 'Best for everyday, complex tasks', supportedEffortLevels: ['low', 'medium', 'high', 'max'] },
       ],
       available_output_styles: ['default', 'Explanatory', 'Learning'],
+      agents: [
+        { name: 'general-purpose', description: 'General-purpose agent for researching complex questions and executing multi-step tasks.' },
+        { name: 'Explore', description: 'Read-only search agent for broad fan-out searches.', model: 'haiku' },
+        { name: 'reviewer', description: 'Reviews the diff of a task against its plan and the project conventions. Never fixes the code.' },
+        { name: 'crew:architect', description: 'Explores the code, proposes the technical POC of a request, then writes the step-by-step plan. Never changes the code.', model: 'opus' },
+        { name: 'crew:dev-back', description: 'Back-end developer. Carries out one step of the plan and commits it once its checks pass.' },
+      ],
     },
   },
 }
@@ -406,9 +413,30 @@ mockIPC(
       case 'move_project':
         projects.find((p) => p.path === a.path)!.path = a.to
         return views()
+      case 'agent_definition':
+        return a.name === 'crew:architect'
+          ? {
+              path: '/home/demo/.claude/plugins/cache/demo/crew/1.0.0/agents/architect.md',
+              source: 'plugin',
+              plugin: 'crew',
+              description: 'Explores the code, proposes the technical POC of a request, then writes the step-by-step plan. Never changes the code.',
+              model: 'opus',
+              effort: 'high',
+              tools: ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'mcp__plugin_codegraph_codegraph__codegraph_explore'],
+              skills: ['codegraph:explorer'],
+              body: '# Role\n\nYou are the architect. You explore the code and design: first a POC, then the plan.\n\n## Principles\n\n- Everything you state about the code, you checked in the code. Quote the file path.\n- Reuse what exists and follow the conventions of the project.\n\n## POC\n\nRead the files the delegation points to, then write the POC:\n\n- **Approach**: the solution you propose.\n- **Files**: to create and to change, with their paths.\n\n## Plan\n\nSplit the work into steps that each leave the project green.\n\n## Answer\n\nFive lines at most: `OK`, `UNCHANGED` or `BLOCKED` with the reason.',
+            }
+          : a.name === 'reviewer'
+            ? { path: `${a.project}/.claude/agents/reviewer.md`, source: 'project', plugin: null, description: 'Reviews the diff of a task against its plan and the project conventions. Never fixes the code.', model: null, effort: null, tools: null, skills: [], body: 'Review the diff.' }
+            : null
       case 'create_agent':
         projectOf.set(a.id, a.project)
         emit('agent-line', { id: a.id, line: JSON.stringify(catalog) })
+        if ((a.options as unknown as { agent?: string }).agent)
+          emit('agent-line', {
+            id: a.id,
+            line: JSON.stringify({ type: 'system', subtype: 'init', session_id: crypto.randomUUID(), slash_commands: ['compact', 'clear'], tools: (a.options as unknown as { agent?: string }).agent === 'crew:architect' ? ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'mcp__plugin_codegraph_codegraph__codegraph_explore'] : ['Bash', 'Read', 'Edit', 'Write', 'WebFetch', 'Agent'] }),
+          })
         return a.text.trim() ? replay(a.id, a.text) : undefined
       case 'send_message':
         return replay(a.id, a.text)
@@ -486,6 +514,7 @@ mockIPC(
       case 'fork_agent':
       case 'restore_agent':
         projectOf.set(a.id, a.project)
+        emit('agent-line', { id: a.id, line: JSON.stringify(catalog) })
         return
       case 'artifacts_dir':
         return '/home/demo/.local/share/squadron/artifacts'

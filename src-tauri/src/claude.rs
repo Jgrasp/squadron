@@ -54,6 +54,8 @@ pub struct Options {
     pub model: String,
     pub effort: String,
     pub mode: String,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub agent: Option<String>,
 }
 
 impl Options {
@@ -69,6 +71,13 @@ impl Options {
         }
         if !MODES.contains(&self.mode.as_str()) {
             return Err(format!("Unknown permission mode: {}", self.mode));
+        }
+        let agent_name = |c: char| c.is_ascii_alphanumeric() || "-_:.".contains(c);
+        if let Some(agent) = &self.agent
+            && (!agent.starts_with(|c: char| c.is_ascii_alphanumeric())
+                || !agent.chars().all(agent_name))
+        {
+            return Err(format!("Unknown agent: {agent}"));
         }
         Ok(())
     }
@@ -113,6 +122,9 @@ pub fn command(
     let window = COMPACT_WINDOW.load(Ordering::Relaxed);
     if window > 0 {
         cmd.env("CLAUDE_CODE_AUTO_COMPACT_WINDOW", window.to_string());
+    }
+    if let Some(agent) = &options.agent {
+        cmd.args(["--agent", agent]);
     }
     if let Some(id) = resume {
         cmd.args(["--resume", id]);
@@ -416,6 +428,7 @@ mod tests {
             model: "haiku".into(),
             effort: "low".into(),
             mode: "default".into(),
+            agent: None,
         };
         let at = "2654721f-e7e6-4b3c-a2a7-25979e1d1873";
         let cmd = command(
@@ -450,6 +463,7 @@ mod tests {
             model: "haiku".into(),
             effort: "low".into(),
             mode: "auto".into(),
+            agent: None,
         };
         assert!(ok.check().is_ok());
         let flag = Options {
@@ -462,6 +476,16 @@ mod tests {
             ..ok.clone()
         };
         assert!(pinned.check().is_ok());
+        let agent = Options {
+            agent: Some("crew:dev-back".into()),
+            ..ok.clone()
+        };
+        assert!(agent.check().is_ok());
+        let injected = Options {
+            agent: Some("--model".into()),
+            ..ok.clone()
+        };
+        assert!(injected.check().is_err());
         let spaced = Options {
             model: "opus --verbose".into(),
             ..ok
@@ -474,6 +498,7 @@ mod tests {
             model: "haiku".into(),
             effort: "low".into(),
             mode: "default".into(),
+            agent: None,
         };
         let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
@@ -535,6 +560,7 @@ mod tests {
             model: "haiku".into(),
             effort: "low".into(),
             mode: "default".into(),
+            agent: None,
         };
         let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
@@ -576,6 +602,7 @@ mod live_options {
             model: "sonnet".into(),
             effort: "low".into(),
             mode: "default".into(),
+            agent: None,
         };
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(

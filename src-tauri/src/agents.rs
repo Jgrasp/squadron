@@ -424,6 +424,7 @@ mod tests {
             model: "haiku".into(),
             effort: "low".into(),
             mode: "default".into(),
+            agent: None,
         };
         agents
             .register(
