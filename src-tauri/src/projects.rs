@@ -4,6 +4,22 @@ use std::io;
 use std::path::{Path, PathBuf};
 
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
+pub struct Defaults {
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub model: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub effort: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub mode: Option<String>,
+}
+
+impl Defaults {
+    pub fn is_empty(&self) -> bool {
+        self.model.is_none() && self.effort.is_none() && self.mode.is_none()
+    }
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Project {
     pub name: String,
     pub path: PathBuf,
@@ -29,6 +45,8 @@ pub struct Project {
     pub review_prompt: String,
     #[serde(default, skip_serializing_if = "Vec::is_empty")]
     pub tickets: Vec<crate::tickets::Source>,
+    #[serde(default, skip_serializing_if = "Defaults::is_empty")]
+    pub defaults: Defaults,
 }
 
 #[derive(Deserialize)]
@@ -43,6 +61,7 @@ pub struct Edit {
     pub repository: Option<String>,
     pub review_prompt: Option<String>,
     pub tickets: Option<Vec<crate::tickets::Source>>,
+    pub defaults: Option<Defaults>,
 }
 
 pub fn reorder(list: &mut [Project], paths: &[PathBuf]) {
@@ -125,6 +144,7 @@ pub struct Folder {
     pub repository: String,
     pub review_prompt: String,
     pub tickets: Vec<crate::tickets::Source>,
+    pub defaults: Defaults,
     pub exists: bool,
     pub git: bool,
     pub branch: Option<String>,
@@ -147,6 +167,7 @@ impl Folder {
             repository: project.repository.clone(),
             review_prompt: project.review_prompt.clone(),
             tickets: project.tickets.clone(),
+            defaults: project.defaults.clone(),
             exists: path.is_dir(),
             git: path.join(".git").exists(),
             branch: branch(path),
@@ -373,6 +394,11 @@ mod tests {
             repository: "github.com/Jgrasp/squadron".into(),
             review_prompt: "Check the Sylius upgrade notes.".into(),
             tickets: Vec::new(),
+            defaults: Defaults {
+                model: Some("sonnet".into()),
+                effort: None,
+                mode: Some("plan".into()),
+            },
         }];
         save(&file, &projects).unwrap();
         assert!(

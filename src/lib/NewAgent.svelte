@@ -8,12 +8,11 @@
   import Dialog from './Dialog.svelte'
   import { t } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
-  import type { Project } from './projects.svelte'
+  import { defaultsFor, type Project } from './projects.svelte'
   import { tick, untrack } from 'svelte'
   import { Mention, type FileChoice } from './mention.svelte'
   import { imagePaste } from './paste'
-  import { settings } from './settings.svelte'
-  import Trans from './Trans.svelte'
+    import Trans from './Trans.svelte'
   import type { Options } from './stream'
 
   let {
@@ -30,7 +29,7 @@
 
   let name = $state(untrack(() => draft.name))
   let text = $state(untrack(() => draft.text))
-  let options = $state<Options>({ ...settings.defaults })
+  let options = $state<Options>(untrack(() => defaultsFor(project.path)))
   let goal = $state('')
   let worktree = $state<string | null>(null)
   let files = $state<string[]>([])

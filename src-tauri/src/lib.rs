@@ -273,6 +273,16 @@ fn edit_project(
         if let Some(tickets) = changes.tickets {
             project.tickets = tickets;
         }
+        if let Some(defaults) = changes.defaults {
+            claude::Options {
+                model: defaults.model.clone().unwrap_or_else(|| "opus".into()),
+                effort: defaults.effort.clone().unwrap_or_else(|| "high".into()),
+                mode: defaults.mode.clone().unwrap_or_else(|| "default".into()),
+                agent: None,
+            }
+            .check()?;
+            project.defaults = defaults;
+        }
         Ok(())
     })
 }

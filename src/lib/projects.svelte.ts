@@ -3,7 +3,10 @@ import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { Card } from './board'
 import { ofProject } from './agents.svelte'
 import { settings } from './settings.svelte'
+import type { Options } from './stream'
 import type { Source } from './tickets.svelte'
+
+export type Defaults = Partial<Pick<Options, 'model' | 'effort' | 'mode'>>
 
 export type Project = {
   name: string
@@ -19,6 +22,7 @@ export type Project = {
   repository: string
   review_prompt: string
   tickets: Source[]
+  defaults: Defaults
   exists: boolean
   git: boolean
   branch: string | null
@@ -27,6 +31,12 @@ export type Project = {
 export type Inspection = Project & { taken_by: string | null; taken_archived: boolean; near: string | null }
 
 export const projects = $state({ list: [] as Project[], archived: [] as Project[], current: '', overview: false, board: false, pulls: false })
+
+export function defaultsFor(path: string): Options {
+  const own = projects.list.find((p) => p.path === path)?.defaults
+  const base = settings.defaults
+  return { model: own?.model ?? base.model, effort: own?.effort ?? base.effort, mode: own?.mode ?? base.mode }
+}
 
 export function current(): Project | undefined {
   return projects.list.find((p) => p.path === projects.current)
@@ -77,6 +87,7 @@ export async function editProject(path: string, changes: {
     repository?: string
     review_prompt?: string
     tickets?: Source[]
+    defaults?: Defaults
   },) {
   set(await invoke<Project[]>('edit_project', { path, changes }))
 }

@@ -1,6 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { agents, create, FOR_INFO, persist, send } from './agents.svelte'
-import { projects } from './projects.svelte'
+import { defaultsFor, projects } from './projects.svelte'
 import { settings } from './settings.svelte'
 import { prompt, workdir, type Agent, type Comment } from './stream'
 import { pushedTo } from './pushed'
@@ -259,7 +259,7 @@ export async function reviewWithAgent(project: string, pull: Pull) {
     'Do not change any file. For each problem worth raising, call add_review_comment with the file, a line the diff shows (changed or within its context: the line in the new version, or the removed line with removed: true) and a short comment. When it is about code the diff does not show, put it on the changed line it relates to best, or leave path and line out to comment on the whole pull request: what is wrong and what to do.',
     reviewPrompt(project),
   ].join('\n\n')
-  const id = await create(project, t('review.agentName', { number: String(pull.number) }), { ...settings.defaults }, prompt, { dir })
+  const id = await create(project, t('review.agentName', { number: String(pull.number) }), defaultsFor(project), prompt, { dir })
   const agent = agents.list.find((a) => a.id === id)
   if (agent) {
     agent.review = { project, number: pull.number, base: pull.base, title: pull.title }
@@ -275,7 +275,7 @@ export async function fixWithAgent(project: string, pull: Pull, summary: string,
     `This folder is a detached checkout of origin/${pull.branch}: git diff origin/${pull.base}...HEAD shows what the pull request changes.`,
     `Address each remark in the code and commit the fixes. Do not push: say what is ready, the user pushes with git push origin HEAD:${pull.branch} or asks you to.`,
   ].join('\n\n')
-  return create(project, t('review.fixAgentName', { number: String(pull.number) }), { ...settings.defaults }, `${intro}\n\n${prompt(summary, list)}`, { dir })
+  return create(project, t('review.fixAgentName', { number: String(pull.number) }), defaultsFor(project), `${intro}\n\n${prompt(summary, list)}`, { dir })
 }
 
 export const hostName = (pull: Pull) => (pull.host === 'github' ? 'GitHub' : 'Bitbucket')
