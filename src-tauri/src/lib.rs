@@ -3,6 +3,7 @@ pub mod artifacts;
 pub mod askpass;
 pub mod attach;
 pub mod claude;
+pub mod definitions;
 pub mod editors;
 pub mod forge;
 pub mod git;
@@ -338,6 +339,7 @@ impl Default for Config {
                 model: "opus".into(),
                 effort: "high".into(),
                 mode: "default".into(),
+                agent: None,
             },
             tab_effect: "pulse".into(),
             tab_ring: "shake".into(),
@@ -458,6 +460,11 @@ fn remote_control(
 #[tauri::command]
 fn context_usage(agents: State<Agents>, id: String) -> Result<(), String> {
     agents.context_usage(&id)
+}
+
+#[tauri::command]
+fn agent_definition(project: PathBuf, name: String) -> Option<definitions::Definition> {
+    definitions::find(&project, &name)
 }
 
 #[tauri::command]
@@ -1541,6 +1548,7 @@ pub fn run() {
         .manage(Terminals::default())
         .manage(system::Cpu::default())
         .invoke_handler(tauri::generate_handler![
+            agent_definition,
             system_load,
             stop_turn,
             open_link,

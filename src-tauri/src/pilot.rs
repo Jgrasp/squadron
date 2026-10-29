@@ -54,6 +54,8 @@ struct StartAgent {
     effort: Option<String>,
     /// default, plan, acceptEdits or auto. acceptEdits and auto need the user's confirmation.
     mode: Option<String>,
+    /// Name of a Claude Code agent type the session runs as for its whole life, such as crew:architect: its prompt and tools replace the default ones, and its model and effort apply unless you give yours.
+    agent: Option<String>,
     /// Id of a Kanban card the agent works on; the card then follows the agent.
     card: Option<String>,
     /// When the task is done, in the user's words (\"done when…\"): Squadron runs it as Claude Code's /goal, so the agent keeps working after each turn until it is true, then the card goes to review. Ask for visible proof, such as tests run with their output shown. In plan mode it starts once the user approves the plan. Taken from the card when left empty.
@@ -534,6 +536,7 @@ mod tests {
             model: model.into(),
             effort: "low".into(),
             mode: "default".into(),
+            agent: None,
         };
         let config = mcp_config(port, "token", "agent-7", true);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));

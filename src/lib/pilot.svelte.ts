@@ -1,4 +1,4 @@
-import { models } from './catalogs.svelte'
+import { agentTypes, definition, models } from './catalogs.svelte'
 import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
@@ -63,6 +63,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       agents: ofProject(p.path).map((a) => ({
         id: a.id,
         name: a.name,
+        agent: a.options.agent,
         status: a.status,
         pinned: !!a.pinned,
         waiting_for_user: waitingOf(a),
@@ -88,9 +89,16 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const text = String(args.prompt ?? '').trim() || card?.prompt || card?.title || ''
     if (!text) throw new Error('The prompt is empty.')
     if (!project.exists) throw new Error(`The folder of ${project.name} cannot be found.`)
+    const persona = String(args.agent ?? '').trim() || undefined
+    const known = agentTypes(project.path)
+    if (persona && known.length && !known.some((a) => a.name === persona)) throw new Error(`No agent type ${persona} in ${project.name}. Known: ${known.map((a) => a.name).join(', ')}.`)
+    const defined = persona ? await definition(project.path, persona) : null
+    const allowed = [...families(models()), ...models().map((m) => m.value)].filter((v) => v !== 'default')
+    const own = (value: string | null | undefined, list: string[]) => (value && list.includes(value) ? value : undefined)
     const options: Options = {
-      model: pick(args.model, [...families(models()), ...models().map((m) => m.value)].filter((v) => v !== 'default'), settings.defaults.model, 'model'),
-      effort: pick(args.effort, EFFORTS, settings.defaults.effort, 'effort'),
+      agent: persona,
+      model: pick(args.model ?? own(defined?.model ?? known.find((a) => a.name === persona)?.model, allowed), allowed, settings.defaults.model, 'model'),
+      effort: pick(args.effort ?? own(defined?.effort, EFFORTS), EFFORTS, settings.defaults.effort, 'effort'),
       mode: pick(args.mode, MODES, settings.defaults.mode, 'mode'),
     }
     const name = String(args.name ?? '').trim() || card?.title || ''

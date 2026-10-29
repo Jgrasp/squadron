@@ -3,6 +3,7 @@ import agent from './agent'
 import board from './board'
 import common from './common'
 import conversation from './conversation'
+import persona from './persona'
 import format from './format'
 import review from './review'
 import runs from './runs'
@@ -10,4 +11,4 @@ import settings from './settings'
 import shell from './shell'
 import tickets from './tickets'
 
-export default { common, format, settings, board, review, runs, agent, conversation, shell, tickets } satisfies Catalog
+export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, tickets } satisfies Catalog

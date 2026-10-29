@@ -14,6 +14,8 @@
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
+  import AgentDefinition from './AgentDefinition.svelte'
+  import PersonaChip from './PersonaChip.svelte'
   import Runs from './Runs.svelte'
   import { shown as runsShown } from './pipelines.svelte'
   import { errorText, t } from './i18n/index.svelte'
@@ -166,6 +168,7 @@
   })
   const ticket = $derived(projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket)
   let reading = $state(false)
+  let persona = $state(false)
   $effect(() => {
     void agent.id
     reading = false
@@ -554,6 +557,7 @@
     {/if}
     <div class="top">
       <div class="title">
+        <div class="heading">
         {#if renaming}
           <!-- svelte-ignore a11y_autofocus -->
           <input
@@ -567,6 +571,15 @@
         {:else}
           <h1><button class="name" title={t('common.rename')} onclick={startRename}>{agent.name}</button></h1>
         {/if}
+        {#if agent.options.agent}
+          <PersonaChip
+            name={agent.options.agent}
+            title={t('persona.chipTitle', { name: agent.options.agent }) + (agent.tools ? ` · ${t('persona.toolsCount', { count: agent.tools.length })}` : '')}
+            onclick={() => (persona = true)}
+          />
+          {#if persona}<AgentDefinition project={agent.project} name={agent.options.agent} live={agent.tools} onclose={() => (persona = false)} />{/if}
+        {/if}
+        </div>
         <span class="meta" data-options>
           {#each inline as id (id)}
             <span class="info">
@@ -1261,6 +1274,13 @@
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
+  }
+
+  .heading {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-width: 0;
   }
 
   .title > span {

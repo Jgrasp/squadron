@@ -87,6 +87,10 @@
   --sub-done-cell: #5f7049;
   --sub-stopped: #4a3f39;
 
+  --persona: #e3d3b4;
+  --persona-bg: rgba(227, 211, 180, 0.09);
+  --persona-line: rgba(227, 211, 180, 0.3);
+
   --sans: 'DM Sans', 'Segoe UI', sans-serif;
   --mono: 'DM Mono', monospace;
 

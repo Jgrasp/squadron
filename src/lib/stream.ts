@@ -4,6 +4,7 @@ export type Options = {
   model: string
   effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   mode: 'default' | 'acceptEdits' | 'plan' | 'auto'
+  agent?: string
 }
 
 export type Status = 'working' | 'waiting' | 'done' | 'interrupted' | 'error'
@@ -134,6 +135,7 @@ export type Agent = {
   autoName: boolean
   commands: string[]
   skills: string[]
+  tools?: string[]
   remote: { state: string; url: string; since?: number; last?: number } | null
   subagents: Subagent[]
   goal: Goal | null
@@ -401,6 +403,7 @@ export function apply(agent: Agent, d: Json) {
       if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
         agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))
         agent.skills = d.skills ?? []
+        if (Array.isArray(d.tools)) agent.tools = d.tools
         known.commands = agent.commands
         known.skills = agent.skills
         known.terminal = d.terminal_slash_commands ?? []

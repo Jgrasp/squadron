@@ -26,7 +26,9 @@ export function modelName(value: string, models: Model[]) {
   return value[0].toUpperCase() + value.slice(1)
 }
 
-export type Catalog = { commands: Command[]; models: Model[]; styles: string[] }
+export type AgentType = { name: string; description: string; model?: string }
+
+export type Catalog = { commands: Command[]; models: Model[]; styles: string[]; agents?: AgentType[] }
 
 export type Choice = { value: string; label?: string; detail?: string }
 

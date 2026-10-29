@@ -1,6 +1,10 @@
 <script lang="ts">
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
+  import AgentDefinition from './AgentDefinition.svelte'
+  import AgentPicker from './AgentPicker.svelte'
   import Attachment from './Attachment.svelte'
+  import { agentTypes, models, type Definition } from './catalogs.svelte'
+  import { families } from './commands'
   import Dialog from './Dialog.svelte'
   import { t } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
@@ -31,6 +35,24 @@
   let worktree = $state<string | null>(null)
   let files = $state<string[]>([])
   let attachError = $state('')
+  let prefilled = $state(false)
+  let reading = $state<string | null>(null)
+
+  function persona(agent: string | undefined, found: Definition | null) {
+    options.agent = agent
+    prefilled = false
+    if (!agent) return
+    const model = found?.model ?? agentTypes(project.path).find((a) => a.name === agent)?.model
+    if (model && (families(models()).includes(model) || models().some((m) => m.value === model))) {
+      options.model = model
+      prefilled = true
+    }
+    const effort = found?.effort as Options['effort'] | undefined
+    if (effort && ['low', 'medium', 'high', 'xhigh', 'max'].includes(effort)) {
+      options.effort = effort
+      prefilled = true
+    }
+  }
 
   function attach(paths: string[]) {
     files = [...files, ...paths.filter((p) => !files.includes(p))]
@@ -98,6 +120,10 @@
         <input id="agent-name" class="field" bind:value={name} placeholder={t('board.namePlaceholder')} />
       </div>
 
+      <AgentPicker project={project.path} agent={options.agent} onpick={persona} onread={(agent) => (reading = agent)} />
+
+      {#if prefilled}<p class="prefilled">{t('persona.prefilled')}</p>{/if}
+
       <OptionsFields bind:options />
 
       <div class="group">
@@ -160,6 +186,8 @@
   </form>
 </Dialog>
 
+{#if reading}<AgentDefinition project={project.path} name={reading} onclose={() => (reading = null)} />{/if}
+
 <style>
   .in {
     display: inline-flex;
@@ -196,6 +224,12 @@
 
   label {
     font-weight: 600;
+  }
+
+  .prefilled {
+    margin: -10px 0 0;
+    color: var(--persona);
+    font-size: 12px;
   }
 
   .write {

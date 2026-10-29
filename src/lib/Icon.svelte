@@ -29,6 +29,8 @@
     <path d="M4 12a8 8 0 0 1 14-5.3M20 4v4h-4M20 12a8 8 0 0 1-14 5.3M4 20v-4h4" />
   {:else if name === 'tasks'}
     <path d="M10 6h10M10 12h10M10 18h10M4 6l1 1 2-2M4 12l1 1 2-2M4 18l1 1 2-2" />
+  {:else if name === 'persona'}
+    <path d="M12 2.5l8.2 4.75v9.5L12 21.5l-8.2-4.75v-9.5z" /><circle cx="12" cy="10.2" r="2.2" /><path d="M7.8 16.2c.9-1.8 2.4-2.7 4.2-2.7s3.3.9 4.2 2.7" />
   {:else if name === 'eye'}
     <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />
   {:else if name === 'eye-off'}
