@@ -3,6 +3,18 @@ use std::path::Path;
 use std::process::Command;
 
 const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
+const WALK_LIMIT: usize = 20_000;
+const WALK_SKIPPED: [&str; 9] = [
+    "node_modules",
+    "vendor",
+    "bower_components",
+    "venv",
+    "__pycache__",
+    "target",
+    "dist",
+    "build",
+    "out",
+];
 
 #[derive(Debug, PartialEq, Serialize)]
 pub struct Change {
@@ -34,14 +46,42 @@ fn run(cmd: &mut Command) -> Result<String, String> {
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
 
+fn walk(dir: &Path) -> Result<Vec<String>, String> {
+    std::fs::read_dir(dir).map_err(|e| e.to_string())?;
+    let mut paths = Vec::new();
+    let mut queue = std::collections::VecDeque::from([String::new()]);
+    'walk: while let Some(parent) = queue.pop_front() {
+        let Ok(entries) = std::fs::read_dir(dir.join(&parent)) else {
+            continue;
+        };
+        for entry in entries.flatten() {
+            if paths.len() >= WALK_LIMIT {
+                break 'walk;
+            }
+            let name = entry.file_name().to_string_lossy().into_owned();
+            if !entry.file_type().is_ok_and(|t| t.is_dir()) {
+                paths.push(format!("{parent}{name}"));
+            } else if !name.starts_with('.') && !WALK_SKIPPED.contains(&name.as_str()) {
+                let path = format!("{parent}{name}/");
+                paths.push(path.clone());
+                queue.push_back(path);
+            }
+        }
+    }
+    paths.sort();
+    Ok(paths)
+}
+
 pub fn files(dir: &Path) -> Result<Vec<String>, String> {
-    let out = run(git(dir).args([
+    let Ok(out) = run(git(dir).args([
         "ls-files",
         "--cached",
         "--others",
         "--exclude-standard",
         "--deduplicate",
-    ]))?;
+    ])) else {
+        return walk(dir);
+    };
     let mut paths = std::collections::BTreeSet::new();
     for file in out.lines().filter(|l| !l.is_empty()) {
         let mut end = 0;
@@ -308,6 +348,30 @@ pub fn patch(dir: &Path, from: &str, now: &str, path: &str) -> Result<String, St
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn files_of_a_folder_without_git_skip_hidden_dependency_and_build_folders() {
+        let dir = std::env::temp_dir().join(format!("squadron-walk-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        for sub in [
+            "src/lib",
+            ".git",
+            ".cache",
+            "node_modules/a",
+            "vendor",
+            "target",
+        ] {
+            fs::create_dir_all(dir.join(sub)).unwrap();
+            fs::write(dir.join(sub).join("x.txt"), "x").unwrap();
+        }
+        fs::write(dir.join("README.md"), "x").unwrap();
+        fs::write(dir.join(".env"), "x").unwrap();
+        assert_eq!(
+            files(&dir).unwrap(),
+            [".env", "README.md", "src/", "src/lib/", "src/lib/x.txt"]
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
 
     #[test]
     fn branch_changes_cover_commits_and_uncommitted_work_since_main() {
