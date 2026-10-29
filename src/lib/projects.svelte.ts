@@ -156,6 +156,14 @@ export async function toggleBoard() {
   projects.board = !projects.board
 }
 
+export async function showBoard() {
+  const popped = await WebviewWindow.getByLabel('board')
+  if (popped) return popped.setFocus()
+  projects.overview = false
+  projects.pulls = false
+  projects.board = true
+}
+
 export function togglePulls() {
   projects.overview = false
   projects.board = false

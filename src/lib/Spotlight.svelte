@@ -1,8 +1,13 @@
 <script lang="ts">
-  import { agents, archived, find, show, unarchive, type Archived } from './agents.svelte'
+  import { perform } from './actions.svelte'
+  import { agents, archived, find, ofProject, selected, show, unarchive, type Archived } from './agents.svelte'
   import { ago } from './format'
   import { t } from './i18n/index.svelte'
-  import { projects } from './projects.svelte'
+  import Icon from './Icon.svelte'
+  import { projects, type Project } from './projects.svelte'
+  import { lists, needsYou } from './pulls.svelte'
+  import { hint } from './settings.svelte'
+  import { match, STARTERS, type Row } from './spotlight'
   import type { Agent } from './stream'
 
   let { onclose }: { onclose: () => void } = $props()
@@ -35,8 +40,19 @@
     return (from ? '…' : '') + text.slice(from, to).replace(/\s+/g, ' ') + (to < text.length ? '…' : '')
   }
 
+  const world = $derived({
+    projects: projects.list,
+    current: projects.list.find((p) => p.path === projects.current),
+    agents: agents.list,
+    shown: projects.overview || projects.board || projects.pulls ? undefined : selected(projects.current),
+    priority: (p: Project) => needsYou(p.path),
+  })
+  const rows = $derived(match(query, world))
+  const rest = $derived(query.trim().split(/\s+/).slice(1).join(' '))
+  const term = $derived(rows.length && rest ? rest : query.trim())
+
   const hits = $derived.by(() => {
-    const q = query.trim().toLowerCase()
+    const q = term.toLowerCase()
     if (!q) return pool.filter((e) => !e.archived).sort((a, b) => b.agent.since - a.agent.since).slice(0, 12).map((e) => ({ ...e, excerpt: '' }))
     const out: (Entry & { excerpt: string; named: boolean })[] = []
     for (const e of pool) {
@@ -60,13 +76,19 @@
   })
 
   function parts(text: string) {
-    const q = query.trim()
+    const q = term
     if (!q) return [{ text, hit: false }]
     return text.split(new RegExp(`(${q.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})`, 'i')).map((piece, i) => ({ text: piece, hit: i % 2 === 1 }))
   }
 
   async function choose(index: number) {
-    const hit = hits[index]
+    const row = rows[index]
+    if (row) {
+      onclose()
+      await perform(row)
+      return
+    }
+    const hit = hits[index - rows.length]
     if (!hit) return
     onclose()
     if (hit.archived) await unarchive(hit.agent.id)
@@ -75,14 +97,44 @@
   }
 
   function keys(event: KeyboardEvent) {
+    const size = rows.length + hits.length
     if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
       event.preventDefault()
-      active = (active + (event.key === 'ArrowDown' ? 1 : hits.length - 1)) % Math.max(1, hits.length)
+      active = (active + (event.key === 'ArrowDown' ? 1 : size - 1)) % Math.max(1, size)
       dialog.querySelector(`[data-index="${active}"]`)?.scrollIntoView({ block: 'nearest' })
     } else if (event.key === 'Enter') {
       event.preventDefault()
       choose(active)
+    } else if (event.key === 'Tab' && rows[active]) {
+      event.preventDefault()
+      query = rows[active].complete
     }
+  }
+
+  function start(word: string) {
+    query = `${word} `
+    field.focus()
+  }
+
+  function meta(row: Row): { tone: 'wait' | 'quiet' | 'dim'; text: string } | null {
+    const path = row.project?.path
+    if (!path) return null
+    if (row.verb.id === 'archiveProject') return { tone: 'quiet', text: t('spotlight.agentCount', { count: ofProject(path).length }) }
+    if (row.verb.id !== 'pulls') return null
+    const found = lists[path]
+    if (!found) return null
+    if (found.error) return { tone: 'dim', text: t('spotlight.unavailable') }
+    const waiting = needsYou(path)
+    if (waiting) return { tone: 'wait', text: t('spotlight.toReview', { count: waiting }) }
+    const open = found.review.length + found.mine.length
+    return open ? { tone: 'quiet', text: t('spotlight.openPulls', { count: open }) } : { tone: 'dim', text: t('spotlight.noPull') }
+  }
+
+  function shortcut(row: Row) {
+    const action = row.verb.action
+    if (!action) return ''
+    const here = row.agent ? row.agent.id === world.shown?.id : !row.project || row.project.path === projects.current
+    return here ? hint(action) : ''
   }
 </script>
 
@@ -94,12 +146,43 @@
   onclick={(e) => e.target === dialog && onclose()}
 >
   <div class="box">
-    <input bind:this={field} bind:value={query} class="query" placeholder={t('shell.searchPlaceholder')} spellcheck="false" onkeydown={keys} />
+    <input bind:this={field} bind:value={query} class="query" placeholder={t('spotlight.placeholder')} spellcheck="false" onkeydown={keys} />
+    {#if !query.trim()}
+      <div class="starters">
+        <span>{t('spotlight.actions')}</span>
+        {#each STARTERS as word (word)}<button type="button" onclick={() => start(word)}>{word}</button>{/each}
+      </div>
+    {/if}
     <ul role="listbox" aria-label={t('shell.searchTitle')}>
-      {#each hits as hit, i (hit.agent.id)}
+      {#if rows.length}
+        <li class="section" role="presentation">{t('spotlight.actions')}</li>
+        {#each rows as row, i (row.key)}
+          {@const note = meta(row)}
+          {@const key = shortcut(row)}
+          <li role="option" aria-selected={i === active} data-index={i}>
+            <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
+              <span class="icon"><Icon name={row.verb.icon} /></span>
+              <span class="title">{row.title}</span>
+              {#if row.agent}
+                <span class="target agent" style:--project={row.project?.color}><i></i>{row.agent.name}</span>
+              {:else if row.project}
+                <span class="target" style:--project={row.project.color}><i></i>{row.project.name}</span>
+              {/if}
+              <span class="grow"></span>
+              {#if note}<span class="note {note.tone}">{note.text}</span>{/if}
+              {#if i === active}<kbd class="enter">↵</kbd>{:else if key}<kbd>{key}</kbd>{/if}
+            </button>
+          </li>
+        {/each}
+      {/if}
+      {#if hits.length && (rows.length || !query.trim())}
+        <li class="section" role="presentation">{rows.length ? t('spotlight.agents') : t('spotlight.recent')}</li>
+      {/if}
+      {#each hits as hit, j (hit.agent.id)}
+        {@const i = rows.length + j}
         {@const project = projectOf(hit.agent.project)}
         <li role="option" aria-selected={i === active} data-index={i}>
-          <button onclick={() => choose(i)} onmousemove={() => (active = i)}>
+          <button class="hit" onclick={() => choose(i)} onmousemove={() => (active = i)}>
             <span class="line" style:--project={project?.color}>
               <span class="square" aria-hidden="true"></span>
               <strong>{#each parts(hit.agent.name) as part, p (p)}{#if part.hit}<mark>{part.text}</mark>{:else}{part.text}{/if}{/each}</strong>
@@ -113,10 +196,10 @@
           </button>
         </li>
       {:else}
-        <li class="none">{t('shell.searchNoResult')}</li>
+        {#if !rows.length}<li class="none">{t('shell.searchNoResult')}</li>{/if}
       {/each}
     </ul>
-    <div class="hint">{t('shell.searchHint')}</div>
+    <div class="hint">{active < rows.length ? t('spotlight.hintActions') : t('shell.searchHint')}</div>
   </div>
 </dialog>
 
@@ -165,12 +248,154 @@
 
   li button {
     width: 100%;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
     padding: 9px 12px;
     border-radius: 6px;
     text-align: left;
+  }
+
+  .hit {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .action {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 42px;
+  }
+
+  .starters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .starters span {
+    margin-right: 4px;
+  }
+
+  .starters button {
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    font: 500 12px var(--mono);
+    color: var(--text-2);
+  }
+
+  .section {
+    padding: 8px 12px 3px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .icon {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-muted);
+  }
+
+  li[aria-selected='true'] .icon {
+    background: rgba(224, 138, 91, 0.16);
+    box-shadow: inset 0 0 0 1px rgba(224, 138, 91, 0.4);
+    color: var(--accent-soft);
+  }
+
+  .title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  .target {
+    flex: none;
+    max-width: 240px;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 22px;
+    padding: 0 9px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--project) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 60%, transparent);
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  .target i {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--project);
+  }
+
+  .target.agent i {
+    border-radius: 50%;
+  }
+
+  .grow {
+    flex: 1;
+  }
+
+  .note {
+    flex: none;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .note.wait,
+  .note.quiet {
+    padding: 2px 8px;
+    border-radius: 3px;
+    font-size: 11.5px;
+  }
+
+  .note.wait {
+    background: var(--wait-bg);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    font-weight: 700;
+    color: var(--accent-soft);
+  }
+
+  .note.quiet {
+    background: var(--surface-3);
+    color: var(--text-muted);
+  }
+
+  kbd {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    font: 500 11px var(--mono);
+    color: var(--text-dim);
+  }
+
+  kbd.enter {
+    background: var(--accent);
+    box-shadow: none;
+    color: var(--accent-ink);
   }
 
   li[aria-selected='true'] button {

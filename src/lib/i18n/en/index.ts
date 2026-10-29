@@ -8,6 +8,7 @@ import review from './review'
 import runs from './runs'
 import settings from './settings'
 import shell from './shell'
+import spotlight from './spotlight'
 import tickets from './tickets'
 
-export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, tickets }
+export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets }

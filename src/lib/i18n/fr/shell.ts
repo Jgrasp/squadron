@@ -295,7 +295,6 @@ export default {
   markRead: 'Marquer comme lu',
   markUnread: 'Marquer comme non lu',
   searchTitle: 'Recherche',
-  searchPlaceholder: 'Chercher un agent, un projet ou une conversation…',
   searchArchivedTag: 'Archivé',
   searchNoResult: 'Aucun agent ni aucune conversation ne correspond.',
   searchHint: '↑ ↓ pour se déplacer · Entrée pour ouvrir · Échap pour fermer · un agent archivé est restauré à l’ouverture',

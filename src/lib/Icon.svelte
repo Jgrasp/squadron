@@ -35,6 +35,22 @@
     <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" /><circle cx="12" cy="12" r="3" />
   {:else if name === 'eye-off'}
     <path d="M3 3l18 18M10.6 10.6a2 2 0 0 0 2.8 2.8M9.9 5.1A9.8 9.8 0 0 1 12 5c6 0 10 7 10 7a17 17 0 0 1-3.2 3.9M6.1 6.1A17 17 0 0 0 2 12s4 7 10 7a9.6 9.6 0 0 0 4-.9" />
+  {:else if name === 'plus'}
+    <path d="M12 5v14M5 12h14" />
+  {:else if name === 'folder'}
+    <path d="M3 7h6l2 2h10v10H3z" />
+  {:else if name === 'archive'}
+    <path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" />
+  {:else if name === 'stop'}
+    <rect x="7" y="7" width="10" height="10" rx="1" />
+  {:else if name === 'pin'}
+    <path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" />
+  {:else if name === 'grid'}
+    <rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" />
+  {:else if name === 'jump'}
+    <path d="M5 12h14M13 6l6 6-6 6" />
+  {:else if name === 'update'}
+    <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
   {/if}
 </svg>
 

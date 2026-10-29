@@ -293,7 +293,6 @@ export default {
   markRead: 'Mark as read',
   markUnread: 'Mark as unread',
   searchTitle: 'Search',
-  searchPlaceholder: 'Search an agent, a project or a conversation…',
   searchArchivedTag: 'Archived',
   searchNoResult: 'No agent or conversation matches.',
   searchHint: '↑ ↓ to move · Enter to open · Esc to close · archived agents are restored when opened',
