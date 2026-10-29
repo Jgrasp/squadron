@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.18.0 · 2026-10-29
+
+### Projects
+
+- **Groups**: projects can be put in groups and sub-groups. A Projects panel (Ctrl P) floats over the app and lists them all in a tree, with drag and drop and Ctrl-click selection.
+- **Tab bar**: it keeps the pinned projects and those whose agents were active within a delay set in the settings. A header button gathers the pull requests to review.
+- **Project settings**: a list of projects with a sheet per project (General, Agents, CI, Reviews, Tickets). Project settings in the menu of a tab or of the Projects panel opens the sheet of that project.
+- **Defaults per project**: a project can set the model, effort and permission mode its new agents start with. New agents, Kanban tasks, the pilot, imports and pull request reviews use them and fall back to the global defaults.
+
+### Search
+
+- **Actions**: a verb and a project, like « pr uh » or « new nova », open its pull requests or the new agent form. A verb alone lists every project and Tab completes it. Kanban, Diff, Terminal, Editor, Archive, Fork, Interrupt, Pin, Overview, each Settings tab, Customize layout and Check for updates are there too. The search of agents and conversations is unchanged.
+
+### Fixes
+
+- **Blurry text**: text is no longer blurry on Linux.
+- **Linux PATH**: Squadron reads the login shell’s PATH too, so the claude of ~/.local/bin runs and not an older one.
+- **@ mentions**: in a folder that is not a Git repository, @ lists the files without the hidden, dependency and build folders, up to 20,000 paths.
+- **Bash rows**: a Bash row always unfolds and shows the whole command, and hovering a tool row shows its whole argument.
+
 ## 0.17.0 · 2026-10-29
 
 ### Agent mode
