@@ -20,7 +20,7 @@ export type SettingsTab =
   | 'changelog'
   | 'about'
 
-export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, adding: null as string | null, drops: 0 })
+export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', adding: null as string | null, drops: 0 })
 
 export type Context = { project?: Project; agent?: Agent }
 

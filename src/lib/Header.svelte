@@ -324,7 +324,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
         {target.pinned ? t('shell.unpinFromTabBar') : t('shell.pinToTabBar')}
       </button>
-      <button role="menuitem" onclick={() => ((context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
+      <button role="menuitem" onclick={() => ((ui.settingsProject = target.path), (context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
       <button role="menuitem" onclick={() => (shelve(target), (context = null))}>{t('shell.archiveProjectEllipsis')}</button>
     </div>
   {/if}

@@ -196,7 +196,7 @@
 
   <div class="content">
   <h2 class="heading">{current}</h2>
-  <div class="body">
+  <div class="body" class:flush={tab === 'projects'}>
     {#if tab === 'projects'}
       <ProjectSettings />
     {:else if tab === 'archived'}
@@ -468,6 +468,16 @@
 
   .body > :global(*) {
     max-width: 860px;
+  }
+
+  .body.flush {
+    gap: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .body.flush > :global(*) {
+    max-width: none;
   }
 
   .intro,

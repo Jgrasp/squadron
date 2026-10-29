@@ -374,7 +374,7 @@
       <button role="menuitem" onclick={() => create('', paths)}>{t('shell.groupNew')}</button>
       {#if paths.length === 1}
         <span class="rule" aria-hidden="true"></span>
-        <button role="menuitem" onclick={() => ((menu = null), (ui.projects = false), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
+        <button role="menuitem" onclick={() => ((ui.settingsProject = paths[0]), (menu = null), (ui.projects = false), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
       {/if}
     {:else if row}
       <button role="menuitem" onclick={() => create(row.id)}>{t('shell.groupNewIn')}</button>
