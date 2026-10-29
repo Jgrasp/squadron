@@ -1,8 +1,9 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
-  import { ofProject, shelve, unread, waiting, waitingAgents } from './agents.svelte'
+  import { calling, clock, ofProject, shelve, unread, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
+  import { inBar } from './groups'
     import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
   import { chime } from './chime'
@@ -30,6 +31,7 @@
   let measures: HTMLElement[] = $state([])
   let menuOpen = $state(false)
   let moreOpen = $state(false)
+  let pullsOpen = $state(false)
   let search = $state('')
   let context = $state<{ path: string; x: number; y: number } | null>(null)
   const target = $derived(projects.list.find((p) => p.path === context?.path))
@@ -47,7 +49,27 @@
     return Math.max(count, 1)
   })
 
-  const tabs = $derived(ordered())
+  const minute = $derived(Math.floor(clock.now / 60_000) * 60_000)
+  const activity = (path: string) => {
+    const list = ofProject(path)
+    return { busy: list.some((a) => a.status === 'working' || calling(a)), last: Math.max(0, ...list.map((a) => a.since)) }
+  }
+  const tabs = $derived(ordered().filter((p) => inBar(p, projects.current, activity(p.path), minute, settings.tab_hours)))
+
+  const pullProjects = $derived(projects.list.map((project) => ({ project, count: needsYou(project.path) })).filter((entry) => entry.count > 0))
+  const pullTotal = $derived(pullProjects.reduce((n, entry) => n + entry.count, 0))
+
+  function openPulls(path: string) {
+    projects.overview = projects.board = false
+    projects.current = path
+    projects.pulls = true
+    pullsOpen = false
+  }
+
+  function pullsButton() {
+    if (pullProjects.length === 1) openPulls(pullProjects[0].project.path)
+    else pullsOpen = !pullsOpen
+  }
   const visible = $derived.by(() => {
     const shown = tabs.slice(0, Math.max(fit, tabs.filter((p) => p.pinned).length))
     const active = projects.list.find((p) => p.path === projects.current)
@@ -68,7 +90,7 @@
     dropped = true
     requestAnimationFrame(() => (dropped = false))
     if (settings.tab_order !== 'manual') saveSettings({ ...$state.snapshot(settings), tab_order: 'manual' })
-    orderProjects([...order, ...tabs.map((p) => p.path).filter((p) => !order.includes(p))])
+    orderProjects([...order, ...ordered().map((p) => p.path).filter((p) => !order.includes(p))])
   }
 
   function choose(path: string) {
@@ -82,6 +104,7 @@
     if (!(event.target as HTMLElement).closest('[data-menu]')) {
       menuOpen = false
       moreOpen = false
+      pullsOpen = false
       context = null
     }
   }
@@ -94,7 +117,7 @@
 
 <svelte:window
   onclick={closeMenus}
-  onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false), (context = null))}
+  onkeydown={(e) => e.key === 'Escape' && ((menuOpen = false), (moreOpen = false), (pullsOpen = false), (context = null))}
 />
 
 {#snippet finished(count: number)}
@@ -145,6 +168,17 @@
         </div>
       {/if}
     </div>
+    <button
+      class="panelbtn"
+      class:on={ui.projects}
+      data-projects-toggle
+      aria-pressed={ui.projects}
+      aria-label={t('shell.projectsPanel')}
+      title={t('shell.projectsPanelTitle', { key: hint('projects') })}
+      onclick={() => (ui.projects = !ui.projects)}
+    >
+      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="18" height="16" rx="2" /><path d="M9 4v16" /></svg>
+    </button>
   </div>
 
   <nav aria-label={t('shell.projects')} use:sortable={{ enabled: visible.length > 1, onplace: drop }}>
@@ -249,6 +283,36 @@
   </nav>
 
   <div class="end" data-tauri-drag-region>
+    {#if pullTotal}
+      <div class="anchor" data-menu>
+        <button
+          class="prbtn"
+          class:open={pullsOpen}
+          aria-haspopup={pullProjects.length > 1 ? 'menu' : undefined}
+          aria-expanded={pullProjects.length > 1 ? pullsOpen : undefined}
+          title={t('shell.pullsForYou', { count: pullTotal })}
+          aria-label={t('shell.pullsForYou', { count: pullTotal })}
+          onclick={pullsButton}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
+            ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4M13 3l-3 3 3 3" /></svg
+          >
+          <span class="badge">{pullTotal}</span>
+        </button>
+        {#if pullsOpen}
+          <div class="menu right" role="menu" aria-label={t('shell.pullsToReview')}>
+            <span class="section">{t('shell.pullsToReview')}</span>
+            {#each pullProjects as { project, count } (project.path)}
+              <button role="menuitem" style:--project={project.color} title={t('shell.pullsOfProject', { name: project.name })} onclick={() => openPulls(project.path)}>
+                <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
+                <span class="count">{t('shell.pullCount', { count })}</span>
+                <svg class="go" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+              </button>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
     <button class="win" aria-label={t('shell.minimize')} onclick={() => appWindow.minimize()}>–</button>
     <button class="win" aria-label={t('shell.maximize')} onclick={() => appWindow.toggleMaximize()}>□</button>
     <button class="win" aria-label={t('common.close')} onclick={() => appWindow.close()}>×</button>
@@ -260,7 +324,7 @@
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
         {target.pinned ? t('shell.unpinFromTabBar') : t('shell.pinToTabBar')}
       </button>
-      <button role="menuitem" onclick={() => ((context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
+      <button role="menuitem" onclick={() => ((ui.settingsProject = target.path), (context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
       <button role="menuitem" onclick={() => (shelve(target), (context = null))}>{t('shell.archiveProjectEllipsis')}</button>
     </div>
   {/if}
@@ -302,6 +366,57 @@
 
   .anchor {
     position: relative;
+  }
+
+  .panelbtn {
+    width: 30px;
+    height: 30px;
+    margin-left: 6px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-muted);
+  }
+
+  .panelbtn:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .panelbtn.on {
+    background: var(--surface-5);
+    color: var(--text-strong);
+  }
+
+  .prbtn {
+    height: 30px;
+    padding: 0 6px 0 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--accent-soft);
+  }
+
+  .prbtn:hover,
+  .prbtn.open {
+    background: var(--wait-bg);
+    color: var(--wait-text);
+  }
+
+  .count {
+    font: 11.5px var(--mono);
+    color: var(--text-dim);
+  }
+
+  .menu .go {
+    color: var(--text-faint);
+  }
+
+  .menu button:hover .go {
+    color: var(--text-strong);
   }
 
   .brand {

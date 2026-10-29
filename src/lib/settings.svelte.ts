@@ -18,6 +18,7 @@ export type Config = {
   tab_effect: TabEffect
   tab_ring: TabRing
   tab_order: TabOrder
+  tab_hours: number
   keys: Record<string, string>
   editors: App[]
   pilot: boolean
@@ -42,6 +43,7 @@ export const settings = $state<Config>({
   tab_effect: 'pulse',
   tab_ring: 'shake',
   tab_order: 'manual',
+  tab_hours: 4,
   keys: {},
   editors: [],
   pilot: true,

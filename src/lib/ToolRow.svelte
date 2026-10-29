@@ -26,29 +26,30 @@
 {#if edit}
   <button class="row action" title={t('conversation.openInDiff')} onclick={() => ondiff(call)} disabled={!call.result}>
     <span class="name">{toolLabel(call.name)}</span>
-    <span class="arg">{arg}</span>
+    <span class="arg" title={arg}>{arg}</span>
     {#if call.result}
       <span class="mono"><span class="add">+{changes.add}</span>{#if changes.del}&nbsp;<span class="del">−{changes.del}</span>{/if}</span>
       <span class="go">{t('conversation.diffLink')}</span>
     {/if}
   </button>
-{:else if output && (call.name === 'Bash' || failed)}
+{:else if call.name === 'Bash' || (output && failed)}
   <details class="row-box" class:failed open={failed}>
     <summary class="row">
       {#if failed}
         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
       {/if}
       <span class="name">{toolLabel(call.name)}</span>
-      <span class="arg">{arg}</span>
+      <span class="arg" title={arg}>{arg}</span>
       {#if code}<span class="code" class:ok={code === 'conversation.exitOk'}>{t(code)}</span>{/if}
-      <span class="go">{t('conversation.output')}</span>
+      {#if output}<span class="go">{t('conversation.output')}</span>{/if}
     </summary>
-    <pre>{output}</pre>
+    {#if call.name === 'Bash'}<pre class="command">{arg}</pre>{/if}
+    {#if output}<pre>{output}</pre>{/if}
   </details>
 {:else}
   <div class="row">
     <span class="name">{toolLabel(call.name)}</span>
-    <span class="arg">{arg}</span>
+    <span class="arg" title={arg}>{arg}</span>
     {#if !call.result}<span class="go">…</span>{/if}
   </div>
 {/if}
@@ -168,6 +169,10 @@
     color: var(--text-3);
     white-space: pre-wrap;
     overflow-wrap: anywhere;
+  }
+
+  pre.command {
+    color: var(--text);
   }
 
   .failed pre {

@@ -1,6 +1,6 @@
 # Squadron
 
-A desktop app to drive several Claude Code agents side by side: one tab per project, agents with their own conversations, permission cards, diffs, a terminal and a Kanban.
+A desktop app to drive several Claude Code agents side by side: a tab for each pinned or recently active project, a panel that lists them all in groups, agents with their own conversations, permission cards, diffs, a terminal and a Kanban.
 
 ## Install
 

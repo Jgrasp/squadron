@@ -10,7 +10,7 @@ import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 import picker from '../../src-tauri/src/artifact-pick.js?raw'
 
-type Project = { name: string; path: string; rules: string[]; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; tickets?: unknown[] }
+type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; tickets?: unknown[]; defaults?: Record<string, string> }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [], tickets: [{ connection: 'akki', key: 'RING', name: 'RingApp' }] },
@@ -18,6 +18,12 @@ const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null
   { name: 'Lumen', path: '/home/demo/agence/lumen-absent', rules: [] },
 ]
 
+type Group = { id: string; name: string; parent: string }
+
+const groups: Group[] = JSON.parse(localStorage.getItem('groups') ?? 'null') ?? (location.search.includes('groups')
+  ? [{ id: 'g-clients', name: 'Clients', parent: '' }, { id: 'g-ring', name: 'Ring', parent: 'g-clients' }, { id: 'g-tools', name: 'Outils', parent: '' }]
+  : [])
+const saveGroups = () => localStorage.setItem('groups', JSON.stringify(groups))
 const label = location.search.includes('board') ? 'board' : 'main'
 const channel = new BroadcastChannel('squadron-events')
 channel.onmessage = ({ data }) => data.target === label && emit(data.event, data.payload)
@@ -25,7 +31,13 @@ let popup: Window | null = null
 
 if (location.search.includes('many'))
   for (const name of ['Hermes', 'Atlas', 'Optika', 'Vinéa', 'Kalia', 'Sorbet', 'Néréide', 'Pixel Rando'])
-    projects.push({ name, path: `/home/demo/agence/${name.toLowerCase()}`, rules: [] })
+    if (!projects.some((p) => p.name === name)) projects.push({ name, path: `/home/demo/agence/${name.toLowerCase()}`, rules: [] })
+
+if (location.search.includes('groups'))
+  for (const [name, group] of [['Orbit', 'g-ring'], ['Nova', 'g-ring'], ['Lumen', 'g-clients'], ['Hermes', 'g-tools'], ['Atlas', 'g-tools']]) {
+    const found = projects.find((p) => p.name === name && p.group === undefined)
+    if (found) found.group = group
+  }
 
 const COLORS = ['#A78BFA', '#2DD4BF', '#F472B6', '#60A5FA', '#A3E635', '#FACC15']
 
@@ -40,7 +52,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', tickets: p.tickets ?? [] }))
+const views = () => projects.map((p, i) => ({ group: p.group ?? '', ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', tickets: p.tickets ?? [], defaults: p.defaults ?? {} }))
 
 const loaded = Date.now()
 const timers = new Map<string, number>()
@@ -48,6 +60,7 @@ let claudePath = 'claude'
 let reviewPrompt = ''
 let tabEffect = 'pulse'
 let tabOrder = 'manual'
+let tabHours = 4
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 let language = 'system'
@@ -387,6 +400,32 @@ mockIPC(
     switch (cmd) {
       case 'list_projects':
         return views()
+      case 'list_groups':
+        return groups
+      case 'add_group':
+        groups.push({ id: a.id, name: a.name, parent: a.parent })
+        saveGroups()
+        return { groups, projects: views() }
+      case 'edit_group': {
+        const group = groups.find((g) => g.id === a.id)!
+        if (a.name !== null) group.name = a.name
+        if (a.parent !== null) group.parent = a.parent
+        saveGroups()
+        return { groups, projects: views() }
+      }
+      case 'remove_group': {
+        const gone = groups.find((g) => g.id === a.id)!
+        for (const g of groups) if (g.parent === gone.id) g.parent = gone.parent
+        for (const p of projects) if (p.group === gone.id) p.group = gone.parent
+        groups.splice(groups.indexOf(gone), 1)
+        saveGroups()
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return { groups, projects: views() }
+      }
+      case 'move_projects':
+        for (const p of projects) if ((args as unknown as { paths: string[] }).paths.includes(p.path)) p.group = a.group
+        localStorage.setItem('projects', JSON.stringify(projects))
+        return { groups, projects: views() }
       case 'inspect_folder':
         return {
           ...folder(a.path.split('/').pop() ?? '', a.path),
@@ -543,11 +582,12 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ticket_fields_off: ticketFieldsOff, ...runsConfig }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ticket_fields_off: ticketFieldsOff, ...runsConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
         tabOrder = (a as unknown as { config: { tab_order: string } }).config.tab_order
+        tabHours = (a as unknown as { config: { tab_hours: number } }).config.tab_hours
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
@@ -653,7 +693,7 @@ mockIPC(
       case 'review_checkout':
         return `/home/demo/.local/share/squadron/reviews/orbit-${a.number}`
       case 'pull_lists': {
-        if (!a.dir.includes('orbit')) throw 'The project is not on Bitbucket or GitHub.'
+        if (!a.dir.includes('orbit') && !(location.search.includes('groups') && a.dir.includes('nova'))) throw 'The project is not on Bitbucket or GitHub.'
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
           host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,

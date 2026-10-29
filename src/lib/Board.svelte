@@ -7,7 +7,7 @@
   import { errorText, t, type Key } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import { imagePaste } from './paste'
-  import { home, projects, type Project } from './projects.svelte'
+  import { defaultsFor, home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { GOAL_RELAUNCHES, type Goal, type Options } from './stream'
@@ -127,7 +127,7 @@
     actions.cards(project.path, $state.snapshot(kept))
   }
 
-  const defaults = () => ({ ...$state.snapshot(settings.defaults) })
+  const defaults = () => defaultsFor(project.path)
 
   let attachError = $state('')
 

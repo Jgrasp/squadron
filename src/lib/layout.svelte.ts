@@ -18,6 +18,8 @@ let panels: Record<string, PanelKind> = {}
 export type AgentSort = { by: 'none' | 'updated' | 'created' | 'name'; desc: boolean }
 let sort: AgentSort = { by: 'none', desc: false }
 let sorts: Record<string, AgentSort> = {}
+let projectsWidth = 360
+let foldedGroups0: Record<string, boolean> = {}
 let orders: Record<string, string[]> = {}
 try {
   sort = { ...sort, ...read('squadron.sort') }
@@ -30,6 +32,8 @@ try {
   widths = { ...widths, ...read('squadron.diff-widths'), ...read('squadron.widths') }
   full = { diff: localStorage.getItem('squadron.diff-full') === '1', ...read('squadron.full') }
   panels = read('squadron.panels')
+  projectsWidth = Number(localStorage.getItem('squadron.projects-width')) || 360
+  foldedGroups0 = read('squadron.groups-folded')
 } catch {}
 
 export const layout = $state({
@@ -43,6 +47,8 @@ export const layout = $state({
   sort,
   sorts,
   orders,
+  projectsWidth,
+  foldedGroups: foldedGroups0,
 })
 
 export function setSort(project: string | null, next: Partial<AgentSort>) {
@@ -115,4 +121,17 @@ export function dragSidebar(width: number) {
 export function resizeSidebar(width: number) {
   layout.sidebar = Math.round(Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, width)))
   keep('squadron.sidebar', String(layout.sidebar))
+}
+
+export const MIN_PROJECTS = 280
+
+export function resizeProjects(width: number) {
+  layout.projectsWidth = Math.round(Math.min(window.innerWidth, Math.max(MIN_PROJECTS, width)))
+  keep('squadron.projects-width', String(layout.projectsWidth))
+}
+
+export function foldGroup(id: string, folded: boolean) {
+  if (folded) layout.foldedGroups[id] = true
+  else delete layout.foldedGroups[id]
+  keep('squadron.groups-folded', JSON.stringify(layout.foldedGroups))
 }

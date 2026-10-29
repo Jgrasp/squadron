@@ -6,7 +6,7 @@ import { ask } from './asking.svelte'
 import { askValues, branchOf, create, find, importSession, knownSessions, ofProject, persist, pin, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
-import { editProject, projects, setCards, type Project } from './projects.svelte'
+import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
 import { pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
@@ -97,9 +97,9 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const own = (value: string | null | undefined, list: string[]) => (value && list.includes(value) ? value : undefined)
     const options: Options = {
       agent: persona,
-      model: pick(args.model ?? own(defined?.model ?? known.find((a) => a.name === persona)?.model, allowed), allowed, settings.defaults.model, 'model'),
-      effort: pick(args.effort ?? own(defined?.effort, EFFORTS), EFFORTS, settings.defaults.effort, 'effort'),
-      mode: pick(args.mode, MODES, settings.defaults.mode, 'mode'),
+      model: pick(args.model ?? own(defined?.model ?? known.find((a) => a.name === persona)?.model, allowed), allowed, defaultsFor(project.path).model, 'model'),
+      effort: pick(args.effort ?? own(defined?.effort, EFFORTS), EFFORTS, defaultsFor(project.path).effort, 'effort'),
+      mode: pick(args.mode, MODES, defaultsFor(project.path).mode, 'mode'),
     }
     const name = String(args.name ?? '').trim() || card?.title || ''
     const goal = String(args.done_when ?? '').trim() || card?.goal || ''

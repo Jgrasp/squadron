@@ -1,5 +1,25 @@
 # Nouveautés
 
+## 0.18.0 · 2026-10-29
+
+### Projets
+
+- **Groupes** : les projets se rangent en groupes et sous-groupes. Un panneau Projets (Ctrl P) flotte au-dessus de l’application et les liste tous en arbre, avec glisser-déposer et sélection au Ctrl-clic.
+- **Barre d’onglets** : elle garde les projets épinglés et ceux dont les agents ont été actifs dans un délai réglable. Un bouton de l’en-tête rassemble les pull requests à relire.
+- **Réglages de projet** : une liste de projets avec une fiche par projet (Général, Agents, CI, Revues, Tickets). Les réglages du projet, depuis le menu d’un onglet ou du panneau Projets, ouvrent la fiche de ce projet.
+- **Valeurs par défaut par projet** : un projet peut fixer le modèle, l’effort et le mode de permission de ses nouveaux agents. Les nouveaux agents, les tâches du Kanban, le pilote, les imports et les revues de pull request les utilisent et retombent sur les valeurs globales sinon.
+
+### Recherche
+
+- **Actions** : un verbe et un projet, comme « pr uh » ou « new nova », ouvrent ses pull requests ou le formulaire de nouvel agent. Un verbe seul liste tous les projets et Tab le complète. Kanban, Diff, Terminal, Éditeur, Archiver, Dupliquer, Interrompre, Épingler, Vue d’ensemble, chaque onglet des réglages, Personnaliser la disposition et Rechercher des mises à jour y sont aussi. La recherche d’agents et de conversations ne change pas.
+
+### Corrections
+
+- **Texte flou** : le texte n’est plus flou sous Linux.
+- **PATH sous Linux** : Squadron lit aussi le PATH du shell de connexion, si bien que le claude de ~/.local/bin se lance et non un plus ancien.
+- **Mentions @** : dans un dossier qui n’est pas un dépôt Git, @ liste les fichiers sans les dossiers cachés, de dépendances et de build, jusqu’à 20 000 chemins.
+- **Lignes Bash** : une ligne Bash se déplie toujours et montre toute la commande, et survoler une ligne d’outil montre tout son argument.
+
 ## 0.17.0 · 2026-10-29
 
 ### Mode agent
