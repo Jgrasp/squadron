@@ -1412,10 +1412,17 @@ fn resume_agent(
     agents.send(&app, &settings.claude(), &id, content)
 }
 
-#[cfg(target_os = "macos")]
+#[cfg(any(target_os = "macos", target_os = "linux"))]
 fn login_path() {
     use std::io::Read;
-    let shell = std::env::var("SHELL").unwrap_or_else(|_| "/bin/zsh".into());
+    let shell = std::env::var("SHELL").unwrap_or_else(|_| {
+        if cfg!(target_os = "macos") {
+            "/bin/zsh"
+        } else {
+            "/bin/sh"
+        }
+        .into()
+    });
     let Ok(mut child) = std::process::Command::new(shell)
         .args(["-ilc", "printf '\\n%s' \"$PATH\""])
         .stdin(std::process::Stdio::null())
@@ -1521,7 +1528,7 @@ pub fn run() {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::remove_var(leaked) };
     }
-    #[cfg(target_os = "macos")]
+    #[cfg(any(target_os = "macos", target_os = "linux"))]
     login_path();
     #[cfg(all(debug_assertions, target_os = "linux"))]
     {
