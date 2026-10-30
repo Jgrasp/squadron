@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { tick, untrack } from 'svelte'
+  import { tick, untrack, type Snippet } from 'svelte'
   import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, VALUES, type Server } from './agents.svelte'
   import { claudeConfig, labelOf as settingLabel, loadSettings, TERMINAL } from './claudeConfig.svelte'
   import Conversation from './Conversation.svelte'
@@ -43,7 +43,8 @@
   import { find as findCommand, options, parse, type Command } from './commands'
   import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
 
-  let { agent }: { agent: Agent } = $props()
+  let { agent, overlay }: { agent: Agent; overlay?: Snippet } = $props()
+  let headerHeight = $state(0)
 
   const seen = $derived(onScreen(agent))
   $effect(() => {
@@ -67,7 +68,7 @@
   $effect(() => {
     if (proposal && !agent.asks.some((a) => a.id === proposal?.ask)) proposal = null
   })
-  const panel = $derived(layout.panels[agent.project] ?? null)
+  const panel = $derived(projects.board || projects.pulls ? null : (layout.panels[agent.project] ?? null))
   const toggle = (kind: PanelKind) => setPanel(agent.project, panel === kind ? null : kind)
 
   let viewing = $state<string | null>(null)
@@ -641,12 +642,12 @@
   }}
 />
 
-<main>
+<main style:--panel-top="{headerHeight}px">
   <section class="conversation" aria-label={t('agent.conversation')}>
     {#if reading && ticket}
       <TicketPanel connection={ticket.connection} ticketKey={ticket.key} linked oncreate={() => {}} onclose={() => (reading = false)} />
     {/if}
-    <div class="top">
+    <div class="top" bind:offsetHeight={headerHeight}>
       <div class="title">
         <div class="heading">
         {#if renaming}
@@ -697,48 +698,46 @@
           {/if}
         </span>
       </div>
-      <div class="tools" class:compact={panel} class:customizing={ui.customizing} role="group" aria-label={t('agent.openInTool')} use:sortable={{ enabled: true, onplace: (id, index) => place('agent.tools', id, index, ui.customizing ? all('agent.tools') : shown('agent.tools')) }}>
+      <div class="tools" class:customizing={ui.customizing} role="group" aria-label={t('agent.openInTool')} use:sortable={{ enabled: true, onplace: (id, index) => place('agent.tools', id, index, ui.customizing ? all('agent.tools') : shown('agent.tools')) }}>
     {#snippet editorTool()}
       <button class="btn btn-ghost" aria-label={t('agent.editor')} aria-pressed={panel === 'editor'} title={t('agent.editorTitle', { shortcut: hint('editor') })} onclick={() => toggle('editor')}>
         <Icon name="editor" />
-        {#if !panel}{t('agent.editor')}{/if}
+        {t('agent.editor')}
       </button>
     {/snippet}
     {#snippet terminalTool()}
       <button class="btn btn-ghost" aria-label={t('agent.terminal')} aria-pressed={panel === 'terminal'} title={t('agent.terminalTitle', { shortcut: hint('terminal') })} onclick={() => toggle('terminal')}>
         <Icon name="terminal" />
-        {#if !panel}{t('agent.terminal')}{/if}
+        {t('agent.terminal')}
       </button>
     {/snippet}
     {#snippet diffTool()}
       <button class="btn btn-ghost" aria-label={t('agent.diff')} aria-pressed={panel === 'diff'} title={t('agent.diffTitle', { shortcut: hint('diff') })} onclick={() => ((diffSource = 'local'), toggle('diff'))}>
         <Icon name="diff" />
-        {#if !panel}
-          {t('agent.diff')}
-          {#if totals.add || totals.del}
-            <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
-          {/if}
+        {t('agent.diff')}
+        {#if totals.add || totals.del}
+          <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
         {/if}
       </button>
     {/snippet}
     {#snippet pullsTool()}
-      <button class="btn btn-ghost" aria-label={t('agent.pullRequests')} title={t('agent.pullsTitle')} onclick={togglePulls}>
+      <button class="btn btn-ghost" aria-label={t('agent.pullRequests')} aria-pressed={projects.pulls} title={t('agent.pullsTitle')} onclick={togglePulls}>
         <Icon name="pull" />
-        {#if !panel}{t('agent.pullRequests')}{/if}
+        {t('agent.pullRequests')}
         {#if needsYou(agent.project)}<span class="count">{needsYou(agent.project)}</span>{/if}
       </button>
     {/snippet}
     {#snippet runsTool()}
       {#if project && ran}
-        <Runs {project} compact={!!panel} />
+        <Runs {project} />
       {:else}
         <button class="btn btn-ghost" disabled>{t('settings.itemRuns')}</button>
       {/if}
     {/snippet}
     {#snippet kanbanTool()}
-      <button class="btn btn-ghost" aria-label={t('agent.kanban')} title={t('agent.kanbanTitle', { shortcut: hint('kanban') })} onclick={toggleBoard}>
+      <button class="btn btn-ghost" aria-label={t('agent.kanban')} aria-pressed={projects.board} title={t('agent.kanbanTitle', { shortcut: hint('kanban') })} onclick={toggleBoard}>
         <Icon name="kanban" />
-        {#if !panel}{t('agent.kanban')}{/if}
+        {t('agent.kanban')}
       </button>
     {/snippet}
       {#each ui.customizing ? all('agent.tools') : shown('agent.tools').filter((id) => id !== 'runs' || ran) as id (id)}
@@ -1143,10 +1142,12 @@
       onclose={() => setPanel(agent.project, null)}
     />
   {/if}
+  {@render overlay?.()}
 </main>
 
 <style>
   main {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;
@@ -1166,9 +1167,6 @@
     gap: 4px;
   }
 
-  .tools.compact {
-    gap: 2px;
-  }
 
   .item {
     position: relative;
@@ -1216,12 +1214,6 @@
     color: var(--accent-ink);
   }
 
-  .tools.compact .btn-ghost {
-    width: 32px;
-    padding: 0;
-    box-shadow: none;
-    color: var(--text-muted);
-  }
 
   .top .tools .btn-ghost[aria-pressed='true'] {
     background: var(--surface-5);

@@ -1,8 +1,8 @@
 <script lang="ts">
   import { ask } from './asking.svelte'
   import { agents, archive, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
-  import { ago, short } from './format'
-  import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
+  import { ago } from './format'
+  import { layout, orderAgents, resetSort, setSort, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
   import { projects, type Project } from './projects.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
@@ -19,8 +19,7 @@
     project,
     current,
     onnew,
-    fold,
-  }: { project: Project; current?: Agent; onnew: () => void; fold?: boolean } = $props()
+  }: { project: Project; current?: Agent; onnew: () => void } = $props()
 
   const docked = $derived(settings.sidebar === 'pinned')
   const pinBar = () => saveSettings({ ...$state.snapshot(settings), sidebar: docked ? 'peek' : 'pinned' })
@@ -60,13 +59,6 @@
       cancelLabel: t('common.cancel'),
     })
     if (sure) remove(agent.id)
-  }
-
-  let hovered = $state<{ agent: Agent; top: number; left: number } | null>(null)
-
-  function hover(agent: Agent, event: Event) {
-    const rect = (event.currentTarget as HTMLElement).getBoundingClientRect()
-    hovered = { agent, top: rect.top - 6, left: rect.right + 12 }
   }
 
   const SORTS: [AgentSort['by'], Key][] = [
@@ -277,49 +269,6 @@
   <ArchivePanel {project} onclose={() => (showArchived = false)} />
 {/if}
 
-{#if fold ?? layout.collapsed}
-  <aside class="folded" aria-label={t('shell.agentsCollapsed')} style:--project={project.color}>
-    <span class="square" title={project.name}></span>
-    <button class="add" aria-label={t('common.newAgent')} title={t('shell.newAgentKey', { key: hint('newAgent') })} disabled={!project.exists} onclick={onnew}>+</button>
-    <span class="sep" aria-hidden="true"></span>
-    <div class="tiles" use:sortable={{ enabled: list.length > 1, onplace: drop }}>
-      {#each list as agent, i (agent.id)}
-        {@const done = agent.tasks.filter((t) => t.status === 'completed').length}
-        {#if pinned && i === pinned}<span class="sep pins" aria-hidden="true"></span>{/if}
-        <button
-          class="tile {look(agent)}"
-          data-item={agent.id}
-          aria-current={agent.id === current?.id ? 'true' : undefined}
-          aria-label={t('shell.tileLabel', { name: agent.name, state: label(agent) ?? '' })}
-          onclick={() => (agents.current[project.path] = agent.id)}
-          oncontextmenu={(e) => open(agent, e)}
-          onmouseenter={(e) => hover(agent, e)}
-          onmouseleave={() => (hovered = null)}
-          onfocus={(e) => hover(agent, e)}
-          onblur={() => (hovered = null)}
-        >
-          {short(agent.name)}
-          <span class="marker"><StatusIcon status={look(agent)} /></span>
-          {#if agent.progress}
-            <span class="fill" style:width="{(agent.progress.done / agent.progress.total) * 100}%"></span>
-          {:else if agent.tasks.length}
-            <span class="fill" style:width="{(done / agent.tasks.length) * 100}%"></span>
-          {/if}
-        </button>
-      {/each}
-    </div>
-    {#if docked}
-    <button class="toggle" aria-label={t('shell.expandAgentList')} title={t('shell.expandList', { key: hint('sidebar') })} onclick={toggleSidebar}>
-      <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
-    </button>
-    {/if}
-    {#if hovered}
-      <div class="tip agent {look(hovered.agent)}" role="tooltip" style:top="{hovered.top}px" style:left="{hovered.left}px">
-        {@render card(hovered.agent)}
-      </div>
-    {/if}
-  </aside>
-{:else}
 <aside aria-label={t('shell.projectAgents')} style:width="{layout.sidebar}px" style:--project={project.color}>
   <div class="head">
     <div class="who">
@@ -328,11 +277,6 @@
       <button class="fold bar-pin" aria-pressed={docked} aria-label={t(docked ? 'shell.unpinBar' : 'shell.pinBar')} title={t(docked ? 'shell.unpinBar' : 'shell.pinBar')} onclick={pinBar}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
       </button>
-      {#if docked}
-        <button class="fold" aria-label={t('shell.collapseAgentList')} title={t('shell.collapseList', { key: hint('sidebar') })} onclick={toggleSidebar}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
-        </button>
-      {/if}
     </div>
     <div class="under">
     <small class:bad={!project.exists}>
@@ -442,7 +386,6 @@
     </div>
   {/if}
 </aside>
-{/if}
 
 <style>
   .menu {
@@ -673,8 +616,7 @@
     text-align: left;
   }
 
-  .agent:global(.dragging),
-  .tile:global(.dragging) {
+  .agent:global(.dragging) {
     z-index: 2;
     cursor: grabbing;
     background: var(--surface-2);
@@ -779,8 +721,7 @@
     gap: 4px;
   }
 
-  .fold,
-  .toggle {
+  .fold {
     display: flex;
     align-items: center;
     justify-content: center;
@@ -793,168 +734,17 @@
     height: 32px;
   }
 
-  .fold:hover,
-  .toggle:hover {
+  .fold:hover {
     background: var(--surface-5);
     color: var(--text-strong);
   }
 
-  .fold svg,
-  .toggle svg {
+  .fold svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
     stroke-linecap: round;
     stroke-linejoin: round;
-  }
-
-  .folded {
-    width: 68px;
-    flex: none;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 12px 0;
-    background: var(--bg-sidebar);
-    border-right: 1px solid var(--border);
-  }
-
-  .folded .square {
-    margin: 4px 0 6px;
-  }
-
-  .add {
-    width: 44px;
-    height: 44px;
-    flex: none;
-    border: 1px dashed var(--border-dashed);
-    border-radius: 4px;
-    color: var(--text-2);
-    font-size: 18px;
-  }
-
-  .add:not(:disabled):hover {
-    background: var(--surface-5);
-  }
-
-  .sep {
-    flex: none;
-    width: 28px;
-    height: 1px;
-    margin: 2px 0;
-    background: var(--border);
-  }
-
-  .sep.pins {
-    height: 0;
-    background: none;
-    border-top: 1px dashed var(--border-dashed);
-  }
-
-  .tiles {
-    flex: 1;
-    min-height: 0;
-    overflow-y: auto;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 8px;
-    padding: 4px 0;
-    width: 100%;
-  }
-
-  .tile {
-    position: relative;
-    width: 44px;
-    height: 44px;
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    overflow: hidden;
-    border-radius: 4px;
-    background: var(--surface-2);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    font: 500 12px var(--mono);
-  }
-
-  .tile.done,
-  .tile.interrupted {
-    background: var(--bg-main);
-    box-shadow: inset 0 0 0 1px var(--border);
-    color: var(--text-dim);
-  }
-
-  .tile.waiting {
-    background: var(--wait-bg);
-    box-shadow: 0 0 0 1px var(--wait-border);
-    color: var(--wait-text);
-  }
-
-  .tile.error {
-    background: var(--err-bg);
-    box-shadow: inset 0 0 0 1px var(--err-border);
-    color: var(--err-text);
-  }
-
-  .tile[aria-current='true'] {
-    box-shadow:
-      0 0 0 1px var(--border-strong),
-      0 0 0 3px var(--bg-app),
-      0 0 0 4px var(--text);
-  }
-
-  .tile.waiting[aria-current='true'] {
-    box-shadow:
-      0 0 0 1px var(--wait-border),
-      0 0 0 3px var(--bg-app),
-      0 0 0 4px var(--text),
-      0 0 16px rgba(224, 138, 91, 0.35);
-  }
-
-  .marker {
-    position: absolute;
-    top: 4px;
-    right: 4px;
-    display: flex;
-  }
-
-  .fill {
-    position: absolute;
-    left: 0;
-    bottom: 0;
-    height: 3px;
-    background: var(--ok);
-  }
-
-  .waiting .fill {
-    background: var(--accent);
-  }
-
-  .toggle {
-    width: 44px;
-    height: 36px;
-    flex: none;
-    background: var(--surface-2);
-  }
-
-  .tip {
-    position: fixed;
-    z-index: 20;
-    width: 280px;
-    pointer-events: none;
-    background: var(--menu);
-    box-shadow:
-      0 0 0 1px #4e443e,
-      0 16px 40px rgba(0, 0, 0, 0.55);
-  }
-
-  .tip.waiting {
-    background: var(--wait-bg);
-    box-shadow:
-      0 0 0 1px var(--wait-border),
-      0 16px 40px rgba(0, 0, 0, 0.55);
   }
 
   .rename {

@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.22.0 · 2026-10-30
+
+### Interface
+
+- **Panels over the conversation**: Terminal, Editor, Diff, Kanban and Pull requests slide in from the right over the conversation, under the agent's toolbar. They share one width; full screen stops at the agents list; switching tools swaps the panel and closing slides it out.
+- **Agents list**: it no longer folds into avatars and the Rail setting goes. Ctrl B hides the list; the pin in its header brings it back.
+- **Pull requests**: the title bar button says Pull requests next to its count.
+
+### Conversation
+
+- **File cards**: a link to a project file written as an absolute path also becomes a file card.
+
+### Fixes
+
+- **Hidden agents bar**: it opens as soon as the mouse moves over the left edge, even when the mouse was already there.
+
 ## 0.21.0 · 2026-10-30
 
 ### Interface

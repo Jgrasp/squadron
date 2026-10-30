@@ -297,6 +297,7 @@
           <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
             ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4M13 3l-3 3 3 3" /></svg
           >
+          <span class="prlabel">{t('shell.pullRequests')}</span>
           <span class="badge">{pullTotal}</span>
         </button>
         {#if pullsOpen}
@@ -398,6 +399,11 @@
     border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--wait-border);
     color: var(--accent-soft);
+  }
+
+  .prlabel {
+    font-size: 13px;
+    font-weight: 600;
   }
 
   .prbtn:hover,

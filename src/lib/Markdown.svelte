@@ -6,7 +6,7 @@
   import { t } from './i18n/index.svelte'
   import { isImage, preview } from './Attachment.svelte'
   import { isPullLink } from './linked.svelte'
-  import { projectFile } from './filelink'
+  import { projectFile, within } from './filelink'
 
   const grammars = new Map<string, Language | null>()
   let loaded = $state(0)
@@ -86,7 +86,7 @@
         if (c.type !== 'link_open') continue
         const link = String(c.attrGet('href') ?? '')
         if (isPullLink(link)) c.attrSet('data-pr-inline', '')
-        else if (projectFile(link)) c.attrSet('data-project-file-inline', projectFile(link))
+        else if (projectFile(link) || localFile(link)) c.attrSet('data-project-file-inline', projectFile(link) || localFile(link))
       }
     })
   })
@@ -229,7 +229,8 @@
     tick().then(() => {
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-file]') ?? []) {
         slot.querySelector('a')?.setAttribute('hidden', '')
-        mounted.push(mount(Attachment, { target: slot, props: { path: slot.dataset.file!, look: 'card', large: true } }))
+        const path = within(slot.dataset.file!, project)
+        mounted.push(path ? mount(FileCard, { target: slot, props: { path, project } }) : mount(Attachment, { target: slot, props: { path: slot.dataset.file!, look: 'card', large: true } }))
       }
       const files = new Set<string>()
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-project-file]') ?? []) {
@@ -239,7 +240,8 @@
       }
       const below = new Map<Element, Element>()
       for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
-        const path = link.dataset.projectFileInline!
+        const path = within(link.dataset.projectFileInline!, project)
+        if (!path) continue
         const code = document.createElement('code')
         code.textContent = link.textContent
         link.replaceWith(code)

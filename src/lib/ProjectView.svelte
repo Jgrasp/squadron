@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte'
   import { open } from '@tauri-apps/plugin-dialog'
   import { ask } from './asking.svelte'
   import AgentList from './AgentList.svelte'
@@ -7,13 +8,10 @@
   import { ui } from './actions.svelte'
   import { archiveProject, create, ofProject, selected, waiting } from './agents.svelte'
   import {
-    dragSidebar,
-    FOLDED_SIDEBAR,
     layout,
     MAX_SIDEBAR,
     MIN_SIDEBAR,
     resizeSidebar,
-    setCollapsed,
     setPanel,
     type PanelKind,
   } from './layout.svelte'
@@ -27,14 +25,14 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import { hint, settings } from './settings.svelte'
   import NewAgent from './NewAgent.svelte'
-  import { load, move, remove, toggleBoard, togglePulls, type Project } from './projects.svelte'
+  import { load, move, projects, remove, toggleBoard, togglePulls, type Project } from './projects.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
-  let { project }: { project: Project } = $props()
+  let { project, overlay }: { project: Project; overlay?: Snippet } = $props()
   let error = $state('')
 
   const agent = $derived(selected(project.path))
-  const panel = $derived(layout.panels[project.path] ?? null)
+  const panel = $derived(projects.board || projects.pulls ? null : (layout.panels[project.path] ?? null))
   const toggle = (kind: PanelKind) => setPanel(project.path, panel === kind ? null : kind)
   const close = () => setPanel(project.path, null)
 
@@ -78,9 +76,9 @@
 
   function drag(event: PointerEvent) {
     const handle = event.currentTarget as HTMLElement
-    const start = event.clientX - (layout.collapsed ? FOLDED_SIDEBAR : layout.sidebar)
+    const start = event.clientX - layout.sidebar
     handle.setPointerCapture(event.pointerId)
-    const move = (e: PointerEvent) => dragSidebar(e.clientX - start)
+    const move = (e: PointerEvent) => resizeSidebar(e.clientX - start)
     const up = () => {
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', up)
@@ -94,14 +92,10 @@
   const hide = () => (leaving = window.setTimeout(() => (ui.drawer = false), 300))
 
   function nudge(event: KeyboardEvent) {
-    if (event.key === 'ArrowLeft') {
-      if (layout.sidebar <= MIN_SIDEBAR) setCollapsed(true)
-      else resizeSidebar(layout.sidebar - 16)
-    } else if (event.key === 'ArrowRight') {
-      if (layout.collapsed) setCollapsed(false)
-      else resizeSidebar(layout.sidebar + 16)
-    }
+    if (event.key === 'ArrowLeft') resizeSidebar(layout.sidebar - 16)
+    else if (event.key === 'ArrowRight') resizeSidebar(layout.sidebar + 16)
   }
+
 
 
 </script>
@@ -115,8 +109,8 @@
     role="separator"
     aria-orientation="vertical"
     aria-label={t('shell.resizeAgentList')}
-    aria-valuenow={layout.collapsed ? FOLDED_SIDEBAR : layout.sidebar}
-    aria-valuemin={FOLDED_SIDEBAR}
+    aria-valuenow={layout.sidebar}
+    aria-valuemin={MIN_SIDEBAR}
     aria-valuemax={MAX_SIDEBAR}
     tabindex="0"
     onpointerdown={drag}
@@ -124,14 +118,10 @@
   ></div>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="dock" onmouseenter={show} onmouseleave={hide}>
-      {#if settings.sidebar === 'rail'}
-        <AgentList {project} current={agent} fold onnew={() => (ui.creating = true)} />
-      {:else}
-        <div class="edge" class:calling={waiting(project.path) > 0}></div>
-      {/if}
+    <div class="dock" onmouseover={show} onfocusin={show} onmouseleave={hide}>
+      <div class="edge" class:calling={waiting(project.path) > 0}></div>
       <div class="drawer" class:open={ui.drawer} inert={!ui.drawer}>
-        <AgentList {project} current={agent} fold={false} onnew={() => (ui.creating = true)} />
+        <AgentList {project} current={agent} onnew={() => (ui.creating = true)} />
       </div>
     </div>
   {/if}
@@ -157,7 +147,7 @@
     </main>
   {:else if agent}
     {#key agent.id}
-      <AgentView {agent} />
+      <AgentView {agent} {overlay} />
     {/key}
   {:else}
     <main class="idle">
@@ -185,11 +175,11 @@
               <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
             {/if}
           </button>
-          <button class="btn btn-ghost" title={t('shell.pullsTitle')} onclick={togglePulls}>
+          <button class="btn btn-ghost" aria-pressed={projects.pulls} title={t('shell.pullsTitle')} onclick={togglePulls}>
             <Icon name="pull" />{t('shell.pullRequests')}
             {#if needsYou(project.path)}<span class="count">{needsYou(project.path)}</span>{/if}
           </button>
-          <button class="btn btn-ghost" title={t('shell.kanbanTitle', { key: hint('kanban') })} onclick={toggleBoard}>
+          <button class="btn btn-ghost" aria-pressed={projects.board} title={t('shell.kanbanTitle', { key: hint('kanban') })} onclick={toggleBoard}>
             <Icon name="kanban" />{t('shell.kanban')}
           </button>
           <Runs {project} />
@@ -214,6 +204,7 @@
       {:else if panel === 'terminal'}
         <TerminalPanel dir={project.path} onclose={close} />
       {/if}
+      {@render overlay?.()}
     </main>
   {/if}
 </div>
@@ -294,6 +285,7 @@
   }
 
   .idle {
+    position: relative;
     flex: 1;
     min-width: 0;
     display: flex;

@@ -1,5 +1,21 @@
 # Nouveautés
 
+## 0.22.0 · 2026-10-30
+
+### Interface
+
+- **Panneaux par-dessus la conversation** : Terminal, Éditeur, Diff, Kanban et Pull requests glissent depuis la droite par-dessus la conversation, sous la barre d’outils de l’agent. Ils ont une seule largeur ; le grand écran s’arrête à la liste des agents ; changer d’outil remplace le panneau et le fermer le fait glisser vers la droite.
+- **Liste des agents** : elle ne se replie plus en avatars et le réglage Rail disparaît. Ctrl B masque la liste ; l’épingle de son en-tête la remet.
+- **Pull requests** : le bouton de la barre de titre affiche Pull requests à côté de son compteur.
+
+### Conversation
+
+- **Cartes de fichier** : un lien vers un fichier du projet écrit en chemin absolu devient aussi une carte.
+
+### Corrections
+
+- **Barre des agents masquée** : elle s’ouvre dès que la souris bouge sur le bord gauche, même si elle y était déjà.
+
 ## 0.21.0 · 2026-10-30
 
 ### Interface

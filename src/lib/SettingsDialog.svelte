@@ -99,7 +99,7 @@
   let thinking = $state(settings.thinking)
   let language = $state(settings.language)
   let width = $state(settings.conversation_width)
-  let sidebar = $state(settings.sidebar)
+  let sidebar = $state<'pinned' | 'peek'>(settings.sidebar === 'pinned' ? 'pinned' : 'peek')
   const WIDTHS: [number, Key, Key][] = [
     [640, 'settings.widthNarrow', 'settings.widthPx'],
     [740, 'settings.widthNormal', 'settings.widthPx'],
@@ -110,7 +110,6 @@
   const SIDEBARS: [typeof sidebar, Key, Key][] = [
     ['pinned', 'settings.sidebarPinned', 'settings.sidebarPinnedHint'],
     ['peek', 'settings.sidebarPeek', 'settings.sidebarPeekHint'],
-    ['rail', 'settings.sidebarRail', 'settings.sidebarRailHint'],
   ]
   const STEPS: [typeof steps, Key, Key][] = [
     ['grouped', 'settings.stepsGrouped', 'settings.stepsGroupedHint'],
@@ -325,7 +324,7 @@
         {/each}
       </div>
       <span class="label">{t('settings.agentsBar')}</span>
-      <div class="effects three" role="group" aria-label={t('settings.agentsBar')}>
+      <div class="effects" role="group" aria-label={t('settings.agentsBar')}>
         {#each SIDEBARS as [id, title, detail] (id)}
           <button aria-pressed={sidebar === id} onclick={() => (sidebar = id)}>
             <strong>{t(title)}</strong>

@@ -1,12 +1,12 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { archive, fork, interrupt, jumpToWaiting, pin, shelve, show } from './agents.svelte'
-import { layout, setPanel, toggleSidebar } from './layout.svelte'
+import { layout, setPanel } from './layout.svelte'
 import { projects, showBoard, toggleBoard, type Project } from './projects.svelte'
 import type { Action } from './shortcuts'
 import type { Row } from './spotlight'
 import type { Agent } from './stream'
 import { checkNow } from './update.svelte'
-import { settings } from './settings.svelte'
+import { saveSettings, settings } from './settings.svelte'
 
 export type SettingsTab =
   | 'projects'
@@ -38,7 +38,7 @@ export function run(action: Action, { project, agent }: Context) {
       return toggleBoard()
     case 'sidebar':
       if (project && settings.sidebar !== 'pinned') ui.drawer = !ui.drawer
-      else if (project) toggleSidebar()
+      else if (project) saveSettings({ ...$state.snapshot(settings), sidebar: 'peek' })
       return
     case 'newAgent':
       if (project?.exists) ui.creating = true

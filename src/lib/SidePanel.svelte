@@ -1,11 +1,16 @@
+<script module lang="ts">
+  let live = 0
+  let closedAt = 0
+</script>
+
 <script lang="ts">
-  import type { Snippet } from 'svelte'
+  import { onMount, type Snippet } from 'svelte'
   import { layout, MIN_PANEL, resizePanel, toggleFull, type PanelKind } from './layout.svelte'
   import { t } from './i18n/index.svelte'
+  import PanelButtons from './PanelButtons.svelte'
 
   let {
     kind,
-    size = kind,
     title,
     sub,
     actions,
@@ -18,7 +23,7 @@
     kind: PanelKind
     size?: string
     title: string
-    sub: Snippet
+    sub?: Snippet
     actions?: Snippet
     children: Snippet
     screen?: boolean
@@ -32,17 +37,22 @@
     if (wide) left = panel.parentElement?.getBoundingClientRect().left ?? 0
   })
 
-  const full = $derived(!!layout.full[kind])
-  const width = $derived(layout.widths[size])
+  const full = $derived(!!layout.full.panel)
+  const width = $derived(layout.widths.panel)
 
   let panel: HTMLElement
-  const widest = () => (panel.parentElement?.clientWidth ?? window.innerWidth) - 360
+  const slide = live === 0 && performance.now() - closedAt > 150
+  onMount(() => {
+    live++
+    return () => (live--, (closedAt = performance.now()))
+  })
+  const widest = () => panel.parentElement?.clientWidth ?? window.innerWidth
 
   function drag(event: PointerEvent) {
     const handle = event.currentTarget as HTMLElement
     const right = panel.getBoundingClientRect().right
     handle.setPointerCapture(event.pointerId)
-    const move = (e: PointerEvent) => (e.buttons ? resizePanel(size, right - e.clientX, widest()) : up())
+    const move = (e: PointerEvent) => (e.buttons ? resizePanel('panel', right - e.clientX, widest()) : up())
     const up = () => {
       handle.removeEventListener('pointermove', move)
       handle.removeEventListener('pointerup', up)
@@ -52,13 +62,15 @@
   }
 
   function nudge(event: KeyboardEvent) {
-    if (event.key === 'ArrowLeft') resizePanel(size, panel.offsetWidth + 16, widest())
-    else if (event.key === 'ArrowRight') resizePanel(size, panel.offsetWidth - 16, widest())
+    if (event.key === 'ArrowLeft') resizePanel('panel', panel.offsetWidth + 16, widest())
+    else if (event.key === 'ArrowRight') resizePanel('panel', panel.offsetWidth - 16, widest())
   }
 </script>
 
 <section
   class="panel"
+  class:slide
+  class:leave={layout.leaving}
   class:full
   class:screen
   class:wide
@@ -81,54 +93,63 @@
       title={t('shell.dragToResize')}
       onpointerdown={drag}
       onkeydown={nudge}
-      ondblclick={() => toggleFull(kind)}
+      ondblclick={toggleFull}
     ></div>
   {/if}
+  {#if sub}
   <div class="top">
     <div class="title">
       <h2>{title}</h2>
-      <span>{@render sub()}</span>
+      <span>{@render sub?.()}</span>
     </div>
     {@render actions?.()}
-    {#if !windowed}
-      <button
-        class="icon"
-        aria-label={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
-        aria-pressed={full}
-        title={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
-        onclick={() => toggleFull(kind)}
-      >
-        <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-          {#if full}
-            <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-          {:else}
-            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-          {/if}
-        </svg>
-      </button>
-    {/if}
-    <button class="icon" aria-label={t('shell.closePanel')} onclick={onclose}>×</button>
+    <PanelButtons {windowed} {onclose} />
   </div>
+  {/if}
   {@render children()}
 </section>
 
 <style>
   .panel {
-    position: relative;
-    min-width: 420px;
-    flex: 0 1 auto;
+    position: absolute;
+    top: var(--panel-top, 0);
+    right: 0;
+    bottom: 0;
+    z-index: 20;
+    min-width: min(420px, 100%);
+    max-width: 100%;
     display: flex;
     flex-direction: column;
-    border-left: 1px solid var(--border);
+    border-left: 1px solid var(--border-strong);
     background: var(--bg-sidebar);
+    box-shadow: -18px 0 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .panel.slide {
+    animation: arrive 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  @keyframes arrive {
+    from {
+      transform: translateX(100%);
+    }
+  }
+
+  .panel.leave {
+    animation: depart 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
+  }
+
+  @keyframes depart {
+    to {
+      transform: translateX(100%);
+    }
   }
 
   .panel.full {
-    position: absolute;
-    inset: 0;
-    z-index: 20;
+    left: 0;
     min-width: 0;
     border-left: none;
+    box-shadow: none;
   }
 
   .panel.screen,
@@ -199,31 +220,5 @@
     text-overflow: ellipsis;
     font-size: 12px;
     color: var(--text-dim);
-  }
-
-  .icon {
-    width: 32px;
-    height: 32px;
-    flex: none;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    background: var(--surface-2);
-    color: var(--text-2);
-  }
-
-  .icon:hover,
-  .icon[aria-pressed='true'] {
-    background: var(--surface-4);
-    color: var(--text-strong);
-  }
-
-  .icon svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 </style>
