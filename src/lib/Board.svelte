@@ -4,6 +4,7 @@
   import Avatar from './Avatar.svelte'
   import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
+  import JiraDrawer from './JiraDrawer.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
   import OptionsFields from './OptionsFields.svelte'
   import { imagePaste } from './paste'
@@ -43,6 +44,7 @@
   let focusId = ''
   let picking = $state(false)
   let viewing = $state<{ connection: string; key: string } | null>(null)
+  let jira = $state(false)
   let brief = $state<{ running: boolean; error: string } | null>(null)
   let touched = false
 
@@ -56,6 +58,7 @@
   function fromTicket(ticket: { connection: string; key: string; title: string }) {
     attachError = ''
     viewing = null
+    jira = false
     editing = {
       card: { id: crypto.randomUUID(), key: '', title: ticket.title, prompt: '', goal: '', files: [], column: 'todo', agent: null, ticket: { connection: ticket.connection, key: ticket.key } },
       fresh: true,
@@ -223,6 +226,17 @@
     }
   }
 
+  function boardKeys(event: KeyboardEvent) {
+    if (event.key === 'Escape') picking = false
+    if (!showTickets || event.defaultPrevented || editing || document.querySelector('dialog[open]')) return
+    if (event.key === 'Escape' && jira && !viewing) jira = false
+    else if (event.key.toLowerCase() === 'j' && !event.ctrlKey && !event.metaKey && !event.altKey && !(event.target as HTMLElement).closest('input, textarea, select, [contenteditable]')) {
+      event.preventDefault()
+      jira = !jira
+      if (!jira) viewing = null
+    }
+  }
+
   function refocus(el: HTMLElement, id: string) {
     if (id !== focusId) return
     el.focus()
@@ -232,10 +246,10 @@
 
 <svelte:window
   onclick={(e) => !(e.target as HTMLElement).closest('[data-pick]') && (picking = false)}
-  onkeydown={(e) => e.key === 'Escape' && (picking = false)}
+  onkeydown={boardKeys}
 />
 
-<main class:popout class:tickets={showTickets}>
+<main class:popout>
   <div class="top">
     <div>
       <div class="heading">
@@ -278,6 +292,11 @@
       <span class="sub">{t('board.intro')}</span>
     </div>
     <div class="actions">
+      {#if showTickets}
+        <button class="btn btn-ghost jira" aria-expanded={jira} title={t('tickets.jiraHint', { shortcut: 'J' })} onclick={() => ((jira = !jira), jira || (viewing = null))}>
+          <span class="logo" aria-hidden="true">J</span>{t('tickets.jira')}
+        </button>
+      {/if}
       <button class="btn btn-primary" onclick={() => create()}>{t('board.addTaskButton')}</button>
       {#if onpopout}
         <button class="btn btn-ghost" onclick={onpopout} title={t('board.popOutHint')}>
@@ -288,102 +307,89 @@
     </div>
   </div>
 
-  <div class="columns" style:--count={COLUMNS.length + (showTickets ? 1 : 0)}>
-    {#if showTickets}
-      <section class="ticket-column" aria-labelledby="column-tickets">
-        <h2 id="column-tickets">
-          {t('tickets.column')} <span class="count">{sprint?.tickets.length ?? 0}</span>
-          <span class="spacer"></span>
-          <button class="sprint" title={t('tickets.refresh')} aria-label={t('tickets.refresh')} disabled={sprint?.loading} onclick={() => loadSprint(project, true)}>
-            {sprint?.sprints.join(' · ') ?? ''} <span class:spin={sprint?.loading} aria-hidden="true">↻</span>
-          </button>
-        </h2>
-        <ul>
-          {#each sprint?.errors ?? [] as error, i (i)}<li class="ticket-error" role="alert">{errorText(error)}</li>{/each}
-          {#if sprint && !sprint.loading && !sprint.tickets.length && !sprint.errors.length}<li class="ticket-empty">{t('tickets.noSprint')}</li>{/if}
-          {#each sprint?.tickets ?? [] as ticket (`${ticket.connection}:${ticket.key}`)}
-            {@const linked = !!linkedCard(ticket)}
-            <li class="ticket" class:linked class:open={sameTicket(viewing, ticket)}>
-              <button class="ticket-open" title={ticket.title} onclick={() => (viewing = { connection: ticket.connection, key: ticket.key })}>
-                <span class="ticket-key">{ticket.key}</span>
-                <span class="ticket-title">{ticket.title}</span>
-              </button>
-              <span class="ticket-who" title={ticket.assignee?.name ?? t('tickets.unassigned')}>
-                {#if ticket.assignee}<Avatar name={ticket.assignee.name} src={ticket.assignee.avatar} size={22} />{:else}<span class="nobody" aria-hidden="true">?</span>{/if}
-              </span>
-              {#if !linked}<button class="ticket-create" onclick={() => fromTicket(ticket)}>+ {t('tickets.createTask')}</button>{/if}
-            </li>
-          {/each}
-        </ul>
-      </section>
+  <div class="stage">
+    {#if jira}
+      <button class="scrim" aria-label={t('common.close')} tabindex="-1" onclick={() => ((jira = false), (viewing = null))}></button>
+      {#key project.path}
+        <JiraDrawer
+          {project}
+          linked={(ticket) => !!linkedCard(ticket)}
+          {viewing}
+          onview={(ticket) => (viewing = { connection: ticket.connection, key: ticket.key })}
+          oncreate={fromTicket}
+          onclose={() => ((jira = false), (viewing = null))}
+        />
+      {/key}
     {/if}
-    {#each COLUMNS as [column, title] (column)}
-      {@const list = cards.filter((c) => follow(c, agentOf(c)).column === column)}
-      <section data-column={column} class:over={drag?.over === column} aria-labelledby="column-{column}">
-        <h2 id="column-{column}"><span class="dot {column}" aria-hidden="true"></span>{t(title)} <span class="count">{list.length}</span></h2>
-        <ul>
-          {#each list as card (card.id)}
-            {@const agent = agentOf(card)}
-            <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
-            <li
-              data-card={card.id}
-              style:--project={project.color}
-              class="card {agent ? look(agent) : 'task'} {agent && look(agent) === 'working' ? `effect-${settings.tab_effect}` : ''}"
-              class:finished={column === 'done'}
-              class:dragging={drag?.id === card.id}
-              class:before={drag && drag.over === column && drag.before === card.id && drag.id !== card.id}
-              tabindex="0"
-              aria-keyshortcuts="Enter Alt+ArrowLeft Alt+ArrowRight"
-              onpointerdown={(e) => grab(e, card)}
-              ondragstart={(e) => e.preventDefault()}
-              onkeydown={(e) => keys(e, card, column)}
-              use:refocus={card.id}
-            >
-              <strong>{card.title}</strong>
-              {#if !agent && card.prompt}<span class="note">{card.prompt}</span>{/if}
-              {#if !agent && card.goal}<span class="goal" title={card.goal}>{t('board.cardDoneWhen', { goal: card.goal })}</span>{/if}
-              {#if agent}
-                <span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span>
-                {#if agent.detail}<span class="detail">{agent.detail}</span>{/if}
-                {#if agent.goal}
-                  <span class="goal {agent.goal.state}" title={agent.goal.condition}>{t('board.goalLine', { state: goalLine(agent.goal) })}</span>
-                  {#if agent.goal.reason && agent.goal.state !== 'met'}<span class="note">{agent.goal.reason}</span>{/if}
-                {/if}
-                {#if agent.total}
-                  <span class="progress">
-                    <span class="bar" aria-hidden="true"><span style:width="{(agent.done / agent.total) * 100}%"></span></span>
-                    <span class="mono">{agent.done}/{agent.total}</span>
+    <div class="columns" style:--count={COLUMNS.length}>
+      {#each COLUMNS as [column, title] (column)}
+        {@const list = cards.filter((c) => follow(c, agentOf(c)).column === column)}
+        <section data-column={column} class:over={drag?.over === column} aria-labelledby="column-{column}">
+          <h2 id="column-{column}"><span class="dot {column}" aria-hidden="true"></span>{t(title)} <span class="count">{list.length}</span></h2>
+          <ul>
+            {#each list as card (card.id)}
+              {@const agent = agentOf(card)}
+              <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+              <li
+                data-card={card.id}
+                style:--project={project.color}
+                class="card {agent ? look(agent) : 'task'} {agent && look(agent) === 'working' ? `effect-${settings.tab_effect}` : ''}"
+                class:finished={column === 'done'}
+                class:dragging={drag?.id === card.id}
+                class:before={drag && drag.over === column && drag.before === card.id && drag.id !== card.id}
+                tabindex="0"
+                aria-keyshortcuts="Enter Alt+ArrowLeft Alt+ArrowRight"
+                onpointerdown={(e) => grab(e, card)}
+                ondragstart={(e) => e.preventDefault()}
+                onkeydown={(e) => keys(e, card, column)}
+                use:refocus={card.id}
+              >
+                <strong>{card.title}</strong>
+                {#if !agent && card.prompt}<span class="note">{card.prompt}</span>{/if}
+                {#if !agent && card.goal}<span class="goal" title={card.goal}>{t('board.cardDoneWhen', { goal: card.goal })}</span>{/if}
+                {#if agent}
+                  <span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span>
+                  {#if agent.detail}<span class="detail">{agent.detail}</span>{/if}
+                  {#if agent.goal}
+                    <span class="goal {agent.goal.state}" title={agent.goal.condition}>{t('board.goalLine', { state: goalLine(agent.goal) })}</span>
+                    {#if agent.goal.reason && agent.goal.state !== 'met'}<span class="note">{agent.goal.reason}</span>{/if}
+                  {/if}
+                  {#if agent.total}
+                    <span class="progress">
+                      <span class="bar" aria-hidden="true"><span style:width="{(agent.done / agent.total) * 100}%"></span></span>
+                      <span class="mono">{agent.done}/{agent.total}</span>
+                    </span>
+                  {/if}
+                  <span class="buttons">
+                    <button class="act" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
+                      {agent.attention ? t('board.answer') : t('board.openAgent')} ›
+                    </button>
+                    {#if column === 'review' && (agent.add || agent.del)}
+                      <button class="act diff" onclick={() => actions.diff(agent.id)}>
+                        {t('board.seeDiff')} <span class="add">+{agent.add}</span>{#if agent.del}<span class="del">−{agent.del}</span>{/if}
+                      </button>
+                    {/if}
+                    {@render ref(card)}
+                  </span>
+                {:else}
+                  <span class="buttons">
+                    {#if column !== 'done'}
+                      <button class="act start" disabled={!project.exists} onclick={() => edit(card)}>
+                        <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>{t('board.startAnAgent')}
+                      </button>
+                    {/if}
+                    {@render ref(card)}
                   </span>
                 {/if}
-                <span class="buttons">
-                  <button class="act" class:answer={!!agent.attention} onclick={() => actions.show(agent.id)}>
-                    {agent.attention ? t('board.answer') : t('board.openAgent')} ›
-                  </button>
-                  {#if column === 'review' && (agent.add || agent.del)}
-                    <button class="act diff" onclick={() => actions.diff(agent.id)}>
-                      {t('board.seeDiff')} <span class="add">+{agent.add}</span>{#if agent.del}<span class="del">−{agent.del}</span>{/if}
-                    </button>
-                  {/if}
-                  {@render ref(card)}
-                </span>
-              {:else}
-                <span class="buttons">
-                  {#if column !== 'done'}
-                    <button class="act start" disabled={!project.exists} onclick={() => edit(card)}>
-                      <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M7 4l12 8-12 8z" /></svg>{t('board.startAnAgent')}
-                    </button>
-                  {/if}
-                  {@render ref(card)}
-                </span>
-              {/if}
-            </li>
-          {/each}
-          {#if column !== 'done'}
-            <li class="add-row"><button class="new-task" onclick={() => create(column)}>{t('board.addTask')}</button></li>
-          {/if}
-        </ul>
-      </section>
-    {/each}
+              </li>
+            {/each}
+            {#if column !== 'done'}
+              <li class="add-row"><button class="new-task" onclick={() => create(column)}>{t('board.addTask')}</button></li>
+            {/if}
+          </ul>
+        </section>
+      {/each}
+    </div>
   </div>
   {#if viewing}
     {@const open = viewing}
@@ -691,6 +697,41 @@
     stroke-linejoin: round;
   }
 
+  .stage {
+    position: relative;
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .scrim {
+    position: absolute;
+    inset: 0;
+    z-index: 2;
+    background: rgba(12, 9, 8, 0.45);
+    cursor: default;
+  }
+
+  .jira {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+  }
+
+  .jira .logo {
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
+    font-size: 9px;
+  }
+
+  .jira[aria-expanded='true'] {
+    border-color: var(--ticket-border-hover);
+    background: var(--ticket-bg);
+    color: var(--ticket-text);
+  }
+
   .columns {
     flex: 1;
     min-height: 0;
@@ -965,83 +1006,8 @@
     font: 700 8px var(--sans);
   }
 
-  .ticket-column {
-    background: var(--ticket-bg);
-    box-shadow: inset 0 0 0 1px var(--ticket-border);
-  }
-
-  .ticket-column h2 {
-    color: var(--ticket-muted);
-  }
-
   .spacer {
     flex: 1;
-  }
-
-  .sprint {
-    display: inline-flex;
-    align-items: center;
-    gap: 6px;
-    max-width: 60%;
-    overflow: hidden;
-    text-overflow: ellipsis;
-    white-space: nowrap;
-    padding: 2px 6px;
-    border-radius: 4px;
-    font: 500 11.5px var(--sans);
-    letter-spacing: 0;
-    text-transform: none;
-    color: var(--ticket-muted);
-  }
-
-  .sprint:not(:disabled):hover {
-    background: var(--ticket-button);
-    color: var(--ticket-text);
-  }
-
-  .spin {
-    display: inline-block;
-    animation: spin 1s linear infinite;
-  }
-
-  @keyframes spin {
-    to {
-      transform: rotate(360deg);
-    }
-  }
-
-  .ticket {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) auto;
-    align-items: center;
-    column-gap: 8px;
-    border: 1px solid var(--ticket-border);
-    border-radius: 5px;
-    background: var(--ticket-card);
-  }
-
-  .ticket:hover,
-  .ticket.open {
-    border-color: var(--ticket-border-hover);
-    background: var(--ticket-card-hover);
-  }
-
-  .ticket.open {
-    box-shadow: 0 0 0 1px var(--remote-dot);
-  }
-
-  .ticket.linked:not(:hover):not(.open) {
-    opacity: 0.5;
-  }
-
-  .ticket-open {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 1px;
-    padding: 7px 0 7px 10px;
-    text-align: left;
   }
 
   .ticket-key {
@@ -1056,51 +1022,6 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-size: 13px;
-  }
-
-  .ticket-who {
-    padding-right: 8px;
-  }
-
-  .nobody {
-    width: 22px;
-    height: 22px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border: 1px dashed var(--text-faint);
-    border-radius: 50%;
-    font-size: 10px;
-    color: var(--text-faint);
-  }
-
-  .ticket-create {
-    display: none;
-    grid-column: 1 / -1;
-    justify-self: start;
-    margin: 0 8px 8px 10px;
-    padding: 3px 9px;
-    border-radius: 4px;
-    background: var(--ticket-button);
-    color: var(--ticket-text);
-    font-size: 12px;
-    font-weight: 600;
-  }
-
-  .ticket:hover .ticket-create,
-  .ticket:focus-within .ticket-create {
-    display: block;
-  }
-
-  .ticket-error,
-  .ticket-empty {
-    padding: 4px 6px;
-    font-size: 12.5px;
-    color: var(--ticket-muted);
-  }
-
-  .ticket-error {
-    color: var(--err-text);
   }
 
   .linked-ticket {

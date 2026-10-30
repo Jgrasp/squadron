@@ -6,7 +6,19 @@ import { settings } from './settings.svelte'
 export type Connection = { id: string; name: string; site: string; email: string }
 export type Source = { connection: string; key: string; name: string }
 export type Person = { name: string; avatar: string }
-export type Summary = { connection: string; key: string; title: string; status: string; assignee: Person | null }
+export type Summary = {
+  connection: string
+  key: string
+  title: string
+  status: string
+  category: string
+  kind: string
+  priority: string
+  urgency: number
+  epic: string
+  assignee: Person | null
+  mine: boolean
+}
 export type Comment = { id: string; parent: string | null; author: Person; created: string; body: string }
 export type Link = { relation: string; key: string; title: string; status: string }
 export type Ticket = {
@@ -16,7 +28,9 @@ export type Ticket = {
   title: string
   kind: string
   status: string
+  category: string
   priority: string
+  urgency: number
   assignee: Person | null
   reporter: Person | null
   labels: string[]

@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import Avatar from './Avatar.svelte'
   import { date, errorText, t } from './i18n/index.svelte'
+  import { URGENCY } from './jira'
   import Markdown from './Markdown.svelte'
   import { getTicket, type Comment, type Ticket } from './tickets.svelte'
 
@@ -84,7 +85,7 @@
   const links = $derived(ticket ? (ticket.epic ? 1 : 0) + ticket.subtasks.length + ticket.links.length : 0)
 </script>
 
-<svelte:window onkeydown={(e) => e.key === 'Escape' && !document.querySelector('dialog[open]') && onclose()} />
+<svelte:window onkeydown={(e) => e.key === 'Escape' && !document.querySelector('dialog[open]') && (e.preventDefault(), onclose())} />
 
 <aside class="panel" aria-label={ticketKey}>
   <header>
@@ -93,17 +94,27 @@
       <span class="key">{ticketKey}</span>
       {#if ticket}<span class="faint">· {ticket.kind}{ticket.sprint ? ` · ${ticket.sprint}` : ''}</span>{/if}
       <span class="spacer"></span>
-      {#if ticket}<button class="link" onclick={() => invoke('open_link', { url: ticket!.url })}>↗ {t('tickets.openInJira')}</button>{/if}
-      <button class="close" aria-label={t('common.close')} onclick={onclose}>✕</button>
+      {#if ticket}
+        <button class="open-jira" title={ticket.url} onclick={() => invoke('open_link', { url: ticket!.url })}>
+          <span class="logo" aria-hidden="true">J</span>{t('tickets.openInJira')}
+          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
+        </button>
+      {/if}
+      <button class="close" aria-label={t('common.close')} title={t('common.close')} onclick={onclose}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
+      </button>
     </div>
     {#if ticket}
       <h2>{ticket.title}</h2>
       <dl>
         <dt>{t('tickets.status')}</dt>
-        <dd><span class="chip status">{ticket.status}</span></dd>
+        <dd><span class="jira-status {ticket.category}">{ticket.status}</span></dd>
         <dt>{t('tickets.assignee')}</dt>
-        <dd>{ticket.assignee?.name ?? t('tickets.unassigned')}</dd>
-        {#if ticket.priority}<dt>{t('tickets.priority')}</dt><dd>{ticket.priority}</dd>{/if}
+        <dd>
+          {#if ticket.assignee}<Avatar name={ticket.assignee.name} src={ticket.assignee.avatar} size={20} />{ticket.assignee.name}{:else}<span class="nobody" aria-hidden="true">?</span><span class="faint">{t('tickets.unassigned')}</span>{/if}
+        </dd>
+        {#if ticket.priority}<dt>{t('tickets.priority')}</dt><dd>{#if ticket.urgency}<span class="jira-urgency u{ticket.urgency}" aria-hidden="true">{URGENCY[ticket.urgency]}</span>{/if}{ticket.priority}</dd>{/if}
+        {#if ticket.epic}<dt>{t('tickets.epic')}</dt><dd><span class="epic" title={ticket.epic.key}>{ticket.epic.title}</span></dd>{/if}
         {#if ticket.labels.length}<dt>{t('tickets.labels')}</dt><dd>{#each ticket.labels as label (label)}<span class="chip">{label}</span>{/each}</dd>{/if}
         {#each ticket.custom.filter((f) => f.value.length < 40) as field (field.name)}<dt>{field.name}</dt><dd>{field.value}</dd>{/each}
         <dt>{t('tickets.updated')}</dt>
@@ -257,20 +268,84 @@
     padding: 16px 22px;
   }
 
-  .link {
+  .open-jira {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    height: 28px;
+    padding: 0 10px 0 6px;
+    border: 1px solid var(--ticket-border);
+    border-radius: 6px;
+    background: var(--ticket-bg);
+    color: var(--ticket-text);
     font-size: 12.5px;
-    color: var(--text-dim);
+    font-weight: 600;
   }
 
-  .link:hover {
-    color: var(--text-strong);
+  .open-jira:hover {
+    border-color: var(--ticket-border-hover);
+    background: var(--ticket-card-hover);
+  }
+
+  .open-jira .logo {
+    width: 16px;
+    height: 16px;
+    border-radius: 4px;
+    font-size: 10px;
+  }
+
+  .open-jira svg,
+  .close svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .open-jira svg {
+    opacity: 0.7;
   }
 
   .close {
     width: 28px;
     height: 28px;
-    border-radius: 4px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 6px;
     color: var(--text-dim);
+  }
+
+  .nobody {
+    width: 20px;
+    height: 20px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border: 1px dashed var(--text-faint);
+    border-radius: 50%;
+    font-size: 10px;
+    color: var(--text-faint);
+  }
+
+  .jira-urgency {
+    width: 20px;
+    text-align: center;
+    font-size: 13px;
+  }
+
+  .epic {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    padding: 1px 8px;
+    border-radius: 4px;
+    background: rgba(135, 119, 217, 0.18);
+    color: #cdb8ff;
+    font-size: 12px;
+    font-weight: 600;
   }
 
   .close:hover {
@@ -287,7 +362,8 @@
   dl {
     display: grid;
     grid-template-columns: auto 1fr auto 1fr;
-    gap: 6px 12px;
+    align-items: center;
+    gap: 8px 12px;
     margin: 0;
     font-size: 12.5px;
   }
@@ -299,7 +375,8 @@
   dd {
     display: flex;
     flex-wrap: wrap;
-    gap: 4px;
+    align-items: center;
+    gap: 4px 8px;
     margin: 0;
     min-width: 0;
   }
@@ -314,11 +391,6 @@
     color: var(--text-muted);
     font: 500 11px var(--mono);
     white-space: nowrap;
-  }
-
-  .chip.status {
-    font: 600 11.5px var(--sans);
-    color: var(--text-2);
   }
 
   .tabs {
