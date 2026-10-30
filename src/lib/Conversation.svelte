@@ -208,6 +208,30 @@
   const took = (ms: number | undefined) =>
     ms === undefined ? t('conversation.thinking') : ms < 1000 ? t('conversation.thoughtMoment') : t('conversation.thoughtForTitle', { duration: duration(ms) })
 
+  const thoughtsOf = (steps: Segment[]) => steps.flatMap((s) => (s.type === 'work' && s.thought ? [s] : []))
+
+  function follow(node: HTMLElement) {
+    let stuck = true
+    const onscroll = () => {
+      stuck = node.scrollHeight - node.scrollTop - node.clientHeight < 4
+      node.classList.toggle('top', node.scrollTop < 2)
+    }
+    const stick = () => {
+      if (stuck) node.scrollTop = node.scrollHeight
+      onscroll()
+    }
+    const observer = new MutationObserver(stick)
+    observer.observe(node, { childList: true, subtree: true, characterData: true })
+    node.addEventListener('scroll', onscroll)
+    stick()
+    return {
+      destroy() {
+        observer.disconnect()
+        node.removeEventListener('scroll', onscroll)
+      },
+    }
+  }
+
   const lastAgent = $derived(agent.entries.findLastIndex((e) => e.kind === 'agent'))
   const working = $derived(agent.status === 'working')
 </script>
@@ -305,6 +329,21 @@
             </details>
           {/if}
         {/each}
+        {@const thoughts = live && !parts.answer.length && (settings.thinking === 'duration' || settings.thinking === 'summary') ? thoughtsOf(parts.steps) : []}
+        {#if thoughts.length}
+          <div class="live-thoughts">
+            <span class="live-head"><span class="pulse" class:on={thoughts.at(-1)?.ms === undefined} aria-hidden="true"></span>{t('conversation.thoughts', { count: thoughts.length })}</span>
+            <div class="live-body" use:follow>
+              {#each thoughts as work, w (w)}
+                {#if w}
+                  {@const before = thoughts[w - 1]}
+                  <span class="live-sep">{took(before.ms)}{#if before.calls.length}{' · '}{summary(before.calls)}{/if}</span>
+                {/if}
+                <Markdown text={work.thought} streaming={work.ms === undefined} />
+              {/each}
+            </div>
+          </div>
+        {/if}
         {#if parts.answer.length}
           <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(parts.answer))} role="presentation">{@render detail(parts.answer, i, tail, false)}</div>
         {/if}
@@ -771,6 +810,77 @@
     font-size: 13px;
     font-style: italic;
     color: var(--text-muted);
+  }
+
+  .live-thoughts {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    padding: 4px 0 4px 14px;
+    border-left: 2px solid var(--accent);
+  }
+
+  .live-head {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 12px;
+    font-weight: 600;
+    color: var(--accent);
+  }
+
+  .pulse {
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--accent);
+    opacity: 0.4;
+  }
+
+  .pulse.on {
+    animation: pulse 1.2s infinite;
+  }
+
+  @keyframes pulse {
+    0%,
+    100% {
+      opacity: 1;
+    }
+    50% {
+      opacity: 0.25;
+    }
+  }
+
+  .live-body {
+    max-height: 8em;
+    overflow-y: auto;
+    font-size: 13px;
+    font-style: italic;
+    color: var(--text-muted);
+    scrollbar-width: thin;
+    mask-image: linear-gradient(transparent, #000 35%);
+  }
+
+  .live-body:global(.top) {
+    mask-image: none;
+  }
+
+  .live-sep {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin: 8px 0;
+    font-size: 11px;
+    font-style: normal;
+    color: var(--text-dim);
+  }
+
+  .live-sep::before,
+  .live-sep::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: var(--border-strong);
   }
 
   .musing-head {

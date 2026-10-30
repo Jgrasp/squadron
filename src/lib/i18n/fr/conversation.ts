@@ -52,6 +52,7 @@ export default {
   thoughtMoment: 'A réfléchi un instant',
   thoughtForTitle: 'A réfléchi {duration}',
   thoughtSeconds: 'A réfléchi {count} s',
+  thoughts: { one: 'Réflexion', other: '{count} réflexions' },
 
   fromSession: 'Depuis une autre session',
   fromSquadron: 'De Squadron',
