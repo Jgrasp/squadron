@@ -1,13 +1,5 @@
 # Nouveautés
 
-## 1.0.0 · 2026-10-30
-
-### Claude Code
-
-- **/config** : dans la conversation, /config liste les réglages de Claude Code avec leur description, puis les valeurs de celui choisi. Tous les réglages ouvre Réglages › Claude Code.
-- **/mcp** : /mcp liste les serveurs MCP de l’agent avec leur statut. Choisir un serveur qui demande une autorisation l’ouvre dans le navigateur, choisir un serveur en échec le reconnecte.
-- **Réglages › Claude Code** : tous les réglages de Claude Code, à chercher et appliquer, ceux du terminal seul mis à part.
-
 ## 0.18.0 · 2026-10-29
 
 ### Projets
