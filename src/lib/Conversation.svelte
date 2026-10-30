@@ -219,6 +219,7 @@
       stuck = node.scrollHeight - node.scrollTop - node.clientHeight < 4
       away = !stuck
       node.classList.toggle('top', node.scrollTop < 2)
+      node.classList.toggle('end', stuck)
     }
     const stick = () => {
       if (stuck) node.scrollTop = node.scrollHeight
@@ -824,7 +825,6 @@
   }
 
   .live-thoughts {
-    position: relative;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -870,17 +870,22 @@
     font-style: italic;
     color: var(--text-muted);
     scrollbar-width: thin;
-    mask-image: linear-gradient(transparent, #000 35%);
+    --above: 2em;
+    --below: 2em;
+    mask-image: linear-gradient(transparent, #000 var(--above), #000 calc(100% - var(--below)), transparent);
   }
 
   .live-body:global(.top) {
-    mask-image: none;
+    --above: 0px;
+  }
+
+  .live-body:global(.end) {
+    --below: 0px;
   }
 
   .follow {
-    position: absolute;
-    right: 8px;
-    bottom: 8px;
+    align-self: center;
+    margin-top: 4px;
     display: flex;
     align-items: center;
     gap: 6px;
