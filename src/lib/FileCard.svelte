@@ -1,8 +1,10 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { kindOf } from './Attachment.svelte'
   import { languageOf } from './CodeEditor.svelte'
   import { openFile, workspace } from './editor.svelte'
+  import { fenced, windowLabel } from './filelink'
   import { errorText, t, type Key } from './i18n/index.svelte'
   import { setPanel } from './layout.svelte'
   import Markdown from './Markdown.svelte'
@@ -21,11 +23,6 @@
   let text = $state<string | null>()
   let error = $state('')
 
-  const fenced = $derived.by(() => {
-    if (typeof text !== 'string') return ''
-    const fence = '`'.repeat(Math.max(2, ...(text.match(/`+/g) ?? []).map((run) => run.length)) + 1)
-    return `${fence}${languageOf(name)?.name.toLowerCase() ?? ''}\n${text}\n${fence}`
-  })
 
   function go() {
     const ws = workspace(project)
@@ -33,6 +30,13 @@
     ws.expanded = [...new Set([...ws.expanded, ...dirs])]
     openFile(project, path)
     setPanel(project, 'editor')
+  }
+
+  async function float() {
+    const label = windowLabel(project, path)
+    const shown = await WebviewWindow.getByLabel(label)
+    if (shown) return shown.setFocus()
+    new WebviewWindow(label, { url: `index.html?${new URLSearchParams({ project, path })}`, title: `${name} · Squadron`, width: 760, height: 820, minWidth: 420, minHeight: 300 })
   }
 
   function toggle() {
@@ -61,6 +65,10 @@
       {open ? t('conversation.hideContent') : t('conversation.showContent')}
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     </button>
+    <button type="button" class="btn btn-ghost float" onclick={float}>
+      {t('conversation.openInWindow')}
+      <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2" /><path d="M10 3h11v11" /></svg>
+    </button>
   </div>
   {#if open}
     <div class="body">
@@ -71,7 +79,7 @@
       {:else if text === undefined}
         <p class="note">{t('common.loading')}</p>
       {:else}
-        <Markdown text={fenced} />
+        <Markdown text={fenced(text, languageOf(name)?.name.toLowerCase())} />
       {/if}
     </div>
   {/if}
@@ -164,6 +172,10 @@
     stroke-width: 2.5;
     stroke-linecap: round;
     stroke-linejoin: round;
+  }
+
+  .float {
+    margin-left: auto;
   }
 
   .btn[aria-expanded='true'] {

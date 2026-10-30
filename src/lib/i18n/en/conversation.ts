@@ -168,6 +168,7 @@ export default {
   goToFile: 'Go to file',
   showContent: 'Show content',
   hideContent: 'Hide',
+  openInWindow: 'Open in a window',
   fileMissing: 'File not found.',
 
   statusWorking: 'Working',

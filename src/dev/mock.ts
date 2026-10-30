@@ -24,7 +24,7 @@ const groups: Group[] = JSON.parse(localStorage.getItem('groups') ?? 'null') ?? 
   ? [{ id: 'g-clients', name: 'Clients', parent: '' }, { id: 'g-ring', name: 'Ring', parent: 'g-clients' }, { id: 'g-tools', name: 'Outils', parent: '' }]
   : [])
 const saveGroups = () => localStorage.setItem('groups', JSON.stringify(groups))
-const label = location.search.includes('board') ? 'board' : 'main'
+const label = location.search.includes('board') ? 'board' : location.search.includes('path=') ? 'file-mock' : 'main'
 const channel = new BroadcastChannel('squadron-events')
 channel.onmessage = ({ data }) => data.target === label && emit(data.event, data.payload)
 let popup: Window | null = null
@@ -650,9 +650,12 @@ mockIPC(
         projects.find((p) => p.path === a.path)!.cards = (args as { cards: unknown[] }).cards
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
-      case 'plugin:webview|create_webview_window':
+      case 'plugin:webview|create_webview_window': {
+        const made = (args as { options?: { label: string; url: string } }).options
+        if (made?.label.startsWith('file-')) return void window.open(made.url, made.label, 'popup,width=760,height=820')
         popup = window.open('/?board', 'board', 'popup,width=1240,height=820')
         return
+      }
       case 'plugin:window|get_all_windows':
         return popup && !popup.closed ? [label, 'board'] : [label]
       case 'plugin:window|set_focus':

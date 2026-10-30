@@ -170,6 +170,7 @@ export default {
   goToFile: 'Aller au fichier',
   showContent: 'Voir le contenu',
   hideContent: 'Masquer',
+  openInWindow: 'Ouvrir dans une fenêtre',
   fileMissing: 'Fichier introuvable.',
 
   statusWorking: 'Au travail',
