@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.19.1 · 2026-10-30
+
+### Corrections
+
+- **Build de la release** : le build de la release tourne sous Node 24, sans avertissement de dépréciation.
+
 ## 0.19.0 · 2026-10-30
 
 ### Claude Code
