@@ -14,3 +14,6 @@ export function fenced(text: string, lang = '') {
 
 export const windowLabel = (project: string, path: string) =>
   `file-${([...`${project}\n${path}`].reduce((h, c) => (Math.imul(31, h) + c.charCodeAt(0)) | 0, 0) >>> 0).toString(36)}`
+
+export const within = (path: string, project: string) =>
+  !path.startsWith('/') ? path : project && path.startsWith(`${project}/`) ? path.slice(project.length + 1) : ''
