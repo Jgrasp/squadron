@@ -4,7 +4,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
 const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting.";
@@ -281,7 +281,7 @@ async fn bitbucket(
 }
 
 fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
-    let mut child = Command::new("gh")
+    let mut child = crate::process::command("gh")
         .args(args)
         .env("GH_PROMPT_DISABLED", "1")
         .stdin(Stdio::piped())

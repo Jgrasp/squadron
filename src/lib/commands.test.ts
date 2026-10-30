@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { choices, families, familyOf, highlight, modelName, options, parse, versionsOf } from './commands'
+import { choices, families, familyOf, highlight, modelName, options, parse, settingsOf, versionsOf } from './commands'
 
 describe('commands', () => {
   it('reads the choices of an argument hint', () => {
@@ -39,6 +39,15 @@ describe('commands', () => {
     const catalog = { commands: [], models: [{ value: 'sonnet', displayName: 'Sonnet 5.5', description: 'Fast' }], styles: [] }
     expect(options({ name: 'model', description: '', argumentHint: '<model>' }, catalog)).toEqual([{ value: 'sonnet', label: 'Sonnet 5.5', detail: 'Fast' }])
     expect(options({ name: 'fast', description: '', argumentHint: '[on|off]' })).toEqual([{ value: 'on' }, { value: 'off' }])
+  })
+
+  it('reads the settings of /config from its usage', () => {
+    const usage = 'Usage: /config key=value [key=value ...]\n  autoCompact=true|false\n  language=<value>\n  switchModelsOnFlag=Switch automatically|Ask each time\n'
+    expect(settingsOf(usage)).toEqual([
+      { key: 'autoCompact', values: ['true', 'false'] },
+      { key: 'language', values: [] },
+      { key: 'switchModelsOnFlag', values: ['Switch automatically', 'Ask each time'] },
+    ])
   })
 
   it('parses and highlights commands', () => {

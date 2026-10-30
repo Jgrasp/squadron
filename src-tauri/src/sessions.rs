@@ -21,7 +21,7 @@ pub struct Found {
 }
 
 fn home() -> Option<PathBuf> {
-    std::env::var_os("HOME").map(PathBuf::from)
+    std::env::home_dir()
 }
 
 pub fn claude_dir() -> Option<PathBuf> {

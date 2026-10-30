@@ -18,7 +18,7 @@
   <span class="triangle" aria-hidden="true"></span>
   <span>
     <strong>Squadron</strong>
-    <small>{t('settings.versionLine', { version: version || '…', system: navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux' })}</small>
+    <small>{t('settings.versionLine', { version: version || '…', system: navigator.platform.startsWith('Mac') ? 'macOS' : navigator.platform.startsWith('Win') ? 'Windows' : 'Linux' })}</small>
   </span>
 </div>
 <p>{t('settings.aboutText')}</p>

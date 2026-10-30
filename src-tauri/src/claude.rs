@@ -92,7 +92,7 @@ pub fn command(
     at: Option<&str>,
     mcp: Option<&str>,
 ) -> Command {
-    let mut cmd = Command::new(program);
+    let mut cmd = crate::process::command(program);
     cmd.current_dir(dir)
         .env("CLAUDE_CODE_ENABLE_TODO_TOOLS", "1")
         .args([
@@ -147,7 +147,7 @@ pub fn command(
 }
 
 pub struct Session {
-    pid: libc::pid_t,
+    pid: u32,
     stdin: ChildStdin,
     alive: Arc<AtomicBool>,
     busy: Arc<AtomicBool>,
@@ -177,7 +177,7 @@ impl Session {
         let flag = alive.clone();
         let busy = Arc::new(AtomicBool::new(false));
         let turn = busy.clone();
-        let pid = child.id() as libc::pid_t;
+        let pid = child.id();
         let sent = Arc::new(Mutex::new(Vec::new()));
         let own = sent.clone();
         thread::spawn(move || {
@@ -262,7 +262,10 @@ impl Session {
 
     /// Changes the permission mode or the model of the running session, or interrupts its turn; the effort has no such request.
     pub fn control(&mut self, request: Value) -> io::Result<()> {
-        let id = format!("squadron-{}", self.pid);
+        self.request(&format!("squadron-{}", self.pid), request)
+    }
+
+    pub fn request(&mut self, id: &str, request: Value) -> io::Result<()> {
         writeln!(
             self.stdin,
             "{}",
@@ -272,22 +275,43 @@ impl Session {
     }
 
     /// Claude Code ends the turn with an error then exits: continuing needs `--resume`.
+    #[cfg(unix)]
     pub fn interrupt(&self) -> io::Result<()> {
         self.signal(libc::SIGINT)
     }
 
+    #[cfg(unix)]
     pub fn stop(&self) -> io::Result<()> {
         self.signal(libc::SIGTERM)
     }
 
+    #[cfg(unix)]
     fn signal(&self, signal: libc::c_int) -> io::Result<()> {
         if !self.alive() {
             return Ok(());
         }
-        if unsafe { libc::kill(self.pid, signal) } != 0 {
+        if unsafe { libc::kill(self.pid as libc::pid_t, signal) } != 0 {
             return Err(io::Error::last_os_error());
         }
         Ok(())
+    }
+
+    #[cfg(windows)]
+    pub fn interrupt(&self) -> io::Result<()> {
+        self.stop()
+    }
+
+    #[cfg(windows)]
+    pub fn stop(&self) -> io::Result<()> {
+        if !self.alive() {
+            return Ok(());
+        }
+        crate::process::command("taskkill")
+            .args(["/T", "/F", "/PID", &self.pid.to_string()])
+            .stdout(Stdio::null())
+            .stderr(Stdio::null())
+            .status()
+            .map(|_| ())
     }
 }
 

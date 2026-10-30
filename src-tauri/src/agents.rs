@@ -223,6 +223,21 @@ impl Agents {
         }
     }
 
+    pub fn request(
+        &self,
+        id: &str,
+        request_id: &str,
+        request: serde_json::Value,
+    ) -> Result<(), String> {
+        let mut list = self.list.lock().unwrap();
+        list.get_mut(id)
+            .and_then(|a| a.session.as_mut())
+            .filter(|s| s.alive())
+            .ok_or("The agent is not running.")?
+            .request(request_id, request)
+            .map_err(|e| e.to_string())
+    }
+
     pub fn stop_turn(&self, id: &str) -> Result<(), String> {
         let mut list = self.list.lock().unwrap();
         match list.get_mut(id).and_then(|a| a.session.as_mut()) {

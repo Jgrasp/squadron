@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use std::path::{Path, PathBuf};
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct App {
@@ -179,7 +179,7 @@ pub fn arguments(
 
 pub fn open(command: &str, project: &Path, file: Option<&Path>) -> Result<(), String> {
     let args = arguments(command, project, file)?;
-    let mut child = Command::new(&args[0])
+    let mut child = crate::process::command(&args[0])
         .args(&args[1..])
         .current_dir(project)
         .stdin(Stdio::null())

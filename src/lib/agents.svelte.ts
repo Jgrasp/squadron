@@ -11,7 +11,7 @@ import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
 import { deliver, take } from './shells.svelte'
 import { forget as unask } from './askpass.svelte'
-import { t } from './i18n/index.svelte'
+import { errorText, t } from './i18n/index.svelte'
 import {
   apply,
   argument,
@@ -180,6 +180,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (d.type === 'result' || d.subtype === 'init' || d.response?.response?.maxTokens) persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
+  if (d.type === 'control_response' && d.response?.request_id?.startsWith('mcp:')) mcpAnswered(agent.id, d.response)
   if (d.type === 'result' && agent.status === 'done') deliver(agent)
 })
 
@@ -723,6 +724,34 @@ export function note(id: string, command: string, text: string) {
   if (!agent) return
   agent.entries.push({ kind: 'note', at: Date.now(), command, text })
   persist(agent)
+}
+
+export type Server = { name: string; status: string; error?: string }
+
+export const servers = $state<Record<string, Server[]>>({})
+
+export function mcpStatus(id: string) {
+  invoke('mcp_request', { id, requestId: 'mcp:status', request: { subtype: 'mcp_status' } }).catch(() => delete servers[id])
+}
+
+export function mcpAct(id: string, server: Server) {
+  const auth = server.status === 'needs-auth'
+  const request = { subtype: auth ? 'mcp_authenticate' : 'mcp_reconnect', serverName: server.name }
+  invoke('mcp_request', { id, requestId: `mcp:${auth ? 'auth' : 'reconnect'}:${server.name}`, request }).catch((e) => note(id, '/mcp', errorText(e)))
+}
+
+function mcpAnswered(id: string, answer: { request_id: string; subtype: string; error?: string; response?: { mcpServers?: Server[]; authUrl?: string } }) {
+  const [, kind, ...rest] = answer.request_id.split(':')
+  const server = rest.join(':')
+  if (answer.subtype === 'error') return note(id, '/mcp', server ? `${server} · ${answer.error}` : String(answer.error))
+  if (kind === 'status') servers[id] = answer.response?.mcpServers ?? []
+  else if (answer.response?.authUrl) {
+    invoke('open_link', { url: answer.response.authUrl })
+    note(id, '/mcp', t('agent.mcpAuthOpened', { server }))
+  } else {
+    note(id, '/mcp', t(kind === 'auth' ? 'agent.mcpAuthorized' : 'agent.mcpReconnected', { server }))
+    mcpStatus(id)
+  }
 }
 
 export async function setOptions(id: string, options: Options) {

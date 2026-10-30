@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.19.0 · 2026-10-30
+
+### Claude Code
+
+- **/config**: in the conversation, /config lists the settings of Claude Code with their description, then the values of the one chosen. All the settings opens Settings › Claude Code.
+- **/mcp**: /mcp lists the MCP servers of the agent with their status. Choosing a server that needs authorization opens it in the browser, choosing a failed one reconnects it.
+- **Settings › Claude Code**: every setting of Claude Code, to search and apply, with those of the terminal alone set apart.
+
+### Windows
+
+- **Windows**: Squadron is built for Windows too, as an installer that updates itself. Claude Code must be its native install (claude.exe).
+
 ## 0.18.0 · 2026-10-29
 
 ### Projects

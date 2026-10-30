@@ -7,6 +7,7 @@
   import { ruleLabel } from './rules'
   import AboutSquadron from './AboutSquadron.svelte'
   import Changelog from './Changelog.svelte'
+  import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
   import TicketSettings from './TicketSettings.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
@@ -375,6 +376,7 @@
           {t('settings.signedInAs', { account: [account.value.email, account.value.organization, account.value.subscriptionType].filter(Boolean).join(' · ') })}
         </p>
       {/if}
+      <ClaudeSettings />
     {/if}
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>

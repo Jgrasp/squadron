@@ -1,7 +1,8 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, note, reload, remote, rename, reply, send, setOptions, onScreen, persist, VALUES } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, VALUES, type Server } from './agents.svelte'
+  import { claudeConfig, labelOf as settingLabel, loadSettings, TERMINAL } from './claudeConfig.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -18,7 +19,7 @@
   import PersonaChip from './PersonaChip.svelte'
   import Runs from './Runs.svelte'
   import { shown as runsShown } from './pipelines.svelte'
-  import { errorText, t } from './i18n/index.svelte'
+  import { errorText, t, type Key } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
   import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
@@ -190,7 +191,7 @@
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
 
-  type Item = { value: string; label: string; hint?: string; detail?: string; usage?: string; group?: string; text: string; at?: number }
+  type Item = { value: string; label: string; hint?: string; tone?: string; detail?: string; usage?: string; group?: string; text: string; at?: number; action?: () => void }
 
   const GROUPS = ['Commands', 'Skills', 'Claude Code']
   const groupName = (group: string) => (group === 'Commands' ? t('agent.commands') : group === 'Skills' ? t('agent.skills') : group)
@@ -232,10 +233,56 @@
         )
     }
     const command = stage.command
-    return options(command, catalogOf(agent))
+    if (command.name === 'config' && claudeConfig.settings) return configItems(stage.query)
+    const choices = options(command, catalogOf(agent))
       .filter((o) => `${o.value} ${o.label ?? ''}`.toLowerCase().includes(stage.query))
       .map((o) => ({ value: o.value, label: o.label ?? o.value, detail: o.detail, hint: o.label ? o.value : undefined, text: `/${command.name} ${o.value} ` }))
+    if (command.name !== 'mcp' || !servers[agent.id]) return choices
+    return [...servers[agent.id].filter((s) => s.name.toLowerCase().includes(stage.query)).map(serverItem), ...choices]
   })
+  const staged = $derived(stage?.command?.name)
+  $effect(() => {
+    if (staged === 'config') untrack(loadSettings)
+    if (staged === 'mcp') untrack(() => mcpStatus(agent.id))
+  })
+
+  function configItems(query: string): Item[] {
+    const settings = claudeConfig.settings ?? []
+    const at = query.indexOf('=')
+    if (at >= 0) {
+      const setting = settings.find((s) => s.key.toLowerCase() === query.slice(0, at))
+      if (!setting) return []
+      return setting.values
+        .filter((v) => v.toLowerCase().includes(query.slice(at + 1)))
+        .map((v) => ({ value: v, label: v, hint: claudeConfig.chosen[setting.key] === v ? '✓' : undefined, tone: 'ok', text: `/config ${setting.key}=${v} ` }))
+    }
+    return [
+      ...settings
+        .filter((s) => `${s.key} ${settingLabel(s.key)}`.toLowerCase().includes(query))
+        .map((s) => ({
+          value: s.key,
+          label: s.key,
+          hint: claudeConfig.chosen[s.key] ?? (TERMINAL.has(s.key) ? t('agent.terminalOnly') : undefined),
+          detail: settingLabel(s.key),
+          text: `/config ${s.key}=`,
+        })),
+      { value: '', label: t('agent.configWindow'), detail: t('agent.configWindowDetail'), text: '', action: () => ((claudeConfig.query = query), (ui.settings = 'claude')) },
+    ]
+  }
+
+  const TONES: Record<string, string> = { connected: 'ok', failed: 'bad', 'needs-auth': 'wait', pending: 'wait' }
+  function serverItem(server: Server): Item {
+    const off = server.status === 'disabled'
+    return {
+      value: server.name,
+      label: server.name,
+      hint: t(`agent.mcpStatus_${server.status}` as Key),
+      tone: TONES[server.status],
+      detail: off ? undefined : [server.error, t(server.status === 'needs-auth' ? 'agent.mcpAuthorize' : 'agent.mcpReconnect')].filter(Boolean).join(' · '),
+      text: off ? `/mcp enable ${server.name} ` : '',
+      action: off ? undefined : () => mcpAct(agent.id, server),
+    }
+  }
   const sections = $derived(
     suggestions.reduce<{ name?: string; items: { item: Item; i: number }[] }[]>((list, item, i) => {
       if (!list.length || list.at(-1)!.name !== item.group) list.push({ name: item.group, items: [] })
@@ -258,6 +305,11 @@
   }
 
   function complete(item: Item) {
+    if (item.action) {
+      item.action()
+      text = chosen = dismissed = ''
+      return
+    }
     text = chosen = item.text
     dismissed = ''
     composer.focus()
@@ -280,6 +332,10 @@
       setOptions(agent.id, { ...agent.options, model: call.args })
       note(agent.id, message, t('agent.modelSet', { model: modelLabel(call.args) }))
       return true
+    }
+    if (command?.name === 'config') {
+      const [, key, value] = /^(\w+)=(.+)$/.exec(call.args) ?? []
+      if (key) claudeConfig.chosen[key] = value
     }
     if (command?.name === 'effort' && ['low', 'medium', 'high', 'xhigh', 'max'].includes(call.args)) {
       setOptions(agent.id, { ...agent.options, effort: call.args as Options['effort'] })
@@ -923,7 +979,7 @@
                   >
                     <span class="line">
                       <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
-                      {#if item.hint}<span class="hint">{item.hint}</span>{/if}
+                      {#if item.hint}<span class="hint" data-tone={item.tone}>{item.hint}</span>{/if}
                       {#if i === pick && item.usage}<code class="syntax">{item.usage}</code>{/if}
                     </span>
                     {#if i === pick && item.detail}<span class="about">{item.detail}</span>{/if}
@@ -1723,6 +1779,18 @@
     white-space: nowrap;
     font: 12px var(--mono);
     color: var(--text-dim);
+  }
+
+  .hint[data-tone='ok'] {
+    color: var(--ok);
+  }
+
+  .hint[data-tone='bad'] {
+    color: var(--err);
+  }
+
+  .hint[data-tone='wait'] {
+    color: var(--accent-soft);
   }
 
   .what {

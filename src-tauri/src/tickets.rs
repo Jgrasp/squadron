@@ -4,7 +4,7 @@ use serde_json::{Value, json};
 use std::collections::BTreeMap;
 use std::io::Write;
 use std::path::Path;
-use std::process::{Command, Stdio};
+use std::process::Stdio;
 
 #[derive(Clone, Serialize, Deserialize)]
 struct Secret {
@@ -889,7 +889,7 @@ const BRIEF: &str = "You turn a Jira ticket into the instruction a coding agent 
 
 pub fn brief(program: &str, dir: &Path, context: &str) -> Result<Brief, String> {
     let dir = if dir.is_dir() { dir } else { Path::new("/") };
-    let mut child = Command::new(program)
+    let mut child = crate::process::command(program)
         .current_dir(dir)
         .args([
             "-p",
@@ -939,7 +939,7 @@ fn parse_brief(result: &str) -> Option<Brief> {
 
 pub fn mentions(dir: &Path) -> BTreeMap<String, (u32, u32)> {
     let run = |args: &[&str]| {
-        Command::new("git")
+        crate::process::command("git")
             .current_dir(dir)
             .args(args)
             .output()
