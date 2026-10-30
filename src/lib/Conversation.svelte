@@ -11,6 +11,7 @@
   import { duration, time, tokens } from './format'
   import { list, t, type Key } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
+  import NoticeCard, { cardOf } from './NoticeCard.svelte'
   import PermissionCard from './PermissionCard.svelte'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
@@ -33,6 +34,7 @@
     onreplay = () => {},
     onterminal = () => {},
     onrun,
+    onsend,
   }: {
     agent: Agent
     start?: number
@@ -44,6 +46,7 @@
     onreplay?: (command: string) => void
     onterminal?: (command: string) => void
     onrun?: (command: string) => void
+    onsend?: (text: string) => void
   } = $props()
 
   const SPAWN = ['Agent', 'Task']
@@ -321,10 +324,12 @@
       {t('conversation.compacted', { before: tokens(entry.before), after: tokens(entry.after), time: time(entry.at) })}
       <span></span>
     </div>
+  {:else if entry.kind === 'note' && entry.command === 'notice' && onsend && cardOf(entry.text)}
+    <NoticeCard id={agent.id} text={entry.text} at={entry.at} {onsend} />
   {:else if entry.kind === 'note' && entry.command === 'notice'}
     <div class="notice">
       <span class="from">Claude Code · {time(entry.at)}</span>
-      {entry.text}
+      <span class="out">{entry.text}</span>
     </div>
   {:else if entry.kind === 'note'}
     <div class="separator" role="separator">
@@ -556,6 +561,10 @@
   .peer .from strong {
     font-weight: 600;
     color: var(--text);
+  }
+
+  .notice .out {
+    white-space: pre-wrap;
   }
 
   .notice .from {

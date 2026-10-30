@@ -11,7 +11,7 @@ import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
 import { deliver, take } from './shells.svelte'
 import { forget as unask } from './askpass.svelte'
-import { errorText, t } from './i18n/index.svelte'
+import { errorText, t, type Key } from './i18n/index.svelte'
 import {
   apply,
   argument,
@@ -740,6 +740,18 @@ export function mcpAct(id: string, server: Server) {
   invoke('mcp_request', { id, requestId: `mcp:${auth ? 'auth' : 'reconnect'}:${server.name}`, request }).catch((e) => note(id, '/mcp', errorText(e)))
 }
 
+export function mcpToggle(id: string, server: string, enabled: boolean) {
+  const request = { subtype: 'mcp_toggle', serverName: server, enabled }
+  invoke('mcp_request', { id, requestId: `mcp:${enabled ? 'enable' : 'disable'}:${server}`, request }).catch((e) => note(id, '/mcp', errorText(e)))
+}
+
+const MCP_DONE: Record<string, Key> = {
+  auth: 'agent.mcpAuthorized',
+  reconnect: 'agent.mcpReconnected',
+  enable: 'conversation.mcpEnabled',
+  disable: 'conversation.mcpDisabled',
+}
+
 function mcpAnswered(id: string, answer: { request_id: string; subtype: string; error?: string; response?: { mcpServers?: Server[]; authUrl?: string } }) {
   const [, kind, ...rest] = answer.request_id.split(':')
   const server = rest.join(':')
@@ -749,7 +761,7 @@ function mcpAnswered(id: string, answer: { request_id: string; subtype: string; 
     invoke('open_link', { url: answer.response.authUrl })
     note(id, '/mcp', t('agent.mcpAuthOpened', { server }))
   } else {
-    note(id, '/mcp', t(kind === 'auth' ? 'agent.mcpAuthorized' : 'agent.mcpReconnected', { server }))
+    note(id, '/mcp', t(MCP_DONE[kind], { server }))
     mcpStatus(id)
   }
 }

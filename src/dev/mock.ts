@@ -187,6 +187,12 @@ function goal(id: string, condition: string) {
 function replay(id: string, text: string) {
   if (text.includes('sudo')) setTimeout(() => emit('askpass-request', { id: String(askId++), agent: id, prompt: '[sudo] password for demo: ' }), 400)
   if (text.startsWith('/goal ')) return goal(id, text.slice(6))
+  if (text.startsWith('/config') || text.startsWith('/mcp')) {
+    const out = text.startsWith('/mcp') ? '4 MCP server(s): 1 connected, 2 not connected, 1 disabled. Use `/mcp` in the terminal for details.' : text.includes('=') ? `Set ${text.slice(8).replace('=', ' to ')}` : configUsage
+    emit('agent-line', { id, line: JSON.stringify({ type: 'user', isReplay: true, message: { role: 'user', content: [{ type: 'text', text: `<local-command-stdout>${out}</local-command-stdout>` }] } }) })
+    emit('agent-line', { id, line: JSON.stringify({ type: 'result', is_error: false, num_turns: 0, total_cost_usd: 0, usage: {}, duration_ms: 20 }) })
+    return
+  }
   const key = Object.keys(asks).find((k) => text.includes(k))
   if (key) {
     const [tool_name, input] = asks[key]
@@ -283,6 +289,12 @@ function replay(id: string, text: string) {
 }
 
 const projectOf = new Map<string, string>()
+const mcpServers: { name: string; status: string; error?: string }[] = [
+  { name: 'bitbucket', status: 'connected' },
+  { name: 'claude.ai Figma', status: 'needs-auth' },
+  { name: 'codegraph', status: 'failed', error: 'spawn ENOENT' },
+  { name: 'sentry', status: 'disabled' },
+]
 const configUsage = `Usage: /config key=value
 
   autoCompact=true|false
@@ -505,10 +517,12 @@ mockIPC(
       case 'claude_config':
         return new Promise((done) => setTimeout(() => done(a.setting ? `Set ${a.setting.replace('=', ' to ')}` : configUsage), 600))
       case 'mcp_request': {
-        const { subtype } = (args as { request: { subtype: string } }).request
+        const { subtype, serverName, enabled } = (args as { request: { subtype: string; serverName?: string; enabled?: boolean } }).request
+        const toggled = mcpServers.find((s) => s.name === serverName)
+        if (subtype === 'mcp_toggle' && toggled) toggled.status = enabled ? 'connected' : 'disabled'
         const response =
           subtype === 'mcp_status'
-            ? { mcpServers: [{ name: 'bitbucket', status: 'connected' }, { name: 'claude.ai Figma', status: 'needs-auth' }, { name: 'codegraph', status: 'failed', error: 'spawn ENOENT' }, { name: 'sentry', status: 'disabled' }] }
+            ? { mcpServers }
             : subtype === 'mcp_authenticate'
               ? { authUrl: 'https://claude.ai/oauth/authorize?demo' }
               : {}

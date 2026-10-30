@@ -912,6 +912,7 @@
           onreplay={replay}
           onterminal={inTerminal}
           onrun={(command) => ((stuck = true), run(agent, command))}
+          onsend={(message) => send(agent.id, message)}
         />
         </div>
       </div>

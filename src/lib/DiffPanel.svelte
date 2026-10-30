@@ -508,6 +508,11 @@
     onposted?.()
   }
 
+  async function approveNow() {
+    verdict = 'approve'
+    await submit()
+  }
+
   let merging = $state(false)
 
   async function mergeIt() {
@@ -652,7 +657,8 @@
         <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
       {/if}
       {#if !own && !agent}
-        <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'approve'} onclick={() => ((verdict = 'approve'), (finishing = true))}>{t('review.verdictApprove')}</button>
+        <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'request_changes'} onclick={() => ((verdict = 'request_changes'), (finishing = true))}>{t('review.verdictRequestChanges')}</button>
+        <button class="btn btn-secondary" disabled={posting} onclick={approveNow}>{posting && verdict === 'approve' ? t('review.posting') : t('review.verdictApprove')}</button>
       {/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>{t('review.finishReview')}</button>
     </div>
@@ -685,8 +691,8 @@
           {#if agent || handTo}
             {@const to = agent?.name ?? handTo ?? ''}
             <span class="hint">{t('review.sendOrPost', { count: review.length, agent: to, host: hostName(pull) })}</span>
-            <button class="btn btn-secondary" disabled={posting || !review.length} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
-            <button class="btn btn-primary" disabled={posting || !review.length} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
+            <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
+            <button class="btn btn-primary" disabled={posting || !ready} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
               {#each own ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
