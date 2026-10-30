@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.1 · 2026-10-30
+
+### Fixes
+
+- **Live thoughts**: while Claude works, each thought of the turn shows whole as its own block between the steps, the current one marked by the accent and a pulse, instead of a scrolling window. Once the answer comes, they fold back into the steps.
+
 ## 0.23.0 · 2026-10-30
 
 ### Conversation

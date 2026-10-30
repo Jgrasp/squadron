@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.23.1 · 2026-10-30
+
+### Corrections
+
+- **Réflexions en direct** : pendant que Claude travaille, chaque réflexion du tour s’affiche en entier dans son propre bloc entre les étapes, la réflexion en cours marquée par l’accent et un point qui pulse, au lieu d’une fenêtre défilante. Quand la réponse arrive, elles se replient dans les étapes.
+
 ## 0.23.0 · 2026-10-30
 
 ### Conversation
