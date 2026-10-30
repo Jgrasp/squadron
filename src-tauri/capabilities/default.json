@@ -5,7 +5,8 @@
   "windows": [
     "main",
     "board",
-    "file-*"
+    "file-*",
+    "artifacts-*"
   ],
   "permissions": [
     "core:default",

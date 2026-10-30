@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { save } from '@tauri-apps/plugin-dialog'
   import { persist, send } from './agents.svelte'
   import { artifactUrl, docsOf, fileName, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
@@ -11,7 +12,13 @@
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
 
-  let { agent, onpoint, onclose }: { agent: Agent; onpoint: (text: string) => void; onclose: () => void } = $props()
+  let {
+    agent,
+    windowed = false,
+    onpoint,
+    onshare = (text) => send(agent.id, text),
+    onclose,
+  }: { agent: Agent; windowed?: boolean; onpoint: (text: string) => void; onshare?: (text: string) => void; onclose: () => void } = $props()
 
   let selected = $state<{ id: string; at: number } | null>(null)
   let copied = $state('')
@@ -54,6 +61,7 @@
     if (e.data?.squadron !== 'picked') return
     pointing = false
     const { selector, html, page } = e.data as { selector: string; html: string; page: string }
+    if (windowed) copy('point', '')
     onpoint(`${t('agent.artifactPointed', { title: open.title, page: page || open.entry, selector: String(selector) })}\n\n\`\`\`html\n${String(html)}\n\`\`\``)
   }
 
@@ -62,7 +70,7 @@
   }
 
   function copy(what: string, text: string) {
-    navigator.clipboard.writeText(text)
+    if (text) navigator.clipboard.writeText(text)
     copied = what
     setTimeout(() => (copied = ''), 1500)
   }
@@ -82,7 +90,23 @@
     asked = [...asked, artifact.id]
     if (!(await ask(t('agent.artifactShareAsk', { title: artifact.title, name: agent.name }), { title: t('agent.artifactShareTitle'), okLabel: t('agent.artifactShare') })))
       return void (asked = asked.filter((id) => id !== artifact.id))
-    await send(agent.id, sharePrompt(artifact))
+    onshare(sharePrompt(artifact))
+  }
+
+  async function popOut() {
+    const label = `artifacts-${agent.id}`
+    const shown = await WebviewWindow.getByLabel(label)
+    if (shown) shown.setFocus()
+    else
+      new WebviewWindow(label, {
+        url: `index.html?${new URLSearchParams({ agent: agent.id, name: agent.name })}`,
+        title: `${t('agent.artifactsTitle')} · ${agent.name}`,
+        width: 1000,
+        height: 820,
+        minWidth: 480,
+        minHeight: 360,
+      })
+    onclose()
   }
 
   async function remove(item: ArtifactInfo | Doc) {
@@ -100,7 +124,7 @@
 
 <svelte:window onmessage={message} />
 
-<SidePanel kind="artifacts" title={t('agent.artifactsTitle')} {onclose}>
+<SidePanel kind="artifacts" title={t('agent.artifactsTitle')} {windowed} {onclose}>
   {#snippet sub()}
     {#if open?.kind === 'doc'}{open.title} · {t('agent.artifactOnClaude')}{:else if open}{open.title} · {t('agent.artifactModified', { time: time(open.modified) })}{:else}{t('agent.artifactsOf', { name: agent.name })}{/if}
   {/snippet}
@@ -109,7 +133,7 @@
       <button class="btn btn-ghost danger" onclick={() => remove(open)}>{t('agent.artifactHide')}</button>
     {:else if open}
       {#if open.kind === 'html'}
-        <button class="btn btn-ghost" aria-pressed={pointing} title={t('agent.artifactPointTitle')} onclick={() => aim(!pointing)}>{pointing ? t('agent.artifactPointing') : t('agent.artifactPoint')}</button>
+        <button class="btn btn-ghost" aria-pressed={pointing} title={t('agent.artifactPointTitle')} onclick={() => aim(!pointing)}>{pointing ? t('agent.artifactPointing') : copied === 'point' ? t('agent.artifactPointSent', { name: agent.name }) : t('agent.artifactPoint')}</button>
       {/if}
       <button class="btn btn-ghost" onclick={() => source(open)}>{copied === 'source' ? t('common.copied') : t('agent.artifactCopy')}</button>
       {#if open.kind === 'html'}
@@ -118,6 +142,11 @@
         <button class="btn btn-ghost" onclick={() => keep(open)}>{t('agent.artifactSave')}</button>
       {/if}
       <button class="btn btn-ghost danger" onclick={() => remove(open)}>{t('agent.artifactDelete')}</button>
+    {/if}
+    {#if !windowed}
+      <button class="btn btn-ghost window" aria-label={t('conversation.openInWindow')} title={t('conversation.openInWindow')} onclick={popOut}>
+        <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2" /><path d="M10 3h11v11" /></svg>
+      </button>
     {/if}
   {/snippet}
 
@@ -268,6 +297,19 @@
     text-align: center;
     color: var(--text-muted);
     font-size: 13px;
+  }
+
+  .window {
+    width: 32px;
+    padding: 0;
+  }
+
+  .window svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .danger:hover {

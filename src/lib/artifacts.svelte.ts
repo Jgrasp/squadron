@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
+import { send } from './agents.svelte'
 import type { ArtifactInfo } from './artifacts'
 import type { Agent } from './stream'
 
@@ -14,6 +16,14 @@ export async function refresh(agent: string) {
 }
 
 listen<string>('artifacts-changed', ({ payload }) => refresh(payload))
+
+export const pointed = $state<Record<string, string[]>>({})
+
+listen<{ agent: string; kind: 'point' | 'share'; text: string }>('artifact-do', ({ payload: { agent, kind, text } }) => {
+  if (getCurrentWindow().label !== 'main') return
+  if (kind === 'share') send(agent, text)
+  else pointed[agent] = [...(pointed[agent] ?? []), text]
+})
 
 export async function migrate(agent: Agent) {
   for (const a of agent.artifacts ?? []) {

@@ -153,6 +153,7 @@ export default {
   artifactPoint: 'Point at an element',
   artifactPointing: 'Click an element… (Esc)',
   artifactPointTitle: 'Click an element of the page to quote it in your message',
+  artifactPointSent: 'Added to the message to {name}',
   artifactPointed: 'In the artifact “{title}” ({page}), this element: `{selector}`',
   artifactFolder: 'Open the folder',
   artifactCopy: 'Copy the source',

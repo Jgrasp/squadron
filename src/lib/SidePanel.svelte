@@ -12,6 +12,7 @@
     children,
     screen = false,
     wide = false,
+    windowed = false,
     onclose,
   }: {
     kind: PanelKind
@@ -22,6 +23,7 @@
     children: Snippet
     screen?: boolean
     wide?: boolean
+    windowed?: boolean
     onclose: () => void
   } = $props()
 
@@ -60,12 +62,13 @@
   class:full
   class:screen
   class:wide
-  style:width={full || screen || wide ? null : `${width}px`}
+  class:windowed
+  style:width={full || screen || wide || windowed ? null : `${width}px`}
   style:left={wide ? `${left}px` : null}
   aria-label={title}
   bind:this={panel}
 >
-  {#if !full}
+  {#if !full && !windowed}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
       class="resizer"
@@ -87,21 +90,23 @@
       <span>{@render sub()}</span>
     </div>
     {@render actions?.()}
-    <button
-      class="icon"
-      aria-label={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
-      aria-pressed={full}
-      title={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
-      onclick={() => toggleFull(kind)}
-    >
-      <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-        {#if full}
-          <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-        {:else}
-          <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-        {/if}
-      </svg>
-    </button>
+    {#if !windowed}
+      <button
+        class="icon"
+        aria-label={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
+        aria-pressed={full}
+        title={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
+        onclick={() => toggleFull(kind)}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
+          {#if full}
+            <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
+          {:else}
+            <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
+          {/if}
+        </svg>
+      </button>
+    {/if}
     <button class="icon" aria-label={t('shell.closePanel')} onclick={onclose}>×</button>
   </div>
   {@render children()}
@@ -127,6 +132,13 @@
   }
 
   .panel.screen,
+  .panel.windowed {
+    position: fixed;
+    inset: 0;
+    min-width: 0;
+    border-left: none;
+  }
+
   .panel.wide {
     position: fixed;
     inset: 54px 0 0 0;

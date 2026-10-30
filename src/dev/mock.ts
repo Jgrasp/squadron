@@ -24,7 +24,7 @@ const groups: Group[] = JSON.parse(localStorage.getItem('groups') ?? 'null') ?? 
   ? [{ id: 'g-clients', name: 'Clients', parent: '' }, { id: 'g-ring', name: 'Ring', parent: 'g-clients' }, { id: 'g-tools', name: 'Outils', parent: '' }]
   : [])
 const saveGroups = () => localStorage.setItem('groups', JSON.stringify(groups))
-const label = location.search.includes('board') ? 'board' : location.search.includes('path=') ? 'file-mock' : 'main'
+const label = location.search.includes('board') ? 'board' : location.search.includes('path=') ? 'file-mock' : location.search.includes('agent=') ? 'artifacts-mock' : 'main'
 const channel = new BroadcastChannel('squadron-events')
 channel.onmessage = ({ data }) => data.target === label && emit(data.event, data.payload)
 let popup: Window | null = null
@@ -362,7 +362,8 @@ const replies = new Map<string, (result: string) => void>()
   })
 const files = new Map<string, string>()
 type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; content: string }
-const shelves = new Map<string, Shelved[]>()
+const shelves = new Map<string, Shelved[]>(JSON.parse(localStorage.getItem('shelves') ?? '[]'))
+const shelve = () => localStorage.setItem('shelves', JSON.stringify([...shelves]))
 const ENTRY = { html: 'index.html', markdown: 'index.md', svg: 'index.svg' }
 const titled = (kind: string, content: string, id: string) =>
   (kind === 'markdown' ? /^# (.+)$/m.exec(content)?.[1] : /<title>([^<]*)<\/title>/i.exec(content)?.[1])?.trim() || id
@@ -609,13 +610,16 @@ mockIPC(
         const list = (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id)
         const old = shelves.get(a.agent)?.find((x) => x.id === a.id)
         shelves.set(a.agent, [...list, { id: a.id, kind: a.kind as Shelved['kind'], entry: ENTRY[a.kind as keyof typeof ENTRY], title: titled(a.kind, a.content, a.id), modified: Date.now(), link: old?.link ?? null, content: a.content }])
+        shelve()
         return `/home/demo/.local/share/squadron/artifacts/${a.agent}/${a.id}/${ENTRY[a.kind as keyof typeof ENTRY]}`
       }
       case 'set_artifact_link':
         for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.link = a.link
+        shelve()
         return null
       case 'delete_artifact':
         shelves.set(a.agent, (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id))
+        shelve()
         return null
       case 'open_artifact_folder':
         return null
@@ -657,7 +661,7 @@ mockIPC(
         return views()
       case 'plugin:webview|create_webview_window': {
         const made = (args as { options?: { label: string; url: string } }).options
-        if (made?.label.startsWith('file-')) return void window.open(made.url, made.label, 'popup,width=760,height=820')
+        if (made && made.label !== 'board') return void window.open(made.url, made.label, 'popup,width=760,height=820')
         popup = window.open('/?board', 'board', 'popup,width=1240,height=820')
         return
       }

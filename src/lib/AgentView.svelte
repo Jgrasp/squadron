@@ -25,7 +25,7 @@
   import SubagentsPanel from './SubagentsPanel.svelte'
   import ArtifactsPanel from './ArtifactsPanel.svelte'
   import { docsOf } from './artifacts'
-  import { refresh as refreshArtifacts, shelf } from './artifacts.svelte'
+  import { pointed, refresh as refreshArtifacts, shelf } from './artifacts.svelte'
   import TicketPanel from './TicketPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
@@ -166,6 +166,13 @@
   const shared = $derived([...shelved, ...docsOf(agent, shelved.flatMap((a) => (a.link ? [a.link] : [])))])
   $effect(() => {
     refreshArtifacts(agent.id)
+  })
+  const point = (quote: string) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}\n\n` : `${quote}\n\n`), composer.focus())
+  $effect(() => {
+    const quotes = pointed[agent.id]
+    if (!quotes?.length) return
+    delete pointed[agent.id]
+    untrack(() => quotes.forEach(point))
   })
   const ticket = $derived(projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket)
   let reading = $state(false)
@@ -1081,7 +1088,7 @@
   {:else if panel === 'artifacts' && shared.length}
     <ArtifactsPanel
       {agent}
-      onpoint={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}\n\n` : `${quote}\n\n`), composer.focus())}
+      onpoint={point}
       onclose={() => setPanel(agent.project, null)}
     />
   {/if}
