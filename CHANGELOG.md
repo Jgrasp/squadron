@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.19.1 · 2026-10-30
+
+### Fixes
+
+- **Release build**: the build of the release runs on Node 24, with no deprecation warning.
+
 ## 0.19.0 · 2026-10-30
 
 ### Claude Code
