@@ -195,7 +195,7 @@
   }
 
   .column {
-    max-width: 740px;
+    max-width: var(--conversation-width);
     margin: 0 auto;
     display: flex;
     flex-direction: column;

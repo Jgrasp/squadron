@@ -6,6 +6,7 @@ import type { Action } from './shortcuts'
 import type { Row } from './spotlight'
 import type { Agent } from './stream'
 import { checkNow } from './update.svelte'
+import { settings } from './settings.svelte'
 
 export type SettingsTab =
   | 'projects'
@@ -22,7 +23,7 @@ export type SettingsTab =
   | 'changelog'
   | 'about'
 
-export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', adding: null as string | null, drops: 0 })
+export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', adding: null as string | null, drops: 0, drawer: false })
 
 export type Context = { project?: Project; agent?: Agent }
 
@@ -36,7 +37,9 @@ export function run(action: Action, { project, agent }: Context) {
     case 'kanban':
       return toggleBoard()
     case 'sidebar':
-      return project && toggleSidebar()
+      if (project && settings.sidebar !== 'pinned') ui.drawer = !ui.drawer
+      else if (project) toggleSidebar()
+      return
     case 'newAgent':
       if (project?.exists) ui.creating = true
       return

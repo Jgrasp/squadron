@@ -19,7 +19,8 @@
     project,
     current,
     onnew,
-  }: { project: Project; current?: Agent; onnew: () => void } = $props()
+    fold,
+  }: { project: Project; current?: Agent; onnew: () => void; fold?: boolean } = $props()
 
   let editing = $state('')
   let newName = $state('')
@@ -273,7 +274,7 @@
   <ArchivePanel {project} onclose={() => (showArchived = false)} />
 {/if}
 
-{#if layout.collapsed}
+{#if fold ?? layout.collapsed}
   <aside class="folded" aria-label={t('shell.agentsCollapsed')} style:--project={project.color}>
     <span class="square" title={project.name}></span>
     <button class="add" aria-label={t('common.newAgent')} title={t('shell.newAgentKey', { key: hint('newAgent') })} disabled={!project.exists} onclick={onnew}>+</button>

@@ -38,6 +38,7 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
     title: 'settings.slotMenu',
     hint: 'settings.slotMenuHint',
     items: [
+      ['options', 'settings.itemOptions', 'settings.itemOptionsMenuHint'],
       ['reload', 'common.reload', 'settings.itemReloadHint'],
       ['rename', 'common.rename', 'settings.itemRenameHint'],
       ['fork', 'settings.itemFork', 'settings.itemForkHint'],

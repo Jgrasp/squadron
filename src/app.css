@@ -7,6 +7,7 @@
 @import '@fontsource/dm-mono/500.css';
 
 :root {
+  --conversation-width: 740px;
   --bg-app: #141110;
   --bg-sidebar: #171311;
   --bg-main: #1c1816;
