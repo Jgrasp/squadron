@@ -1,5 +1,12 @@
 # Nouveautés
 
+## 0.24.0 · 2026-10-30
+
+### Éditeur
+
+- **Chercher dans le fichier** : Ctrl F ouvre une bulle sur le code, en haut à droite, avec casse, mot entier et expression régulière, le nombre d’occurrences et une ligne Remplacer derrière la flèche.
+- **Rechercher** : Ctrl Maj F ou le bouton Rechercher ouvre une palette. On tape un bout de nom pour ouvrir un fichier, :42 pour arriver à la ligne 42. Tab passe en Texte, qui cherche dans tous les fichiers du projet, montre les lignes autour du résultat choisi et ouvre le fichier à cette ligne, la recherche déjà remplie.
+
 ## 0.23.1 · 2026-10-30
 
 ### Corrections
