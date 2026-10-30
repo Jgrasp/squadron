@@ -25,7 +25,7 @@
   import SubagentsPanel from './SubagentsPanel.svelte'
   import ArtifactsPanel from './ArtifactsPanel.svelte'
   import { docsOf } from './artifacts'
-  import { refresh as refreshArtifacts, shelf } from './artifacts.svelte'
+  import { pointed, refresh as refreshArtifacts, shelf } from './artifacts.svelte'
   import TicketPanel from './TicketPanel.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
@@ -151,6 +151,34 @@
     if (next.model !== now.model || next.effort !== now.effort || next.mode !== now.mode) setOptions(agent.id, next)
   })
 
+  type Sub = 'model' | 'effort' | 'mode'
+  let sub = $state<Sub | null>(null)
+  $effect(() => {
+    if (!menuOpen) sub = null
+  })
+  const SUBMENUS: [Sub, Key][] = [
+    ['model', 'settings.model'],
+    ['effort', 'settings.effort'],
+    ['mode', 'settings.permissionMode'],
+  ]
+  const EFFORTS: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
+  const MODES: [Options['mode'], Key, Key][] = [
+    ['default', 'settings.modeDefault', 'settings.modeDefaultHint'],
+    ['acceptEdits', 'settings.modeAcceptEdits', 'settings.modeAcceptEditsHint'],
+    ['plan', 'settings.modePlan', 'settings.modePlanHint'],
+    ['auto', 'settings.modeAuto', 'settings.modeAutoHint'],
+  ]
+
+  function choices(key: Sub): { value: string; label: string; detail?: string; off?: boolean }[] {
+    const models = (catalogOf(agent)?.models ?? []).filter((m) => m.value !== 'default')
+    if (key === 'model') return models.length ? models.map((m) => ({ value: m.value, label: modelLabel(m.value), detail: m.description })) : ['opus', 'sonnet', 'haiku'].map((value) => ({ value, label: modelLabel(value) }))
+    if (key === 'effort') {
+      const levels = models.find((m) => m.value === agent.options.model)?.supportedEffortLevels
+      return EFFORTS.map((value) => ({ value, label: effortLabel(value), off: !!levels && !levels.includes(value) }))
+    }
+    return MODES.map(([value, label, detail]) => ({ value, label: t(label), detail: t(detail) }))
+  }
+
   const MENU: Record<string, () => void> = {
     reload: () => reload(agent.id),
     rename: () => startRename(),
@@ -166,6 +194,13 @@
   const shared = $derived([...shelved, ...docsOf(agent, shelved.flatMap((a) => (a.link ? [a.link] : [])))])
   $effect(() => {
     refreshArtifacts(agent.id)
+  })
+  const point = (quote: string) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}\n\n` : `${quote}\n\n`), composer.focus())
+  $effect(() => {
+    const quotes = pointed[agent.id]
+    if (!quotes?.length) return
+    delete pointed[agent.id]
+    untrack(() => quotes.forEach(point))
   })
   const ticket = $derived(projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket)
   let reading = $state(false)
@@ -1028,12 +1063,35 @@
           </button>
           {#if menuOpen}
             <div class="menu" role="menu" aria-label={t('agent.agentActions')}>
-              {#each shown('agent.menu') as id (id)}
+              {#each shown('agent.menu') as id, i (id)}
+                {#if id === 'options'}
+                  {#each SUBMENUS as [key, name] (key)}
+                    <div class="sub">
+                      <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={sub === key} class:open={sub === key} onmouseenter={() => (sub = key)} onclick={() => (sub = sub === key ? null : key)}>
+                        <strong>{t(name)}</strong>
+                        <span class="value">{key === 'model' ? modelLabel(agent.options.model) : key === 'effort' ? effortLabel(agent.options.effort) : t(MODES.find(([m]) => m === agent.options.mode)?.[1] ?? 'settings.modeDefault')}</span>
+                        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+                      </button>
+                      {#if sub === key}
+                        <div class="flyout" role="menu" aria-label={t(name)}>
+                          {#each choices(key) as choice (choice.value)}
+                            <button type="button" role="menuitemradio" aria-checked={agent.options[key] === choice.value} disabled={choice.off} onclick={() => setOptions(agent.id, { ...agent.options, [key]: choice.value })}>
+                              <strong>{choice.label}</strong>
+                              {#if choice.detail}<span>{choice.detail}</span>{/if}
+                            </button>
+                          {/each}
+                        </div>
+                      {/if}
+                    </div>
+                  {/each}
+                  {#if i < shown('agent.menu').length - 1}<span class="rule" aria-hidden="true"></span>{/if}
+                {:else}
                 {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
-                <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onclick={() => ((menuOpen = false), MENU[id]())}>
+                <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id]())}>
                   <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}</strong>
                   <span>{id === 'remote' && agent.remote ? t('agent.turnOffRemoteDetail') : detailOf('agent.menu', id)}</span>
                 </button>
+                {/if}
               {/each}
             </div>
           {/if}
@@ -1081,7 +1139,7 @@
   {:else if panel === 'artifacts' && shared.length}
     <ArtifactsPanel
       {agent}
-      onpoint={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}\n\n` : `${quote}\n\n`), composer.focus())}
+      onpoint={point}
       onclose={() => setPanel(agent.project, null)}
     />
   {/if}
@@ -1659,7 +1717,7 @@
     bottom: calc(100% - 6px);
     left: 50%;
     z-index: 20;
-    width: min(740px, calc(100% - 40px));
+    width: min(var(--conversation-width), calc(100% - 40px));
     transform: translateX(-50%);
     display: flex;
     flex-direction: column;
@@ -1916,7 +1974,7 @@
   }
 
   .column {
-    max-width: 740px;
+    max-width: var(--conversation-width);
     margin: 0 auto;
     display: flex;
     flex-direction: column;
@@ -1953,7 +2011,7 @@
   }
 
   .chilly {
-    max-width: 740px;
+    max-width: var(--conversation-width);
     margin: 0 auto 8px;
     display: flex;
     flex-wrap: wrap;
@@ -2003,7 +2061,7 @@
   }
 
   .attached {
-    max-width: 740px;
+    max-width: var(--conversation-width);
     margin: 0 auto 8px;
     display: flex;
     flex-wrap: wrap;
@@ -2047,7 +2105,7 @@
   }
 
   .shell-hint {
-    max-width: 740px;
+    max-width: var(--conversation-width);
     margin: 6px auto 0;
     display: flex;
     justify-content: space-between;
@@ -2071,7 +2129,7 @@
   }
 
   .bar {
-    max-width: 740px;
+    max-width: var(--conversation-width);
     margin: 0 auto;
     display: flex;
     align-items: flex-end;
@@ -2154,5 +2212,61 @@
     height: 1px;
     margin: 4px;
     background: var(--border-strong);
+  }
+
+  .sub {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .sub > button {
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .sub > button.open {
+    background: var(--menu-hover);
+  }
+
+  .sub strong,
+  .sub .value {
+    white-space: nowrap;
+  }
+
+  .sub .value {
+    margin-left: auto;
+  }
+
+  .sub svg {
+    order: -1;
+    fill: none;
+    stroke: var(--text-faint);
+    stroke-width: 2;
+  }
+
+  .flyout {
+    position: absolute;
+    right: calc(100% + 12px);
+    top: -6px;
+    width: 260px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .flyout [aria-checked='true'] strong {
+    color: var(--accent-soft);
+  }
+
+  .flyout [aria-checked='true'] strong::after {
+    content: ' ✓';
   }
 </style>

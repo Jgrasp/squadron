@@ -407,6 +407,8 @@ struct Config {
     runs_notify: bool,
     review_prompt: String,
     ticket_fields_off: Vec<String>,
+    conversation_width: u32,
+    sidebar: String,
 }
 
 impl Default for Config {
@@ -439,6 +441,8 @@ impl Default for Config {
             runs_notify: false,
             review_prompt: String::new(),
             ticket_fields_off: Vec::new(),
+            conversation_width: 740,
+            sidebar: "pinned".into(),
         }
     }
 }

@@ -4,7 +4,9 @@
   "description": "enables the default permissions",
   "windows": [
     "main",
-    "board"
+    "board",
+    "file-*",
+    "artifacts-*"
   ],
   "permissions": [
     "core:default",

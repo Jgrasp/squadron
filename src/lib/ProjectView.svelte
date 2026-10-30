@@ -5,7 +5,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
-  import { archiveProject, create, ofProject, selected } from './agents.svelte'
+  import { archiveProject, create, ofProject, selected, waiting } from './agents.svelte'
   import {
     dragSidebar,
     FOLDED_SIDEBAR,
@@ -25,7 +25,7 @@
   import { needsYou } from './pulls.svelte'
   import type { Comment } from './stream'
   import TerminalPanel from './TerminalPanel.svelte'
-  import { hint } from './settings.svelte'
+  import { hint, settings } from './settings.svelte'
   import NewAgent from './NewAgent.svelte'
   import { load, move, remove, toggleBoard, togglePulls, type Project } from './projects.svelte'
   import { errorText, t } from './i18n/index.svelte'
@@ -89,6 +89,10 @@
     handle.addEventListener('pointerup', up)
   }
 
+  let leaving = 0
+  const show = () => (clearTimeout(leaving), (ui.drawer = true))
+  const hide = () => (leaving = window.setTimeout(() => (ui.drawer = false), 300))
+
   function nudge(event: KeyboardEvent) {
     if (event.key === 'ArrowLeft') {
       if (layout.sidebar <= MIN_SIDEBAR) setCollapsed(true)
@@ -103,6 +107,7 @@
 </script>
 
 <div class="body">
+  {#if settings.sidebar === 'pinned'}
   <AgentList {project} current={agent} onnew={() => (ui.creating = true)} />
   <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
   <div
@@ -117,6 +122,19 @@
     onpointerdown={drag}
     onkeydown={nudge}
   ></div>
+  {:else}
+    <!-- svelte-ignore a11y_no_static_element_interactions -->
+    <div class="dock" onmouseenter={show} onmouseleave={hide}>
+      {#if settings.sidebar === 'rail'}
+        <AgentList {project} current={agent} fold onnew={() => (ui.creating = true)} />
+      {:else}
+        <div class="edge" class:calling={waiting(project.path) > 0}></div>
+      {/if}
+      <div class="drawer" class:open={ui.drawer} inert={!ui.drawer}>
+        <AgentList {project} current={agent} fold={false} onnew={() => (ui.creating = true)} />
+      </div>
+    </div>
+  {/if}
 
   {#if !project.exists}
     <main class="center">
@@ -226,6 +244,53 @@
   .resizer:active {
     background: var(--border-strong);
     outline: none;
+  }
+
+  .dock {
+    position: relative;
+    z-index: 30;
+    flex: none;
+    display: flex;
+  }
+
+  .edge {
+    position: absolute;
+    inset: 0 auto 0 0;
+    width: 8px;
+  }
+
+  .edge.calling::after {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 30%;
+    height: 20%;
+    width: 2px;
+    border-radius: 2px;
+    background: var(--accent);
+    box-shadow: 0 0 8px var(--accent);
+    animation: glow 2.4s ease-in-out infinite;
+  }
+
+  @keyframes glow {
+    50% {
+      opacity: 0.3;
+    }
+  }
+
+  .drawer {
+    position: absolute;
+    inset: 0 auto 0 0;
+    display: flex;
+    transform: translateX(-100%);
+    transition:
+      transform 0.22s cubic-bezier(0.2, 0.8, 0.2, 1),
+      box-shadow 0.22s;
+  }
+
+  .drawer.open {
+    transform: none;
+    box-shadow: 12px 0 40px rgba(0, 0, 0, 0.55);
   }
 
   .idle {

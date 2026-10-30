@@ -11,7 +11,8 @@ document.addEventListener('animationstart', (event) => {
 })
 
 if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) await import('./dev/mock')
-const { default: App } = await (getCurrentWindow().label === 'board' ? import('./BoardWindow.svelte') : import('./App.svelte'))
+const label = getCurrentWindow().label
+const { default: App } = await (label === 'board' ? import('./BoardWindow.svelte') : label.startsWith('file-') ? import('./FileWindow.svelte') : label.startsWith('artifacts-') ? import('./ArtifactsWindow.svelte') : import('./App.svelte'))
 
 const app = mount(App, {
   target: document.getElementById('app')!,

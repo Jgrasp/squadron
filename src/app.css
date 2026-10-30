@@ -7,6 +7,7 @@
 @import '@fontsource/dm-mono/500.css';
 
 :root {
+  --conversation-width: 740px;
   --bg-app: #141110;
   --bg-sidebar: #171311;
   --bg-main: #1c1816;
@@ -351,4 +352,80 @@ pre,
   * {
     animation: none !important;
   }
+}
+
+.jira-kind {
+  flex: none;
+  width: 14px;
+  height: 14px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 3px;
+  background: #4bade8;
+  color: #fff;
+  font: 800 9px var(--sans);
+}
+
+.jira-kind.bug {
+  background: #e5493a;
+}
+
+.jira-kind.story {
+  background: #36b37e;
+}
+
+.jira-kind.epic {
+  background: #8777d9;
+}
+
+.jira-urgency {
+  font-size: 11px;
+  line-height: 1;
+}
+
+.jira-urgency.u1 {
+  color: #4bade8;
+}
+
+.jira-urgency.u2 {
+  color: #ffab00;
+}
+
+.jira-urgency.u3 {
+  color: #ff7452;
+}
+
+.jira-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  height: 22px;
+  padding: 0 9px 0 8px;
+  border-radius: 999px;
+  background: rgba(195, 207, 219, 0.1);
+  box-shadow: inset 0 0 0 1px rgba(195, 207, 219, 0.25);
+  color: #c3cfdb;
+  font: 600 12px var(--sans);
+  white-space: nowrap;
+}
+
+.jira-status::before {
+  content: '';
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.jira-status.indeterminate {
+  background: rgba(125, 184, 250, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(125, 184, 250, 0.35);
+  color: #9cc6ff;
+}
+
+.jira-status.done {
+  background: rgba(159, 224, 182, 0.12);
+  box-shadow: inset 0 0 0 1px rgba(159, 224, 182, 0.35);
+  color: #9fe0b6;
 }

@@ -35,6 +35,8 @@ export type Config = {
   runs_notify: boolean
   review_prompt: string
   ticket_fields_off: string[]
+  conversation_width: number
+  sidebar: 'pinned' | 'peek' | 'rail'
 }
 
 export const settings = $state<Config>({
@@ -60,6 +62,8 @@ export const settings = $state<Config>({
   runs_notify: false,
   review_prompt: '',
   ticket_fields_off: [],
+  conversation_width: 740,
+  sidebar: 'pinned',
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

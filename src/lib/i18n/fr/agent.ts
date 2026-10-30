@@ -155,6 +155,7 @@ export default {
   artifactPoint: 'Pointer un élément',
   artifactPointing: 'Cliquez un élément… (Échap)',
   artifactPointTitle: 'Cliquez un élément de la page pour le citer dans votre message',
+  artifactPointSent: 'Ajouté au message pour {name}',
   artifactPointed: 'Dans l’artifact « {title} » ({page}), cet élément : `{selector}`',
   artifactFolder: 'Ouvrir le dossier',
   artifactCopy: 'Copier la source',

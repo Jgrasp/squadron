@@ -12,7 +12,7 @@
   import Confirm from './lib/Confirm.svelte'
   import Viewer from './lib/Viewer.svelte'
   import Password from './lib/Password.svelte'
-  import { loadSettings, shortcut } from './lib/settings.svelte'
+  import { loadSettings, settings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, closeAll, create, find, rescan, restore, selected, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
@@ -64,6 +64,10 @@
 
   $effect(() => {
     emitTo('board', 'board-state', boardState())
+  })
+
+  $effect(() => {
+    document.documentElement.style.setProperty('--conversation-width', settings.conversation_width ? `${settings.conversation_width}px` : '100%')
   })
 
   $effect(() => {

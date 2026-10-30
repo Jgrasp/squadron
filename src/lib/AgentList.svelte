@@ -5,7 +5,7 @@
   import { layout, orderAgents, resetSort, setSort, toggleSidebar, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
   import { projects, type Project } from './projects.svelte'
-  import { hint } from './settings.svelte'
+  import { hint, saveSettings, settings } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
   import ImportPanel from './ImportPanel.svelte'
   import PersonaChip from './PersonaChip.svelte'
@@ -19,7 +19,11 @@
     project,
     current,
     onnew,
-  }: { project: Project; current?: Agent; onnew: () => void } = $props()
+    fold,
+  }: { project: Project; current?: Agent; onnew: () => void; fold?: boolean } = $props()
+
+  const docked = $derived(settings.sidebar === 'pinned')
+  const pinBar = () => saveSettings({ ...$state.snapshot(settings), sidebar: docked ? 'peek' : 'pinned' })
 
   let editing = $state('')
   let newName = $state('')
@@ -273,7 +277,7 @@
   <ArchivePanel {project} onclose={() => (showArchived = false)} />
 {/if}
 
-{#if layout.collapsed}
+{#if fold ?? layout.collapsed}
   <aside class="folded" aria-label={t('shell.agentsCollapsed')} style:--project={project.color}>
     <span class="square" title={project.name}></span>
     <button class="add" aria-label={t('common.newAgent')} title={t('shell.newAgentKey', { key: hint('newAgent') })} disabled={!project.exists} onclick={onnew}>+</button>
@@ -304,9 +308,11 @@
         </button>
       {/each}
     </div>
+    {#if docked}
     <button class="toggle" aria-label={t('shell.expandAgentList')} title={t('shell.expandList', { key: hint('sidebar') })} onclick={toggleSidebar}>
       <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
     </button>
+    {/if}
     {#if hovered}
       <div class="tip agent {look(hovered.agent)}" role="tooltip" style:top="{hovered.top}px" style:left="{hovered.left}px">
         {@render card(hovered.agent)}
@@ -319,9 +325,14 @@
     <div class="who">
       <span class="square" aria-hidden="true"></span>
       <strong title={project.name}>{project.name}</strong>
-      <button class="fold collapse" aria-label={t('shell.collapseAgentList')} title={t('shell.collapseList', { key: hint('sidebar') })} onclick={toggleSidebar}>
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+      <button class="fold bar-pin" aria-pressed={docked} aria-label={t(docked ? 'shell.unpinBar' : 'shell.pinBar')} title={t(docked ? 'shell.unpinBar' : 'shell.pinBar')} onclick={pinBar}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
       </button>
+      {#if docked}
+        <button class="fold" aria-label={t('shell.collapseAgentList')} title={t('shell.collapseList', { key: hint('sidebar') })} onclick={toggleSidebar}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+        </button>
+      {/if}
     </div>
     <div class="under">
     <small class:bad={!project.exists}>
@@ -566,8 +577,19 @@
     gap: 10px;
   }
 
-  .collapse {
+  .bar-pin {
     margin-left: auto;
+  }
+
+  .bar-pin svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+
+  .bar-pin[aria-pressed='false'] {
+    color: var(--text-faint);
   }
 
   .who strong {

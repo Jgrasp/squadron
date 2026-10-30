@@ -38,6 +38,8 @@ export default {
   agentName: 'Agent name',
   tasksDone: '{done}/{total} tasks',
   unpin: 'Unpin',
+  pinBar: 'Keep the agents bar shown',
+  unpinBar: 'Hide the agents bar until the mouse reaches the left edge',
   pinToTop: 'Pin to the top',
   fork: 'Fork',
   archiveConversation: 'Archive conversation',

@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
+import { getCurrentWindow } from '@tauri-apps/api/window'
 import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
@@ -436,7 +437,7 @@ listen<{ id: string; stderr: string }>('agent-exit', ({ payload }) => {
 
 listen<Ask>('permission-request', ({ payload: ask }) => {
   const agent = find(ask.agent)
-  if (!agent) return decide(ask.id, { behavior: 'deny', message: 'Unknown Squadron agent.' })
+  if (!agent) return getCurrentWindow().label === 'main' ? decide(ask.id, { behavior: 'deny', message: 'Unknown Squadron agent.' }) : undefined
   const rules = projects.list.find((p) => p.path === agent.project)?.rules ?? []
   if (
     INTERNAL.includes(ask.tool_name) ||

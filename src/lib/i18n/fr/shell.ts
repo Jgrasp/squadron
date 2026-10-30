@@ -40,6 +40,8 @@ export default {
   agentName: 'Nom de l’agent',
   tasksDone: '{done}/{total} tâches',
   unpin: 'Détacher',
+  pinBar: 'Garder la barre des agents affichée',
+  unpinBar: 'Masquer la barre des agents jusqu’à ce que la souris touche le bord gauche',
   pinToTop: 'Épingler en haut',
   fork: 'Dupliquer',
   archiveConversation: 'Archiver la conversation',

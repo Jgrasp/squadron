@@ -13,7 +13,7 @@ import picker from '../../src-tauri/src/artifact-pick.js?raw'
 type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; tickets?: unknown[]; defaults?: Record<string, string> }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
-  { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [], tickets: [{ connection: 'akki', key: 'RING', name: 'RingApp' }] },
+  { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [], tickets: [{ connection: 'akki', key: 'RING', name: 'RingApp' }, { connection: 'akki', key: 'TMA', name: 'Maintenance' }] },
   { name: 'Nova', path: '/home/demo/agence/nova', rules: [] },
   { name: 'Lumen', path: '/home/demo/agence/lumen-absent', rules: [] },
 ]
@@ -24,7 +24,7 @@ const groups: Group[] = JSON.parse(localStorage.getItem('groups') ?? 'null') ?? 
   ? [{ id: 'g-clients', name: 'Clients', parent: '' }, { id: 'g-ring', name: 'Ring', parent: 'g-clients' }, { id: 'g-tools', name: 'Outils', parent: '' }]
   : [])
 const saveGroups = () => localStorage.setItem('groups', JSON.stringify(groups))
-const label = location.search.includes('board') ? 'board' : 'main'
+const label = location.search.includes('board') ? 'board' : location.search.includes('path=') ? 'file-mock' : location.search.includes('agent=') ? 'artifacts-mock' : 'main'
 const channel = new BroadcastChannel('squadron-events')
 channel.onmessage = ({ data }) => data.target === label && emit(data.event, data.payload)
 let popup: Window | null = null
@@ -75,11 +75,14 @@ const jiraProjects: Record<string, { key: string; name: string }[]> = {
 }
 const person = (name: string) => ({ name, avatar: '' })
 const sprintTickets = [
-  ['RING-482', 'Export CSV des appels manqués depuis le tableau de bord', 'À faire', 'Quentin Briais'],
-  ['RING-479', 'Le webhook Twilio rejoue deux fois l’événement hangup', 'En cours', 'Marie Laurent'],
-  ['RING-471', 'Pagination de l’API /v2/calls', 'Revue', 'Quentin Briais'],
-  ['RING-468', 'Traduire les libellés du module SVI', 'À faire', ''],
-  ['RING-460', 'Mise à jour Symfony 7.3 → 7.4', 'À faire', 'Julien Durand'],
+  ['RING-482', 'Export CSV des appels manqués depuis le tableau de bord', 'À faire', 'Quentin Briais', 'new', 'Story', 'High', 3, 'Tableau de bord superviseur'],
+  ['RING-479', 'Le webhook Twilio rejoue deux fois l’événement hangup', 'En cours', 'Marie Laurent', 'indeterminate', 'Bug', 'Highest', 3, 'Téléphonie'],
+  ['RING-471', 'Pagination de l’API /v2/calls', 'Revue', 'Quentin Briais', 'indeterminate', 'Tâche', 'Medium', 2, 'API publique'],
+  ['RING-468', 'Traduire les libellés du module SVI', 'À faire', '', 'new', 'Tâche', 'Low', 1, 'Téléphonie'],
+  ['RING-460', 'Mise à jour Symfony 7.3 → 7.4', 'À faire', 'Julien Durand', 'new', 'Tâche', 'Medium', 2, ''],
+  ['RING-455', 'Fuseau horaire du compte dans les exports', 'Terminé', 'Quentin Briais', 'done', 'Story', 'Medium', 2, 'Tableau de bord superviseur'],
+  ['TMA-212', 'Certificat SSL de la préprod expiré', 'En cours', 'Quentin Briais', 'indeterminate', 'Bug', 'High', 3, ''],
+  ['TMA-209', 'Purge des journaux d’appels de plus de 2 ans', 'À faire', 'Julien Durand', 'new', 'Tâche', 'Low', 1, 'RGPD'],
 ] as const
 const fullTicket = (key: string) => {
   const found = sprintTickets.find(([k]) => k === key) ?? sprintTickets[0]
@@ -88,9 +91,11 @@ const fullTicket = (key: string) => {
     key,
     url: `https://akki.atlassian.net/browse/${key}`,
     title: found[1],
-    kind: 'Story',
+    kind: found[5],
     status: found[2],
-    priority: 'High',
+    category: found[4],
+    priority: found[6],
+    urgency: found[7],
     assignee: found[3] ? person(found[3]) : null,
     reporter: person('Julien Durand'),
     labels: ['dashboard', 'export'],
@@ -357,7 +362,8 @@ const replies = new Map<string, (result: string) => void>()
   })
 const files = new Map<string, string>()
 type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; content: string }
-const shelves = new Map<string, Shelved[]>()
+const shelves = new Map<string, Shelved[]>(JSON.parse(localStorage.getItem('shelves') ?? '[]'))
+const shelve = () => localStorage.setItem('shelves', JSON.stringify([...shelves]))
 const ENTRY = { html: 'index.html', markdown: 'index.md', svg: 'index.svg' }
 const titled = (kind: string, content: string, id: string) =>
   (kind === 'markdown' ? /^# (.+)$/m.exec(content)?.[1] : /<title>([^<]*)<\/title>/i.exec(content)?.[1])?.trim() || id
@@ -604,13 +610,16 @@ mockIPC(
         const list = (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id)
         const old = shelves.get(a.agent)?.find((x) => x.id === a.id)
         shelves.set(a.agent, [...list, { id: a.id, kind: a.kind as Shelved['kind'], entry: ENTRY[a.kind as keyof typeof ENTRY], title: titled(a.kind, a.content, a.id), modified: Date.now(), link: old?.link ?? null, content: a.content }])
+        shelve()
         return `/home/demo/.local/share/squadron/artifacts/${a.agent}/${a.id}/${ENTRY[a.kind as keyof typeof ENTRY]}`
       }
       case 'set_artifact_link':
         for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.link = a.link
+        shelve()
         return null
       case 'delete_artifact':
         shelves.set(a.agent, (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id))
+        shelve()
         return null
       case 'open_artifact_folder':
         return null
@@ -650,9 +659,12 @@ mockIPC(
         projects.find((p) => p.path === a.path)!.cards = (args as { cards: unknown[] }).cards
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
-      case 'plugin:webview|create_webview_window':
+      case 'plugin:webview|create_webview_window': {
+        const made = (args as { options?: { label: string; url: string } }).options
+        if (made && made.label !== 'board') return void window.open(made.url, made.label, 'popup,width=760,height=820')
         popup = window.open('/?board', 'board', 'popup,width=1240,height=820')
         return
+      }
       case 'plugin:window|get_all_windows':
         return popup && !popup.closed ? [label, 'board'] : [label]
       case 'plugin:window|set_focus':
@@ -778,7 +790,11 @@ mockIPC(
       case 'ticket_sprint':
         return new Promise((resolve) =>
           setTimeout(
-            () => resolve({ tickets: sprintTickets.map(([key, title, status, who]) => ({ connection: 'akki', key, title, status, assignee: who ? person(who) : null })), sprints: ['RING Sprint 42'], errors: [] }),
+            () => resolve({
+                tickets: sprintTickets.map(([key, title, status, who, category, kind, priority, urgency, epic]) => ({ connection: 'akki', key, title, status, category, kind, priority, urgency, epic, assignee: who ? person(who) : null, mine: who === 'Quentin Briais' })),
+                sprints: ['RING Sprint 42', 'TMA Sprint 9'],
+                errors: [],
+              }),
             600,
           ),
         )

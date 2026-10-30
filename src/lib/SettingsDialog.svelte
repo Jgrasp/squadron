@@ -18,7 +18,7 @@
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
+  import { hint as keyOf, saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
   import { chime } from './chime'
   import { tokens } from './format'
   import { errorText, LANGUAGES, list, systemLocale, t, type Key } from './i18n/index.svelte'
@@ -98,6 +98,20 @@
   let steps = $state(settings.steps)
   let thinking = $state(settings.thinking)
   let language = $state(settings.language)
+  let width = $state(settings.conversation_width)
+  let sidebar = $state(settings.sidebar)
+  const WIDTHS: [number, Key, Key][] = [
+    [640, 'settings.widthNarrow', 'settings.widthPx'],
+    [740, 'settings.widthNormal', 'settings.widthPx'],
+    [960, 'settings.widthWide', 'settings.widthPx'],
+    [0, 'settings.widthFull', 'settings.widthFullHint'],
+  ]
+  const custom = $derived(!WIDTHS.some(([px]) => px === width))
+  const SIDEBARS: [typeof sidebar, Key, Key][] = [
+    ['pinned', 'settings.sidebarPinned', 'settings.sidebarPinnedHint'],
+    ['peek', 'settings.sidebarPeek', 'settings.sidebarPeekHint'],
+    ['rail', 'settings.sidebarRail', 'settings.sidebarRailHint'],
+  ]
   const STEPS: [typeof steps, Key, Key][] = [
     ['grouped', 'settings.stepsGrouped', 'settings.stepsGroupedHint'],
     ['detailed', 'settings.stepsDetailed', 'settings.stepsDetailedHint'],
@@ -158,7 +172,7 @@
   async function save() {
     error = ''
     try {
-      await saveSettings({ ...$state.snapshot(settings), claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language })
+      await saveSettings({ ...$state.snapshot(settings), claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language, conversation_width: width, sidebar })
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -310,7 +324,31 @@
           </button>
         {/each}
       </div>
+      <span class="label">{t('settings.agentsBar')}</span>
+      <div class="effects three" role="group" aria-label={t('settings.agentsBar')}>
+        {#each SIDEBARS as [id, title, detail] (id)}
+          <button aria-pressed={sidebar === id} onclick={() => (sidebar = id)}>
+            <strong>{t(title)}</strong>
+            <span class="hint">{t(detail, { key: keyOf('sidebar') })}</span>
+          </button>
+        {/each}
+      </div>
       <h2>{t('settings.conversation')}</h2>
+      <span class="label">{t('settings.conversationWidth')}</span>
+      <div class="effects four" role="group" aria-label={t('settings.conversationWidth')}>
+        {#each WIDTHS as [px, title, detail] (px)}
+          <button aria-pressed={width === px} onclick={() => (width = px)}>
+            <strong>{t(title)}</strong>
+            <span class="hint">{t(detail, { px })}</span>
+          </button>
+        {/each}
+      </div>
+      <div class="width-custom">
+        <button aria-pressed={custom} onclick={() => custom || (width = 1100)}><strong>{t('settings.widthCustom')}</strong></button>
+        <input type="range" min="520" max="1600" step="20" aria-label={t('settings.widthCustom')} value={width || 1100} oninput={(e) => (width = +e.currentTarget.value)} />
+        <span class="field px"><input type="number" min="520" max="1600" step="20" aria-label={t('settings.widthCustom')} value={width || 1100} onchange={(e) => (width = Math.min(1600, Math.max(520, +e.currentTarget.value || 740)))} />px</span>
+      </div>
+      <p class="intro">{t('settings.conversationWidthHint')}</p>
       <span class="label">{t('settings.agentSteps')}</span>
       <div class="effects" role="group" aria-label={t('settings.agentSteps')}>
         {#each STEPS as [id, title, detail] (id)}
@@ -713,13 +751,52 @@
     grid-template-columns: repeat(3, minmax(0, 1fr));
   }
 
+  .effects.four {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+  }
+
+  .width-custom {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 8px;
+  }
+
+  .width-custom input[type='range'] {
+    flex: 1;
+    accent-color: var(--accent);
+  }
+
+  .width-custom > button {
+    padding: 10px 14px;
+  }
+
+  .width-custom .px {
+    flex: none;
+    width: auto;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text-dim);
+  }
+
+  .width-custom .px input {
+    width: 56px;
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    outline: none;
+  }
+
   .label {
     display: block;
     margin: 16px 0 8px;
     font-weight: 600;
   }
 
-  .effects button {
+  .effects button,
+  .width-custom > button {
     display: flex;
     flex-direction: column;
     align-items: flex-start;
@@ -731,7 +808,8 @@
     text-align: left;
   }
 
-  .effects button[aria-pressed='true'] {
+  .effects button[aria-pressed='true'],
+  .width-custom > button[aria-pressed='true'] {
     background: var(--surface-3);
     box-shadow: inset 0 0 0 2px var(--text);
   }

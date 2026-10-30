@@ -165,6 +165,11 @@ export default {
   markdown: 'Markdown',
   mockup: 'Visual proposal',
   drawing: 'Creating the preview…',
+  goToFile: 'Go to file',
+  showContent: 'Show content',
+  hideContent: 'Hide',
+  openInWindow: 'Open in a window',
+  fileMissing: 'File not found.',
 
   statusWorking: 'Working',
   statusWaiting: 'Waiting',

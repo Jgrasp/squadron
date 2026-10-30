@@ -6,6 +6,7 @@
   import { t } from './i18n/index.svelte'
   import { isImage, preview } from './Attachment.svelte'
   import { isPullLink } from './linked.svelte'
+  import { projectFile } from './filelink'
 
   const grammars = new Map<string, Language | null>()
   let loaded = $state(0)
@@ -34,6 +35,7 @@
     } catch {}
     return path.startsWith('/') && /\/[^/]+\.[a-z0-9]{1,8}$/i.test(path) ? path : ''
   }
+
 
   let theme = ''
 
@@ -72,7 +74,20 @@
         tokens[i - 1].attrSet('data-file', file)
         return
       }
-      for (const c of token.children) if (c.type === 'link_open' && isPullLink(String(c.attrGet('href') ?? ''))) c.attrSet('data-pr-inline', '')
+      const ref = projectFile(href)
+      if (alone && ref) {
+        tokens[i - 1].tag = tokens[i + 1].tag = 'div'
+        tokens[i - 1].hidden = tokens[i + 1].hidden = false
+        tokens[i - 1].attrSet('class', 'file-slot')
+        tokens[i - 1].attrSet('data-project-file', ref)
+        return
+      }
+      for (const c of token.children) {
+        if (c.type !== 'link_open') continue
+        const link = String(c.attrGet('href') ?? '')
+        if (isPullLink(link)) c.attrSet('data-pr-inline', '')
+        else if (projectFile(link)) c.attrSet('data-project-file-inline', projectFile(link))
+      }
     })
   })
 
@@ -113,6 +128,7 @@
   import { mount, tick, unmount, untrack } from 'svelte'
   import PullCard from './PullCard.svelte'
   import TaskRef from './TaskRef.svelte'
+  import FileCard from './FileCard.svelte'
   import TaskDialog from './TaskDialog.svelte'
   import { projects } from './projects.svelte'
   import { codeOf, leading, leads, mentions, taskAt, taskId } from './taskref'
@@ -214,6 +230,30 @@
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-file]') ?? []) {
         slot.querySelector('a')?.setAttribute('hidden', '')
         mounted.push(mount(Attachment, { target: slot, props: { path: slot.dataset.file!, look: 'card', large: true } }))
+      }
+      const files = new Set<string>()
+      for (const slot of box?.querySelectorAll<HTMLElement>('[data-project-file]') ?? []) {
+        slot.querySelector('a')?.setAttribute('hidden', '')
+        files.add(slot.dataset.projectFile!)
+        mounted.push(mount(FileCard, { target: slot, props: { path: slot.dataset.projectFile!, project } }))
+      }
+      const below = new Map<Element, Element>()
+      for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
+        const path = link.dataset.projectFileInline!
+        const code = document.createElement('code')
+        code.textContent = link.textContent
+        link.replaceWith(code)
+        undo.unshift(() => code.replaceWith(link))
+        if (files.has(path)) continue
+        files.add(path)
+        let top: Element = code
+        while (top.parentElement && top.parentElement !== box) top = top.parentElement
+        const slot = document.createElement('div')
+        slot.className = 'file-slot'
+        ;(below.get(top) ?? top).after(slot)
+        below.set(top, slot)
+        added.push(slot)
+        mounted.push(mount(FileCard, { target: slot, props: { path, project } }))
       }
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
         mounted.push(mount(PullCard, { target: slot, props: { url: slot.dataset.pr!, onready: () => slot.classList.add('ready') } }))

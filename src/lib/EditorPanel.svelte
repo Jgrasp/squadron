@@ -5,7 +5,7 @@
   import { ofProject } from './agents.svelte'
   import CodeEditor, { forget, languageOf } from './CodeEditor.svelte'
   import { changedFiles, type Changes } from './diff'
-  import { remember, workspace, type OpenFile } from './editor.svelte'
+  import { openFile, remember, workspace, type OpenFile } from './editor.svelte'
   import FileTree, { type Change } from './FileTree.svelte'
   import Markdown from './Markdown.svelte'
   import { projects } from './projects.svelte'
@@ -67,24 +67,7 @@
     remember(project)
   }
 
-  async function load(file: OpenFile) {
-    try {
-      file.saved = (await invoke<string | null>('read_project_file', { project, path: file.path })) ?? ''
-      file.doc = file.saved
-    } catch (e) {
-      file.error = errorText(e)
-    }
-    file.ready = true
-  }
-
-  async function open(path: string, activate = true) {
-    if (!ws.files.some((f) => f.path === path)) {
-      ws.files.push({ path, saved: '', dirty: false, error: '', base: undefined, ready: false })
-      load(ws.files.at(-1)!)
-    }
-    if (activate) ws.active = path
-    remember(project)
-  }
+  const open = (path: string, activate = true) => openFile(project, path, activate)
 
   async function shut(file: OpenFile) {
     if (file.dirty && !(await ask(t('shell.discardAsk', { path: file.path }), { title: t('shell.unsavedChanges'), kind: 'warning', okLabel: t('shell.discard'), cancelLabel: t('shell.keepEditing') })))

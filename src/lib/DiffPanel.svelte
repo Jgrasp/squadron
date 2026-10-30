@@ -656,7 +656,7 @@
       {#if own && pull.mergeable && !review.length}
         <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
       {/if}
-      {#if !own && !agent}
+      {#if !own}
         <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'request_changes'} onclick={() => ((verdict = 'request_changes'), (finishing = true))}>{t('review.verdictRequestChanges')}</button>
         <button class="btn btn-secondary" disabled={posting} onclick={approveNow}>{posting && verdict === 'approve' ? t('review.posting') : t('review.verdictApprove')}</button>
       {/if}

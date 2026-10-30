@@ -8,6 +8,7 @@
   import type { Proposal } from './diff'
   import { highlight } from './commands'
   import ErrorCard from './ErrorCard.svelte'
+  import Icon from './Icon.svelte'
   import { duration, time, tokens } from './format'
   import { list, t, type Key } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
@@ -65,6 +66,8 @@
     navigator.clipboard.writeText(selected || menu?.text || '')
     menu = null
   }
+
+  const answer = (list: Segment[]) => list.flatMap((s) => (s.type === 'text' ? [s.text] : [])).join('\n\n')
 
   const names = $derived(namesOf(agent))
 
@@ -287,7 +290,7 @@
       {#if group.type === 'spawn'}
         <SubagentsCard {agent} ids={group.calls.map((c) => c.id)} onopen={onsubagent} onpanel={onsubagents} />
       {:else if settings.steps === 'detailed'}
-        <div class="agent">{@render detail(group.segments, i, tail, false)}</div>
+        <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(group.segments))} role="presentation">{@render detail(group.segments, i, tail, false)}</div>
       {:else}
         {@const parts = split(group.segments)}
         {@const live = working && i === lastAgent && g === reply.length - 1}
@@ -303,7 +306,7 @@
           {/if}
         {/each}
         {#if parts.answer.length}
-          <div class="agent">{@render detail(parts.answer, i, tail, false)}</div>
+          <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(parts.answer))} role="presentation">{@render detail(parts.answer, i, tail, false)}</div>
         {/if}
       {/if}
     {/each}
@@ -446,10 +449,11 @@
 {#if menu}
   {@const index = menu.index}
   <div class="menu" role="menu" aria-label={t('conversation.messageActions')} style:left="{menu.x}px" style:top="{menu.y}px">
-    {#if onfork && forkPoint(agent, index)}
-      <button role="menuitem" onclick={() => (onfork(index), (menu = null))}>{t('conversation.forkFromHere')}</button>
+    {#if onfork && agent.entries[index]?.kind === 'user' && forkPoint(agent, index)}
+      <button class="accent" role="menuitem" onclick={() => (onfork(index), (menu = null))}><Icon name="branch" />{t('conversation.forkFromHere')}</button>
+      <hr />
     {/if}
-    <button role="menuitem" onclick={copy}>{t('common.copy')}</button>
+    <button role="menuitem" onclick={copy}><Icon name="copy" />{t('common.copy')}</button>
   </div>
 {/if}
 
@@ -597,10 +601,26 @@
     padding: 0 10px;
     border-radius: 4px;
     text-align: left;
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .menu button:hover {
     background: var(--menu-hover);
+  .menu button :global(.icon) {
+    color: var(--text-dim);
+  }
+  .menu .accent,
+  .menu .accent :global(.icon) {
+    color: var(--accent);
+  }
+  .menu hr {
+    height: 1px;
+    margin: 4px 2px;
+    border: 0;
+    background: var(--border-strong);
+  }
   }
 
   .ticket-context {

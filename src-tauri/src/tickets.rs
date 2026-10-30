@@ -49,7 +49,13 @@ pub struct Summary {
     pub key: String,
     pub title: String,
     pub status: String,
+    pub category: String,
+    pub kind: String,
+    pub priority: String,
+    pub urgency: u8,
+    pub epic: String,
     pub assignee: Option<Person>,
+    pub mine: bool,
 }
 
 #[derive(Serialize)]
@@ -90,7 +96,9 @@ pub struct Ticket {
     pub title: String,
     pub kind: String,
     pub status: String,
+    pub category: String,
     pub priority: String,
+    pub urgency: u8,
     pub assignee: Option<Person>,
     pub reporter: Option<Person>,
     pub labels: Vec<String>,
@@ -325,6 +333,15 @@ async fn sprint_field(secret: &Secret) -> Option<String> {
     })
 }
 
+fn urgency(priority: &Value) -> u8 {
+    match priority["id"].as_str() {
+        Some("1" | "2") => 3,
+        Some("3") => 2,
+        Some("4" | "5") => 1,
+        _ => 0,
+    }
+}
+
 fn jql_key(key: &str) -> bool {
     !key.is_empty() && key.chars().all(|c| c.is_ascii_alphanumeric() || c == '_')
 }
@@ -361,7 +378,18 @@ async fn sprint_of(
 ) -> Result<(Vec<Summary>, Vec<String>), String> {
     let secret = secret(connection)?;
     let field = sprint_field(&secret).await;
-    let mut fields = vec!["summary", "status", "assignee"];
+    let me = request(&secret, Method::GET, "/rest/api/3/myself", &[], None)
+        .await
+        .map(|m| text(&m["accountId"]))
+        .unwrap_or_default();
+    let mut fields = vec![
+        "summary",
+        "status",
+        "assignee",
+        "issuetype",
+        "priority",
+        "parent",
+    ];
     if let Some(field) = &field {
         fields.push(field);
     }
@@ -400,7 +428,13 @@ async fn sprint_of(
                 key: text(&issue["key"]),
                 title: text(&f["summary"]),
                 status: text(&f["status"]["name"]),
+                category: text(&f["status"]["statusCategory"]["key"]),
+                kind: text(&f["issuetype"]["name"]),
+                priority: text(&f["priority"]["name"]),
+                urgency: urgency(&f["priority"]),
+                epic: text(&f["parent"]["fields"]["summary"]),
                 assignee: person(&f["assignee"]),
+                mine: !me.is_empty() && text(&f["assignee"]["accountId"]) == me,
             });
         }
         token = page["nextPageToken"].as_str().map(str::to_string);
@@ -507,7 +541,9 @@ pub async fn ticket(connection: &str, key: &str) -> Result<Ticket, String> {
         title: text(&f["summary"]),
         kind: text(&f["issuetype"]["name"]),
         status: text(&f["status"]["name"]),
+        category: text(&f["status"]["statusCategory"]["key"]),
         priority: text(&f["priority"]["name"]),
+        urgency: urgency(&f["priority"]),
         assignee: person(&f["assignee"]),
         reporter: person(&f["reporter"]),
         labels: f["labels"]
