@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.23.0 · 2026-10-30
+
+### Conversation
+
+- **Live thoughts**: while Claude works, the thoughts of the turn show under the steps in a scrolling window that follows the latest one, each separated by its duration and the actions in between. Scrolling up brings a Follow button, and the window fades at the edges where text goes on. When the turn ends, the thoughts fold back into the steps.
+
 ## 0.22.0 · 2026-10-30
 
 ### Interface

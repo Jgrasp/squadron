@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.23.0 · 2026-10-30
+
+### Conversation
+
+- **Réflexions en direct** : pendant que Claude travaille, les réflexions du tour s’affichent sous les étapes dans une fenêtre défilante qui suit la dernière, séparées par leur durée et les actions faites entre deux. Remonter fait apparaître un bouton Suivre, et la fenêtre s’estompe aux bords quand le texte continue. À la fin du tour, les réflexions se replient dans les étapes.
+
 ## 0.22.0 · 2026-10-30
 
 ### Interface
