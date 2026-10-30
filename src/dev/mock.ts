@@ -884,6 +884,12 @@ mockIPC(
           : `diff --git a/${a.path} b/${a.path}\nindex 3f2a91c..${a.now.slice(0, 7)} 100644\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
       case 'project_files':
         return ['composer.json', 'composer.lock', 'config/', 'config/services.yaml', 'resume.txt', 'src/', 'src/Segmentation/', 'src/Segmentation/ChannelSegmentResolver.php', 'src/Segmentation/SegmentRepository.php', 'tests/', 'tests/ResolverTest.php']
+      case 'project_grep':
+        return [
+          { path: 'src/Segmentation/ChannelSegmentResolver.php', line: 5, text: '    public function resolve(CustomerInterface $customer): array' },
+          { path: 'src/Segmentation/SegmentRepository.php', line: 12, text: '        return $this->resolve($customer, $channel);' },
+          { path: 'tests/ResolverTest.php', line: 3, text: 'final class ResolverTest extends TestCase' },
+        ].filter((h) => h.text.toLowerCase().includes(String(a.query).toLowerCase()))
       case 'list_dir': {
         const tree: Record<string, [string, boolean][]> = {
           '': [['config', true], ['src', true], ['tests', true], ['vendor', true], ['composer.json', false], ['composer.lock', false], ['resume.txt', false]],

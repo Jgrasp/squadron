@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.24.0 · 2026-10-30
+
+### Editor
+
+- **Find in the file**: Ctrl F opens a bubble over the code, top right, with case, whole word and regexp toggles, the match count and a Replace row behind the arrow.
+- **Search**: Ctrl Shift F or the Search button opens a palette. Type part of a name to open a file, add :42 to land on line 42. Tab switches to Text, which searches all the project's files, shows the lines around the selected result and opens the file at that line with the search filled in.
+
 ## 0.23.1 · 2026-10-30
 
 ### Fixes

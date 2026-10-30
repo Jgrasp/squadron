@@ -4,6 +4,7 @@ use std::process::Command;
 
 const EMPTY_TREE: &str = "4b825dc642cb6eb9a060e54bf8d69288fbee4904";
 const WALK_LIMIT: usize = 20_000;
+const GREP_LIMIT: usize = 500;
 const WALK_SKIPPED: [&str; 9] = [
     "node_modules",
     "vendor",
@@ -22,6 +23,13 @@ pub struct Change {
     pub status: String,
     pub add: Option<u32>,
     pub del: Option<u32>,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
+pub struct Hit {
+    pub path: String,
+    pub line: u32,
+    pub text: String,
 }
 
 #[derive(Debug, Serialize)]
@@ -92,6 +100,67 @@ pub fn files(dir: &Path) -> Result<Vec<String>, String> {
         paths.insert(file.to_string());
     }
     Ok(paths.into_iter().collect())
+}
+
+pub fn grep(
+    dir: &Path,
+    query: &str,
+    case: bool,
+    word: bool,
+    regex: bool,
+) -> Result<Vec<Hit>, String> {
+    use std::io::{BufRead, Read};
+    let mut scope = "--untracked";
+    loop {
+        let mut cmd = git(dir);
+        cmd.args(["grep", "-n", "-I", "-z", "--no-color", scope])
+            .arg(if regex { "-E" } else { "-F" });
+        if !case {
+            cmd.arg("-i");
+        }
+        if word {
+            cmd.arg("-w");
+        }
+        let mut child = cmd
+            .args(["-e", query, "--"])
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::piped())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        let mut hits = Vec::new();
+        let out = std::io::BufReader::new(child.stdout.take().ok_or("No output.")?);
+        for raw in out.split(b'\n').map_while(Result::ok) {
+            let raw = String::from_utf8_lossy(&raw);
+            let mut parts = raw.splitn(3, '\0');
+            if let (Some(path), Some(Ok(line)), Some(text)) =
+                (parts.next(), parts.next().map(str::parse), parts.next())
+            {
+                let text = text.chars().take(300).collect();
+                hits.push(Hit {
+                    path: path.into(),
+                    line,
+                    text,
+                });
+            }
+            if hits.len() >= GREP_LIMIT {
+                let _ = child.kill();
+                break;
+            }
+        }
+        let mut err = String::new();
+        if let Some(mut stderr) = child.stderr.take() {
+            let _ = stderr.read_to_string(&mut err);
+        }
+        let status = child.wait().map_err(|e| e.to_string())?;
+        if status.success() || status.code() == Some(1) || hits.len() >= GREP_LIMIT {
+            return Ok(hits);
+        }
+        if scope == "--untracked" && err.contains("not a git repository") {
+            scope = "--no-index";
+            continue;
+        }
+        return Err(err.trim().to_string());
+    }
 }
 
 pub fn is_rev(rev: &str) -> bool {
@@ -369,6 +438,40 @@ mod tests {
         assert_eq!(
             files(&dir).unwrap(),
             [".env", "README.md", "src/", "src/lib/", "src/lib/x.txt"]
+        );
+        let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn grep_finds_lines_in_tracked_and_untracked_files_and_outside_git() {
+        let dir = std::env::temp_dir().join(format!("squadron-grep-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&dir);
+        fs::create_dir_all(dir.join("src")).unwrap();
+        fs::write(dir.join("src/a.ts"), "one\nopenFile(x)\n").unwrap();
+        fs::write(dir.join("b.txt"), "OpenFiles\n").unwrap();
+        let hit = |path: &str, line, text: &str| Hit {
+            path: path.into(),
+            line,
+            text: text.into(),
+        };
+        assert_eq!(
+            grep(&dir, "openfile", false, false, false).unwrap(),
+            [
+                hit("b.txt", 1, "OpenFiles"),
+                hit("src/a.ts", 2, "openFile(x)")
+            ]
+        );
+        run(git(&dir).args(["init", "-q"])).unwrap();
+        fs::write(dir.join(".gitignore"), "b.txt\n").unwrap();
+        assert_eq!(
+            grep(&dir, "open.ile\\(", true, false, true).unwrap(),
+            [hit("src/a.ts", 2, "openFile(x)")]
+        );
+        assert!(grep(&dir, "openFile", true, true, false).unwrap().len() == 1);
+        assert!(
+            grep(&dir, "nothing", true, false, false)
+                .unwrap()
+                .is_empty()
         );
         let _ = fs::remove_dir_all(&dir);
     }

@@ -1,12 +1,26 @@
 <script lang="ts" module>
   import { HighlightStyle, LanguageDescription, syntaxHighlighting } from '@codemirror/language'
   import { languages } from '@codemirror/language-data'
+  import {
+    SearchQuery,
+    closeSearchPanel,
+    findNext,
+    findPrevious,
+    getSearchQuery,
+    openSearchPanel,
+    replaceAll,
+    replaceNext,
+    search,
+    setSearchQuery,
+  } from '@codemirror/search'
   import { Compartment, EditorState, Prec, StateEffect, StateField, type Extension } from '@codemirror/state'
-  import { EditorView, GutterMarker, ViewPlugin, gutter, keymap, type ViewUpdate } from '@codemirror/view'
+  import { EditorView, GutterMarker, ViewPlugin, gutter, keymap, runScopeHandlers, type Panel, type ViewUpdate } from '@codemirror/view'
   import { tags as t } from '@lezer/highlight'
   import { basicSetup } from 'codemirror'
   import { lineMarks } from './diff'
   import { t as say } from './i18n/index.svelte'
+
+  export type Goto = { line: number; query?: { search: string; caseSensitive: boolean; wholeWord: boolean; regexp: boolean } }
 
   type Bridge = { change: (key: string, doc: string) => void; save: (key: string, doc: string) => void; cursor: (line: number, col: number) => void }
 
@@ -43,6 +57,47 @@
       '.cm-searchMatch-selected': { backgroundColor: 'rgba(240, 165, 122, 0.45)' },
       '.cm-foldPlaceholder': { backgroundColor: 'var(--surface-3)', border: 'none', color: 'var(--text-muted)' },
       '.cm-panels': { backgroundColor: 'var(--bg-sidebar)', color: 'var(--text)', borderColor: 'var(--border)' },
+      '.cm-panels.cm-panels-top': { position: 'absolute', top: '8px', right: '18px', left: 'auto', zIndex: '5', border: 'none', background: 'transparent' },
+      '.cm-find': {
+        width: '380px',
+        padding: '6px',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '6px',
+        borderRadius: '7px',
+        border: '1px solid var(--border-strong)',
+        background: 'var(--menu)',
+        boxShadow: '0 10px 30px rgba(0, 0, 0, 0.45)',
+        fontFamily: 'var(--sans)',
+      },
+      '.cm-find-row': { display: 'flex', alignItems: 'center', gap: '4px' },
+      '.cm-find-replace': { display: 'none' },
+      '.cm-find.replacing .cm-find-replace': { display: 'flex' },
+      '.cm-find-field': {
+        flex: '1',
+        minWidth: '0',
+        height: '28px',
+        display: 'flex',
+        alignItems: 'center',
+        gap: '2px',
+        padding: '0 3px 0 8px',
+        border: '1px solid var(--border-strong)',
+        borderRadius: '5px',
+        background: 'var(--bg-app)',
+      },
+      '.cm-find-field:focus-within': { borderColor: 'var(--border-focus)' },
+      '.cm-find-input': { flex: '1', minWidth: '0', border: 'none', outline: 'none', background: 'transparent', color: 'var(--text-strong)', font: '12.5px var(--mono)' },
+      '.cm-find-input::placeholder': { color: 'var(--text-faint)', fontFamily: 'var(--sans)' },
+      '.cm-find-count': { flex: 'none', padding: '0 4px', color: 'var(--text-dim)', fontSize: '11.5px', whiteSpace: 'nowrap' },
+      '.cm-find-count[data-none]': { color: 'var(--err)' },
+      '.cm-find-toggle': { width: '24px', height: '22px', flex: 'none', borderRadius: '4px', color: 'var(--text-dim)', font: '600 11px var(--mono)' },
+      '.cm-find-toggle:hover': { background: 'var(--surface-4)', color: 'var(--text)' },
+      '.cm-find-toggle[aria-pressed=true]': { background: 'color-mix(in srgb, var(--accent) 22%, transparent)', color: 'var(--accent-soft)' },
+      '.cm-find-button': { width: '26px', height: '26px', flex: 'none', borderRadius: '5px', color: 'var(--text-muted)', fontSize: '13px' },
+      '.cm-find-button:hover': { background: 'var(--surface-4)', color: 'var(--text-strong)' },
+      '.cm-find-more': { width: '18px', color: 'var(--text-dim)', fontSize: '10px' },
+      '.cm-find-text': { height: '28px', padding: '0 10px', flex: 'none', borderRadius: '5px', border: '1px solid var(--border-strong)', background: 'var(--surface-2)', color: 'var(--text-2)', fontSize: '12px' },
+      '.cm-find-text:hover': { background: 'var(--surface-4)', color: 'var(--text-strong)' },
       '.cm-panels input, .cm-panels button': { fontFamily: 'var(--sans)' },
       '.cm-tooltip': { backgroundColor: 'var(--menu)', border: '1px solid var(--border-strong)', color: 'var(--text)' },
       '.cm-tooltip-autocomplete > ul > li[aria-selected]': { backgroundColor: 'var(--menu-hover)', color: 'var(--text-strong)' },
@@ -156,12 +211,117 @@
     })
   }
 
+  function make<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]>, ...children: (Node | string)[]) {
+    const node = Object.assign(document.createElement(tag), props)
+    node.append(...children)
+    return node
+  }
+
+  function findPanel(view: EditorView): Panel {
+    let query = getSearchQuery(view.state)
+    const input = make('input', { className: 'cm-find-input', placeholder: say('shell.cmFind'), value: query.search, spellcheck: false })
+    input.setAttribute('main-field', 'true')
+    const swap = make('input', { className: 'cm-find-input', placeholder: say('shell.cmReplace'), value: query.replace, spellcheck: false })
+    const count = make('span', { className: 'cm-find-count' })
+    const toggle = (text: string, title: string) => {
+      const button = make('button', { type: 'button', className: 'cm-find-toggle', textContent: text, title, onclick: () => (button.ariaPressed = String(button.ariaPressed !== 'true'), commit()) })
+      return button
+    }
+    const sensitive = toggle('Aa', say('shell.cmMatchCase'))
+    const whole = toggle('ab', say('shell.cmByWord'))
+    const regexp = toggle('.*', say('shell.cmRegexp'))
+    const button = (text: string, title: string, run: () => unknown, className = 'cm-find-button') => make('button', { type: 'button', className, textContent: text, title, onclick: run })
+    const more = button('▸', say('shell.findToggleReplace'), () => {
+      const open = dom.classList.toggle('replacing')
+      more.textContent = open ? '▾' : '▸'
+      if (open) swap.focus()
+    }, 'cm-find-button cm-find-more')
+    const dom = make(
+      'div',
+      { className: 'cm-find' },
+      make('div', { className: 'cm-find-row' }, more, make('div', { className: 'cm-find-field' }, input, count, sensitive, whole, regexp), button('↑', say('shell.cmPrevious'), () => findPrevious(view)), button('↓', say('shell.cmNext'), () => findNext(view)), button('×', say('shell.cmClose'), () => closeSearchPanel(view))),
+      make('div', { className: 'cm-find-row cm-find-replace' }, make('span', { className: 'cm-find-more' }), make('div', { className: 'cm-find-field' }, swap), button(say('shell.findReplaceOne'), '', () => replaceNext(view), 'cm-find-text'), button(say('shell.findReplaceAll'), '', () => replaceAll(view), 'cm-find-text')),
+    )
+
+    function show() {
+      input.value = query.search
+      swap.value = query.replace
+      sensitive.ariaPressed = String(query.caseSensitive)
+      whole.ariaPressed = String(query.wholeWord)
+      regexp.ariaPressed = String(query.regexp)
+    }
+
+    function commit() {
+      const next = new SearchQuery({ search: input.value, replace: swap.value, caseSensitive: sensitive.ariaPressed === 'true', wholeWord: whole.ariaPressed === 'true', regexp: regexp.ariaPressed === 'true' })
+      if (next.eq(query)) return
+      query = next
+      view.dispatch({ effects: setSearchQuery.of(next) })
+    }
+
+    function counted() {
+      count.removeAttribute('data-none')
+      if (!query.search || !query.valid) return (count.textContent = '')
+      const { from, to } = view.state.selection.main
+      const cursor = query.getCursor(view.state)
+      let total = 0
+      let at = 0
+      for (let found = cursor.next(); !found.done && total < 1000; found = cursor.next()) {
+        total++
+        if (found.value.from === from && found.value.to === to) at = total
+      }
+      if (!total) count.setAttribute('data-none', '')
+      count.textContent = !total ? say('shell.findNone') : at ? say('shell.findCount', { at: String(at), count: String(total) }) : String(total)
+    }
+
+    input.oninput = swap.oninput = commit
+    dom.onkeydown = (event) => {
+      if (runScopeHandlers(view, event, 'search-panel')) return event.preventDefault()
+      if (event.key !== 'Enter') return
+      event.preventDefault()
+      if (event.target === swap) replaceNext(view)
+      else (event.shiftKey ? findPrevious : findNext)(view)
+    }
+    show()
+
+    return {
+      dom,
+      top: true,
+      mount: counted,
+      update(u) {
+        let changed = false
+        for (const tr of u.transactions)
+          for (const effect of tr.effects)
+            if (effect.is(setSearchQuery)) {
+              changed = true
+              if (!effect.value.eq(query)) (query = effect.value), show()
+            }
+        if (changed || u.docChanged || u.selectionSet) counted()
+      },
+    }
+  }
+
+  function jump(view: EditorView, { line, query }: Goto) {
+    const at = view.state.doc.line(Math.min(Math.max(line, 1), view.state.doc.lines))
+    view.dispatch({ selection: { anchor: at.from } })
+    let range = { from: at.from, to: at.from }
+    const effects: StateEffect<unknown>[] = [EditorView.scrollIntoView(at.from, { y: 'center' })]
+    if (query) {
+      const next = new SearchQuery(query)
+      const found = next.valid ? next.getCursor(view.state, at.from, at.to).next() : null
+      if (found && !found.done) range = found.value
+      openSearchPanel(view)
+      effects.push(setSearchQuery.of(next))
+    }
+    view.dispatch({ selection: { anchor: range.from, head: range.to }, effects })
+  }
+
   function create(key: string, text: string, base: string | null | undefined) {
     return EditorState.create({
       doc: text,
       extensions: [
         Prec.highest(keymap.of([{ key: 'Mod-s', run: (view) => (bridge?.save(key, view.state.doc.toString()), true) }])),
         syntaxHighlighting(style),
+        search({ top: true, createPanel: findPanel }),
         basicSetup,
         theme,
         language.of([]),
@@ -191,6 +351,8 @@
     onchange,
     onsave,
     oncursor,
+    goto = null,
+    ongoto = () => {},
   }: {
     key: string
     name: string
@@ -199,6 +361,8 @@
     onchange: (key: string, doc: string) => void
     onsave: (key: string, doc: string) => void
     oncursor: (line: number, col: number) => void
+    goto?: Goto | null
+    ongoto?: () => void
   } = $props()
 
   let host: HTMLDivElement
@@ -240,6 +404,16 @@
           if (shown === next) view?.dispatch({ effects: language.reconfigure(support) })
         })
       view.focus()
+    })
+  })
+
+  $effect(() => {
+    const target = goto
+    void key
+    if (!target) return
+    untrack(() => {
+      if (view) jump(view, target)
+      ongoto()
     })
   })
 

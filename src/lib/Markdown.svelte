@@ -226,7 +226,9 @@
     const mounted: ReturnType<typeof mount>[] = []
     const added: Element[] = []
     const undo: (() => void)[] = []
+    let gone = false
     tick().then(() => {
+      if (gone) return
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-file]') ?? []) {
         slot.querySelector('a')?.setAttribute('hidden', '')
         const path = within(slot.dataset.file!, project)
@@ -361,6 +363,7 @@
       }
     })
     return () => {
+      gone = true
       mounted.forEach((m) => unmount(m))
       added.forEach((el) => el.remove())
       undo.forEach((f) => f())

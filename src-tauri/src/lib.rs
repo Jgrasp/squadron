@@ -789,6 +789,19 @@ async fn project_files(dir: PathBuf) -> Result<Vec<String>, String> {
 }
 
 #[tauri::command]
+async fn project_grep(
+    project: PathBuf,
+    query: String,
+    case: bool,
+    word: bool,
+    regex: bool,
+) -> Result<Vec<git::Hit>, String> {
+    tauri::async_runtime::spawn_blocking(move || git::grep(&project, &query, case, word, regex))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn git_file(project: PathBuf, rev: String, path: String) -> Result<Option<String>, String> {
     tauri::async_runtime::spawn_blocking(move || git::show(&project, &rev, &path))
         .await
@@ -1784,6 +1797,7 @@ pub fn run() {
             open_artifact_folder,
             list_dir,
             project_files,
+            project_grep,
             git_file,
             term_open,
             shell_run,
