@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte'
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import Attachment from './Attachment.svelte'
   import Avatar from './Avatar.svelte'
@@ -22,6 +23,7 @@
     popout = false,
     onclose,
     onpopout,
+    controls,
   }: {
     project: Project
     agents: Mirror[]
@@ -29,6 +31,7 @@
     popout?: boolean
     onclose?: () => void
     onpopout?: () => void
+    controls?: Snippet
   } = $props()
 
   const LABELS: Record<string, Key> = {
@@ -304,6 +307,7 @@
           {t('board.popOut')}
         </button>
       {/if}
+      {@render controls?.()}
     </div>
   </div>
 

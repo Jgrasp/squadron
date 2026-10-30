@@ -36,7 +36,7 @@ export type Config = {
   review_prompt: string
   ticket_fields_off: string[]
   conversation_width: number
-  sidebar: 'pinned' | 'peek' | 'rail'
+  sidebar: 'pinned' | 'peek'
 }
 
 export const settings = $state<Config>({

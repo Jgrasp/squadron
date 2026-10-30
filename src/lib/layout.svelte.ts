@@ -3,15 +3,16 @@ export const MAX_SIDEBAR = 560
 
 export const MIN_PANEL = 420
 
-export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts'
+import { projects } from './projects.svelte'
+
+export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls'
 
 const read = (key: string) => JSON.parse(localStorage.getItem(key) ?? '{}')
 
 let stored = 304
-let folded = false
 let split = false
 let fileTree = true
-let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680, artifacts: 680 }
+let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680, artifacts: 680, panel: 760 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
 
@@ -26,7 +27,6 @@ try {
   sorts = read('squadron.sorts')
   orders = read('squadron.agent-orders')
   stored = Number(localStorage.getItem('squadron.sidebar')) || 304
-  folded = localStorage.getItem('squadron.collapsed') === '1'
   split = localStorage.getItem('squadron.diff') === 'split'
   fileTree = localStorage.getItem('squadron.diff-tree') !== 'off'
   widths = { ...widths, ...read('squadron.diff-widths'), ...read('squadron.widths') }
@@ -38,7 +38,6 @@ try {
 
 export const layout = $state({
   sidebar: Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, stored)),
-  collapsed: folded,
   split,
   fileTree,
   widths,
@@ -49,6 +48,7 @@ export const layout = $state({
   orders,
   projectsWidth,
   foldedGroups: foldedGroups0,
+  leaving: false,
 })
 
 export function setSort(project: string | null, next: Partial<AgentSort>) {
@@ -89,33 +89,31 @@ export function resizePanel(size: string, width: number, max: number) {
   keep('squadron.widths', JSON.stringify(layout.widths))
 }
 
-export function toggleFull(kind: PanelKind) {
-  layout.full[kind] = !layout.full[kind]
+export function toggleFull() {
+  layout.full.panel = !layout.full.panel
   keep('squadron.full', JSON.stringify(layout.full))
 }
 
-export function setPanel(project: string, kind: PanelKind | null) {
+let leaving = 0
+
+export function closeOverlay(done: () => void) {
+  if (layout.leaving) return
+  layout.leaving = true
+  leaving = window.setTimeout(() => ((layout.leaving = false), done()), 280)
+}
+
+export function setPanel(project: string, kind: PanelKind | null, now = false) {
+  if (!kind && !now && layout.panels[project]) closeOverlay(() => showPanel(project, null))
+  else showPanel(project, kind)
+}
+
+function showPanel(project: string, kind: PanelKind | null) {
+  clearTimeout(leaving)
+  layout.leaving = false
+  if (kind) projects.board = projects.pulls = false
   if (kind) layout.panels[project] = kind
   else delete layout.panels[project]
   keep('squadron.panels', JSON.stringify(layout.panels))
-}
-
-export const FOLDED_SIDEBAR = 68
-const FOLD_BELOW = (FOLDED_SIDEBAR + MIN_SIDEBAR) / 2
-
-export function setCollapsed(collapsed: boolean) {
-  if (layout.collapsed === collapsed) return
-  layout.collapsed = collapsed
-  keep('squadron.collapsed', collapsed ? '1' : '0')
-}
-
-export function toggleSidebar() {
-  setCollapsed(!layout.collapsed)
-}
-
-export function dragSidebar(width: number) {
-  setCollapsed(width < FOLD_BELOW)
-  if (!layout.collapsed) resizeSidebar(width)
 }
 
 export function resizeSidebar(width: number) {

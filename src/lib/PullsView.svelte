@@ -1,4 +1,5 @@
 <script lang="ts">
+  import type { Snippet } from 'svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { ask } from './asking.svelte'
   import { agents, clock, find, reply, send, show } from './agents.svelte'
@@ -12,7 +13,7 @@
   import Trans from './Trans.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
-  let { project, onclose }: { project: Project; onclose: () => void } = $props()
+  let { project, onclose, controls }: { project: Project; onclose?: () => void; controls?: Snippet } = $props()
 
   let refreshing = $state(false)
   let opened = $state<Pull | null>(null)
@@ -124,12 +125,17 @@
 <main>
   <div class="top">
     <div class="heading">
-      <button class="back" aria-label={t('review.backToConversation')} title={t('review.backToConversation')} onclick={onclose}>
-        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
-      </button>
+      {#if onclose}
+        <button class="back" aria-label={t('review.backToConversation')} title={t('review.backToConversation')} onclick={onclose}>
+          <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+        </button>
+      {/if}
       <h1>{t('review.pullRequests')} · <span class="square" aria-hidden="true" style:background={project.color}></span>{project.name}</h1>
     </div>
-    <button class="btn btn-secondary" disabled={refreshing} onclick={refresh}>{refreshing ? t('review.refreshing') : t('review.refresh')}</button>
+    <div class="controls">
+      <button class="btn btn-secondary" disabled={refreshing} onclick={refresh}>{refreshing ? t('review.refreshing') : t('review.refresh')}</button>
+      {@render controls?.()}
+    </div>
   </div>
 
   {#if !opened}{@render flashes()}{/if}
@@ -328,6 +334,12 @@
     justify-content: space-between;
     gap: 16px;
     padding: 24px 32px 16px;
+  }
+
+  .controls {
+    display: flex;
+    align-items: center;
+    gap: 8px;
   }
 
   .heading {
