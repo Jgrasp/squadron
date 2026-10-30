@@ -1,5 +1,34 @@
 # Changelog
 
+## 0.21.0 · 2026-10-30
+
+### Interface
+
+- **Conversation width**: Settings › Preferences sets it to narrow, normal, wide, all the room, or a custom width in pixels.
+- **Agents bar**: always shown, hidden until the mouse reaches the left edge, or a rail of avatars that opens the list on hover. The pin in its header switches between shown and hidden.
+- **⋯ menu next to Send**: change the model, the effort and the permissions in submenus, each with its description.
+
+### Conversation
+
+- **Project files**: a link to a project file in the agent's reply becomes a card: open it in the Editor panel, unfold its content in the conversation, or open it in a window of its own.
+- **Message menu**: right-clicking a Claude reply offers Copy; the menu shows icons.
+
+### Tickets
+
+- **Jira**: a Jira button opens the sprint tickets in their status columns, a tab per Jira project, with quick filters by person, status, type, priority and epic. The ticket panel shows its status, assignee and priority.
+
+### Artifacts
+
+- **Window of its own**: the Artifacts panel opens in a separate window; pointing at an element there quotes it in the agent's message.
+
+### Pull requests
+
+- **Review from the agent**: Approve and Request changes also work from an agent's view.
+
+### Fixes
+
+- **Permissions**: the file and Kanban windows no longer deny an agent's permission requests while open.
+
 ## 0.20.0 · 2026-10-30
 
 ### Claude Code

@@ -1,5 +1,34 @@
 # Nouveautés
 
+## 0.21.0 · 2026-10-30
+
+### Interface
+
+- **Largeur de la conversation** : Réglages › Préférences la règle sur étroite, normale, large, toute la place, ou une largeur personnalisée en pixels.
+- **Barre des agents** : toujours visible, masquée jusqu’à ce que la souris touche le bord gauche, ou en rail d’avatars qui ouvre la liste au survol. L’épingle de son en-tête passe de visible à masquée.
+- **Menu ⋯ à côté d’Envoyer** : changer le modèle, l’effort et les permissions dans des sous-menus, chacun avec sa description.
+
+### Conversation
+
+- **Fichiers du projet** : un lien vers un fichier du projet dans la réponse de l’agent devient une carte : l’ouvrir dans le panneau Éditeur, déplier son contenu dans la conversation, ou l’ouvrir dans une fenêtre à part.
+- **Menu des messages** : un clic droit sur une réponse de Claude propose Copier ; le menu montre des icônes.
+
+### Tickets
+
+- **Jira** : un bouton Jira ouvre les tickets du sprint dans leurs colonnes de statut, un onglet par projet Jira, avec des filtres rapides par personne, statut, type, priorité et epic. Le panneau du ticket montre son statut, son assigné et sa priorité.
+
+### Artifacts
+
+- **Fenêtre à part** : le panneau Artifacts s’ouvre dans une fenêtre séparée ; y pointer un élément le cite dans le message de l’agent.
+
+### Pull requests
+
+- **Relecture depuis l’agent** : Approuver et Demander des changements marchent aussi depuis la vue d’un agent.
+
+### Corrections
+
+- **Permissions** : les fenêtres Fichier et Kanban ne refusent plus les demandes de permission d’un agent tant qu’elles sont ouvertes.
+
 ## 0.20.0 · 2026-10-30
 
 ### Claude Code
