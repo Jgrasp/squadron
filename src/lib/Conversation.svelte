@@ -66,6 +66,8 @@
     menu = null
   }
 
+  const answer = (list: Segment[]) => list.flatMap((s) => (s.type === 'text' ? [s.text] : [])).join('\n\n')
+
   const names = $derived(namesOf(agent))
 
   const kinds: [string[], Key][] = [
@@ -287,7 +289,7 @@
       {#if group.type === 'spawn'}
         <SubagentsCard {agent} ids={group.calls.map((c) => c.id)} onopen={onsubagent} onpanel={onsubagents} />
       {:else if settings.steps === 'detailed'}
-        <div class="agent">{@render detail(group.segments, i, tail, false)}</div>
+        <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(group.segments))} role="presentation">{@render detail(group.segments, i, tail, false)}</div>
       {:else}
         {@const parts = split(group.segments)}
         {@const live = working && i === lastAgent && g === reply.length - 1}
@@ -303,7 +305,7 @@
           {/if}
         {/each}
         {#if parts.answer.length}
-          <div class="agent">{@render detail(parts.answer, i, tail, false)}</div>
+          <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(parts.answer))} role="presentation">{@render detail(parts.answer, i, tail, false)}</div>
         {/if}
       {/if}
     {/each}
@@ -446,7 +448,7 @@
 {#if menu}
   {@const index = menu.index}
   <div class="menu" role="menu" aria-label={t('conversation.messageActions')} style:left="{menu.x}px" style:top="{menu.y}px">
-    {#if onfork && forkPoint(agent, index)}
+    {#if onfork && agent.entries[index]?.kind === 'user' && forkPoint(agent, index)}
       <button role="menuitem" onclick={() => (onfork(index), (menu = null))}>{t('conversation.forkFromHere')}</button>
     {/if}
     <button role="menuitem" onclick={copy}>{t('common.copy')}</button>
