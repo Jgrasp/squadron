@@ -1,5 +1,17 @@
 # Nouveautés
 
+## 0.19.0 · 2026-10-30
+
+### Claude Code
+
+- **/config** : dans la conversation, /config liste les réglages de Claude Code avec leur description, puis les valeurs de celui choisi. Tous les réglages ouvre Réglages › Claude Code.
+- **/mcp** : /mcp liste les serveurs MCP de l’agent avec leur statut. Choisir un serveur qui demande une autorisation l’ouvre dans le navigateur, choisir un serveur en échec le reconnecte.
+- **Réglages › Claude Code** : tous les réglages de Claude Code, à chercher et appliquer, ceux du terminal seul mis à part.
+
+### Windows
+
+- **Windows** : Squadron existe aussi pour Windows, en installeur qui se met à jour seul. Claude Code doit y être installé en natif (claude.exe).
+
 ## 0.18.0 · 2026-10-29
 
 ### Projets
