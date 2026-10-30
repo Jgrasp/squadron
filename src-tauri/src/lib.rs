@@ -9,6 +9,7 @@ pub mod forge;
 pub mod git;
 pub mod permissions;
 pub mod pilot;
+pub mod process;
 pub mod projects;
 pub mod sessions;
 pub mod system;
@@ -563,7 +564,7 @@ fn mcp_request(
 async fn claude_config(settings: State<'_, Settings>, setting: String) -> Result<String, String> {
     let program = settings.claude();
     let output = tauri::async_runtime::spawn_blocking(move || {
-        std::process::Command::new(program)
+        process::command(program)
             .current_dir(std::env::temp_dir())
             .args([
                 "-p",
@@ -622,7 +623,7 @@ async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<St
     let program = settings.claude();
     let task: String = text.chars().take(2000).collect();
     let output = tauri::async_runtime::spawn_blocking(move || {
-        std::process::Command::new(program)
+        process::command(program)
             .current_dir(std::env::temp_dir())
             .args([
                 "-p",
@@ -665,7 +666,7 @@ async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<St
 
 #[tauri::command]
 fn claude_version(path: String) -> Result<String, String> {
-    let output = std::process::Command::new(path.trim())
+    let output = process::command(path.trim())
         .arg("--version")
         .output()
         .map_err(|e| e.to_string())?;
@@ -1077,7 +1078,7 @@ fn subagent_log(session: String, task: String) -> Result<Option<String>, String>
     }
     let root = std::env::var_os("CLAUDE_CONFIG_DIR")
         .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".claude")))
+        .or_else(|| std::env::home_dir().map(|h| h.join(".claude")))
         .ok_or("No Claude Code folder.")?
         .join("projects");
     let file = format!("agent-{task}.jsonl");
@@ -1413,12 +1414,55 @@ async fn read_session(project: PathBuf, id: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
+#[cfg(windows)]
+const RUNNABLE: &[&str] = &[
+    "appref-ms",
+    "bat",
+    "chm",
+    "cmd",
+    "com",
+    "cpl",
+    "exe",
+    "hta",
+    "inf",
+    "jar",
+    "js",
+    "jse",
+    "lnk",
+    "msc",
+    "msi",
+    "msix",
+    "msp",
+    "pif",
+    "ps1",
+    "psm1",
+    "reg",
+    "scf",
+    "scr",
+    "url",
+    "vb",
+    "vbe",
+    "vbs",
+    "ws",
+    "wsc",
+    "wsf",
+    "wsh",
+];
+
 #[tauri::command]
 fn open_attachment(path: PathBuf) -> Result<(), String> {
-    use std::os::unix::fs::PermissionsExt;
     let meta = std::fs::metadata(&path).map_err(|_| "The file is gone.")?;
-    let launcher = path.extension().is_some_and(|e| e == "desktop");
-    if !meta.is_file() || meta.permissions().mode() & 0o111 != 0 || launcher {
+    #[cfg(unix)]
+    let runs = {
+        use std::os::unix::fs::PermissionsExt;
+        meta.permissions().mode() & 0o111 != 0 || path.extension().is_some_and(|e| e == "desktop")
+    };
+    #[cfg(windows)]
+    let runs = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| RUNNABLE.contains(&e.to_ascii_lowercase().as_str()));
+    if !meta.is_file() || runs {
         return Err("Squadron only opens documents and images from here.".into());
     }
     tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())

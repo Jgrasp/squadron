@@ -32,7 +32,7 @@ pub struct Changes {
 }
 
 fn git(dir: &Path) -> Command {
-    let mut cmd = Command::new("git");
+    let mut cmd = crate::process::command("git");
     cmd.current_dir(dir)
         .args(["--literal-pathspecs", "-c", "core.quotepath=false"]);
     cmd

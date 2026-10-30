@@ -150,7 +150,7 @@
         <div class="menu" role="menu" aria-label={t('shell.squadronMenu')}>
           <div class="about">
             <span class="triangle big" aria-hidden="true"></span>
-            <span><strong>Squadron</strong><small>{t('shell.version', { version, platform: navigator.platform.startsWith('Mac') ? 'macOS' : 'Linux' })}</small></span>
+            <span><strong>Squadron</strong><small>{t('shell.version', { version, platform: navigator.platform.startsWith('Mac') ? 'macOS' : navigator.platform.startsWith('Win') ? 'Windows' : 'Linux' })}</small></span>
           </div>
           {#each shown('menu.squadron') as id (id)}
             <button

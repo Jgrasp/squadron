@@ -39,6 +39,9 @@ tauri-plugin-notification = "2"
 gtk = "0.18"
 keyring = { version = "3", features = ["sync-secret-service"] }
 
+[target.'cfg(windows)'.dependencies]
+keyring = { version = "3", features = ["windows-native"] }
+
 [target.'cfg(target_os = "macos")'.dependencies]
 keyring = { version = "3", features = ["apple-native"] }
 sysinfo = { version = "0.37", default-features = false, features = ["system"] }

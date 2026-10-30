@@ -53,11 +53,13 @@ impl Terminals {
             .map_err(|e| e.to_string())?;
         let mut cmd = match shell {
             Some(program) => CommandBuilder::new(program),
+            None if command.is_some() && cfg!(windows) => CommandBuilder::new("cmd"),
             None if command.is_some() => CommandBuilder::new("/bin/sh"),
             None => CommandBuilder::new_default_prog(),
         };
         if let Some(line) = command {
-            cmd.args(["-ic", line]);
+            let windows = shell.is_none() && cfg!(windows);
+            cmd.args([if windows { "/C" } else { "-ic" }, line]);
         }
         cmd.cwd(dir);
         cmd.env("TERM", "xterm-256color");
