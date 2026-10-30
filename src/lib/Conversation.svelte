@@ -210,10 +210,14 @@
 
   const thoughtsOf = (steps: Segment[]) => steps.flatMap((s) => (s.type === 'work' && s.thought ? [s] : []))
 
+  let away = $state(false)
+  let liveBody = $state<HTMLElement>()
+
   function follow(node: HTMLElement) {
     let stuck = true
     const onscroll = () => {
       stuck = node.scrollHeight - node.scrollTop - node.clientHeight < 4
+      away = !stuck
       node.classList.toggle('top', node.scrollTop < 2)
     }
     const stick = () => {
@@ -227,6 +231,7 @@
     return {
       destroy() {
         observer.disconnect()
+        away = false
         node.removeEventListener('scroll', onscroll)
       },
     }
@@ -333,7 +338,7 @@
         {#if thoughts.length}
           <div class="live-thoughts">
             <span class="live-head"><span class="pulse" class:on={thoughts.at(-1)?.ms === undefined} aria-hidden="true"></span>{t('conversation.thoughts', { count: thoughts.length })}</span>
-            <div class="live-body" use:follow>
+            <div class="live-body" bind:this={liveBody} use:follow>
               {#each thoughts as work, w (w)}
                 {#if w}
                   {@const before = thoughts[w - 1]}
@@ -342,6 +347,12 @@
                 <Markdown text={work.thought} streaming={work.ms === undefined} />
               {/each}
             </div>
+            {#if away}
+              <button class="follow" onclick={() => liveBody?.scrollTo({ top: liveBody.scrollHeight, behavior: 'smooth' })}>
+                <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+                {t('conversation.follow')}
+              </button>
+            {/if}
           </div>
         {/if}
         {#if parts.answer.length}
@@ -813,6 +824,7 @@
   }
 
   .live-thoughts {
+    position: relative;
     display: flex;
     flex-direction: column;
     gap: 6px;
@@ -863,6 +875,32 @@
 
   .live-body:global(.top) {
     mask-image: none;
+  }
+
+  .follow {
+    position: absolute;
+    right: 8px;
+    bottom: 8px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 10px;
+    border: 0;
+    border-radius: 12px;
+    background: var(--text);
+    color: var(--ink);
+    font-size: 11.5px;
+    font-weight: 600;
+    cursor: pointer;
+  }
+
+  .follow svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .live-sep {

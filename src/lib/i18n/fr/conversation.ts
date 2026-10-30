@@ -53,6 +53,7 @@ export default {
   thoughtForTitle: 'A réfléchi {duration}',
   thoughtSeconds: 'A réfléchi {count} s',
   thoughts: { one: 'Réflexion', other: '{count} réflexions' },
+  follow: 'Suivre',
 
   fromSession: 'Depuis une autre session',
   fromSquadron: 'De Squadron',
