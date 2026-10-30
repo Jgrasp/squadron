@@ -50,8 +50,6 @@ export default {
   thoughtMoment: 'Thought for a moment',
   thoughtForTitle: 'Thought for {duration}',
   thoughtSeconds: 'Thought for {count} s',
-  thoughts: { one: 'Thinking', other: '{count} thoughts' },
-  follow: 'Follow',
 
   fromSession: 'From another session',
   fromSquadron: 'From Squadron',
