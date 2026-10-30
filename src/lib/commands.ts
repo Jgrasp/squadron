@@ -80,6 +80,11 @@ export function options(command: Command, catalog?: Catalog): Choice[] {
   return choices(command.argumentHint).map((value) => ({ value }))
 }
 
+export type Setting = { key: string; values: string[] }
+
+export const settingsOf = (usage: string): Setting[] =>
+  [...usage.matchAll(/^\s+(\w+)=(.+)$/gm)].map(([, key, values]) => ({ key, values: values.startsWith('<') ? [] : values.split('|') }))
+
 export function find(commands: Command[], name: string) {
   return commands.find((c) => c.name === name || c.aliases?.includes(name))
 }

@@ -15,6 +15,7 @@ export const backend: Partial<Record<Locale, Table>> = {
       'The repository is not a Bitbucket or GitHub address.': 'Ce dépôt n’est pas une adresse Bitbucket ou GitHub.',
       'Bitbucket refused this email and token.': 'Bitbucket a refusé cet e-mail et ce token.',
       'Empty command.': 'Commande vide.',
+      'The agent is not running.': 'L’agent n’est pas lancé.',
       'File outside the project.': 'Ce fichier est en dehors du projet.',
       'File too large to show.': 'Fichier trop volumineux pour être affiché.',
       'Folder outside the project.': 'Ce dossier est en dehors du projet.',

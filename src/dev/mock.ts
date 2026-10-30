@@ -283,6 +283,17 @@ function replay(id: string, text: string) {
 }
 
 const projectOf = new Map<string, string>()
+const configUsage = `Usage: /config key=value
+
+  autoCompact=true|false
+  checkpoints=true|false
+  language=<value>
+  model=default|opus|sonnet|haiku|fable
+  outputStyle=default|Explanatory|Learning|Concise
+  theme=dark|light|dark-daltonized|light-daltonized|dark-ansi|light-ansi
+  verbose=true|false
+  workflowSizeGuideline=small|medium|large|unlimited
+`
 const catalog = {
   type: 'control_response',
   response: {
@@ -296,6 +307,7 @@ const catalog = {
         { name: 'effort', description: 'Set effort level for model usage', argumentHint: '<low|medium|high|xhigh|max|auto|ultracode [on|off]>', builtin: true },
         { name: 'fast', description: 'Toggle fast mode', argumentHint: '[on|off]', builtin: true },
         { name: 'mcp', description: 'Manage MCP servers', argumentHint: '[reconnect|enable|disable [<server>|all]]', builtin: true },
+        { name: 'config', description: 'Change a Claude Code setting', argumentHint: 'key=value', builtin: true },
         { name: 'output-style', description: 'List output styles or switch to one', argumentHint: '[style]', builtin: true },
         { name: 'ponytail:ponytail', description: '(ponytail) Lazy senior dev mode', argumentHint: '[lite|full|ultra]' },
         { name: 'code-review', description: 'Review the current diff', argumentHint: '[target]' },
@@ -490,6 +502,19 @@ mockIPC(
       case 'open_link':
         window.open(a.url, '_blank')
         return
+      case 'claude_config':
+        return new Promise((done) => setTimeout(() => done(a.setting ? `Set ${a.setting.replace('=', ' to ')}` : configUsage), 600))
+      case 'mcp_request': {
+        const { subtype } = (args as { request: { subtype: string } }).request
+        const response =
+          subtype === 'mcp_status'
+            ? { mcpServers: [{ name: 'bitbucket', status: 'connected' }, { name: 'claude.ai Figma', status: 'needs-auth' }, { name: 'codegraph', status: 'failed', error: 'spawn ENOENT' }, { name: 'sentry', status: 'disabled' }] }
+            : subtype === 'mcp_authenticate'
+              ? { authUrl: 'https://claude.ai/oauth/authorize?demo' }
+              : {}
+        setTimeout(() => emit('agent-line', { id: a.id, line: JSON.stringify({ type: 'control_response', response: { subtype: 'success', request_id: a.requestId, response } }) }), 300)
+        return
+      }
       case 'set_workdir':
         return
       case 'git_branch':

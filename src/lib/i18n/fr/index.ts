@@ -1,6 +1,7 @@
 import type { Catalog } from '../index.svelte'
 import agent from './agent'
 import board from './board'
+import claudeKeys from './claudeKeys'
 import common from './common'
 import conversation from './conversation'
 import persona from './persona'
@@ -12,4 +13,4 @@ import shell from './shell'
 import spotlight from './spotlight'
 import tickets from './tickets'
 
-export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets } satisfies Catalog
+export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets, claudeKeys } satisfies Catalog

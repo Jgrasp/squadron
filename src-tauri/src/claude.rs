@@ -262,7 +262,10 @@ impl Session {
 
     /// Changes the permission mode or the model of the running session, or interrupts its turn; the effort has no such request.
     pub fn control(&mut self, request: Value) -> io::Result<()> {
-        let id = format!("squadron-{}", self.pid);
+        self.request(&format!("squadron-{}", self.pid), request)
+    }
+
+    pub fn request(&mut self, id: &str, request: Value) -> io::Result<()> {
         writeln!(
             self.stdin,
             "{}",

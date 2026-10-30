@@ -544,6 +544,54 @@ fn context_usage(agents: State<Agents>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn mcp_request(
+    agents: State<Agents>,
+    id: String,
+    request_id: String,
+    request: serde_json::Value,
+) -> Result<(), String> {
+    if !request["subtype"]
+        .as_str()
+        .is_some_and(|s| s.starts_with("mcp_"))
+    {
+        return Err("Not an MCP request.".into());
+    }
+    agents.request(&id, &request_id, request)
+}
+
+#[tauri::command]
+async fn claude_config(settings: State<'_, Settings>, setting: String) -> Result<String, String> {
+    let program = settings.claude();
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        std::process::Command::new(program)
+            .current_dir(std::env::temp_dir())
+            .args([
+                "-p",
+                "--output-format",
+                "json",
+                "--strict-mcp-config",
+                "--no-session-persistence",
+                format!("/config {setting}").trim(),
+            ])
+            .output()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    let reply: serde_json::Value =
+        serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+    let text = reply["result"]
+        .as_str()
+        .unwrap_or_default()
+        .trim()
+        .to_string();
+    if reply["is_error"].as_bool().unwrap_or(true) {
+        return Err(text);
+    }
+    Ok(text)
+}
+
+#[tauri::command]
 fn agent_definition(project: PathBuf, name: String) -> Option<definitions::Definition> {
     definitions::find(&project, &name)
 }
@@ -1672,6 +1720,8 @@ pub fn run() {
             set_agent_options,
             remote_control,
             context_usage,
+            mcp_request,
+            claude_config,
             cancel_permissions,
             answer_askpass,
             read_project_file,
