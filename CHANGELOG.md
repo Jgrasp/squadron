@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.20.0 · 2026-10-30
+
+### Claude Code
+
+- **/config and /mcp**: in the conversation, /config and /mcp answer as a card: the settings of Claude Code to search and set in a click, and the MCP servers with their status to authorize, reconnect, enable or disable. Other command outputs keep their line breaks.
+
+### Fixes
+
+- **Pull request review**: Approve posts the review right away, no need to open Finish review first.
+
 ## 0.19.1 · 2026-10-30
 
 ### Fixes

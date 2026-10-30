@@ -1,5 +1,15 @@
 # Nouveautés
 
+## 0.20.0 · 2026-10-30
+
+### Claude Code
+
+- **/config et /mcp** : dans la conversation, /config et /mcp répondent en carte : les réglages de Claude Code à chercher et poser en un clic, et les serveurs MCP avec leur statut à autoriser, reconnecter, activer ou désactiver. Les autres sorties de commande gardent leurs retours à la ligne.
+
+### Corrections
+
+- **Revue de pull request** : Approve envoie la revue tout de suite, sans devoir ouvrir Finish review d'abord.
+
 ## 0.19.1 · 2026-10-30
 
 ### Corrections
