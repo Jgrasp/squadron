@@ -124,7 +124,7 @@
   ></div>
   {:else}
     <!-- svelte-ignore a11y_no_static_element_interactions -->
-    <div class="dock" onmouseenter={show} onmouseleave={hide}>
+    <div class="dock" onmouseover={show} onfocusin={show} onmouseleave={hide}>
       {#if settings.sidebar === 'rail'}
         <AgentList {project} current={agent} fold onnew={() => (ui.creating = true)} />
       {:else}
