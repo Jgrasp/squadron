@@ -3,13 +3,14 @@
   import { ask } from './asking.svelte'
   import { untrack } from 'svelte'
   import { ofProject } from './agents.svelte'
-  import CodeEditor, { forget, languageOf } from './CodeEditor.svelte'
+  import CodeEditor, { forget, languageOf, type Goto } from './CodeEditor.svelte'
   import { changedFiles, type Changes } from './diff'
   import { openFile, remember, workspace, type OpenFile } from './editor.svelte'
   import FileTree, { type Change } from './FileTree.svelte'
   import Markdown from './Markdown.svelte'
   import { projects } from './projects.svelte'
   import OpenWith from './OpenWith.svelte'
+  import QuickOpen from './QuickOpen.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative } from './stream'
   import { errorText, list, t } from './i18n/index.svelte'
@@ -25,6 +26,8 @@
   let editor = $state<ReturnType<typeof CodeEditor> | null>(null)
   let cursor = $state({ line: 1, col: 1 })
   let notice = $state('')
+  let quick = $state(false)
+  let pending = $state<{ path: string; goto: Goto } | null>(null)
 
   const touched = $derived.by(() => {
     const map = new Map<string, string[]>()
@@ -68,6 +71,18 @@
   }
 
   const open = (path: string, activate = true) => openFile(project, path, activate)
+
+  function pick(path: string, goto: Goto | null) {
+    quick = false
+    pending = goto && { path, goto }
+    open(path)
+  }
+
+  function keys(event: KeyboardEvent) {
+    if (!event.ctrlKey || !event.shiftKey || event.altKey || event.key.toLowerCase() !== 'f' || document.querySelector('dialog[open]')) return
+    event.preventDefault()
+    quick = !quick
+  }
 
   async function shut(file: OpenFile) {
     if (file.dirty && !(await ask(t('shell.discardAsk', { path: file.path }), { title: t('shell.unsavedChanges'), kind: 'warning', okLabel: t('shell.discard'), cancelLabel: t('shell.keepEditing') })))
@@ -136,11 +151,14 @@
   }
 </script>
 
+<svelte:window onkeydown={keys} />
+
 <SidePanel kind="editor" title={t('shell.editor')} {onclose}>
   {#snippet sub()}
     {changes ? t('shell.filesUncommitted') : t('shell.filesChangedByAgents')}
   {/snippet}
   {#snippet actions()}
+    <button class="btn btn-secondary flip" title="Ctrl Shift F" onclick={() => (quick = true)}>⌕ {t('shell.quickOpen')}</button>
     {#if format}
       <button class="btn btn-secondary flip" aria-pressed={previewing} title={previewing ? undefined : t('shell.previewOf', { name: active!.path.split('/').pop()! })} onclick={flip}>
         {previewing ? t('shell.code') : t('shell.preview')}
@@ -208,6 +226,8 @@
           onchange={change}
           onsave={save}
           oncursor={(line, col) => (cursor = { line, col })}
+          goto={pending?.path === active.path ? pending.goto : null}
+          ongoto={() => (pending = null)}
         />
       {/if}
 
@@ -225,11 +245,16 @@
         </div>
       {/if}
     </div>
+
+    {#if quick}
+      <QuickOpen {project} recent={ws.files.map((f) => f.path)} {status} authors={touched} onpick={pick} onclose={() => (quick = false)} />
+    {/if}
   </div>
 </SidePanel>
 
 <style>
   .body {
+    position: relative;
     flex: 1;
     min-height: 0;
     display: flex;
