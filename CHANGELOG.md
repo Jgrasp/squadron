@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.25.0 · 2026-11-02
+
+### Pull requests
+
+- **Comments in the review**: each comment shows under its file in the file tree, with its line, its author's avatar and name and the avatars of those who replied. A click lands on the line with its thread highlighted. ‹ 2 of 4 › in the review bar, N and Shift N go from one comment to the next across the pull request. Your own comments show under their line instead of an icon on it, and each message of a thread shows its author's avatar.
+- **Review new changes**: when the author pushes after your review, Review new changes sends the new commits to the review agent opened from Pull requests, in its own conversation; See review agent leads to it. A pull request you approved stays approved when new commits come and no longer waits for you. Review agents show their pull request number and the verdict posted in the agent list.
+- **Merge or review**: an agent's pull request shows Merge only when you wrote it, and Approve or Request changes otherwise. A pull request opened from an agent's diff shows its review bar again, even before any comment.
+
+### Agents
+
+- **Advisor**: each agent can run with an advisor, Sonnet, Opus or Fable, that Claude consults at key moments. The New agent window shows the message with the model, effort and advisor under it; Settings unfolds the name, Done when, permissions and agent. The conversation shows each consultation in lilac, then its advice, with its tokens. The agent header and menu change the advisor, and /advisor typed in an agent changes only that agent.
+- **Agent header**: one button shows the model, its effort as bars in the level's color and the advisor; the permission mode is a badge in its Claude Code color. The context is a ring filling green, orange then red, showing the percentage, the tokens or both.
+- **Background tasks**: an agent whose turn ended while a command it started in the background still runs stays working. Its row says what it waits on, the Kanban card shows it, and the conversation shows an In the background card with each task's elapsed time, a View output link and a Stop button.
+
+### Conversation
+
+- **File paths**: a file path written as inline code in a reply, alone or with its :line, opens the file in the editor on click when it exists in the project.
+
 ## 0.24.0 · 2026-10-30
 
 ### Editor
