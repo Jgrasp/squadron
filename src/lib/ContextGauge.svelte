@@ -1,5 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { cubicOut } from 'svelte/easing'
+  import { Tween } from 'svelte/motion'
   import { send } from './agents.svelte'
   import { tokens } from './format'
   import { t } from './i18n/index.svelte'
@@ -17,8 +19,72 @@
   const left = $derived(threshold === null ? null : Math.max(0, threshold - agent.tokens))
   const near = $derived(left !== null && threshold !== null && left < threshold * 0.1)
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
-  const tone = $derived(share < 0.5 ? 'low' : share < 0.8 ? 'mid' : 'high')
-  const level = $derived(agent.tokens ? 18 - 16 * share : 20)
+  type Bite = { id: number; y: number; amount: number }
+
+  let eaten = $state(0)
+  let eating = $state(false)
+  let bites = $state<Bite[]>([])
+  let pending = 0
+  let seen = { id: '', tokens: 0 }
+  let round = 0
+  let bite = 0
+  let closing: ReturnType<typeof setTimeout> | undefined
+  const still = matchMedia('(prefers-reduced-motion: reduce)')
+
+  const fill = $derived(max ? Math.min(1, eaten / max) : 0)
+  const tone = $derived(fill < 0.5 ? 'low' : fill < 0.8 ? 'mid' : 'high')
+  const fat = Tween.of(() => fill, { duration: 350, easing: cubicOut })
+  const belly = $derived({ w: 9 + 10 * fat.current, h: 8.5 + 1.8 * fat.current })
+
+  $effect(() => {
+    const tokens = agent.tokens
+    const add = tokens - seen.tokens
+    const same = seen.id === agent.id
+    seen = { id: agent.id, tokens }
+    if (!same || add <= 0 || still.matches) {
+      round++
+      clearTimeout(closing)
+      bites = []
+      pending = 0
+      eating = false
+      eaten = tokens
+      return
+    }
+    clearTimeout(closing)
+    eating = true
+    pending += add
+    const count = Math.max(1, Math.min(10, Math.round(add / 2000)))
+    const now = round
+    for (let i = 0; i < count; i++)
+      setTimeout(() => {
+        if (now !== round) return
+        if (bites.length >= 10) return swallow(add / count)
+        bites.push({ id: bite++, y: 11 + Math.random() * 3, amount: add / count })
+      }, 300 + i * 150)
+  })
+
+  function swallow(amount: number) {
+    eaten = Math.min(agent.tokens, eaten + amount)
+    pending -= amount
+    if (pending < 1) closing = setTimeout(() => (eating = false), 380)
+  }
+
+  function fly(node: SVGRectElement, b: Bite) {
+    node
+      .animate(
+        [
+          { transform: `translate(32px, ${b.y}px)`, opacity: 0 },
+          { transform: 'translate(26px, 12.9px)', opacity: 1, offset: 0.55 },
+          { transform: 'translate(20px, 12.9px)', opacity: 0 },
+        ],
+        { duration: 640, easing: 'cubic-bezier(.3, 0, .7, 1)', fill: 'forwards' },
+      )
+      .finished.then(() => {
+        bites = bites.filter((x) => x.id !== b.id)
+        swallow(b.amount)
+      })
+      .catch(() => {})
+  }
   const when = $derived(
     left !== null ? t('agent.autoCompactAt', { at: tokens(threshold!), left: tokens(left) }) : max ? t('agent.autoCompactOff') : t('agent.contextLater'),
   )
@@ -38,15 +104,24 @@
 
 <span class="anchor" data-context>
   <button class="gauge {tone}" aria-haspopup="dialog" aria-expanded={open} title={when} onclick={toggle}>
-    <svg class="ring" class:moving={agent.status === 'working'} width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-      <clipPath id="context-{agent.id}"><circle cx="10" cy="10" r="8" /></clipPath>
-      <g clip-path="url(#context-{agent.id})">
-        <path class="back" d="M-10 {level - 0.6}q2.5 1.6 5 0t5 0 5 0 5 0 5 0 5 0V20H-10Z" />
-        <path class="front" d="M-10 {level}q2.5-1.6 5 0t5 0 5 0 5 0 5 0 5 0V20H-10Z" />
+    <svg class="robot" class:eating width="28" height="26" viewBox="0 0 32 30" aria-hidden="true">
+      <line class="line" x1="15" y1="14" x2="15" y2="17.5" />
+      <clipPath id="context-{agent.id}"><rect x={15 - belly.w / 2 + 1.1} y="18.6" width={belly.w - 2.2} height={belly.h - 2.2} rx="0.6" /></clipPath>
+      <rect class="level" clip-path="url(#context-{agent.id})" x={15 - belly.w / 2} y={18.6 + (belly.h - 2.2) * (1 - fat.current)} width={belly.w} height={belly.h} />
+      <rect class="line" x={15 - belly.w / 2} y="17.5" width={belly.w} height={belly.h} rx="1.6" />
+      <g class="head">
+        <line class="line" x1="15" y1="4" x2="15" y2="2.4" />
+        <circle class="antenna" cx="15" cy="1.6" r="1.1" />
+        <path class="line" d="M7 10.6V6.5Q7 4 9.5 4H20.5Q23 4 23 6.5V10.6H7" />
+        <path class="line jaw" d="M7 10.9H23V11.6Q23 14 20.5 14H9.5Q7 14 7 11.6Z" />
+        <circle class="eye" cx="11.6" cy="7.4" r="1.2" />
+        <circle class="eye" cx="18.4" cy="7.4" r="1.2" />
       </g>
-      <circle class="rim" cx="10" cy="10" r="8.75" />
+      {#each bites as b (b.id)}
+        <rect class="bite" x="-1.1" y="-1.1" width="2.2" height="2.2" rx="0.5" opacity="0" use:fly={b} />
+      {/each}
     </svg>
-    <span class="mono">{!max || layout.contextShown === 'tokens' ? tokens(agent.tokens) : layout.contextShown === 'both' ? t('agent.contextBoth', { tokens: tokens(agent.tokens), percent }) : t('agent.contextPercent', { percent })}</span>
+    <span class="mono">{!max || layout.contextShown === 'tokens' ? tokens(Math.round(eaten)) : layout.contextShown === 'both' ? t('agent.contextBoth', { tokens: tokens(Math.round(eaten)), percent: Math.round(fill * 100) }) : t('agent.contextPercent', { percent: Math.round(fill * 100) })}</span>
   </button>
   {#if open}
     <div class="panel" role="dialog" aria-label={t('agent.context')}>
@@ -114,47 +189,58 @@
     background: var(--surface-3);
   }
 
-  .ring {
+  .robot {
     flex: none;
+    overflow: visible;
   }
 
-  .ring .front {
-    fill: var(--level);
-  }
-
-  .ring .back {
-    fill: var(--level);
-    opacity: 0.4;
-  }
-
-  .ring .rim {
+  .robot .line {
     fill: none;
     stroke: var(--level);
-    stroke-opacity: 0.55;
-    stroke-width: 1.5;
+    stroke-opacity: 0.6;
+    stroke-width: 1.2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
-  .moving .front {
-    animation: wave 1.6s linear infinite;
+  .robot .level,
+  .robot .bite {
+    fill: var(--level);
   }
 
-  .moving .back {
-    animation: wave 2.4s linear infinite reverse;
+  .robot .antenna {
+    fill: var(--level);
+    fill-opacity: 0.75;
   }
 
-  @keyframes wave {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(10px);
-    }
+  .robot .eye {
+    fill: var(--text);
+    transform-box: fill-box;
+    transform-origin: center;
   }
 
-  @media (prefers-reduced-motion: reduce) {
-    .moving path {
-      animation: none;
-    }
+  .robot .head,
+  .robot .jaw {
+    transform-box: view-box;
+    transform-origin: 15px 15px;
+  }
+
+  .robot .head,
+  .robot .jaw,
+  .robot .eye {
+    transition: transform 0.4s cubic-bezier(0.3, 1.3, 0.5, 1);
+  }
+
+  .eating .head {
+    transform: rotate(12deg);
+  }
+
+  .eating .jaw {
+    transform: translateY(2.4px);
+  }
+
+  .eating .eye {
+    transform: translateX(1.6px) scaleY(0.45);
   }
 
   .panel {
