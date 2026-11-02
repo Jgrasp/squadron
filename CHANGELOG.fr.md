@@ -1,5 +1,25 @@
 # Nouveautés
 
+## 0.26.0 · 2026-11-02
+
+### Panneaux
+
+- **Placement par panneau** : Terminal, Éditeur, Diff, Sous-agents, Artifacts, Kanban et Pull requests s’ouvrent chacun par-dessus la discussion, en plein écran, ou sous la discussion, qui se réduit alors. Les boutons de l’en-tête du panneau et Réglages › Panneaux le règlent panneau par panneau, avec sa largeur ou sa hauteur.
+- **Transitions** : un panneau qui s’ouvre de la même façon et au moins aussi grand passe par-dessus celui qui est ouvert ; sinon, celui-ci se rabat pendant que le nouveau s’ouvre. Un clic sur un agent dans la liste ferme le panneau ouvert et affiche sa conversation.
+
+### Pull requests
+
+- **Terminer la revue** : sur une pull request que vous relisez, Squadron demande le verdict, Commenter, Approuver ou Demander des changements, et l’envoie sur GitHub ou Bitbucket. Une pull request déjà relue par un agent de revue affiche cet agent ; une pull request qui attend votre revue propose Demander à un agent dans son menu Revue. Les commentaires d’un agent de revue ne tombent que sur des lignes que le diff affiche, et les refus de GitHub disent pourquoi.
+- **Vos commentaires** affichent votre avatar cerclé de cuivre. Un commentaire sur une ligne supprimée au long numéro n’est plus coupé dans l’arbre des fichiers, la barre de revue passe à la ligne quand le panneau est étroit, et sur Bitbucket une approbation qui échoue ne poste plus le résumé deux fois en réessayant.
+
+### Agents
+
+- **Jauge de contexte** : les nouveaux tokens tombent un à un dans l’anneau et le niveau monte à chacun.
+- **Agents épinglés** : ils gardent l’ordre que vous leur avez donné, quel que soit le tri. Pendant un tri, seuls les agents épinglés se déplacent, et les déplacer ne coupe plus le tri.
+- Une carte de tâche dans une conversation propose Aller à l’agent et Voir la tâche.
+- Un agent qui reprend après ses tâches de fond relance le chronomètre du tour et le compte des tokens.
+- Dans les Réglages, Enregistrer reste grisé tant que rien n’a changé.
+
 ## 0.25.0 · 2026-11-02
 
 ### Pull requests

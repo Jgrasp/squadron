@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.26.0 · 2026-11-02
+
+### Panels
+
+- **Placement per panel**: Terminal, Editor, Diff, Subagents, Artifacts, Kanban and Pull requests each open over the conversation, full screen, or under the conversation, which then shrinks. The buttons in the panel’s header and Settings › Panels set it panel by panel, with its own width or height.
+- **Transitions**: a panel opening the same way and at least as big slides over the open one; otherwise the open one folds away while the new one opens. Clicking an agent in the list closes the open panel and shows its conversation.
+
+### Pull requests
+
+- **Finish review**: on a pull request you review, it asks for the verdict, Comment, Approve or Request changes, and submits it on GitHub or Bitbucket. A pull request a review agent already reviewed shows that agent; one waiting for your review offers Ask an agent in its Review menu. A review agent’s comments land only on lines the diff shows, and GitHub refusals say why.
+- **Your comments** show your avatar ringed in copper. A comment on a removed line with a long line number is no longer cut in the file tree, the review bar wraps on a narrow panel, and on Bitbucket a failed approval no longer posts the summary twice on retry.
+
+### Agents
+
+- **Context gauge**: the new tokens fall into the ring one by one and the level rises with each.
+- **Pinned agents** keep the order you gave them whatever the sort. While sorted, only pinned agents can be dragged, and dragging no longer turns the sort off.
+- A task card in a conversation has Go to the agent and View the task.
+- An agent resuming after its background tasks restarts the turn timer and token counts.
+- In Settings, Save stays greyed until something changes.
+
 ## 0.25.0 · 2026-11-02
 
 ### Pull requests
