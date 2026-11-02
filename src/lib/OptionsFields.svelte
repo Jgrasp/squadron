@@ -1,6 +1,6 @@
 <script lang="ts">
   import { models } from './catalogs.svelte'
-  import { families, familyOf, modelName, versionsOf } from './commands'
+  import { advises, advisors, families, familyOf, modelName, versionsOf } from './commands'
   import type { Options } from './stream'
   import { t, type Key } from './i18n/index.svelte'
 
@@ -17,6 +17,11 @@
     ['xhigh', 'settings.effortXhigh'],
     ['max', 'settings.effortMax'],
   ]
+  const advisorChoices = $derived([
+    { value: undefined, label: t('settings.advisorInherited'), off: false },
+    { value: 'none', label: t('settings.advisorNone'), off: false },
+    ...advisors(catalog).map((value) => ({ value, label: value[0].toUpperCase() + value.slice(1), off: !advises(value, options.model, catalog) })),
+  ])
   const modes: { value: Options['mode']; title: Key; hint: Key }[] = [
     { value: 'default', title: 'settings.modeDefault', hint: 'settings.modeDefaultHint' },
     { value: 'acceptEdits', title: 'settings.modeAcceptEdits', hint: 'settings.modeAcceptEditsHint' },
@@ -61,6 +66,23 @@
 </div>
 
 <div class="group">
+  <span id="advisor" class="label">{t('settings.advisor')} <small>{t('settings.advisorHint')}</small></span>
+  <div class="segments small advisor" role="group" aria-labelledby="advisor">
+    {#each advisorChoices as choice (choice.value ?? '')}
+      <button
+        type="button"
+        aria-pressed={options.advisor === choice.value}
+        disabled={choice.off}
+        title={choice.off ? t('settings.advisorBelow', { model: modelName(options.model, catalog) }) : undefined}
+        onclick={() => (options.advisor = choice.value)}
+      >
+        {choice.label}
+      </button>
+    {/each}
+  </div>
+</div>
+
+<div class="group">
   <span id="mode" class="label">{t('settings.permissionMode')}</span>
   <div class="modes" role="group" aria-labelledby="mode">
     {#each modes as mode (mode.value)}
@@ -81,6 +103,19 @@
 
   .label {
     font-weight: 600;
+  }
+
+  .label small {
+    margin-left: 6px;
+    font-weight: 400;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .segments.advisor button[aria-pressed='true'] {
+    background: var(--advisor-bg);
+    box-shadow: inset 0 0 0 1px var(--advisor-line);
+    color: var(--advisor-text);
   }
 
   .pair {

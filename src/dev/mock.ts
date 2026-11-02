@@ -7,7 +7,10 @@ import taskList from '../../src-tauri/tests/fixtures/tasks.jsonl?raw'
 import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
+import backgroundBash from '../../src-tauri/tests/fixtures/background_bash.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
+import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw'
+import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
 import picker from '../../src-tauri/src/artifact-pick.js?raw'
 
 type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; tickets?: unknown[]; defaults?: Record<string, string> }
@@ -264,7 +267,7 @@ function replay(id: string, text: string) {
       .join('\n')
   }
   const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
-  const stream = text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -288,7 +291,8 @@ function replay(id: string, text: string) {
       emit('permission-request', { id: ask, agent: id, tool_name: 'Bash', input: call.input, tool_use_id: call.id })
       return
     }
-    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : 60))
+    if (text.includes('bgshell') && sub.type === 'result' && i < lines.length) return timers.set(id, window.setTimeout(next, 20_000))
+    timers.set(id, window.setTimeout(next, lines[i]?.includes('"type":"advisor_tool_result"') ? 5000 : text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : 60))
   }
   next()
 }
@@ -522,6 +526,14 @@ mockIPC(
         return
       case 'claude_config':
         return new Promise((done) => setTimeout(() => done(a.setting ? `Set ${a.setting.replace('=', ' to ')}` : configUsage), 600))
+      case 'stop_task': {
+        clearTimeout(timers.get(a.id))
+        timers.delete(a.id)
+        const task = (args as { taskId: string }).taskId
+        emit('agent-line', { id: a.id, line: JSON.stringify({ type: 'system', subtype: 'task_updated', task_id: task, patch: { status: 'killed' } }) })
+        emit('agent-line', { id: a.id, line: JSON.stringify({ type: 'system', subtype: 'task_notification', task_id: task, status: 'stopped' }) })
+        return
+      }
       case 'mcp_request': {
         const { subtype, serverName, enabled } = (args as { request: { subtype: string; serverName?: string; enabled?: boolean } }).request
         const toggled = mcpServers.find((s) => s.name === serverName)
@@ -758,7 +770,7 @@ mockIPC(
         })
         return {
           review: [
-            pull(2093, 'Remove the old GfK import and its patches', 'Amandine T.', 'dev/T21', { comments: 2 }),
+            pull(2093, 'Remove the old GfK import and its patches', 'Amandine T.', 'dev/T21', { comments: 2, reviewed: 'changes_requested', reviewed_head: 'e'.repeat(40) }),
             pull(2098, 'Lower the autovacuum thresholds of sale', 'Amandine T.', 'dev/T19', { checks: 'passing' }),
             pull(2071, 'Export segments as CSV', 'Lucas M.', 'dev/T12', { reviewed: 'approved', approvals: 1, reviewed_head: 'e'.repeat(40) }),
           ],
@@ -838,9 +850,11 @@ mockIPC(
         }))
       case 'pull_remarks':
         return [
-          { id: 1, author: 'Amandine T.', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z', kind: 'line' },
-          { id: 2, author: 'Quentin Briais', body: 'The CLI import has none.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: 1, at: '2026-10-23T09:20:00Z' },
-          { id: 3, author: 'Amandine T.', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
+          { id: 1, author: 'Amandine T.', avatar: '', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z', kind: 'line' },
+          { id: 2, author: 'Quentin Briais', avatar: '', body: 'The CLI import has none.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: 1, at: '2026-10-23T09:20:00Z' },
+          { id: 4, author: 'Lucas M.', avatar: '', body: 'The scheduler has none either, keep it nullable.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: 1, at: '2026-10-23T09:42:00Z' },
+          { id: 5, author: 'Lucas M.', avatar: '', body: 'Why not reuse the export channel option?', path: 'src/Export/ExportService.php', line: 16, removed: false, reply_to: null, at: '2026-10-23T10:05:00Z', kind: 'line' },
+          { id: 3, author: 'Amandine T.', avatar: '', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
         ]
       case 'pull_reply':
         return

@@ -2,12 +2,16 @@
   import { t } from './i18n/index.svelte'
   import type { Status } from './stream'
 
-  let { status }: { status: Status } = $props()
+  let { status }: { status: Status | 'background' } = $props()
 </script>
 
 {#if status === 'working'}
   <svg class="spin" width="10" height="10" viewBox="0 0 24 24" role="img" aria-label={t('conversation.statusWorking')}>
     <circle cx="12" cy="12" r="9" fill="none" stroke="var(--ok)" stroke-width="4" stroke-dasharray="40 20" />
+  </svg>
+{:else if status === 'background'}
+  <svg class="slow" width="10" height="10" viewBox="0 0 24 24" role="img" aria-label={t('conversation.statusBackground')}>
+    <circle cx="12" cy="12" r="9" fill="none" stroke="var(--background)" stroke-width="3.5" stroke-dasharray="4 5" />
   </svg>
 {:else if status === 'waiting'}
   <span class="dot" role="img" aria-label={t('conversation.statusWaiting')}></span>
@@ -33,6 +37,10 @@
 
   .spin {
     animation: spin 1.4s linear infinite;
+  }
+
+  .slow {
+    animation: spin 6s linear infinite;
   }
 
   .dot {

@@ -1,5 +1,23 @@
 # Nouveautés
 
+## 0.25.0 · 2026-11-02
+
+### Pull requests
+
+- **Commentaires dans la revue** : chaque commentaire s’affiche sous son fichier dans l’arbre, avec sa ligne, l’avatar et le nom de son auteur et les avatars de ceux qui ont répondu. Un clic amène à la ligne, son fil mis en avant. « ‹ 2 of 4 › » dans la barre de revue, N et Maj N passent d’un commentaire à l’autre dans toute la pull request. Vos commentaires s’affichent sous leur ligne au lieu d’une icône dessus, et chaque message d’un fil montre l’avatar de son auteur.
+- **Revoir les nouveaux changements** : quand l’auteur pousse après votre revue, Review new changes envoie les nouveaux commits à l’agent de revue ouvert depuis Pull requests, dans sa propre conversation ; See review agent y mène. Une pull request approuvée le reste quand de nouveaux commits arrivent et ne vous attend plus. Les agents de revue affichent le numéro de leur pull request et le verdict posté dans la liste des agents.
+- **Fusionner ou relire** : la pull request d’un agent ne propose Merge que si vous l’avez écrite, sinon Approve ou Request changes. Une pull request ouverte depuis le diff d’un agent retrouve sa barre de revue, même avant tout commentaire.
+
+### Agents
+
+- **Conseiller** : chaque agent peut tourner avec un conseiller, Sonnet, Opus ou Fable, que Claude consulte aux moments clés. La fenêtre New agent montre le message avec le modèle, l’effort et le conseiller dessous ; Settings déplie le nom, Done when, les permissions et l’agent. La conversation montre chaque consultation en lilas, puis son avis, avec ses tokens. L’en-tête et le menu de l’agent changent le conseiller, et /advisor tapé dans un agent ne change que cet agent.
+- **En-tête de l’agent** : un seul bouton montre le modèle, son effort en barres de la couleur du niveau et le conseiller ; le mode de permission est un badge à sa couleur Claude Code. Le contexte est un anneau qui se remplit, vert, orange puis rouge, avec le pourcentage, les tokens ou les deux.
+- **Tâches en arrière-plan** : un agent dont le tour s’est terminé pendant qu’une commande lancée en arrière-plan tourne encore reste au travail. Sa ligne dit ce qu’il attend, la carte Kanban le montre, et la conversation affiche une carte In the background avec la durée de chaque tâche, un lien View output et un bouton Stop.
+
+### Conversation
+
+- **Chemins de fichier** : un chemin de fichier écrit en code dans une réponse, seul ou avec son :ligne, ouvre le fichier dans l’éditeur au clic quand il existe dans le projet.
+
 ## 0.24.0 · 2026-10-30
 
 ### Éditeur

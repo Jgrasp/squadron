@@ -16,6 +16,7 @@ const PROMPT: &str = "You run inside Squadron, a desktop app that shows your rep
 
 const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
 const MODES: [&str; 4] = ["default", "acceptEdits", "plan", "auto"];
+pub const NO_ADVISOR: &str = "none";
 
 #[derive(Debug, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
@@ -56,6 +57,8 @@ pub struct Options {
     pub mode: String,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub agent: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub advisor: Option<String>,
 }
 
 impl Options {
@@ -78,6 +81,12 @@ impl Options {
                 || !agent.chars().all(agent_name))
         {
             return Err(format!("Unknown agent: {agent}"));
+        }
+        if let Some(advisor) = &self.advisor
+            && (!advisor.starts_with(|c: char| c.is_ascii_alphanumeric())
+                || !advisor.chars().all(model_id))
+        {
+            return Err(format!("Unknown advisor: {advisor}"));
         }
         Ok(())
     }
@@ -125,6 +134,15 @@ pub fn command(
     }
     if let Some(agent) = &options.agent {
         cmd.args(["--agent", agent]);
+    }
+    match options.advisor.as_deref() {
+        Some(NO_ADVISOR) => {
+            cmd.env("CLAUDE_CODE_DISABLE_ADVISOR_TOOL", "1");
+        }
+        Some(advisor) => {
+            cmd.args(["--advisor", advisor]);
+        }
+        None => {}
     }
     if let Some(id) = resume {
         cmd.args(["--resume", id]);
@@ -447,12 +465,54 @@ mod tests {
     }
 
     #[test]
+    fn passes_the_advisor() {
+        let mut options = Options {
+            model: "sonnet".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+            agent: None,
+            advisor: Some("opus".into()),
+        };
+        let args = |cmd: &Command| -> Vec<String> {
+            cmd.get_args()
+                .map(|a| a.to_string_lossy().into_owned())
+                .collect()
+        };
+        let cmd = command(
+            "claude",
+            Path::new("/tmp"),
+            &options,
+            None,
+            false,
+            None,
+            None,
+        );
+        assert!(args(&cmd).windows(2).any(|w| w == ["--advisor", "opus"]));
+        options.advisor = Some(NO_ADVISOR.into());
+        let cmd = command(
+            "claude",
+            Path::new("/tmp"),
+            &options,
+            None,
+            false,
+            None,
+            None,
+        );
+        assert!(!args(&cmd).iter().any(|a| a == "--advisor"));
+        assert!(
+            cmd.get_envs()
+                .any(|(k, v)| k == "CLAUDE_CODE_DISABLE_ADVISOR_TOOL" && v.is_some())
+        );
+    }
+
+    #[test]
     fn forks_a_session_at_a_message() {
         let options = Options {
             model: "haiku".into(),
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         let at = "2654721f-e7e6-4b3c-a2a7-25979e1d1873";
         let cmd = command(
@@ -488,6 +548,7 @@ mod tests {
             effort: "low".into(),
             mode: "auto".into(),
             agent: None,
+            advisor: None,
         };
         assert!(ok.check().is_ok());
         let flag = Options {
@@ -510,6 +571,16 @@ mod tests {
             ..ok.clone()
         };
         assert!(injected.check().is_err());
+        let advised = Options {
+            advisor: Some("opus".into()),
+            ..ok.clone()
+        };
+        assert!(advised.check().is_ok());
+        let sneaky = Options {
+            advisor: Some("--dangerously-skip-permissions".into()),
+            ..ok.clone()
+        };
+        assert!(sneaky.check().is_err());
         let spaced = Options {
             model: "opus --verbose".into(),
             ..ok
@@ -523,6 +594,7 @@ mod tests {
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
@@ -585,6 +657,7 @@ mod tests {
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
@@ -627,6 +700,7 @@ mod live_options {
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(

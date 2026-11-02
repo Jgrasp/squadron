@@ -125,7 +125,9 @@
 </script>
 
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core'
   import { mount, tick, unmount, untrack } from 'svelte'
+  import { revealFile } from './editor.svelte'
   import PullCard from './PullCard.svelte'
   import TaskRef from './TaskRef.svelte'
   import FileCard from './FileCard.svelte'
@@ -259,6 +261,25 @@
         added.push(slot)
         mounted.push(mount(FileCard, { target: slot, props: { path, project } }))
       }
+      const refs = new Map<HTMLElement, string>()
+      for (const code of box?.querySelectorAll<HTMLElement>('code') ?? []) {
+        if (code.closest('pre, a')) continue
+        const said = code.textContent!.trim().replace(/:\d+(:\d+)?$/, '')
+        const path = projectFile(said) || (said.startsWith('/') ? within(said, project) : '')
+        if (path) refs.set(code, path)
+      }
+      if (refs.size && project)
+        invoke<string[]>('existing_files', { project, paths: [...new Set(refs.values())] })
+          .then((found) => {
+            if (gone) return
+            for (const [code, path] of refs) {
+              if (!found.includes(path)) continue
+              code.dataset.open = path
+              code.title = path
+              undo.unshift(() => (delete code.dataset.open, code.removeAttribute('title')))
+            }
+          })
+          .catch(() => {})
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
         mounted.push(mount(PullCard, { target: slot, props: { url: slot.dataset.pr!, onready: () => slot.classList.add('ready') } }))
       const shown = new Set([...(box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])].map((slot) => slot.dataset.pr))
@@ -382,6 +403,8 @@
       const dialog = mount(TaskDialog, { target: document.body, props: { id: task.dataset.task!, onclose: () => unmount(dialog) } })
       return
     }
+    const file = target.closest<HTMLElement>('[data-open]')
+    if (file) return revealFile(project, file.dataset.open!)
     const shot = target.closest<HTMLElement>('[data-shot]')
     if (shot) return void (shot.classList.contains('gone') || showCapture(shot, shot.dataset.shot!))
     const block = target.closest('.code')
@@ -721,6 +744,17 @@
     border-radius: 3px;
     background: var(--surface-3);
     font-size: 12.5px;
+  }
+
+  .prose :global(code[data-open]) {
+    cursor: pointer;
+    text-decoration: underline dotted var(--text-dim);
+    text-underline-offset: 3px;
+  }
+
+  .prose :global(code[data-open]:hover) {
+    color: var(--accent);
+    text-decoration-color: currentColor;
   }
 
   .prose :global(pre) {

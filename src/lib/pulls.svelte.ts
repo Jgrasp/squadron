@@ -57,6 +57,7 @@ export type Lists = { review: Pull[]; mine: Pull[]; error: string }
 export type Remark = {
   id: number
   author: string
+  avatar: string
   body: string
   path: string | null
   line: number | null
@@ -159,7 +160,7 @@ export function moved(dir: string, pull: Pull) {
   return false
 }
 
-export const waitsFor = (dir: string, pull: Pull) => !pull.reviewed || moved(dir, pull)
+export const waitsFor = (dir: string, pull: Pull) => !pull.reviewed || (pull.reviewed !== 'approved' && moved(dir, pull))
 
 export const needsYou = (project: string) => {
   const found = lists[project]
@@ -262,10 +263,34 @@ export async function reviewWithAgent(project: string, pull: Pull) {
   const id = await create(project, t('review.agentName', { number: String(pull.number) }), defaultsFor(project), prompt, { dir })
   const agent = agents.list.find((a) => a.id === id)
   if (agent) {
-    agent.review = { project, number: pull.number, base: pull.base, title: pull.title }
+    agent.review = { project, number: pull.number, base: pull.base, title: pull.title, head: pull.head }
     persist(agent)
   }
   return id
+}
+
+export const behind = (agent: Agent, pull: Pull) => (agent.review?.head ? !same(agent.review.head, pull.head) : moved(agent.review!.project, pull))
+
+export const reviewerOf = (dir: string, pull: Pull) => agents.list.find((a) => a.review?.project === dir && a.review.number === pull.number)
+
+export async function reviewChanges(agent: Agent, pull: Pull) {
+  const review = agent.review!
+  await invoke('review_checkout', { project: review.project, number: pull.number, branch: pull.branch, base: pull.base })
+  const since = review.head ?? sinceOf(review.project, pull)
+  const shown = since && /^[0-9a-f]{7,40}$/.test(since) ? `git diff ${since}..HEAD shows them` : `git log origin/${pull.base}..HEAD lists them`
+  send(
+    agent.id,
+    [
+      `${pull.author} pushed new commits to pull request #${pull.number} since your review. This folder now holds them: ${shown}.`,
+      'Look only at what changed. Check whether the remarks already posted on the pull request are addressed (read_pull_comments shows them), and raise what is new and wrong with add_review_comment, as before. Do not change any file.',
+    ].join('\n\n'),
+    [],
+    [],
+    '',
+    'End with a short summary of what changed and of what is still to fix.',
+  )
+  agent.review = { ...review, head: pull.head }
+  persist(agent)
 }
 
 export async function fixWithAgent(project: string, pull: Pull, summary: string, list: Comment[]) {

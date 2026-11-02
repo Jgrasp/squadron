@@ -7,7 +7,7 @@ export type Column = 'todo' | 'progress' | 'review' | 'done'
 
 export type Card = { id: string; key: string; title: string; prompt: string; goal?: string; files?: string[]; column: Column; agent: string | null; auto?: Column | null; ticket?: TicketLink }
 
-export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention' | 'goal'> & { detail: string; done: number; total: number; add: number; del: number }
+export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention' | 'goal' | 'held'> & { detail: string; done: number; total: number; add: number; del: number }
 
 export type Actions = {
   cards(path: string, cards: Card[]): void
@@ -32,6 +32,7 @@ export function mirror(a: Agent, detail: string): Mirror {
     status: a.status,
     attention: a.attention,
     goal: a.goal,
+    held: a.held,
     detail,
     done: a.tasks.filter((t) => t.status === 'completed').length,
     total: a.tasks.length,

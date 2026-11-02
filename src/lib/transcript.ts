@@ -1,4 +1,4 @@
-import type { Entry, ToolCall } from './stream'
+import { advised, type Entry, type ToolCall } from './stream'
 
 type Json = Record<string, any>
 
@@ -69,6 +69,8 @@ export function entriesOf(transcript: string): Entry[] {
           if (last?.type === 'tools') last.calls.push(call)
           else reply.blocks.push({ type: 'tools', calls: [call] })
         }
+        else if (part.type === 'server_tool_use' && part.name === 'advisor') reply.blocks.push({ type: 'advisor', id: part.id })
+        else if (part.type === 'advisor_tool_result') advised(reply.blocks, part)
       }
     }
   }

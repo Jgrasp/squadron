@@ -537,6 +537,7 @@ mod tests {
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         let config = mcp_config(port, "token", "agent-7", true);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));

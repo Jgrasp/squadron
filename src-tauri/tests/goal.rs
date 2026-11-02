@@ -75,6 +75,7 @@ impl Agent {
             effort: "low".into(),
             mode: self.mode.clone(),
             agent: None,
+            advisor: None,
         };
         let config = mcp_config(self.port, "token", "agent-1", false);
         let mut cmd = command(

@@ -7,7 +7,7 @@ import { settings } from './settings.svelte'
 import type { Options } from './stream'
 import type { Source } from './tickets.svelte'
 
-export type Defaults = Partial<Pick<Options, 'model' | 'effort' | 'mode'>>
+export type Defaults = Partial<Pick<Options, 'model' | 'effort' | 'mode' | 'advisor'>>
 
 export type Project = {
   name: string
@@ -41,7 +41,8 @@ export const projects = $state({ list: [] as Project[], archived: [] as Project[
 export function defaultsFor(path: string): Options {
   const own = projects.list.find((p) => p.path === path)?.defaults
   const base = settings.defaults
-  return { model: own?.model ?? base.model, effort: own?.effort ?? base.effort, mode: own?.mode ?? base.mode }
+  const advisor = own?.advisor ?? base.advisor
+  return { model: own?.model ?? base.model, effort: own?.effort ?? base.effort, mode: own?.mode ?? base.mode, ...(advisor ? { advisor } : {}) }
 }
 
 export function current(): Project | undefined {

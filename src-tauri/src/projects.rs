@@ -11,11 +11,16 @@ pub struct Defaults {
     pub effort: Option<String>,
     #[serde(default, skip_serializing_if = "Option::is_none")]
     pub mode: Option<String>,
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub advisor: Option<String>,
 }
 
 impl Defaults {
     pub fn is_empty(&self) -> bool {
-        self.model.is_none() && self.effort.is_none() && self.mode.is_none()
+        self.model.is_none()
+            && self.effort.is_none()
+            && self.mode.is_none()
+            && self.advisor.is_none()
     }
 }
 
@@ -533,6 +538,7 @@ mod tests {
                 model: Some("sonnet".into()),
                 effort: None,
                 mode: Some("plan".into()),
+                advisor: None,
             },
         }];
         save(&file, &projects).unwrap();

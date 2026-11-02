@@ -17,12 +17,14 @@
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
   import ValuesCard from './ValuesCard.svelte'
-  import { doing, INTERNAL, type Agent, type Block, type Subagent, type ToolCall } from './stream'
+  import { doing, INTERNAL, type Advice, type Agent, type Block, type Subagent, type ToolCall } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
+  import BackgroundCard from './BackgroundCard.svelte'
   import ToolRow from './ToolRow.svelte'
   import Shots from './Shots.svelte'
   import ShellCard from './ShellCard.svelte'
+  import AdvisorCard from './AdvisorCard.svelte'
 
   let {
     agent,
@@ -95,6 +97,7 @@
   type Segment =
     | { type: 'work'; ms: number | undefined; thinking: boolean; thought: string; calls: ToolCall[] }
     | { type: 'spawn'; calls: ToolCall[] }
+    | { type: 'advisor'; advice: Advice }
     | { type: 'ask' }
     | Extract<Block, { type: 'text' }>
 
@@ -114,6 +117,10 @@
         work.thought = [work.thought, block.text?.trim()].filter(Boolean).join('\n\n')
         continue
       }
+      if (block.type === 'advisor') {
+        out.push({ type: 'advisor', advice: block })
+        continue
+      }
       for (const call of block.calls.filter((c) => !INTERNAL.includes(c.name))) {
         if (ASKING.includes(call.name)) out.push({ type: 'ask' })
         else if (!SPAWN.includes(call.name) || !agent.subagents.some((s) => s.id === call.id)) workOf(out).calls.push(call)
@@ -128,12 +135,12 @@
   }
 
   function groups(blocks: Block[]) {
-    const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' }>)[] = []
+    const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' | 'advisor' }>)[] = []
     let asked = false
     for (const segment of segments(blocks)) {
       const last = out.at(-1)
       if (segment.type === 'ask') asked = true
-      else if (segment.type === 'spawn') out.push(segment)
+      else if (segment.type === 'spawn' || segment.type === 'advisor') out.push(segment)
       else if (last?.type === 'box' && !asked) last.segments.push(segment)
       else out.push({ type: 'box', segments: [segment] })
       if (segment.type !== 'ask') asked = false
@@ -209,7 +216,7 @@
     ms === undefined ? t('conversation.thinking') : ms < 1000 ? t('conversation.thoughtMoment') : t('conversation.thoughtForTitle', { duration: duration(ms) })
 
   const lastAgent = $derived(agent.entries.findLastIndex((e) => e.kind === 'agent'))
-  const working = $derived(agent.status === 'working')
+  const working = $derived(agent.status === 'working' && !agent.held)
 </script>
 
 {#snippet musing(thought: string, ms: number | undefined)}
@@ -289,6 +296,8 @@
     {#each reply as group, g (g)}
       {#if group.type === 'spawn'}
         <SubagentsCard {agent} ids={group.calls.map((c) => c.id)} onopen={onsubagent} onpanel={onsubagents} />
+      {:else if group.type === 'advisor'}
+        <AdvisorCard advice={group.advice} model={agent.options.advisor} />
       {:else if settings.steps === 'detailed'}
         <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(group.segments))} role="presentation">{@render detail(group.segments, i, tail, false)}</div>
       {:else}
@@ -314,6 +323,7 @@
     <span class="turn">
       <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
       {t('conversation.turnDone', { index: entry.index, input: tokens(entry.input), output: tokens(entry.output), duration: duration(entry.ms) })}
+      {#if entry.advised}<span class="advised">· {t('conversation.turnAdvised', { count: entry.advised.calls, input: tokens(entry.advised.input), output: tokens(entry.advised.output) })}</span>{/if}
     </span>
   {:else if entry.kind === 'interrupted'}
     <div class="interrupted">
@@ -433,6 +443,10 @@
       {/each}
     </ul>
   </details>
+{/if}
+
+{#if agent.held && agent.background.length}
+  <BackgroundCard {agent} {onterminal} />
 {/if}
 
 {#if working}
@@ -874,6 +888,10 @@
 
   .turn svg {
     color: var(--done);
+  }
+
+  .advised {
+    color: var(--advisor);
   }
 
   .live svg {

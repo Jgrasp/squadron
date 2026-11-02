@@ -6,7 +6,7 @@
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
-  import { ago, effortLabel, modeLabel, modelLabel, time, tokens } from './format'
+  import { advisorChoices, advisorIdle, advisorLabel, advising, ago, effortLabel, modeLabel, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
   import ContextGauge from './ContextGauge.svelte'
@@ -37,7 +37,7 @@
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUpAgent, needsYou, openReview, progress, pullOf, reviews, stateLabel } from './pulls.svelte'
+  import { lists, lookUpAgent, lookUpLists, needsYou, openReview, progress, pullOf, reviews, stateLabel } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
@@ -127,6 +127,10 @@
   })
 
   const pull = $derived(pullOf(agent))
+  const own = $derived(!!pull && !!lists[agent.project]?.mine.some((p) => p.number === pull.number))
+  $effect(() => {
+    if (pull && panel === 'diff') lookUpLists(agent.project)
+  })
   const project = $derived(projects.list.find((p) => p.path === agent.project))
   const ran = $derived(!!project && runsShown(project).length > 0)
   $effect(() => {
@@ -149,10 +153,10 @@
     const next = tuning && $state.snapshot(tuning)
     if (!next) return
     const now = untrack(() => agent.options)
-    if (next.model !== now.model || next.effort !== now.effort || next.mode !== now.mode) setOptions(agent.id, next)
+    if (next.model !== now.model || next.effort !== now.effort || next.mode !== now.mode || next.advisor !== now.advisor) setOptions(agent.id, next)
   })
 
-  type Sub = 'model' | 'effort' | 'mode'
+  type Sub = 'model' | 'effort' | 'advisor' | 'mode'
   let sub = $state<Sub | null>(null)
   $effect(() => {
     if (!menuOpen) sub = null
@@ -160,6 +164,7 @@
   const SUBMENUS: [Sub, Key][] = [
     ['model', 'settings.model'],
     ['effort', 'settings.effort'],
+    ['advisor', 'settings.advisor'],
     ['mode', 'settings.permissionMode'],
   ]
   const EFFORTS: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
@@ -177,7 +182,18 @@
       const levels = models.find((m) => m.value === agent.options.model)?.supportedEffortLevels
       return EFFORTS.map((value) => ({ value, label: effortLabel(value), off: !!levels && !levels.includes(value) }))
     }
+    if (key === 'advisor') return advisorChoices(agent.options.model)
     return MODES.map(([value, label, detail]) => ({ value, label: t(label), detail: t(detail) }))
+  }
+
+  const optionOf = (key: Sub) => (key === 'advisor' ? (agent.options.advisor ?? '') : agent.options[key])
+  const familyLabel = (model: string) => modelLabel(model).split(' ')[0]
+  const advisorOn = $derived(advising(agent.options))
+  const effortRank = $derived(catalogOf(agent)?.models.find((m) => m.value === agent.options.model)?.supportedEffortLevels?.length === 0 ? -1 : EFFORTS.indexOf(agent.options.effort))
+  const idle = $derived(advisorIdle(agent.options))
+
+  function chooseOption(key: Sub, value: string) {
+    setOptions(agent.id, key === 'advisor' ? { ...agent.options, advisor: value || undefined } : { ...agent.options, [key]: value })
   }
 
   const MENU: Record<string, () => void> = {
@@ -218,8 +234,7 @@
         (id !== 'branch' || branch) &&
         (id !== 'ticket' || ticket) &&
         (id !== 'pull' || pull || agent.review) &&
-        (id !== 'tasks' || agent.tasks.length) &&
-        (id !== 'turns' || agent.turns),
+        (id !== 'tasks' || agent.tasks.length),
     ),
   )
   const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'subagents', 'artifacts']
@@ -372,6 +387,12 @@
     if (command?.name === 'config') {
       const [, key, value] = /^(\w+)=(.+)$/.exec(call.args) ?? []
       if (key) claudeConfig.chosen[key] = value
+    }
+    if (call.name.toLowerCase() === 'advisor' && call.args) {
+      const advisor = ['off', 'none'].includes(call.args) ? 'none' : call.args
+      setOptions(agent.id, { ...agent.options, advisor })
+      note(agent.id, message, advisor === 'none' ? t('agent.advisorOff') : t('agent.advisorSet', { model: modelLabel(advisor) }))
+      return true
     }
     if (command?.name === 'effort' && ['low', 'medium', 'high', 'xhigh', 'max'].includes(call.args)) {
       setOptions(agent.id, { ...agent.options, effort: call.args as Options['effort'] })
@@ -677,14 +698,26 @@
             <span class="info">
               {#if id === 'options'}
                 <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title={t('agent.changeOptions')} onclick={() => (tuning = tuning ? null : { ...agent.options })}>
-                  <span class="model">{modelLabel(agent.options.model)} · {effortLabel(agent.options.effort)}</span>
-                  {modeLabel(agent.options.mode)}
-                  <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                  <span class="model">{modelLabel(agent.options.model)}</span>
+                  {#if effortRank >= 0}
+                    <span class="effort {agent.options.effort}">
+                      <span class="steps" aria-hidden="true">
+                        {#each EFFORTS as step, i (step)}
+                          <i class:on={i <= effortRank} style:opacity={i <= effortRank && effortRank < 4 ? 0.55 + (0.45 * (i + 1)) / (effortRank + 1) : null} style:animation-delay="{(i - 4) * 0.2}s"></i>
+                        {/each}
+                      </span>
+                      <span class="bubble">{t('settings.effort')} · <b>{#each [...effortLabel(agent.options.effort)] as letter, i}<span style:animation-delay="{(i - effortLabel(agent.options.effort).length + 1) * 0.3}s">{letter}</span>{/each}</b></span>
+                    </span>
+                  {/if}
+                  {#if advisorOn}
+                    <span class="advisor" class:idle={idle} title={idle ? t('settings.advisorBelow', { model: modelLabel(agent.options.model) }) : `${t('settings.advisor')} · ${modelLabel(agent.options.advisor!)}`}
+                      ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z" /></svg>{familyLabel(agent.options.advisor!)}</span
+                    >
+                  {/if}
+                  <span class="mode tone-{agent.options.mode}">{modeLabel(agent.options.mode)}</span>
                 </button>
               {:else if id === 'context'}
                 <ContextGauge {agent} />
-              {:else if id === 'turns'}
-                <span class="mono">{t('agent.turns', { count: agent.turns })}</span>
               {:else if id === 'tasks'}
                 <span>{t('agent.tasksDone', { done: agent.tasks.filter((task) => task.status === 'completed').length, total: agent.tasks.length })}</span>
               {/if}
@@ -1068,13 +1101,13 @@
                     <div class="sub">
                       <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={sub === key} class:open={sub === key} onmouseenter={() => (sub = key)} onclick={() => (sub = sub === key ? null : key)}>
                         <strong>{t(name)}</strong>
-                        <span class="value">{key === 'model' ? modelLabel(agent.options.model) : key === 'effort' ? effortLabel(agent.options.effort) : t(MODES.find(([m]) => m === agent.options.mode)?.[1] ?? 'settings.modeDefault')}</span>
+                        <span class="value">{key === 'model' ? modelLabel(agent.options.model) : key === 'effort' ? effortLabel(agent.options.effort) : key === 'advisor' ? advisorLabel(agent.options.advisor) : t(MODES.find(([m]) => m === agent.options.mode)?.[1] ?? 'settings.modeDefault')}</span>
                         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
                       </button>
                       {#if sub === key}
                         <div class="flyout" role="menu" aria-label={t(name)}>
                           {#each choices(key) as choice (choice.value)}
-                            <button type="button" role="menuitemradio" aria-checked={agent.options[key] === choice.value} disabled={choice.off} onclick={() => setOptions(agent.id, { ...agent.options, [key]: choice.value })}>
+                            <button type="button" role="menuitemradio" aria-checked={optionOf(key) === choice.value} disabled={choice.off} onclick={() => chooseOption(key, choice.value)}>
                               <strong>{choice.label}</strong>
                               {#if choice.detail}<span>{choice.detail}</span>{/if}
                             </button>
@@ -1114,6 +1147,7 @@
       {changes}
       {proposal}
       {pull}
+      {own}
       bind:mode={diffSource}
       onreview={sendReview}
       onhand={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}` : quote), composer.focus())}
@@ -1368,7 +1402,7 @@
 
   .title {
     flex: 1;
-    min-width: 0;
+    min-width: min-content;
     display: flex;
     flex-direction: column;
     gap: 1px;
@@ -1384,6 +1418,7 @@
   }
 
   .heading {
+    contain: inline-size;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1400,19 +1435,15 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    row-gap: 4px;
+    gap: 6px 14px;
     min-width: 0;
   }
 
   .info {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 4px;
-  }
-
-  .info:not(:last-of-type)::after {
-    content: '·';
-    margin: 0 6px;
   }
 
   .context {
@@ -1874,41 +1905,214 @@
   .settings {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin: -2px -4px;
-    padding: 2px 4px;
-    border-radius: 3px;
-    color: var(--text-muted);
-    font-size: 12px;
-  }
-
-  .settings .model {
-    white-space: nowrap;
-    padding: 1px 7px;
+    gap: 10px;
+    height: 34px;
+    padding: 0 6px 0 12px;
     border-radius: 4px;
-    background: var(--surface-3);
-    color: var(--text-strong);
-    font-weight: 600;
+    background: var(--menu);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-muted);
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
   }
 
   .settings:hover,
   .settings[aria-expanded='true'] {
-    background: var(--surface-3);
-    color: var(--text-strong);
+    background: var(--surface-5);
   }
 
-  .settings svg {
+  .settings .model {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  .effort {
+    --effort: rgb(130, 170, 220);
+    position: relative;
+    display: inline-flex;
+    padding: 3px;
+    margin: -3px;
+    border-radius: 3px;
+  }
+
+  .effort:hover {
+    background: var(--surface-3);
+  }
+
+  .effort.medium {
+    --effort: rgb(145, 200, 130);
+  }
+
+  .effort.high {
+    --effort: rgb(250, 195, 95);
+  }
+
+  .effort.xhigh {
+    --effort: rgb(245, 139, 87);
+  }
+
+  .steps {
+    display: inline-flex;
+    flex-direction: column-reverse;
+    gap: 1px;
+  }
+
+  .steps i {
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--border-strong);
+  }
+
+  .steps i.on {
+    background: var(--effort);
+  }
+
+  .effort.max .steps {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
+  }
+
+  .effort.max .steps i {
+    animation: rainbow 1.6s linear infinite;
+  }
+
+  .bubble {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    z-index: 31;
+    transform: translateX(-50%);
+    padding: 5px 9px;
+    border-radius: 4px;
+    background: var(--bg-main);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 8px 20px rgba(0, 0, 0, 0.45);
+    color: var(--text);
+    font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+  }
+
+  .effort:hover .bubble {
+    opacity: 1;
+  }
+
+  .bubble b {
+    color: var(--effort);
+    font-weight: 600;
+  }
+
+  .effort.max .bubble b span {
+    animation: rainbow-text 1.6s linear infinite;
+  }
+
+  @keyframes rainbow {
+    0%,
+    100% {
+      background: rgb(235, 95, 87);
+    }
+    14% {
+      background: rgb(245, 139, 87);
+    }
+    29% {
+      background: rgb(250, 195, 95);
+    }
+    43% {
+      background: rgb(145, 200, 130);
+    }
+    57% {
+      background: rgb(130, 170, 220);
+    }
+    71% {
+      background: rgb(155, 130, 200);
+    }
+    86% {
+      background: rgb(200, 130, 180);
+    }
+  }
+
+  @keyframes rainbow-text {
+    0%,
+    100% {
+      color: rgb(235, 95, 87);
+    }
+    14% {
+      color: rgb(245, 139, 87);
+    }
+    29% {
+      color: rgb(250, 195, 95);
+    }
+    43% {
+      color: rgb(145, 200, 130);
+    }
+    57% {
+      color: rgb(130, 170, 220);
+    }
+    71% {
+      color: rgb(155, 130, 200);
+    }
+    86% {
+      color: rgb(200, 130, 180);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .effort.max .steps i,
+    .effort.max .bubble b span {
+      animation: none;
+    }
+  }
+
+  .settings .advisor {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--advisor-text);
+  }
+
+  .settings .advisor.idle {
+    color: var(--text-faint);
+    text-decoration: line-through;
+  }
+
+  .settings .advisor svg {
     fill: none;
     stroke: currentColor;
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-width: 2;
+  }
+
+  .mode {
+    --tone: var(--mode-default);
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--tone) 13%, transparent);
+    color: var(--tone);
+    font-size: 12px;
+    font-weight: 600;
+  }
+
+  .mode.tone-acceptEdits {
+    --tone: var(--mode-accept);
+  }
+
+  .mode.tone-plan {
+    --tone: var(--mode-plan);
+  }
+
+  .mode.tone-auto {
+    --tone: var(--mode-auto);
   }
 
   .tuning {
     position: absolute;
-    top: 26px;
-    left: -4px;
+    top: 42px;
+    left: 0;
     z-index: 30;
     width: 560px;
     max-width: calc(100vw - 40px);

@@ -346,6 +346,7 @@ fn edit_project(
                 effort: defaults.effort.clone().unwrap_or_else(|| "high".into()),
                 mode: defaults.mode.clone().unwrap_or_else(|| "default".into()),
                 agent: None,
+                advisor: defaults.advisor.clone(),
             }
             .check()?;
             project.defaults = defaults;
@@ -420,6 +421,7 @@ impl Default for Config {
                 effort: "high".into(),
                 mode: "default".into(),
                 agent: None,
+                advisor: None,
             },
             tab_effect: "pulse".into(),
             tab_ring: "shake".into(),
@@ -546,6 +548,11 @@ fn remote_control(
 #[tauri::command]
 fn context_usage(agents: State<Agents>, id: String) -> Result<(), String> {
     agents.context_usage(&id)
+}
+
+#[tauri::command]
+fn stop_task(agents: State<Agents>, id: String, task_id: String) -> Result<(), String> {
+    agents.stop_task(&id, &task_id)
 }
 
 #[tauri::command]
@@ -779,6 +786,14 @@ fn list_dir(project: PathBuf, path: PathBuf) -> Result<Vec<Entry>, String> {
             .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
     });
     Ok(entries)
+}
+
+#[tauri::command]
+fn existing_files(project: PathBuf, paths: Vec<String>) -> Vec<String> {
+    paths
+        .into_iter()
+        .filter(|p| projects::inside(&project, Path::new(p)).is_some_and(|f| f.is_file()))
+        .collect()
 }
 
 #[tauri::command]
@@ -1781,6 +1796,7 @@ pub fn run() {
             set_agent_options,
             remote_control,
             context_usage,
+            stop_task,
             mcp_request,
             claude_config,
             cancel_permissions,
@@ -1797,6 +1813,7 @@ pub fn run() {
             open_artifact_folder,
             list_dir,
             project_files,
+            existing_files,
             project_grep,
             git_file,
             term_open,

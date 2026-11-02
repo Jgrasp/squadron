@@ -4,7 +4,8 @@
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, rows, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
-  import ChangedFiles from './ChangedFiles.svelte'
+  import ChangedFiles, { type Note } from './ChangedFiles.svelte'
+  import Avatar from './Avatar.svelte'
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
@@ -252,6 +253,71 @@
       .map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
   )
 
+  type Spot = Omit<Note, 'current'> & { path: string }
+  const draftKey = (c: Comment) => `draft:${c.path}:${c.removed ? 'old' : 'new'}:${c.line}`
+  const spots = $derived.by(() => {
+    if (!reviewing) return []
+    const order = new Map(files.map((f, i) => [f.path, i]))
+    const list: Spot[] = threads
+      .filter((th) => th.root.path && th.root.line !== null && order.has(th.root.path))
+      .map((th) => ({
+        key: `thread:${th.root.id}`,
+        path: th.root.path!,
+        line: th.root.line!,
+        removed: th.root.removed,
+        mine: false,
+        author: { name: th.root.author, avatar: th.root.avatar },
+        others: [...new Map(th.all.filter((r) => r.author !== th.root.author).map((r) => [r.author, { name: r.author, avatar: r.avatar }])).values()],
+        text: th.root.body,
+      }))
+    for (const c of [...review, ...comments.filter(here)])
+      if (c.path && order.has(c.path))
+        list.push({ key: draftKey(c), path: c.path, line: c.line, removed: c.removed, mine: true, author: { name: '', avatar: '' }, others: [], text: c.note })
+    return list.sort((a, b) => order.get(a.path)! - order.get(b.path)! || a.line - b.line || Number(b.mine) - Number(a.mine))
+  })
+  let current = $state('')
+  const place = $derived(spots.findIndex((s) => s.key === current))
+  const lit = $derived(spots[place] ?? null)
+  const litIn = (path: string) => (lit?.path === path ? { side: lit.removed ? ('old' as const) : ('new' as const), number: lit.line } : null)
+  let aim = $state<Spot | null>(null)
+
+  function goToSpot(s: Spot) {
+    current = s.key
+    spot = s.path
+    steered = Date.now()
+    setOpen(s.path, true)
+    loadPatch(s.path)
+    aim = s
+  }
+
+  function step(by: number) {
+    if (!spots.length) return
+    goToSpot(spots[place < 0 ? (by > 0 ? 0 : spots.length - 1) : (place + by + spots.length) % spots.length])
+  }
+
+  $effect(() => {
+    if (!aim) return
+    const patch = patchOf(aim.path)
+    if (!patch || patch === 'loading') return
+    const { path, removed, line } = aim
+    untrack(() => {
+      aim = null
+      tick().then(() => {
+        steered = Date.now()
+        const section = body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`)
+        const row = section?.querySelector<HTMLElement>(`[data-line="${removed ? 'old' : 'new'}:${line}"]`)
+        within(row ?? section, row ? 'near' : 'start')
+      })
+    })
+  })
+
+  function nextKey(e: KeyboardEvent) {
+    if (!reviewing || !spots.length || e.ctrlKey || e.altKey || e.metaKey || e.key.toLowerCase() !== 'n' || !body?.offsetParent) return
+    if ((e.target as HTMLElement | null)?.closest?.('input, textarea, select, [contenteditable="true"]')) return
+    e.preventDefault()
+    step(e.shiftKey ? -1 : 1)
+  }
+
   function open(line: Line) {
     commenting = { ...line, path: selected.path }
     const found = find(selected.path, line)
@@ -350,12 +416,12 @@
     tick().then(() => within(body?.querySelector<HTMLElement>(`[data-file="${CSS.escape(path)}"]`), 'start'))
   }
 
-  function within(el: Element | null | undefined, block: 'start' | 'center') {
+  function within(el: Element | null | undefined, block: 'start' | 'center' | 'near') {
     const box = el?.closest<HTMLElement>('.body')
     if (!el || !box) return
     const r = el.getBoundingClientRect()
     const b = box.getBoundingClientRect()
-    box.scrollTop += r.top - b.top - (block === 'center' ? Math.max(0, (b.height - r.height) / 2) : 0)
+    box.scrollTop += r.top - b.top - (block === 'center' ? Math.max(0, (b.height - r.height) / 2) : block === 'near' ? b.height / 4 : 0)
   }
 
   const notesFor = (path: string) => [...review, ...comments.filter(here)].filter((c) => c.path === path)
@@ -452,7 +518,6 @@
   }
 
   let listing = $state(false)
-  const draftsIn = (path: string) => review.filter((c) => c.path === path).length
   const shownLines = $derived(
     shown ? new Set(rows(shown.hunks).flatMap((r) => (r.kind === 'head' ? [] : r.kind === 'del' ? [`old:${r.old}`] : [`new:${r.new}`]))) : null,
   )
@@ -465,6 +530,8 @@
   function goTo(c: Comment) {
     listing = false
     if (!c.path) return within(document.querySelector('.general'), 'start')
+    const there = spots.find((s) => s.key === draftKey(c))
+    if (there) return goToSpot(there)
     if (reviewing) scrollToFile(c.path)
     else file = c.path
     target = c
@@ -561,6 +628,8 @@
   }
 </script>
 
+<svelte:window onkeydown={nextKey} />
+
 <SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title={t('review.diff')} {onclose}>
   {#snippet sub()}
     {#if reviewing && pull}
@@ -617,7 +686,7 @@
       {/if}
     </div>
   {/if}
-  {#if reviewing && pull && (review.length || !agent)}
+  {#if reviewing && pull}
     <div class="review-bar" class:idle={!review.length}>
       <span class="pulse" aria-hidden="true"></span>
       <span class="what">
@@ -628,6 +697,14 @@
           >
         {:else}<strong>{t('review.yourReview')}</strong> · {t('review.commentThenFinish')}{/if}
       </span>
+      {#if spots.length}
+        <span class="nav" role="group" aria-label={t('review.commentNav')}>
+          <button aria-label={t('review.previousComment')} title={t('review.previousComment')} onclick={() => step(-1)}>‹</button>
+          <span class="place">{place < 0 ? t('review.commentCount', { count: spots.length }) : t('review.commentPlace', { index: place + 1, total: spots.length })}</span>
+          <button aria-label={t('review.nextComment')} title={t('review.nextComment')} onclick={() => step(1)}>›</button>
+          <kbd>N</kbd>
+        </span>
+      {/if}
       {#if postError && !commenting}<span class="bad" role="alert">{problem}</span>{/if}
       {#if reviewer}
         <button class="agent-link" title={t('review.openConversationOf', { name: reviewer.name })} onclick={() => show(reviewer)}>
@@ -754,13 +831,16 @@
         files={files.map((f) => ({
           ...f,
           other: !f.edits && !reviewing && !!agent,
-          talks: reviewing ? talks(f.path) : 0,
-          drafts: reviewing ? draftsIn(f.path) : 0,
+          notes: spots.filter((s) => s.path === f.path).map((s) => ({ ...s, current: s.key === current })),
           viewed: reviewing && viewed(f.path) === 'yes',
         }))}
         viewed={reviewing ? viewedCount : null}
         selected={reviewing ? spot : selected?.path}
         onpick={(path) => (reviewing ? scrollToFile(path) : (file = path))}
+        onnote={(key) => {
+          const there = spots.find((s) => s.key === key)
+          if (there) goToSpot(there)
+        }}
       />
     {/if}
     <div class="body" class:stack={reviewing} bind:this={body} onscroll={spy}>
@@ -853,6 +933,7 @@
                   <p class="empty">{t('review.binaryFile')}</p>
                 {:else if patch.hunks.length}
                   {#snippet lineThreads(line: Line)}
+                    {@render mineAt(f.path, line)}
                     {#each threadsAt(f.path, line) as th (th.root.id)}{@render thread(th, line)}{/each}
                   {/snippet}
                   <DiffView
@@ -864,6 +945,7 @@
                     commentRemoved={!onlyNew}
                     commentRevealed={false}
                     marked={markedFor(f.path)}
+                    lit={litIn(f.path)}
                     open={commenting?.path === f.path ? commenting : null}
                     {editor}
                     below={lineThreads}
@@ -959,18 +1041,44 @@
 </SidePanel>
 
 {#snippet below(line: Line)}
-  {#if reviewing && selected}
-    {#each threadsAt(selected.path, line) as th (th.root.id)}{@render thread(th, line)}{/each}
+  {#if selected}
+    {@render mineAt(selected.path, line)}
+    {#if reviewing}
+      {#each threadsAt(selected.path, line) as th (th.root.id)}{@render thread(th, line)}{/each}
+    {/if}
+  {/if}
+{/snippet}
+
+{#snippet mineAt(path: string, line: Line)}
+  {#if !(commenting?.path === path && commenting.side === line.side && commenting.number === line.number)}
+    {#each notesFor(path).filter(at(path, line)) as c, i (i)}
+      <div class="thread inline-thread mine" class:hit={lit?.key === draftKey(c)}>
+        <div class="remark">
+          <span class="me" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+          <div class="said">
+            <span class="who"><strong>{t('common.you')}</strong> · {review.includes(c) ? t('review.inReviewNotPosted') : t('review.inNextMessageTo', { agent: agent?.name ?? '' })}</span>
+            <Markdown text={c.note} />
+          </div>
+        </div>
+        <div class="thread-actions">
+          <button class="btn btn-secondary" onclick={() => openAt(path, line)}>{t('common.edit')}</button>
+          <button class="btn btn-secondary" onclick={() => drop(c)}>{t('common.delete')}</button>
+        </div>
+      </div>
+    {/each}
   {/if}
 {/snippet}
 
 {#snippet thread(th: Thread, line?: Line)}
-  <div class="thread" class:inline-thread={!!line}>
+  <div class="thread" class:inline-thread={!!line} class:hit={lit?.key === `thread:${th.root.id}`}>
     {#if !line && th.root.path}<span class="where">{t('review.outdated', { path: th.root.path })}</span>{/if}
     {#each th.all as r (r.id)}
       <div class="remark" class:reply={r !== th.root}>
-        <span class="who"><strong>{r.author}</strong> · {when(r.at)}</span>
-        <Markdown text={r.body} />
+        <Avatar name={r.author} src={r.avatar} size={20} />
+        <div class="said">
+          <span class="who"><strong>{r.author}</strong> · {when(r.at)}</span>
+          <Markdown text={r.body} />
+        </div>
       </div>
     {/each}
     {#if replying === th.root.id}
@@ -1126,9 +1234,43 @@
     color: var(--text-dim);
   }
 
+  .remark {
+    display: grid;
+    grid-template-columns: 20px minmax(0, 1fr);
+    gap: 0 8px;
+  }
+
+  .remark :global(.avatar) {
+    margin-top: 1px;
+  }
+
   .remark.reply {
+    margin-left: 28px;
     padding-left: 14px;
     border-left: 2px solid var(--border-strong);
+  }
+
+  .me {
+    width: 20px;
+    height: 20px;
+    margin-top: 1px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .me svg {
+    fill: currentColor;
+  }
+
+  .inline-thread.mine {
+    box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px var(--border-strong);
+  }
+
+  .inline-thread.hit {
+    box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px var(--border-strong), 0 0 0 2px var(--accent-soft);
   }
 
   .who {
@@ -1400,6 +1542,59 @@
   .review-bar .btn {
     height: 30px;
     padding: 0 12px;
+  }
+
+  .nav {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    height: 30px;
+    padding: 0 4px;
+    border-radius: 4px;
+    background: var(--wait-btn);
+    color: var(--wait-btn-text);
+    font-size: 12.5px;
+  }
+
+  .nav button {
+    width: 24px;
+    height: 24px;
+    border-radius: 3px;
+    font-size: 15px;
+  }
+
+  .nav button:hover {
+    background: var(--option-on);
+    color: var(--text-strong);
+  }
+
+  .place {
+    padding: 0 4px;
+    font-variant-numeric: tabular-nums;
+  }
+
+  .nav kbd {
+    margin-left: 4px;
+    padding: 0 5px;
+    border-radius: 3px;
+    background: var(--option);
+    font: 11px var(--mono);
+    color: var(--wait-muted);
+  }
+
+  .review-bar.idle .nav {
+    background: var(--surface-3);
+    color: var(--text-2);
+  }
+
+  .review-bar.idle .nav button:hover {
+    background: var(--surface-5);
+  }
+
+  .review-bar.idle .nav kbd {
+    background: var(--surface-4);
+    color: var(--text-dim);
   }
 
   .pulse {

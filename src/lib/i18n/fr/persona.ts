@@ -3,6 +3,7 @@ import type { Catalog } from '../index.svelte'
 export default {
   field: 'Agent',
   none: 'Aucun · session Claude classique',
+  noneShort: 'Aucun',
   search: 'Rechercher un agent',
   noMatch: 'Aucun agent ne correspond',
   unknown: 'Squadron connaît les agents d’un projet dès qu’une session y a démarré.',

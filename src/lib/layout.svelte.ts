@@ -22,6 +22,8 @@ let sorts: Record<string, AgentSort> = {}
 let projectsWidth = 360
 let foldedGroups0: Record<string, boolean> = {}
 let orders: Record<string, string[]> = {}
+let launchSettings = false
+let contextShown = 'percent'
 try {
   sort = { ...sort, ...read('squadron.sort') }
   sorts = read('squadron.sorts')
@@ -34,6 +36,8 @@ try {
   panels = read('squadron.panels')
   projectsWidth = Number(localStorage.getItem('squadron.projects-width')) || 360
   foldedGroups0 = read('squadron.groups-folded')
+  launchSettings = localStorage.getItem('squadron.launch-settings') === 'open'
+  contextShown = localStorage.getItem('squadron.context-shown') ?? 'percent'
 } catch {}
 
 export const layout = $state({
@@ -48,6 +52,8 @@ export const layout = $state({
   orders,
   projectsWidth,
   foldedGroups: foldedGroups0,
+  launchSettings,
+  contextShown,
   leaving: false,
 })
 
@@ -77,6 +83,16 @@ function keep(key: string, value: string) {
 export function setSplit(on: boolean) {
   layout.split = on
   keep('squadron.diff', on ? 'split' : 'unified')
+}
+
+export function setLaunchSettings(open: boolean) {
+  layout.launchSettings = open
+  keep('squadron.launch-settings', open ? 'open' : 'closed')
+}
+
+export function setContextShown(shown: string) {
+  layout.contextShown = shown
+  keep('squadron.context-shown', shown)
 }
 
 export function setFileTree(on: boolean) {

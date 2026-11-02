@@ -1,5 +1,7 @@
 <script lang="ts" module>
-  export type TreeFile = { path: string; add: number; del: number; other?: boolean; talks?: number; drafts?: number; viewed?: boolean }
+  export type Person = { name: string; avatar: string }
+  export type Note = { key: string; line: number; removed: boolean; mine: boolean; author: Person; others: Person[]; text: string; current: boolean }
+  export type TreeFile = { path: string; add: number; del: number; other?: boolean; notes?: Note[]; viewed?: boolean }
 
   type Node = { name: string; path: string; dirs: Node[]; files: TreeFile[] }
 
@@ -32,6 +34,7 @@
 </script>
 
 <script lang="ts">
+  import Avatar from './Avatar.svelte'
   import { t } from './i18n/index.svelte'
 
   let {
@@ -39,12 +42,20 @@
     selected,
     viewed = null,
     onpick,
-  }: { files: TreeFile[]; selected: string | undefined; viewed?: number | null; onpick: (path: string) => void } = $props()
+    onnote,
+  }: { files: TreeFile[]; selected: string | undefined; viewed?: number | null; onpick: (path: string) => void; onnote?: (key: string) => void } = $props()
 
   let filter = $state('')
   let closed = $state<string[]>([])
 
   const root = $derived(tree(files.filter((f) => f.path.toLowerCase().includes(filter.trim().toLowerCase()))))
+  let list = $state<HTMLElement>()
+  const current = $derived(files.flatMap((f) => f.notes ?? []).find((n) => n.current)?.key)
+
+  $effect(() => {
+    if (current) list?.querySelector('.note[aria-current="true"]')?.scrollIntoView({ block: 'nearest' })
+  })
+
   const toggle = (path: string) => (closed = closed.includes(path) ? closed.filter((p) => p !== path) : [...closed, path])
 </script>
 
@@ -56,7 +67,7 @@
       <span class="bar" aria-hidden="true"><span style:width="{(viewed / Math.max(1, files.length)) * 100}%"></span></span>
     </div>
   {/if}
-  <div class="list">
+  <div class="list" bind:this={list}>
     {@render branch(root, 0)}
   </div>
 </nav>
@@ -76,14 +87,33 @@
       {#if file.viewed}
         <svg class="seen" width="11" height="11" viewBox="0 0 24 24" aria-label={t('review.viewed')}><path d="M5 12.5l4.5 4.5L19 7.5" /></svg>
       {/if}
-      {#if file.drafts}
-        <span class="drafts" title={t('review.draftsInReview', { count: file.drafts })}
-          ><svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>{file.drafts}</span
-        >
-      {/if}
-      {#if file.talks}<span class="talks">{file.talks}</span>{/if}
       <span class="add">+{file.add}</span>{#if file.del}<span class="del">−{file.del}</span>{/if}
     </button>
+    {#if file.notes?.length}
+      <div class="notes" style:--depth={depth}>
+        {#each file.notes as note (note.key)}
+          <button class="note" class:mine={note.mine} aria-current={note.current ? 'true' : undefined} title={note.text} onclick={() => onnote?.(note.key)}>
+            <span class="at">{note.removed ? '−' : ''}{note.line}</span>
+            <span class="by">
+              {#if note.mine}
+                <span class="me" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+                <strong>{t('common.you')}</strong>
+              {:else}
+                <Avatar name={note.author.name} src={note.author.avatar} size={16} />
+                <strong>{note.author.name}</strong>
+                {#if note.others.length}
+                  <span class="others">
+                    {#each note.others.slice(0, 3) as person (person.name)}<Avatar name={person.name} src={person.avatar} size={16} />{/each}
+                    {#if note.others.length > 3}<span class="more">+{note.others.length - 3}</span>{/if}
+                  </span>
+                {/if}
+              {/if}
+            </span>
+            <span class="text">{note.text}</span>
+          </button>
+        {/each}
+      </div>
+    {/if}
   {/each}
 {/snippet}
 
@@ -216,31 +246,117 @@
     color: var(--err);
   }
 
-  .drafts {
-    display: inline-flex;
-    align-items: center;
-    gap: 3px;
-    height: 16px;
-    padding: 0 5px;
-    border-radius: 8px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font: 700 10.5px/16px var(--sans);
+  .notes {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    margin: 2px 0 6px calc(10px + var(--depth) * 14px);
+    padding-left: 4px;
+    border-left: 1px solid var(--border-strong);
   }
 
-  .drafts svg {
+  .note {
+    --row: var(--bg-sidebar);
+    display: grid;
+    grid-template-columns: 18px minmax(0, 1fr);
+    gap: 2px 6px;
+    height: auto;
+    padding: 5px 6px 5px 2px;
+    background: var(--row);
+    font: 12px var(--sans);
+    white-space: nowrap;
+  }
+
+  .note:hover {
+    --row: var(--surface-2);
+    background: var(--row);
+  }
+
+  .note[aria-current='true'] {
+    --row: var(--surface-4);
+    background: var(--row);
+  }
+
+  .note[aria-current='true'] :global(.avatar) {
+    background: var(--surface-5);
+  }
+
+  .at {
+    align-self: center;
+    font: 11.5px var(--mono);
+    color: var(--text-dim);
+    text-align: right;
+  }
+
+  .mine .at {
+    color: var(--accent-soft);
+  }
+
+  .by {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-width: 0;
+  }
+
+  .by strong {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .note[aria-current='true'] strong {
+    color: var(--text-strong);
+  }
+
+  .me {
+    flex: none;
+    width: 16px;
+    height: 16px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .me svg {
     fill: currentColor;
   }
 
-  .talks {
-    min-width: 16px;
-    height: 16px;
-    padding: 0 4px;
-    border-radius: 8px;
-    background: var(--wait-bg);
-    color: var(--accent-soft);
-    font: 600 10.5px/16px var(--sans);
-    text-align: center;
+  .others {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    margin-left: 2px;
+  }
+
+  .others :global(.avatar) {
+    box-shadow: 0 0 0 2px var(--row);
+  }
+
+  .others :global(.avatar + .avatar) {
+    margin-left: -4px;
+  }
+
+  .more {
+    margin-left: 4px;
+    font-size: 11px;
+    color: var(--text-dim);
+  }
+
+  .note .text {
+    grid-column: 2;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--text-muted);
+  }
+
+  .note[aria-current='true'] .text {
+    color: var(--text-2);
   }
 
   @media (prefers-reduced-motion: reduce) {

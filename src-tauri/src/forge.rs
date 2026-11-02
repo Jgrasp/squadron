@@ -101,6 +101,7 @@ pub struct Lists {
 pub struct Remark {
     pub id: u64,
     pub author: String,
+    pub avatar: String,
     pub body: String,
     pub path: Option<String>,
     pub line: Option<u32>,
@@ -820,7 +821,7 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
                     if url.starts_with(BITBUCKET) {
                         &[]
                     } else {
-                        &[("pagelen", "100"), ("fields", "next,values.id,values.content.raw,values.user.display_name,values.inline,values.parent.id,values.created_on,values.deleted")]
+                        &[("pagelen", "100"), ("fields", "next,values.id,values.content.raw,values.user.display_name,values.user.links.avatar.href,values.inline,values.parent.id,values.created_on,values.deleted")]
                     },
                     None,
                 )
@@ -884,6 +885,7 @@ fn bitbucket_remark(found: &Value) -> Option<Remark> {
     Some(Remark {
         id: found["id"].as_u64()?,
         author: text(&found["user"]["display_name"]),
+        avatar: text(&found["user"]["links"]["avatar"]["href"]),
         body: text(&found["content"]["raw"]),
         path: inline["path"].as_str().map(str::to_string),
         line: to.or(from).filter(|_| current).map(|n| n as u32),
@@ -903,6 +905,7 @@ fn github_remark(found: &Value, kind: &str) -> Remark {
     Remark {
         id: found["id"].as_u64().unwrap_or_default(),
         author: text(&found["user"]["login"]),
+        avatar: text(&found["user"]["avatar_url"]),
         body: text(&found["body"]),
         path: found["path"].as_str().map(str::to_string),
         line: found["line"].as_u64().map(|n| n as u32),
@@ -1448,15 +1451,27 @@ mod tests {
 
     #[test]
     fn reads_remarks_on_lines_and_on_the_whole_pull_request() {
-        let on_line = json!({ "id": 7, "content": { "raw": "Rename this" }, "user": { "display_name": "Amandine T." }, "inline": { "path": "src/A.php", "from": null, "to": 12 }, "created_on": "2026-10-23T09:00:00Z" });
+        let on_line = json!({ "id": 7, "content": { "raw": "Rename this" }, "user": { "display_name": "Amandine T.", "links": { "avatar": { "href": "https://a/at.png" } } }, "inline": { "path": "src/A.php", "from": null, "to": 12 }, "created_on": "2026-10-23T09:00:00Z" });
         let removed = json!({ "id": 8, "content": { "raw": "Why?" }, "user": { "display_name": "A" }, "inline": { "path": "src/A.php", "from": 4, "to": null }, "parent": { "id": 7 }, "created_on": "t" });
         let outdated = json!({ "id": 9, "content": { "raw": "Old" }, "user": { "display_name": "A" }, "inline": { "path": "src/A.php", "to": 3, "outdated": true }, "created_on": "t" });
         let general = json!({ "id": 10, "content": { "raw": "LGTM" }, "user": { "display_name": "A" }, "created_on": "t" });
         let gone = json!({ "id": 11, "deleted": true });
         let a = bitbucket_remark(&on_line).unwrap();
         assert_eq!(
-            (a.path.as_deref(), a.line, a.removed, a.author.as_str()),
-            (Some("src/A.php"), Some(12), false, "Amandine T.")
+            (
+                a.path.as_deref(),
+                a.line,
+                a.removed,
+                a.author.as_str(),
+                a.avatar.as_str()
+            ),
+            (
+                Some("src/A.php"),
+                Some(12),
+                false,
+                "Amandine T.",
+                "https://a/at.png"
+            )
         );
         let b = bitbucket_remark(&removed).unwrap();
         assert_eq!((b.line, b.removed, b.reply_to), (Some(4), true, Some(7)));
@@ -1471,7 +1486,7 @@ mod tests {
             ("line", "general")
         );
 
-        let github = json!({ "id": 1, "body": "Nit", "user": { "login": "octo" }, "path": "a.ts", "line": 5, "side": "LEFT", "in_reply_to_id": null, "created_at": "t" });
+        let github = json!({ "id": 1, "body": "Nit", "user": { "login": "octo", "avatar_url": "https://a/octo.png" }, "path": "a.ts", "line": 5, "side": "LEFT", "in_reply_to_id": null, "created_at": "t" });
         let c = github_remark(&github, "pulls");
         assert_eq!(
             (
@@ -1479,9 +1494,17 @@ mod tests {
                 c.line,
                 c.removed,
                 c.author.as_str(),
+                c.avatar.as_str(),
                 c.reply_to
             ),
-            (Some("a.ts"), Some(5), true, "octo", None)
+            (
+                Some("a.ts"),
+                Some(5),
+                true,
+                "octo",
+                "https://a/octo.png",
+                None
+            )
         );
     }
 

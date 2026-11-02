@@ -57,6 +57,9 @@
   --ok-line: #6e9e95;
   --ok-bg: rgba(154, 214, 203, 0.1);
   --done: #b8d98c;
+  --background: #8fb3d9;
+  --background-line: #5f7f9f;
+  --background-bg: rgba(143, 179, 217, 0.12);
   --done-text: #c9e3a8;
   --err: #f59e8c;
   --err-text: #f8bdb1;
@@ -91,6 +94,14 @@
   --persona: #e3d3b4;
   --persona-bg: rgba(227, 211, 180, 0.09);
   --persona-line: rgba(227, 211, 180, 0.3);
+  --advisor: #c3b4f0;
+  --advisor-text: #ddd3fb;
+  --advisor-bg: rgba(195, 180, 240, 0.08);
+  --advisor-line: rgba(195, 180, 240, 0.32);
+  --mode-default: #999999;
+  --mode-accept: #af87ff;
+  --mode-plan: #48968c;
+  --mode-auto: #ffc107;
 
   --sans: 'DM Sans', 'Segoe UI', sans-serif;
   --mono: 'DM Mono', monospace;
@@ -428,4 +439,136 @@ pre,
   background: rgba(159, 224, 182, 0.12);
   box-shadow: inset 0 0 0 1px rgba(159, 224, 182, 0.35);
   color: #9fe0b6;
+}
+
+.option-row {
+  position: relative;
+}
+
+.option-trigger {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 36px;
+  padding: 0 10px;
+  border-radius: 4px;
+  font-size: 13px;
+  text-align: left;
+}
+
+.option-trigger:hover,
+.option-trigger[aria-expanded='true'] {
+  background: var(--surface-3);
+}
+
+.option-icon {
+  display: inline-flex;
+  width: 14px;
+  justify-content: center;
+  color: var(--text-dim);
+}
+
+.option-icon svg,
+.option-updown {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.option-key {
+  color: var(--text-muted);
+}
+
+.option-value {
+  min-width: 0;
+  margin-left: auto;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--text-strong);
+}
+
+.option-updown {
+  flex: none;
+  color: var(--text-faint);
+}
+
+.option-menu {
+  position: absolute;
+  bottom: calc(100% + 2px);
+  right: 0;
+  z-index: 30;
+  display: flex;
+  flex-direction: column;
+  width: 280px;
+  max-height: 300px;
+  overflow-y: auto;
+  padding: 5px;
+  border-radius: 6px;
+  background: var(--menu);
+  box-shadow:
+    0 0 0 1px var(--border-strong),
+    0 14px 36px rgba(0, 0, 0, 0.55);
+}
+
+.option-menu > button {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+  padding: 6px 9px;
+  border-radius: 4px;
+  text-align: left;
+}
+
+.option-menu > button:hover:not(:disabled),
+.option-menu > button[aria-selected='true'] {
+  background: var(--menu-hover);
+}
+
+.option-menu > button strong {
+  font-weight: 500;
+  font-size: 13px;
+  color: var(--text-2);
+}
+
+.option-menu > button[aria-selected='true'] strong::after {
+  content: ' ✓';
+  color: var(--accent);
+}
+
+.option-menu > button span {
+  font-size: 11.5px;
+  color: var(--text-dim);
+}
+
+.option-menu > button:disabled strong,
+.option-menu > button:disabled span {
+  color: var(--text-faint);
+}
+
+.option-row .tone-advisor {
+  color: var(--advisor-text);
+}
+
+.option-row .tone-default {
+  color: var(--mode-default);
+}
+
+.option-row .option-value.tone-default {
+  color: var(--text-strong);
+}
+
+.option-row .tone-acceptEdits {
+  color: var(--mode-accept);
+}
+
+.option-row .tone-plan {
+  color: var(--mode-plan);
+}
+
+.option-row .tone-auto {
+  color: var(--mode-auto);
 }

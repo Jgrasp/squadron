@@ -3,10 +3,9 @@
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { kindOf } from './Attachment.svelte'
   import { languageOf } from './CodeEditor.svelte'
-  import { openFile, workspace } from './editor.svelte'
+  import { revealFile } from './editor.svelte'
   import { fenced, windowLabel } from './filelink'
   import { errorText, t, type Key } from './i18n/index.svelte'
-  import { setPanel } from './layout.svelte'
   import Markdown from './Markdown.svelte'
 
   let { path, project }: { path: string; project: string } = $props()
@@ -23,14 +22,6 @@
   let text = $state<string | null>()
   let error = $state('')
 
-
-  function go() {
-    const ws = workspace(project)
-    const dirs = path.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))
-    ws.expanded = [...new Set([...ws.expanded, ...dirs])]
-    openFile(project, path)
-    setPanel(project, 'editor')
-  }
 
   async function float() {
     const label = windowLabel(project, path)
@@ -57,7 +48,7 @@
     </span>
   </div>
   <div class="actions">
-    <button type="button" class="btn btn-primary" onclick={go}>
+    <button type="button" class="btn btn-primary" onclick={() => revealFile(project, path)}>
       {t('conversation.goToFile')}
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9" /></svg>
     </button>

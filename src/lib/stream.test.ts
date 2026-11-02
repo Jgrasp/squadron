@@ -8,11 +8,14 @@ import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import backgroundInterrupt from '../../src-tauri/tests/fixtures/background_interrupt.jsonl?raw'
+import backgroundBash from '../../src-tauri/tests/fixtures/background_bash.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
 import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?raw'
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
+import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw'
+import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
 import { apply, calls, exited, fail, flaggedWorktree, newAgent, prompt, replayLog, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
@@ -26,6 +29,41 @@ function fresh() {
 }
 
 const kinds = (entries: Entry[]) => entries.map((e) => e.kind)
+
+describe('advisor', () => {
+  const advice = (agent: Agent) => agent.entries.flatMap((e) => (e.kind === 'agent' ? e.blocks : [])).filter((b) => b.type === 'advisor')
+
+  it('shows one consultation with its advice in clear and the tokens it read', () => {
+    const agent = fresh()
+    replay(agent, advisorPlain)
+    const [block, ...rest] = advice(agent)
+    expect(rest).toHaveLength(0)
+    expect(block).toMatchObject({ result: { kind: 'text' }, input: expect.any(Number), output: expect.any(Number) })
+    expect(block.type === 'advisor' && block.result?.text).toContain('doubly linked list')
+    expect(agent.entries.at(-1)).toMatchObject({ kind: 'turn', advised: { calls: 1 } })
+  })
+
+  it('marks encrypted advice as received without text', () => {
+    const agent = fresh()
+    replay(agent, advisorRedacted)
+    expect(advice(agent)).toMatchObject([{ result: { kind: 'redacted' }, input: 176171, output: 548 }])
+  })
+
+  it('shows the consultation as running until its result comes', () => {
+    const agent = fresh()
+    const lines = advisorRedacted.trim().split('\n')
+    const until = lines.findIndex((l) => l.includes('advisor_tool_result'))
+    replay(agent, lines.slice(0, until).join('\n'))
+    expect(advice(agent)).toMatchObject([{ at: expect.any(Number) }])
+    expect(advice(agent)[0]).not.toHaveProperty('result')
+  })
+
+  it('keeps the error code of a failed consultation', () => {
+    const agent = fresh()
+    apply(agent, { type: 'assistant', message: { id: 'm1', content: [{ type: 'server_tool_use', id: 's1', name: 'advisor', input: {} }, { type: 'advisor_tool_result', tool_use_id: 's1', content: { type: 'advisor_tool_result_error', error_code: 'overloaded' } }] } })
+    expect(advice(agent)).toMatchObject([{ result: { kind: 'error', code: 'overloaded' } }])
+  })
+})
 
 describe('notices', () => {
   it('shows a task notification from Claude Code as a note, not as a message of yours', () => {
@@ -290,7 +328,7 @@ describe('stream', () => {
     for (const line of lines.slice(0, turn + 1)) apply(agent, JSON.parse(line))
     expect(agent.subagents.map((s) => [s.background, s.status])).toEqual([[true, 'running']])
     expect(agent.status).toBe('working')
-    expect(agent.action).toBe('Waiting for 1 subagent…')
+    expect(agent.action).toBe('Waiting on 1 background task')
 
     const settled = lines.findIndex((l) => l.includes('"subtype":"task_updated"'))
     for (const line of lines.slice(turn + 1, settled + 1)) apply(agent, JSON.parse(line))
@@ -399,6 +437,40 @@ describe('stream', () => {
 })
 
 describe('background work', () => {
+  const started = { type: 'system', subtype: 'task_started', task_id: 'b1', tool_use_id: 't1', task_type: 'local_bash', description: 'Sleep', is_backgrounded: true }
+  const result = { type: 'result', subtype: 'success', num_turns: 1, total_cost_usd: 0 }
+
+  it('keeps the agent working until a background command ends and Claude answers again', () => {
+    const agent = fresh()
+    apply(agent, started)
+    apply(agent, result)
+    expect([agent.status, agent.held, agent.action]).toEqual(['working', true, 'Waiting on 1 background task'])
+    expect(agent.background.map((b) => b.name)).toEqual(['Sleep'])
+    apply(agent, { type: 'system', subtype: 'task_notification', task_id: 'b1', status: 'completed' })
+    expect([agent.status, agent.held, agent.background]).toEqual(['working', false, []])
+    apply(agent, result)
+    expect(agent.status).toBe('done')
+  })
+
+  it('waits for a real background command, then for the answer Claude gives when it ends', () => {
+    const agent = fresh()
+    const lines = backgroundBash.trim().split('\n')
+    const turn = lines.findIndex((l) => JSON.parse(l).type === 'result')
+    for (const line of lines.slice(0, turn + 1)) apply(agent, JSON.parse(line))
+    expect([agent.status, agent.held, agent.background.map((b) => b.name)]).toEqual(['working', true, ['Run the full import']])
+    for (const line of lines.slice(turn + 1)) apply(agent, JSON.parse(line))
+    expect([agent.status, agent.held, agent.background]).toEqual(['done', false, []])
+  })
+
+  it('ends the turn when the user stops the background command', () => {
+    const agent = fresh()
+    apply(agent, started)
+    apply(agent, result)
+    apply(agent, { type: 'system', subtype: 'task_updated', task_id: 'b1', patch: { status: 'killed' } })
+    apply(agent, { type: 'system', subtype: 'task_notification', task_id: 'b1', status: 'stopped' })
+    expect([agent.status, agent.held]).toEqual(['done', false])
+  })
+
   it('counts what lives in the process until it ends, and forgets it when the process exits', () => {
     const agent = fresh()
     apply(agent, { type: 'system', subtype: 'task_started', task_id: 'b1', task_type: 'local_bash' })

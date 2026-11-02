@@ -172,7 +172,8 @@ impl Agents {
                     .control(serde_json::json!({"subtype": "set_model", "model": options.model}))
                     .map_err(|e| e.to_string())?;
             }
-            agent.stale |= options.effort != agent.options.effort;
+            agent.stale |=
+                options.effort != agent.options.effort || options.advisor != agent.options.advisor;
         }
         agent.options = options;
         Ok(())
@@ -218,6 +219,20 @@ impl Agents {
         {
             Some(session) => session
                 .control(serde_json::json!({"subtype": "get_context_usage"}))
+                .map_err(|e| e.to_string()),
+            None => Ok(()),
+        }
+    }
+
+    pub fn stop_task(&self, id: &str, task_id: &str) -> Result<(), String> {
+        let mut list = self.list.lock().unwrap();
+        match list
+            .get_mut(id)
+            .and_then(|a| a.session.as_mut())
+            .filter(|s| s.alive())
+        {
+            Some(session) => session
+                .control(serde_json::json!({"subtype": "stop_task", "task_id": task_id}))
                 .map_err(|e| e.to_string()),
             None => Ok(()),
         }
@@ -440,6 +455,7 @@ mod tests {
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         agents
             .register(
