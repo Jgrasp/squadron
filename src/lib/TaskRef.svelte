@@ -1,7 +1,7 @@
 <script lang="ts">
   import { mount, unmount } from 'svelte'
   import { COLUMNS } from './board'
-  import { find } from './agents.svelte'
+  import { find, show } from './agents.svelte'
   import { projects } from './projects.svelte'
   import { pullOf } from './pulls.svelte'
   import { codeOf, nameOf } from './taskref'
@@ -14,10 +14,12 @@
   const card = $derived(projects.list.find((p) => p.path === project)?.cards.find((c) => c.id === id))
   const agent = $derived(card?.agent ? find(card.agent) : undefined)
   const pull = $derived(agent ? pullOf(agent) : null)
+  const view = () => {
+    const dialog = mount(TaskDialog, { target: document.body, props: { id, onclose: () => unmount(dialog) } })
+  }
   $effect(() => {
     const click = (event: MouseEvent) => {
-      if ((event.target as HTMLElement).closest('a, button')) return
-      const dialog = mount(TaskDialog, { target: document.body, props: { id, onclose: () => unmount(dialog) } })
+      if (!(event.target as HTMLElement).closest('a, button')) view()
     }
     host.addEventListener('click', click)
     return () => host.removeEventListener('click', click)
@@ -31,6 +33,10 @@
     <span class="meta">
       {#if agent}<StatusIcon status={agent.status} />{/if}
       {[t(COLUMNS.find(([c]) => c === card.column)![1]), agent?.name, pull?.state === 'open' ? `PR #${pull.number}` : '', card.ticket?.key].filter(Boolean).join(' · ')}
+    </span>
+    <span class="actions">
+      {#if agent}<button type="button" onclick={() => show(agent)}>{t('board.taskGoAgent')}</button>{/if}
+      <button type="button" onclick={view}>{t('board.taskView')}</button>
     </span>
   </span>
 {/if}
@@ -60,6 +66,24 @@
   strong {
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .actions {
+    display: flex;
+    gap: 6px;
+    margin-top: 4px;
+  }
+
+  .actions button {
+    padding: 2px 8px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    font-size: 12px;
+    color: var(--text-strong);
+  }
+
+  .actions button:hover {
+    background: var(--surface-2);
   }
 
   .meta {

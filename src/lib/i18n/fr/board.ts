@@ -110,4 +110,6 @@ export default {
   taskShowBoard: 'Voir dans le Kanban →',
   taskShowAgent: 'Aller à l’agent →',
   taskOpenPull: 'Ouvrir la PR →',
+  taskView: 'Voir la tâche',
+  taskGoAgent: 'Aller à l’agent',
 } satisfies Catalog['board']
