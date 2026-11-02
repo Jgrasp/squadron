@@ -6,7 +6,7 @@
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
-  import { ago, effortLabel, modeLabel, modelLabel, time, tokens } from './format'
+  import { advisorChoices, advisorIdle, advisorLabel, advising, ago, effortLabel, modeLabel, modelLabel, time, tokens } from './format'
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
   import ContextGauge from './ContextGauge.svelte'
@@ -149,10 +149,10 @@
     const next = tuning && $state.snapshot(tuning)
     if (!next) return
     const now = untrack(() => agent.options)
-    if (next.model !== now.model || next.effort !== now.effort || next.mode !== now.mode) setOptions(agent.id, next)
+    if (next.model !== now.model || next.effort !== now.effort || next.mode !== now.mode || next.advisor !== now.advisor) setOptions(agent.id, next)
   })
 
-  type Sub = 'model' | 'effort' | 'mode'
+  type Sub = 'model' | 'effort' | 'advisor' | 'mode'
   let sub = $state<Sub | null>(null)
   $effect(() => {
     if (!menuOpen) sub = null
@@ -160,6 +160,7 @@
   const SUBMENUS: [Sub, Key][] = [
     ['model', 'settings.model'],
     ['effort', 'settings.effort'],
+    ['advisor', 'settings.advisor'],
     ['mode', 'settings.permissionMode'],
   ]
   const EFFORTS: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
@@ -177,7 +178,17 @@
       const levels = models.find((m) => m.value === agent.options.model)?.supportedEffortLevels
       return EFFORTS.map((value) => ({ value, label: effortLabel(value), off: !!levels && !levels.includes(value) }))
     }
+    if (key === 'advisor') return advisorChoices(agent.options.model)
     return MODES.map(([value, label, detail]) => ({ value, label: t(label), detail: t(detail) }))
+  }
+
+  const optionOf = (key: Sub) => (key === 'advisor' ? (agent.options.advisor ?? '') : agent.options[key])
+  const familyLabel = (model: string) => modelLabel(model).split(' ')[0]
+  const advisorOn = $derived(advising(agent.options))
+  const idle = $derived(advisorIdle(agent.options))
+
+  function chooseOption(key: Sub, value: string) {
+    setOptions(agent.id, key === 'advisor' ? { ...agent.options, advisor: value || undefined } : { ...agent.options, [key]: value })
   }
 
   const MENU: Record<string, () => void> = {
@@ -372,6 +383,12 @@
     if (command?.name === 'config') {
       const [, key, value] = /^(\w+)=(.+)$/.exec(call.args) ?? []
       if (key) claudeConfig.chosen[key] = value
+    }
+    if (call.name.toLowerCase() === 'advisor' && call.args) {
+      const advisor = ['off', 'none'].includes(call.args) ? 'none' : call.args
+      setOptions(agent.id, { ...agent.options, advisor })
+      note(agent.id, message, advisor === 'none' ? t('agent.advisorOff') : t('agent.advisorSet', { model: modelLabel(advisor) }))
+      return true
     }
     if (command?.name === 'effort' && ['low', 'medium', 'high', 'xhigh', 'max'].includes(call.args)) {
       setOptions(agent.id, { ...agent.options, effort: call.args as Options['effort'] })
@@ -681,6 +698,11 @@
                   {modeLabel(agent.options.mode)}
                   <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
                 </button>
+                {#if advisorOn}
+                  <button class="advisor" class:idle={idle} title={idle ? t('settings.advisorBelow', { model: modelLabel(agent.options.model) }) : `${t('settings.advisor')} · ${modelLabel(agent.options.advisor!)}`} onclick={() => (tuning = tuning ? null : { ...agent.options })}
+                    ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z" /></svg>{familyLabel(agent.options.advisor!)}</button
+                  >
+                {/if}
               {:else if id === 'context'}
                 <ContextGauge {agent} />
               {:else if id === 'turns'}
@@ -1068,13 +1090,13 @@
                     <div class="sub">
                       <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={sub === key} class:open={sub === key} onmouseenter={() => (sub = key)} onclick={() => (sub = sub === key ? null : key)}>
                         <strong>{t(name)}</strong>
-                        <span class="value">{key === 'model' ? modelLabel(agent.options.model) : key === 'effort' ? effortLabel(agent.options.effort) : t(MODES.find(([m]) => m === agent.options.mode)?.[1] ?? 'settings.modeDefault')}</span>
+                        <span class="value">{key === 'model' ? modelLabel(agent.options.model) : key === 'effort' ? effortLabel(agent.options.effort) : key === 'advisor' ? advisorLabel(agent.options.advisor) : t(MODES.find(([m]) => m === agent.options.mode)?.[1] ?? 'settings.modeDefault')}</span>
                         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
                       </button>
                       {#if sub === key}
                         <div class="flyout" role="menu" aria-label={t(name)}>
                           {#each choices(key) as choice (choice.value)}
-                            <button type="button" role="menuitemradio" aria-checked={agent.options[key] === choice.value} disabled={choice.off} onclick={() => setOptions(agent.id, { ...agent.options, [key]: choice.value })}>
+                            <button type="button" role="menuitemradio" aria-checked={optionOf(key) === choice.value} disabled={choice.off} onclick={() => chooseOption(key, choice.value)}>
                               <strong>{choice.label}</strong>
                               {#if choice.detail}<span>{choice.detail}</span>{/if}
                             </button>
@@ -1406,6 +1428,7 @@
 
   .info {
     display: inline-flex;
+    flex-wrap: wrap;
     align-items: center;
     gap: 4px;
   }
@@ -1889,6 +1912,32 @@
     background: var(--surface-3);
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .info .advisor {
+    font-size: 12px;
+    display: inline-flex;
+    align-items: center;
+    gap: 3px;
+    white-space: nowrap;
+    padding: 1px 6px;
+    border-radius: 4px;
+    background: var(--advisor-bg);
+    box-shadow: inset 0 0 0 1px var(--advisor-line);
+    color: var(--advisor-text);
+  }
+
+  .info .advisor.idle {
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-faint);
+    text-decoration: line-through;
+  }
+
+  .info .advisor svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
   }
 
   .settings:hover,

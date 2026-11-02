@@ -50,7 +50,9 @@
         ? b.calls.map((call) => ({ kind: 'tool', at: b.at, call }))
         : b.type === 'text'
           ? [{ kind: 'text', at: b.at, text: b.text }]
-          : [{ kind: 'thinking', at: b.at, text: b.text, ms: b.ms }],
+          : b.type === 'thinking'
+            ? [{ kind: 'thinking', at: b.at, text: b.text, ms: b.ms }]
+            : [],
     ),
   )
   const shown = $derived(items.filter((i) => filter === 'all' || (filter === 'tools' ? i.kind === 'tool' : i.kind === 'thinking')))

@@ -1,5 +1,5 @@
 import { models } from './catalogs.svelte'
-import { modelName } from './commands'
+import { advises, advisors, modelName } from './commands'
 import { date, number, t, type Key } from './i18n/index.svelte'
 import type { Agent, Options } from './stream'
 
@@ -38,6 +38,23 @@ const MODES: Record<Options['mode'], Key> = {
 }
 
 export const modeLabel = (mode: Options['mode']) => t(MODES[mode])
+
+const ADVICE: Record<string, Key> = { sonnet: 'settings.advisorSonnet', opus: 'settings.advisorOpus', fable: 'settings.advisorFable' }
+
+export function advisorChoices(model: string) {
+  const list = models()
+  return [
+    { value: '', label: t('settings.advisorInherited'), detail: t('settings.advisorInheritedHint') },
+    { value: 'none', label: t('settings.advisorNone') },
+    ...advisors(list).map((value) => ({ value, label: modelLabel(value), detail: t(ADVICE[value]), off: !advises(value, model, list) })),
+  ]
+}
+
+export const advisorLabel = (advisor?: string) => (!advisor ? t('settings.advisorInherited') : advisor === 'none' ? t('settings.advisorNone') : modelLabel(advisor))
+
+export const advising = (options: Options) => !!options.advisor && options.advisor !== 'none'
+
+export const advisorIdle = (options: Options) => advising(options) && !advises(options.advisor!, options.model, models())
 
 const EFFORTS: Record<string, Key> = {
   low: 'settings.effortLow',

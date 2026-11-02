@@ -1,6 +1,7 @@
 export default {
   field: 'Agent',
   none: 'None · a regular Claude session',
+  noneShort: 'None',
   search: 'Search an agent',
   noMatch: 'No agent matches',
   unknown: 'Squadron learns the agents of a project once a session has started in it.',

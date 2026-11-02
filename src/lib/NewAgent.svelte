@@ -6,13 +6,15 @@
   import { agentTypes, models, type Definition } from './catalogs.svelte'
   import { families } from './commands'
   import Dialog from './Dialog.svelte'
-  import { t } from './i18n/index.svelte'
-  import OptionsFields from './OptionsFields.svelte'
+  import { t, type Key } from './i18n/index.svelte'
+  import OptionRow from './OptionRow.svelte'
+  import { advisorChoices, advisorIdle, advisorLabel, advising, effortLabel, modelLabel } from './format'
+  import { layout, setLaunchSettings } from './layout.svelte'
   import { defaultsFor, type Project } from './projects.svelte'
   import { tick, untrack } from 'svelte'
   import { Mention, type FileChoice } from './mention.svelte'
   import { imagePaste } from './paste'
-    import Trans from './Trans.svelte'
+  import Trans from './Trans.svelte'
   import type { Options } from './stream'
 
   let {
@@ -100,6 +102,29 @@
 
   const ready = true
 
+  const EFFORTS: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
+  const MODES: Options['mode'][] = ['default', 'acceptEdits', 'plan', 'auto']
+  const TITLES: Record<Options['mode'], Key> = {
+    default: 'settings.modeDefault',
+    acceptEdits: 'settings.modeAcceptEdits',
+    plan: 'settings.modePlan',
+    auto: 'settings.modeAuto',
+  }
+  const HINTS: Record<Options['mode'], Key> = {
+    default: 'settings.modeDefaultHint',
+    acceptEdits: 'settings.modeAcceptEditsHint',
+    plan: 'settings.modePlanHint',
+    auto: 'settings.modeAutoHint',
+  }
+
+  const catalog = $derived(models().filter((m) => m.value !== 'default'))
+  const modelChoices = $derived(
+    catalog.length ? catalog.map((m) => ({ value: m.value, label: modelLabel(m.value), detail: m.description })) : ['opus', 'sonnet', 'haiku'].map((value) => ({ value, label: modelLabel(value) })),
+  )
+  const levels = $derived(catalog.find((m) => m.value === options.model)?.supportedEffortLevels)
+  const effortChoices = $derived(EFFORTS.map((value) => ({ value, label: effortLabel(value), off: !!levels && !levels.includes(value) })))
+  const modeChoices = $derived(MODES.map((value) => ({ value, label: t(TITLES[value]), detail: t(HINTS[value]), tone: `tone-${value}` })))
+
   function submit(event?: Event) {
     event?.preventDefault()
     if (!ready) return
@@ -114,25 +139,13 @@
   {/snippet}
   <form onsubmit={submit}>
     <div class="fields">
-      <div class="group">
-        <label for="agent-name">{t('common.name')}</label>
-        <input id="agent-name" class="field" bind:value={name} placeholder={t('board.namePlaceholder')} />
-      </div>
-
-      <AgentPicker project={project.path} agent={options.agent} onpick={persona} onread={(agent) => (reading = agent)} />
-
-      {#if prefilled}<p class="prefilled">{t('persona.prefilled')}</p>{/if}
-
-      <OptionsFields bind:options />
-
-      <div class="group">
-        <label for="first-message">{t('board.firstMessage')}</label>
-        <div class="write">
+      <div class="write">
+        <div class="box">
           <!-- svelte-ignore a11y_autofocus -->
           <textarea
             id="first-message"
-            class="field"
-            rows="4"
+            rows="5"
+            aria-label={t('board.firstMessage')}
             bind:value={text}
             bind:this={message}
             placeholder={t('board.firstMessagePlaceholder')}
@@ -143,38 +156,87 @@
             onkeyup={mentions.track}
             onmouseup={mentions.track}
           ></textarea>
-          {#if choices.length}
-            <div class="mentions" role="listbox" aria-label={t('agent.files')}>
-              {#each choices as choice, i (choice.value)}
-                <button type="button" role="option" aria-selected={i === pick} onmousemove={() => (pick = i)} onmousedown={(e) => e.preventDefault()} onclick={() => choose(choice)}
-                  >{choice.label}</button
-                >
-              {/each}
-            </div>
-          {/if}
+          <div class="boxbar">
+            <button type="button" class="btn-icon" aria-label={t('board.attach')} title={t('board.attachTitle')} onclick={browseFiles}>
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
+              >
+            </button>
+          </div>
         </div>
+        {#if choices.length}
+          <div class="mentions" role="listbox" aria-label={t('agent.files')}>
+            {#each choices as choice, i (choice.value)}
+              <button type="button" role="option" aria-selected={i === pick} onmousemove={() => (pick = i)} onmousedown={(e) => e.preventDefault()} onclick={() => choose(choice)}
+                >{choice.label}</button
+              >
+            {/each}
+          </div>
+        {/if}
+      </div>
+      {#if files.length || attachError}
         <div class="files" aria-label={t('board.taskFiles')}>
           {#each files as file, i (file)}<Attachment path={file} onremove={() => files.splice(i, 1)} />{/each}
-          <button type="button" class="btn btn-secondary attach" title={t('board.attachTitle')} onclick={browseFiles}>
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-              ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
-            >{t('board.attach')}
-          </button>
           {#if attachError}<span class="attach-error" role="alert">{attachError}</span>{/if}
         </div>
+      {/if}
+
+      <div class="summary">
+        <dl>
+          <div><dt>{t('settings.model')}</dt><dd>{modelLabel(options.model)}</dd></div>
+          <div><dt>{t('settings.effort')}</dt><dd>{effortLabel(options.effort)}</dd></div>
+          {#if advising(options)}
+            <div class="advisor" class:idle={advisorIdle(options)}><dt>{t('settings.advisor')}</dt><dd>{modelLabel(options.advisor!)}</dd></div>
+          {/if}
+        </dl>
+        <button type="button" class="btn btn-secondary launch" aria-expanded={layout.launchSettings} onclick={() => setLaunchSettings(!layout.launchSettings)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h9M17 7h3M4 17h3M11 17h9" /><circle cx="15" cy="7" r="2" /><circle cx="9" cy="17" r="2" /></svg>
+          {t('board.launchSettings')}
+        </button>
       </div>
 
-      <div class="group">
-        <label for="done-when">{t('common.doneWhen')}</label>
-        <textarea
-          id="done-when"
-          class="field"
-          rows="2"
-          bind:value={goal}
-          placeholder={t('board.agentGoalPlaceholder')}
-          onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
-        ></textarea>
-      </div>
+      {#if layout.launchSettings}
+        <div class="settings">
+          <div class="group">
+            <label for="agent-name">{t('common.name')}</label>
+            <input id="agent-name" class="field" bind:value={name} placeholder={t('board.namePlaceholder')} />
+          </div>
+          <div class="group">
+            <label for="done-when">{t('common.doneWhen')}</label>
+            <textarea
+              id="done-when"
+              class="field"
+              rows="3"
+              bind:value={goal}
+              placeholder={t('board.agentGoalPlaceholder')}
+              onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && submit(e)}
+            ></textarea>
+          </div>
+          {#if prefilled}<p class="prefilled">{t('persona.prefilled')}</p>{/if}
+          <div class="rows">
+            <OptionRow label={t('settings.model')} value={modelLabel(options.model)} choices={modelChoices} selected={options.model} onpick={(v) => (options.model = v)}>
+              {#snippet icon()}<svg width="14" height="14" viewBox="0 0 24 24"><rect x="5" y="5" width="14" height="14" rx="3" /><path d="M9 1v4M15 1v4M9 19v4M15 19v4M1 9h4M1 15h4M19 9h4M19 15h4" /></svg>{/snippet}
+            </OptionRow>
+            <OptionRow label={t('settings.effort')} value={effortLabel(options.effort)} choices={effortChoices} selected={options.effort} onpick={(v) => (options.effort = v as Options['effort'])}>
+              {#snippet icon()}<svg width="14" height="14" viewBox="0 0 24 24"><path d="M5 20v-4M10 20v-8M15 20v-12M20 20V4" /></svg>{/snippet}
+            </OptionRow>
+            <OptionRow
+              label={t('settings.advisor')}
+              value={advisorLabel(options.advisor)}
+              tone={advising(options) ? 'tone-advisor' : ''}
+              choices={advisorChoices(options.model)}
+              selected={options.advisor ?? ''}
+              onpick={(v) => (options.advisor = v || undefined)}
+            >
+              {#snippet icon()}<svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z" /></svg>{/snippet}
+            </OptionRow>
+            <OptionRow label={t('settings.permissionMode')} value={t(TITLES[options.mode])} tone="tone-{options.mode}" choices={modeChoices} selected={options.mode} onpick={(v) => (options.mode = v as Options['mode'])}>
+              {#snippet icon()}<svg width="14" height="14" viewBox="0 0 24 24"><path d="M12 3l7 3v5c0 5-3 8-7 10-4-2-7-5-7-10V6z" /></svg>{/snippet}
+            </OptionRow>
+            <AgentPicker project={project.path} agent={options.agent} onpick={persona} onread={(agent) => (reading = agent)} />
+          </div>
+        </div>
+      {/if}
     </div>
 
     <footer>
@@ -226,7 +288,7 @@
   }
 
   .prefilled {
-    margin: -10px 0 0;
+    margin: -4px 0 0;
     color: var(--persona);
     font-size: 12px;
   }
@@ -278,16 +340,109 @@
     line-height: 1.5;
   }
 
+  .box {
+    display: flex;
+    flex-direction: column;
+    border-radius: 6px;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .box:focus-within {
+    box-shadow: inset 0 0 0 1px var(--border-focus);
+  }
+
+  .box textarea {
+    border: 0;
+    background: none;
+    color: var(--text);
+    font: inherit;
+    outline: none;
+  }
+
+  .boxbar {
+    display: flex;
+    padding: 0 8px 8px;
+  }
+
+  .summary {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  dl {
+    display: flex;
+    gap: 18px;
+    margin: 0;
+    padding: 0 2px;
+  }
+
+  dt {
+    font-size: 10px;
+    letter-spacing: 0.07em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  dd {
+    margin: 1px 0 0;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .advisor dt {
+    color: var(--advisor);
+  }
+
+  .advisor dd {
+    color: var(--advisor-text);
+  }
+
+  .advisor.idle dd {
+    color: var(--text-faint);
+    text-decoration: line-through;
+  }
+
+  .launch {
+    height: 32px;
+    margin-left: auto;
+    gap: 7px;
+  }
+
+  .launch svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 1.8;
+    stroke-linecap: round;
+  }
+
+  .launch[aria-expanded='true'] {
+    background: var(--surface-5);
+    color: var(--text-strong);
+  }
+
+  .settings {
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    padding-top: 16px;
+    border-top: 1px solid var(--border);
+  }
+
+  .rows {
+    display: flex;
+    flex-direction: column;
+    padding: 4px;
+    border-radius: 6px;
+    background: var(--surface-2);
+  }
+
   .files {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
     gap: 12px;
-  }
-
-  .attach {
-    height: 32px;
-    gap: 6px;
   }
 
   .attach-error {

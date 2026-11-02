@@ -172,7 +172,8 @@ impl Agents {
                     .control(serde_json::json!({"subtype": "set_model", "model": options.model}))
                     .map_err(|e| e.to_string())?;
             }
-            agent.stale |= options.effort != agent.options.effort;
+            agent.stale |=
+                options.effort != agent.options.effort || options.advisor != agent.options.advisor;
         }
         agent.options = options;
         Ok(())
@@ -454,6 +455,7 @@ mod tests {
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         agents
             .register(

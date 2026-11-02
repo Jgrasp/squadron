@@ -346,6 +346,7 @@ fn edit_project(
                 effort: defaults.effort.clone().unwrap_or_else(|| "high".into()),
                 mode: defaults.mode.clone().unwrap_or_else(|| "default".into()),
                 agent: None,
+                advisor: defaults.advisor.clone(),
             }
             .check()?;
             project.defaults = defaults;
@@ -420,6 +421,7 @@ impl Default for Config {
                 effort: "high".into(),
                 mode: "default".into(),
                 agent: None,
+                advisor: None,
             },
             tab_effect: "pulse".into(),
             tab_ring: "shake".into(),

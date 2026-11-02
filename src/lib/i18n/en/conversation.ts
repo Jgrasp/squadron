@@ -193,4 +193,13 @@ export default {
   mcpDisable: 'Disable',
   mcpEnabled: '{server} enabled',
   mcpDisabled: '{server} disabled',
+  advisor: 'Advisor',
+  advisorConsulting: 'Consulting the advisor…',
+  advisorReading: 'reading the conversation…',
+  advisorGave: 'advice received',
+  advisorUnavailable: 'unavailable',
+  advisorTokens: '{input} → {output} tok',
+  advisorSealed: 'Encrypted by Anthropic: only Claude reads it. The rest of the reply applies it.',
+  advisorWithout: 'Claude goes on without advice.',
+  turnAdvised: { one: 'advisor ×{count} · {input} → {output}', other: 'advisor ×{count} · {input} → {output}' },
 }

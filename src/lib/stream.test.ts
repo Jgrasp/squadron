@@ -14,6 +14,8 @@ import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
 import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?raw'
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
+import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw'
+import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
 import { apply, calls, exited, fail, flaggedWorktree, newAgent, prompt, replayLog, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
@@ -27,6 +29,41 @@ function fresh() {
 }
 
 const kinds = (entries: Entry[]) => entries.map((e) => e.kind)
+
+describe('advisor', () => {
+  const advice = (agent: Agent) => agent.entries.flatMap((e) => (e.kind === 'agent' ? e.blocks : [])).filter((b) => b.type === 'advisor')
+
+  it('shows one consultation with its advice in clear and the tokens it read', () => {
+    const agent = fresh()
+    replay(agent, advisorPlain)
+    const [block, ...rest] = advice(agent)
+    expect(rest).toHaveLength(0)
+    expect(block).toMatchObject({ result: { kind: 'text' }, input: expect.any(Number), output: expect.any(Number) })
+    expect(block.type === 'advisor' && block.result?.text).toContain('doubly linked list')
+    expect(agent.entries.at(-1)).toMatchObject({ kind: 'turn', advised: { calls: 1 } })
+  })
+
+  it('marks encrypted advice as received without text', () => {
+    const agent = fresh()
+    replay(agent, advisorRedacted)
+    expect(advice(agent)).toMatchObject([{ result: { kind: 'redacted' }, input: 176171, output: 548 }])
+  })
+
+  it('shows the consultation as running until its result comes', () => {
+    const agent = fresh()
+    const lines = advisorRedacted.trim().split('\n')
+    const until = lines.findIndex((l) => l.includes('advisor_tool_result'))
+    replay(agent, lines.slice(0, until).join('\n'))
+    expect(advice(agent)).toMatchObject([{ at: expect.any(Number) }])
+    expect(advice(agent)[0]).not.toHaveProperty('result')
+  })
+
+  it('keeps the error code of a failed consultation', () => {
+    const agent = fresh()
+    apply(agent, { type: 'assistant', message: { id: 'm1', content: [{ type: 'server_tool_use', id: 's1', name: 'advisor', input: {} }, { type: 'advisor_tool_result', tool_use_id: 's1', content: { type: 'advisor_tool_result_error', error_code: 'overloaded' } }] } })
+    expect(advice(agent)).toMatchObject([{ result: { kind: 'error', code: 'overloaded' } }])
+  })
+})
 
 describe('notices', () => {
   it('shows a task notification from Claude Code as a note, not as a message of yours', () => {

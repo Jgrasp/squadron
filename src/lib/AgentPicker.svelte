@@ -2,7 +2,6 @@
   import { ABILITY_ORDER, abilities, namespace, type Ability } from './agenttools'
   import { agentTypes, definition, type Definition } from './catalogs.svelte'
   import { t } from './i18n/index.svelte'
-  import PersonaChip from './PersonaChip.svelte'
 
   let {
     project,
@@ -67,85 +66,76 @@
 
 <svelte:window onpointerdown={(e) => open && !combo?.contains(e.target as Node) && (open = false)} />
 
-<div class="group">
-  <span id="agent-type" class="label">{t('persona.field')}</span>
-  {#if agent}
-    <div class="selected">
+<div class="option-row" bind:this={combo}>
+  <button type="button" class="option-trigger" aria-haspopup="listbox" aria-expanded={open} onclick={() => (open = !open)}>
+    <span class="option-icon" aria-hidden="true"
+      ><svg width="14" height="14" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4" /><path d="M4 21c1-4 4-6 8-6s7 2 8 6" /></svg></span
+    >
+    <span id="agent-type" class="option-key">{t('persona.field')}</span>
+    <span class="option-value" class:persona={!!agent}>{agent ?? t('persona.noneShort')}</span>
+    <svg class="option-updown" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M8 9l4-4 4 4M16 15l-4 4-4-4" /></svg>
+  </button>
+  {#if agent && (selected?.description || can)}
+    <div class="about">
+      {#if selected?.description}<p class="description">{selected.description}</p>{/if}
       <div class="line">
-        <PersonaChip name={agent} />
-        <button type="button" class="remove" aria-label={t('persona.remove')} title={t('persona.remove')} onclick={() => pick(undefined)}>×</button>
+        {#if can}
+          <div class="abilities">
+            {#each ABILITY_ORDER as ability (ability)}<span class:yes={can[ability]}>{can[ability] ? '✓' : '×'} {t(SHORT[ability] as never)}</span>{/each}
+          </div>
+        {/if}
         <button type="button" class="read" onclick={() => onread(agent!)}>{t('persona.seeDefinition')}</button>
       </div>
-      {#if selected?.description}<p class="description">{selected.description}</p>{/if}
-      {#if can}
-        <div class="abilities">
-          {#each ABILITY_ORDER as ability (ability)}<span class:yes={can[ability]}>{can[ability] ? '✓' : '×'} {t(SHORT[ability] as never)}</span>{/each}
-        </div>
-      {/if}
     </div>
-  {:else}
-    <div class="combo" bind:this={combo}>
-      <button type="button" class="field trigger" aria-labelledby="agent-type" aria-expanded={open} onclick={() => (open = !open)}>{t('persona.none')}</button>
-      {#if open}
-        <div class="menu">
-          <!-- svelte-ignore a11y_autofocus -->
-          <input class="field search" bind:value={query} placeholder={t('persona.search')} autofocus onkeydown={(e) => e.key === 'Escape' && (e.stopPropagation(), e.preventDefault(), (open = false))} />
-          <div class="list" role="listbox" aria-labelledby="agent-type">
-            {#if !types.length}
-              <p class="empty">{t('persona.unknown')}</p>
-            {:else if !shown.length}
-              <p class="empty">{t('persona.noMatch')}</p>
-            {/if}
-            {#each shown as [, group, list] (group)}
-              <div class="group-title">{group}</div>
-              {#each list as type (type.name)}
-                <button type="button" role="option" aria-selected="false" onclick={() => pick(type.name)}>
-                  <span class="name">{type.name}</span>
-                  {#if type.description}<span class="desc">{type.description}</span>{/if}
-                </button>
-              {/each}
-            {/each}
-          </div>
-        </div>
-      {/if}
+  {/if}
+  {#if open}
+    <div class="menu">
+      <!-- svelte-ignore a11y_autofocus -->
+      <input class="field search" bind:value={query} placeholder={t('persona.search')} autofocus onkeydown={(e) => e.key === 'Escape' && (e.stopPropagation(), e.preventDefault(), (open = false))} />
+      <div class="list" role="listbox" aria-labelledby="agent-type">
+        {#if agent}
+          <button type="button" role="option" aria-selected="false" onclick={() => pick(undefined)}>
+            <span class="desc">{t('persona.none')}</span>
+          </button>
+        {/if}
+        {#if !types.length}
+          <p class="empty">{t('persona.unknown')}</p>
+        {:else if !shown.length}
+          <p class="empty">{t('persona.noMatch')}</p>
+        {/if}
+        {#each shown as [, group, list] (group)}
+          <div class="group-title">{group}</div>
+          {#each list as type (type.name)}
+            <button type="button" role="option" aria-selected={type.name === agent} onclick={() => pick(type.name)}>
+              <span class="name">{type.name}</span>
+              {#if type.description}<span class="desc">{type.description}</span>{/if}
+            </button>
+          {/each}
+        {/each}
+      </div>
     </div>
   {/if}
 </div>
 
 <style>
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .label {
-    font-weight: 600;
-  }
-
-  .combo {
-    position: relative;
-  }
-
-  .trigger {
-    width: 100%;
-    color: var(--text-dim);
-    text-align: left;
-    cursor: pointer;
+  .persona {
+    color: var(--persona);
+    font-family: var(--mono);
+    font-size: 12.5px;
   }
 
   .menu {
     position: absolute;
-    z-index: 5;
-    top: calc(100% + 4px);
+    z-index: 30;
+    bottom: calc(100% + 2px);
     right: 0;
     left: 0;
     padding: 6px;
     border-radius: 6px;
-    background: var(--bg-main);
+    background: var(--menu);
     box-shadow:
       0 0 0 1px var(--border-strong),
-      0 16px 40px rgba(0, 0, 0, 0.5);
+      0 14px 36px rgba(0, 0, 0, 0.55);
   }
 
   .search {
@@ -173,15 +163,12 @@
     flex-direction: column;
     gap: 1px;
     padding: 5px 8px;
-    border: 0;
     border-radius: 4px;
-    background: none;
-    color: var(--text);
     text-align: left;
-    cursor: pointer;
   }
 
-  .list button:hover {
+  .list button:hover,
+  .list button[aria-selected='true'] {
     background: var(--persona-bg);
   }
 
@@ -204,35 +191,11 @@
     font-size: 12px;
   }
 
-  .selected {
+  .about {
     display: flex;
     flex-direction: column;
     gap: 6px;
-  }
-
-  .line {
-    display: flex;
-    align-items: center;
-    gap: 6px;
-  }
-
-  .remove,
-  .read {
-    border: 0;
-    background: none;
-    color: var(--text-dim);
-    cursor: pointer;
-  }
-
-  .remove {
-    font-size: 16px;
-    line-height: 1;
-  }
-
-  .read {
-    margin-left: auto;
-    color: var(--persona);
-    font-size: 12px;
+    padding: 2px 10px 8px 34px;
   }
 
   .description {
@@ -240,6 +203,12 @@
     color: var(--text-dim);
     font-size: 12.5px;
     line-height: 1.5;
+  }
+
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
   .abilities {
@@ -252,5 +221,11 @@
 
   .abilities .yes {
     color: var(--persona);
+  }
+
+  .read {
+    margin-left: auto;
+    color: var(--persona);
+    font-size: 12px;
   }
 </style>

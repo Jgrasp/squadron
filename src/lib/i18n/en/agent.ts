@@ -125,6 +125,8 @@ export default {
   mcpReconnected: '{server} reconnected',
   modelSet: 'Model set to {model}',
   effortSet: 'Effort set to {effort}, from the next message',
+  advisorSet: 'Advisor set to {model}, from the next message',
+  advisorOff: 'Advisor turned off, from the next message',
   worktreeTitle: 'Works in the worktree {path}',
   branchTitle: 'Branch of the project checkout',
   worktreeTag: 'worktree',

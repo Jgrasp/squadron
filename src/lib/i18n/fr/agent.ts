@@ -127,6 +127,8 @@ export default {
   mcpReconnected: '{server} reconnecté',
   modelSet: 'Modèle réglé sur {model}',
   effortSet: 'Effort réglé sur {effort}, à partir du prochain message',
+  advisorSet: 'Conseiller réglé sur {model}, à partir du prochain message',
+  advisorOff: 'Conseiller désactivé, à partir du prochain message',
   worktreeTitle: 'Travaille dans le worktree {path}',
   branchTitle: 'Branche de la copie de travail du projet',
   worktreeTag: 'worktree',

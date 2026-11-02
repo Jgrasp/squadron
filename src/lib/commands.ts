@@ -14,6 +14,13 @@ export function familyOf(value: string, models: Model[]) {
   return families(models).find((f) => name.startsWith(f)) ?? value
 }
 
+export const ADVISORS = ['sonnet', 'opus', 'fable']
+const RANKS = ['haiku', 'sonnet', 'opus', 'fable']
+
+export const advisors = (models: Model[]) => ADVISORS.filter((a) => families(models).includes(a))
+
+export const advises = (advisor: string, model: string, models: Model[]) => RANKS.indexOf(familyOf(advisor, models)) >= RANKS.indexOf(familyOf(model, models))
+
 export const versionsOf = (family: string, models: Model[]) => models.filter((m) => m.value !== 'default' && familyOf(m.value, models) === family)
 
 const MODEL_ID = /^claude-([a-z]+)-(\d+)-(\d+)(?:-\d{8})?(\[1m\])?$/

@@ -195,4 +195,13 @@ export default {
   mcpDisable: 'Désactiver',
   mcpEnabled: '{server} activé',
   mcpDisabled: '{server} désactivé',
+  advisor: 'Conseiller',
+  advisorConsulting: 'Consultation du conseiller…',
+  advisorReading: 'relit la conversation…',
+  advisorGave: 'avis reçu',
+  advisorUnavailable: 'indisponible',
+  advisorTokens: '{input} → {output} tok',
+  advisorSealed: 'Chiffré par Anthropic : seul Claude le lit. La suite de la réponse l’applique.',
+  advisorWithout: 'Claude continue sans avis.',
+  turnAdvised: { one: 'conseil ×{count} · {input} → {output}', other: 'conseil ×{count} · {input} → {output}' },
 } satisfies Catalog['conversation']

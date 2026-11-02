@@ -300,6 +300,7 @@ mod tests {
             effort: "low".into(),
             mode: "default".into(),
             agent: None,
+            advisor: None,
         };
         let cmd = claude::command("claude", &dir, &options, None, false, None, None);
         let (tx, rx) = std::sync::mpsc::channel();

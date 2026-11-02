@@ -9,6 +9,8 @@ import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import backgroundBash from '../../src-tauri/tests/fixtures/background_bash.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
+import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw'
+import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
 import picker from '../../src-tauri/src/artifact-pick.js?raw'
 
 type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; tickets?: unknown[]; defaults?: Record<string, string> }
@@ -265,7 +267,7 @@ function replay(id: string, text: string) {
       .join('\n')
   }
   const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
-  const stream = text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -290,7 +292,7 @@ function replay(id: string, text: string) {
       return
     }
     if (text.includes('bgshell') && sub.type === 'result' && i < lines.length) return timers.set(id, window.setTimeout(next, 20_000))
-    timers.set(id, window.setTimeout(next, text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : 60))
+    timers.set(id, window.setTimeout(next, lines[i]?.includes('"type":"advisor_tool_result"') ? 5000 : text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : 60))
   }
   next()
 }

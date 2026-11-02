@@ -5,6 +5,7 @@ export type Options = {
   effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
   mode: 'default' | 'acceptEdits' | 'plan' | 'auto'
   agent?: string
+  advisor?: string
 }
 
 export type Status = 'working' | 'waiting' | 'done' | 'interrupted' | 'error'
@@ -21,6 +22,17 @@ export type Block =
   | { type: 'thinking'; ms?: number; text?: string; at?: number }
   | { type: 'text'; text: string; key: string; at?: number }
   | { type: 'tools'; calls: ToolCall[]; at?: number }
+  | Advice
+
+export type Advice = {
+  type: 'advisor'
+  id: string
+  at?: number
+  ms?: number
+  result?: { kind: 'text' | 'redacted' | 'error'; text?: string; code?: string }
+  input?: number
+  output?: number
+}
 
 export type Ask = {
   id: string
@@ -73,7 +85,7 @@ export function prompt(text: string, comments: Comment[] = []) {
   return [...blocks, text].filter(Boolean).join('\n\n')
 }
 
-export type Usage = { cost: number; input: number; output: number; ms: number }
+export type Usage = { cost: number; input: number; output: number; ms: number; advised?: { calls: number; input: number; output: number } }
 
 export const GOAL_RELAUNCHES = 5
 
@@ -260,6 +272,7 @@ export function activity(agent: Agent) {
   if (call && !call.result && !INTERNAL.includes(call.name)) return doing(call)
   if (block?.type === 'thinking' && block.ms === undefined) return t('conversation.thinking')
   if (block?.type === 'text') return t('conversation.writing')
+  if (block?.type === 'advisor' && !block.result) return t('conversation.advisorConsulting')
   return agent.action
 }
 
@@ -393,14 +406,46 @@ function textOf(content: unknown): string {
   return ''
 }
 
+const tokensIn = (u: Json) => (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0)
+
+const advisorRuns = (d: Json): Json[] => (d.usage?.iterations ?? []).filter((x: Json) => x.type === 'advisor_message')
+
 function usage(d: Json, cost: number): Usage {
   const u = d.usage ?? {}
+  const runs = advisorRuns(d)
   return {
     cost,
-    input: (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0),
+    input: tokensIn(u),
     output: u.output_tokens ?? 0,
     ms: d.duration_ms ?? 0,
+    ...(runs.length ? { advised: { calls: runs.length, input: runs.reduce((n, r) => n + tokensIn(r), 0), output: runs.reduce((n, r) => n + (r.output_tokens ?? 0), 0) } } : {}),
   }
+}
+
+function adviceOf(c: Json): Advice['result'] {
+  const content = c.content ?? {}
+  if (content.type === 'advisor_result') return { kind: 'text', text: String(content.text ?? '') }
+  if (content.type === 'advisor_tool_result_error') return { kind: 'error', code: String(content.error_code ?? 'unavailable') }
+  return { kind: 'redacted' }
+}
+
+export function advised(blocks: Block[], c: Json) {
+  const block = blocks.find((b): b is Advice => b.type === 'advisor' && b.id === c.tool_use_id)
+  if (!block) blocks.push({ type: 'advisor', id: c.tool_use_id, result: adviceOf(c) })
+  else if (!block.result) {
+    if (block.at) block.ms = Date.now() - block.at
+    block.result = adviceOf(c)
+  }
+}
+
+function priceAdvice(agent: Agent, d: Json) {
+  const runs = advisorRuns(d)
+  if (!runs.length) return
+  const open = agent.entries.flatMap((e) => (e.kind === 'agent' ? e.blocks : [])).filter((b): b is Advice => b.type === 'advisor' && b.input === undefined)
+  open.slice(-runs.length).forEach((b, i) => {
+    b.input = tokensIn(runs[i])
+    b.output = runs[i].output_tokens ?? 0
+  })
 }
 
 export const flaggedWorktree = new Set<string>()
@@ -505,7 +550,10 @@ function stream(agent: Agent, d: Json) {
       if (last?.type === 'tools') last.calls.push(call)
       else entry.blocks.push({ type: 'tools', calls: [call] })
       act(agent, block.name)
-    }
+    } else if (block.type === 'server_tool_use' && block.name === 'advisor') {
+      entry.blocks.push({ type: 'advisor', id: block.id, at: Date.now() })
+      act(agent, t('conversation.advisorConsulting'))
+    } else if (block.type === 'advisor_tool_result') advised(entry.blocks, block)
   } else if (e.type === 'content_block_delta' && e.delta.type === 'thinking_delta') {
     const block = agentEntry(agent).blocks.findLast((b) => b.type === 'thinking' && b.ms === undefined)
     if (block?.type === 'thinking') block.text = (block.text ?? '') + e.delta.thinking
@@ -547,6 +595,10 @@ function assistant(agent: Agent, d: Json) {
         if (INTERNAL.includes(c.name)) track(agent, c)
         else act(agent, action)
       }
+    } else if (!sub && c.type === 'server_tool_use' && c.name === 'advisor') {
+      if (!blocks().some((b) => b.type === 'advisor' && b.id === c.id)) blocks().push({ type: 'advisor', id: c.id })
+    } else if (!sub && c.type === 'advisor_tool_result') {
+      advised(blocks(), c)
     } else if (c.type === 'text' && (sub || !blocks().some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`)))) {
       blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, ...at })
     }
@@ -681,6 +733,7 @@ function result(agent: Agent, d: Json) {
   const cost = Math.max(0, total - agent.processCost)
   agent.processCost = Math.max(agent.processCost, total)
   const used = usage(d, cost)
+  priceAdvice(agent, d)
   agent.cost += cost
   agent.since = Date.now()
   if (agent.interrupting) interrupted(agent, used)
