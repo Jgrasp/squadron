@@ -170,7 +170,6 @@
       return orderAgents(project.path, [...pins, ...(layout.orders[project.path] ?? []).filter((a) => !pins.includes(a))])
     }
     orderAgents(project.path, ids)
-    if (sort.by !== 'none') setSort(project.path, { by: 'none' })
   }
   $effect(() => {
     if (ofProject(project.path).some((a) => a.review)) lookUpLists(project.path)
@@ -368,7 +367,7 @@
       {#each list as agent, i (agent.id)}
         {#if pinned && i === pinned}<span class="divider" aria-hidden="true"></span>{/if}
         {#if editing === agent.id}
-          <div class="agent {look(agent)}" data-item={agent.id} aria-current={agent.id === current?.id ? 'true' : undefined}>
+          <div class="agent {look(agent)}" data-item={agent.id} data-keep={sort.by !== 'none' && !agent.pinned ? '' : undefined} aria-current={agent.id === current?.id ? 'true' : undefined}>
             {@render card(agent)}
           </div>
         {:else}
@@ -377,6 +376,7 @@
             class:picked={chosen.includes(agent.id)}
             class:fresh={agent.status === 'done' && agent.unread}
             data-item={agent.id}
+            data-keep={sort.by !== 'none' && !agent.pinned ? '' : undefined}
             aria-current={agent.id === current?.id ? 'true' : undefined}
             aria-pressed={chosen.length ? chosen.includes(agent.id) : undefined}
             title={t('shell.renameHint')}
