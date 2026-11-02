@@ -227,7 +227,7 @@
       onreview={(summary, list) => handOver(opened!, summary, list)}
       handTo={(opened && agentOn(opened)?.name) || t('review.newAgent')}
       onposted={() => ((opened = null), lookUpLists(project.path, true))}
-      reviewer={reviewerOf(opened) ?? null}
+      reviewer={reviewerOf(project.path, opened) ?? null}
       onagent={() => askAgent(opened!)}
       banner={flashes}
       onclose={() => (opened = null)}

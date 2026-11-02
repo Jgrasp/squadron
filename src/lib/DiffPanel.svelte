@@ -68,7 +68,9 @@
 
   const folder = $derived(dir ?? workdir(agent!))
   const reviewing = $derived(mode === 'pull' && !!pull)
-  const reviewKey = $derived(agent?.id ?? `${folder}#${pull?.number}`)
+  const reviewKey = $derived(
+    agent?.review && agent.review.number === pull?.number ? `${agent.review.project}#${agent.review.number}` : (agent?.id ?? `${folder}#${pull?.number}`),
+  )
   let onlyNew = $state(untrack(() => !!since))
   let sinceError = $state('')
   const keyOf = (p: Pull) => `${p.number}:${p.head}:${onlyNew ? since : ''}`
@@ -578,14 +580,16 @@
     const sending = [...review]
     posting = true
     postError = null
-    const { done, error } = await post(folder, pull, sending, summary, verdict)
+    const { done, said, error } = await post(folder, pull, sending, summary, verdict)
     posting = false
     reviews[reviewKey] = review.filter((c) => !sending.slice(0, done).includes(c))
+    if (said) summary = ''
     if (error) return (postError = { text: error, done })
     summary = ''
     verdict = ''
     finishing = false
     if (!agent) markReviewed(folder, pull)
+    else if (agent.review) markReviewed(agent.review.project, pull)
     onposted?.()
   }
 
@@ -779,7 +783,7 @@
           autofocus
         ></textarea>
         <div class="actions">
-          {#if agent || handTo}
+          {#if (agent && !agent.review) || (own && handTo)}
             {@const to = agent?.name ?? handTo ?? ''}
             <span class="hint">{t('review.sendOrPost', { count: review.length, agent: to, host: hostName(pull) })}</span>
             <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>

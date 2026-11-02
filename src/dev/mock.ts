@@ -863,7 +863,7 @@ mockIPC(
       case 'merge_pull':
         return
       case 'post_remarks':
-        return { done: (args as { drafts: unknown[] }).drafts.length, error: null }
+        return { done: (args as { drafts: unknown[] }).drafts.length, said: true, error: null }
       case 'git_changes':
         if (a.project.includes('nova')) throw 'not a git repository'
         return {

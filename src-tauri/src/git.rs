@@ -348,6 +348,40 @@ pub fn changed_files(dir: &Path, base: &str) -> Result<Vec<String>, String> {
         .collect())
 }
 
+#[derive(Serialize, Default, Debug, PartialEq)]
+pub struct Shown {
+    pub new: Vec<(u32, u32)>,
+    pub old: Vec<(u32, u32)>,
+}
+
+pub fn shown(dir: &Path, base: &str, path: &str) -> Result<Shown, String> {
+    if base.is_empty() || base.starts_with('-') {
+        return Err("Unknown branch.".into());
+    }
+    Ok(hunks(&diff(
+        dir,
+        &["-U3", &format!("origin/{base}...HEAD"), "--", path],
+    )?))
+}
+
+fn hunks(patch: &str) -> Shown {
+    let range = |spec: &str| {
+        let mut parts = spec.get(1..)?.split(',');
+        let start: u32 = parts.next()?.parse().ok()?;
+        let count: u32 = parts.next().map_or(Some(1), |n| n.parse().ok())?;
+        (count > 0).then(|| (start, start + count - 1))
+    };
+    let mut shown = Shown::default();
+    for head in patch.lines().filter(|line| line.starts_with("@@ ")) {
+        let mut specs = head.split(' ').skip(1);
+        if let (Some(old), Some(new)) = (specs.next(), specs.next()) {
+            shown.old.extend(range(old));
+            shown.new.extend(range(new));
+        }
+    }
+    shown
+}
+
 pub fn review_checkout(
     project: &Path,
     into: &Path,
@@ -417,6 +451,18 @@ pub fn patch(dir: &Path, from: &str, now: &str, path: &str) -> Result<String, St
 mod tests {
     use super::*;
     use std::fs;
+
+    #[test]
+    fn reads_the_lines_each_hunk_shows() {
+        let patch = "diff --git a/a.php b/a.php\n--- a/a.php\n+++ b/a.php\n@@ -15,6 +15,9 @@ class A\n x\n@@ -40 +43,0 @@\n-y\n@@ -0,0 +1,97 @@\n+z\n";
+        assert_eq!(
+            hunks(patch),
+            Shown {
+                new: vec![(15, 23), (1, 97)],
+                old: vec![(15, 20), (40, 40)],
+            }
+        );
+    }
 
     #[test]
     fn files_of_a_folder_without_git_skip_hidden_dependency_and_build_folders() {
