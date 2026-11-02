@@ -1,3 +1,9 @@
+<script lang="ts" module>
+  import type { Person } from './ChangedFiles.svelte'
+
+  const selves: Record<string, Promise<Person | null>> = {}
+</script>
+
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
@@ -62,7 +68,9 @@
 
   const folder = $derived(dir ?? workdir(agent!))
   const reviewing = $derived(mode === 'pull' && !!pull)
-  const reviewKey = $derived(agent?.id ?? `${folder}#${pull?.number}`)
+  const reviewKey = $derived(
+    agent?.review && agent.review.number === pull?.number ? `${agent.review.project}#${agent.review.number}` : (agent?.id ?? `${folder}#${pull?.number}`),
+  )
   let onlyNew = $state(untrack(() => !!since))
   let sinceError = $state('')
   const keyOf = (p: Pull) => `${p.number}:${p.head}:${onlyNew ? since : ''}`
@@ -252,6 +260,14 @@
       .filter((c) => c.path === selected?.path)
       .map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
   )
+
+  let me = $state<Person | null>(null)
+
+  $effect(() => {
+    if (!reviewing && !comments.some(here)) return
+    const dir = folder
+    ;(selves[dir] ??= invoke<Person>('pull_me', { dir }).catch(() => null)).then((found) => dir === folder && (me = found))
+  })
 
   type Spot = Omit<Note, 'current'> & { path: string }
   const draftKey = (c: Comment) => `draft:${c.path}:${c.removed ? 'old' : 'new'}:${c.line}`
@@ -564,14 +580,16 @@
     const sending = [...review]
     posting = true
     postError = null
-    const { done, error } = await post(folder, pull, sending, summary, verdict)
+    const { done, said, error } = await post(folder, pull, sending, summary, verdict)
     posting = false
     reviews[reviewKey] = review.filter((c) => !sending.slice(0, done).includes(c))
+    if (said) summary = ''
     if (error) return (postError = { text: error, done })
     summary = ''
     verdict = ''
     finishing = false
     if (!agent) markReviewed(folder, pull)
+    else if (agent.review) markReviewed(agent.review.project, pull)
     onposted?.()
   }
 
@@ -765,7 +783,7 @@
           autofocus
         ></textarea>
         <div class="actions">
-          {#if agent || handTo}
+          {#if (agent && !agent.review) || (own && handTo)}
             {@const to = agent?.name ?? handTo ?? ''}
             <span class="hint">{t('review.sendOrPost', { count: review.length, agent: to, host: hostName(pull) })}</span>
             <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
@@ -836,6 +854,7 @@
         }))}
         viewed={reviewing ? viewedCount : null}
         selected={reviewing ? spot : selected?.path}
+        {me}
         onpick={(path) => (reviewing ? scrollToFile(path) : (file = path))}
         onnote={(key) => {
           const there = spots.find((s) => s.key === key)
@@ -1054,7 +1073,11 @@
     {#each notesFor(path).filter(at(path, line)) as c, i (i)}
       <div class="thread inline-thread mine" class:hit={lit?.key === draftKey(c)}>
         <div class="remark">
-          <span class="me" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+          {#if me}
+            <span class="self"><Avatar name={me.name} src={me.avatar} size={20} /></span>
+          {:else}
+            <span class="me" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+          {/if}
           <div class="said">
             <span class="who"><strong>{t('common.you')}</strong> · {review.includes(c) ? t('review.inReviewNotPosted') : t('review.inNextMessageTo', { agent: agent?.name ?? '' })}</span>
             <Markdown text={c.note} />
@@ -1265,6 +1288,15 @@
     fill: currentColor;
   }
 
+  .self {
+    display: inline-flex;
+    margin-top: 1px;
+  }
+
+  .self :global(.avatar) {
+    box-shadow: 0 0 0 2px var(--accent);
+  }
+
   .inline-thread.mine {
     box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px var(--border-strong);
   }
@@ -1354,8 +1386,9 @@
   .review-bar {
     flex: none;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px 10px;
     padding: 8px 16px;
     border-bottom: 1px solid var(--border);
     background: var(--wait-bg);
@@ -1531,7 +1564,7 @@
   }
 
   .review-bar .what {
-    flex: 1;
+    flex: 1 1 220px;
     color: var(--accent-soft);
   }
 

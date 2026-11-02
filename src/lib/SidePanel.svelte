@@ -1,11 +1,13 @@
 <script module lang="ts">
-  let live = 0
-  let closedAt = 0
+  const live = new Set<HTMLElement>()
 </script>
 
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte'
-  import { layout, MIN_PANEL, resizePanel, toggleFull, type PanelKind } from './layout.svelte'
+  import { cubicIn, quintOut } from 'svelte/easing'
+  import { displayOf, MIN_PANEL, openPanel, resizePanel, resizeShare, setDisplay, type PanelKind } from './layout.svelte'
+  import { projects } from './projects.svelte'
+  import { covers } from './panels'
   import { t } from './i18n/index.svelte'
   import PanelButtons from './PanelButtons.svelte'
 
@@ -37,63 +39,94 @@
     if (wide) left = panel.parentElement?.getBoundingClientRect().left ?? 0
   })
 
-  const full = $derived(!!layout.full.panel)
-  const width = $derived(layout.widths.panel)
+  const display = $derived(displayOf(kind))
+  const mode = $derived(screen || wide || windowed ? null : display.mode)
 
   let panel: HTMLElement
-  const slide = live === 0 && performance.now() - closedAt > 150
   onMount(() => {
-    live++
-    return () => (live--, (closedAt = performance.now()))
+    for (const other of live) other.style.zIndex = '20'
+    live.add(panel)
+    panel.style.zIndex = '21'
+    return () => live.delete(panel)
   })
-  const widest = () => panel.parentElement?.clientWidth ?? window.innerWidth
+
+  const move = (axis: string) => (t: number) => `transform: translate${axis}(${(1 - t) * 100}%)`
+
+  function arrive(_: Element) {
+    if (windowed) return { duration: 0 }
+    return { duration: 380, easing: quintOut, css: move(mode === 'bottom' ? 'Y' : 'X') }
+  }
+
+  function depart(_: Element) {
+    if (windowed) return { duration: 0 }
+    const next = openPanel(projects.current)
+    if (next && next !== kind && mode && covers(displayOf(next), display)) return { duration: 380 }
+    return { duration: 280, easing: cubicIn, css: move(mode === 'bottom' ? 'Y' : 'X') }
+  }
+
+  const host = () => panel.parentElement!
+  const widest = () => host().clientWidth || window.innerWidth
+  const room = () => {
+    const box = host().getBoundingClientRect()
+    return box.height - (parseFloat(getComputedStyle(host()).getPropertyValue('--panel-top')) || 0)
+  }
 
   function drag(event: PointerEvent) {
     const handle = event.currentTarget as HTMLElement
-    const right = panel.getBoundingClientRect().right
+    const box = panel.getBoundingClientRect()
+    const space = room()
     handle.setPointerCapture(event.pointerId)
-    const move = (e: PointerEvent) => (e.buttons ? resizePanel('panel', right - e.clientX, widest()) : up())
+    host().classList.add('resizing')
+    const resize = (e: PointerEvent) =>
+      mode === 'bottom' ? resizeShare(kind, ((box.bottom - e.clientY) / space) * 100) : resizePanel(kind, box.right - e.clientX, widest())
+    const step = (e: PointerEvent) => (e.buttons ? resize(e) : up())
     const up = () => {
-      handle.removeEventListener('pointermove', move)
+      host().classList.remove('resizing')
+      handle.removeEventListener('pointermove', step)
       handle.removeEventListener('pointerup', up)
     }
-    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointermove', step)
     handle.addEventListener('pointerup', up)
   }
 
   function nudge(event: KeyboardEvent) {
-    if (event.key === 'ArrowLeft') resizePanel('panel', panel.offsetWidth + 16, widest())
-    else if (event.key === 'ArrowRight') resizePanel('panel', panel.offsetWidth - 16, widest())
+    if (mode === 'bottom' && event.key === 'ArrowUp') resizeShare(kind, display.height + 2)
+    else if (mode === 'bottom' && event.key === 'ArrowDown') resizeShare(kind, display.height - 2)
+    else if (mode === 'slide' && event.key === 'ArrowLeft') resizePanel(kind, panel.offsetWidth + 16, widest())
+    else if (mode === 'slide' && event.key === 'ArrowRight') resizePanel(kind, panel.offsetWidth - 16, widest())
   }
 </script>
 
 <section
   class="panel"
-  class:slide
-  class:leave={layout.leaving}
-  class:full
+  class:slide={mode === 'slide'}
+  class:full={mode === 'full'}
+  class:bottom={mode === 'bottom'}
   class:screen
   class:wide
   class:windowed
-  style:width={full || screen || wide || windowed ? null : `${width}px`}
+  style:width={mode === 'slide' ? `${display.width}px` : null}
+  style:height={mode === 'bottom' ? `calc((100% - var(--panel-top, 0px)) * ${display.height / 100})` : null}
   style:left={wide ? `${left}px` : null}
   aria-label={title}
   bind:this={panel}
+  in:arrive
+  out:depart
 >
-  {#if !full && !windowed}
+  {#if mode === 'slide' || mode === 'bottom'}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
       class="resizer"
       role="separator"
-      aria-orientation="vertical"
+      aria-orientation={mode === 'bottom' ? 'horizontal' : 'vertical'}
       aria-label={t('shell.resizePanel', { title: title.toLowerCase() })}
-      aria-valuenow={width}
-      aria-valuemin={MIN_PANEL}
+      aria-valuenow={mode === 'bottom' ? display.height : display.width}
+      aria-valuemin={mode === 'bottom' ? 20 : MIN_PANEL}
       tabindex="0"
       title={t('shell.dragToResize')}
       onpointerdown={drag}
       onkeydown={nudge}
-      ondblclick={toggleFull}
+      ondblclick={() => setDisplay(kind, { mode: 'full' })}
     ></div>
   {/if}
   {#if sub}
@@ -103,7 +136,7 @@
       <span>{@render sub?.()}</span>
     </div>
     {@render actions?.()}
-    <PanelButtons {windowed} {onclose} />
+    <PanelButtons {kind} {windowed} {onclose} />
   </div>
   {/if}
   {@render children()}
@@ -112,63 +145,47 @@
 <style>
   .panel {
     position: absolute;
-    top: var(--panel-top, 0);
-    right: 0;
-    bottom: 0;
     z-index: 20;
-    min-width: min(420px, 100%);
-    max-width: 100%;
     display: flex;
     flex-direction: column;
-    border-left: 1px solid var(--border-strong);
     background: var(--bg-sidebar);
-    box-shadow: -18px 0 40px rgba(0, 0, 0, 0.45);
   }
 
   .panel.slide {
-    animation: arrive 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  @keyframes arrive {
-    from {
-      transform: translateX(100%);
-    }
-  }
-
-  .panel.leave {
-    animation: depart 0.28s cubic-bezier(0.4, 0, 1, 1) forwards;
-  }
-
-  @keyframes depart {
-    to {
-      transform: translateX(100%);
-    }
+    top: var(--panel-top, 0);
+    right: 0;
+    bottom: 0;
+    min-width: min(420px, 100%);
+    max-width: 100%;
+    border-left: 1px solid var(--border-strong);
+    box-shadow: -18px 0 40px rgba(0, 0, 0, 0.45);
   }
 
   .panel.full {
+    top: var(--panel-top, 0);
+    right: 0;
+    bottom: 0;
     left: 0;
-    min-width: 0;
-    border-left: none;
-    box-shadow: none;
+  }
+
+  .panel.bottom {
+    right: 0;
+    bottom: 0;
+    left: 0;
+    border-top: 1px solid var(--border-strong);
+    box-shadow: 0 -14px 34px rgba(0, 0, 0, 0.35);
   }
 
   .panel.screen,
   .panel.windowed {
     position: fixed;
     inset: 0;
-    min-width: 0;
-    border-left: none;
   }
 
   .panel.wide {
     position: fixed;
     inset: 54px 0 0 0;
-    z-index: 40;
-    min-width: 0;
-    border-left: none;
-  }
-
-  .panel.wide {
+    z-index: 40 !important;
     border-left: 1px solid var(--border);
   }
 
@@ -180,6 +197,16 @@
     z-index: 2;
     width: 6px;
     cursor: col-resize;
+  }
+
+  .bottom .resizer {
+    top: -4px;
+    right: 0;
+    bottom: auto;
+    left: 0;
+    width: auto;
+    height: 6px;
+    cursor: row-resize;
   }
 
   .resizer:hover,

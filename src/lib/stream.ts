@@ -382,6 +382,7 @@ function settled(agent: Agent, status: Subagent['status']) {
   if (left) return act(agent, waitingOn(left))
   agent.held = false
   agent.since = Date.now()
+  agent.live = { input: 0, output: 0, outputDone: 0, started: Date.now() }
   if (agent.interrupting) interrupted(agent)
   else if (status === 'stopped') {
     agent.status = 'done'
@@ -485,6 +486,7 @@ export function apply(agent: Agent, d: Json) {
         agent.attention = String(d.needs_action || d.status_detail || t('conversation.waitingForYou'))
       if (d.subtype === 'status' && d.status === 'requesting') {
         agent.guess = ''
+        if (agent.held) agent.live = { input: 0, output: 0, outputDone: 0, started: Date.now() }
         agent.held = false
         if (agent.status !== 'waiting') agent.status = 'working'
       }

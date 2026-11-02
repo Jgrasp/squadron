@@ -43,7 +43,15 @@
     viewed = null,
     onpick,
     onnote,
-  }: { files: TreeFile[]; selected: string | undefined; viewed?: number | null; onpick: (path: string) => void; onnote?: (key: string) => void } = $props()
+    me = null,
+  }: {
+    files: TreeFile[]
+    selected: string | undefined
+    viewed?: number | null
+    onpick: (path: string) => void
+    onnote?: (key: string) => void
+    me?: Person | null
+  } = $props()
 
   let filter = $state('')
   let closed = $state<string[]>([])
@@ -96,7 +104,11 @@
             <span class="at">{note.removed ? '−' : ''}{note.line}</span>
             <span class="by">
               {#if note.mine}
-                <span class="me" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+                {#if me}
+                  <span class="self"><Avatar name={me.name} src={me.avatar} size={16} /></span>
+                {:else}
+                  <span class="me" aria-hidden="true"><svg width="9" height="9" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+                {/if}
                 <strong>{t('common.you')}</strong>
               {:else}
                 <Avatar name={note.author.name} src={note.author.avatar} size={16} />
@@ -258,7 +270,7 @@
   .note {
     --row: var(--bg-sidebar);
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 2px 6px;
     height: auto;
     padding: 5px 6px 5px 2px;
@@ -282,6 +294,7 @@
   }
 
   .at {
+    min-width: 18px;
     align-self: center;
     font: 11.5px var(--mono);
     color: var(--text-dim);
@@ -324,6 +337,15 @@
 
   .me svg {
     fill: currentColor;
+  }
+
+  .self {
+    flex: none;
+    display: inline-flex;
+  }
+
+  .self :global(.avatar) {
+    box-shadow: 0 0 0 1.5px var(--accent);
   }
 
   .others {

@@ -856,12 +856,14 @@ mockIPC(
           { id: 5, author: 'Lucas M.', avatar: '', body: 'Why not reuse the export channel option?', path: 'src/Export/ExportService.php', line: 16, removed: false, reply_to: null, at: '2026-10-23T10:05:00Z', kind: 'line' },
           { id: 3, author: 'Amandine T.', avatar: '', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
         ]
+      case 'pull_me':
+        return { name: 'Quentin Briais', avatar: '' }
       case 'pull_reply':
         return
       case 'merge_pull':
         return
       case 'post_remarks':
-        return { done: (args as { drafts: unknown[] }).drafts.length, error: null }
+        return { done: (args as { drafts: unknown[] }).drafts.length, said: true, error: null }
       case 'git_changes':
         if (a.project.includes('nova')) throw 'not a git repository'
         return {

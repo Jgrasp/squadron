@@ -8,9 +8,11 @@
   import { ui } from './actions.svelte'
   import { archiveProject, create, ofProject, selected, waiting } from './agents.svelte'
   import {
+    bottomShare,
     layout,
     MAX_SIDEBAR,
     MIN_SIDEBAR,
+    openPanel,
     resizeSidebar,
     setPanel,
     type PanelKind,
@@ -150,7 +152,7 @@
       <AgentView {agent} {overlay} />
     {/key}
   {:else}
-    <main class="idle">
+    <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))}>
       <div class="center">
       <div class="box">
         <span class="plus" aria-hidden="true">
@@ -294,7 +296,10 @@
 
   .center {
     flex: 1;
+    align-self: flex-start;
     min-width: 0;
+    height: calc(100% * (1 - var(--panel-share, 0)));
+    transition: height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
     display: flex;
     align-items: center;
     justify-content: center;

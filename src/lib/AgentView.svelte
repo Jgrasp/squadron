@@ -10,7 +10,7 @@
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
   import ContextGauge from './ContextGauge.svelte'
-  import { layout, setPanel, type PanelKind } from './layout.svelte'
+  import { bottomShare, layout, openPanel, setPanel, type PanelKind } from './layout.svelte'
   import { home, projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
@@ -663,7 +663,7 @@
   }}
 />
 
-<main style:--panel-top="{headerHeight}px">
+<main style:--panel-top="{headerHeight}px" style:--panel-share={bottomShare(openPanel(agent.project))}>
   <section class="conversation" aria-label={t('agent.conversation')}>
     {#if reading && ticket}
       <TicketPanel connection={ticket.connection} ticketKey={ticket.key} linked oncreate={() => {}} onclose={() => (reading = false)} />
@@ -1191,9 +1191,16 @@
   .conversation {
     position: relative;
     flex: 1;
+    align-self: flex-start;
     min-width: 360px;
+    height: calc(100% - (100% - var(--panel-top, 0px)) * var(--panel-share, 0));
     display: flex;
     flex-direction: column;
+    transition: height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  :global(.resizing) > .conversation {
+    transition: none;
   }
 
   .tools {

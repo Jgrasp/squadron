@@ -6,6 +6,11 @@ export const MIN_PANEL = 420
 import { projects } from './projects.svelte'
 
 export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls'
+export type PanelMode = 'slide' | 'full' | 'bottom'
+export type Display = { mode: PanelMode; width: number; height: number }
+
+export const MIN_SHARE = 20
+export const MAX_SHARE = 75
 
 const read = (key: string) => JSON.parse(localStorage.getItem(key) ?? '{}')
 
@@ -15,6 +20,7 @@ let fileTree = true
 let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680, artifacts: 680, panel: 760 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
+let display: Record<string, Partial<Display>> = {}
 
 export type AgentSort = { by: 'none' | 'updated' | 'created' | 'name'; desc: boolean }
 let sort: AgentSort = { by: 'none', desc: false }
@@ -34,6 +40,7 @@ try {
   widths = { ...widths, ...read('squadron.diff-widths'), ...read('squadron.widths') }
   full = { diff: localStorage.getItem('squadron.diff-full') === '1', ...read('squadron.full') }
   panels = read('squadron.panels')
+  display = read('squadron.display')
   projectsWidth = Number(localStorage.getItem('squadron.projects-width')) || 360
   foldedGroups0 = read('squadron.groups-folded')
   launchSettings = localStorage.getItem('squadron.launch-settings') === 'open'
@@ -47,6 +54,7 @@ export const layout = $state({
   widths,
   full,
   panels,
+  display,
   sort,
   sorts,
   orders,
@@ -54,7 +62,6 @@ export const layout = $state({
   foldedGroups: foldedGroups0,
   launchSettings,
   contextShown,
-  leaving: false,
 })
 
 export function setSort(project: string | null, next: Partial<AgentSort>) {
@@ -100,32 +107,42 @@ export function setFileTree(on: boolean) {
   keep('squadron.diff-tree', on ? 'on' : 'off')
 }
 
-export function resizePanel(size: string, width: number, max: number) {
-  layout.widths[size] = Math.round(Math.max(MIN_PANEL, Math.min(max, width)))
-  keep('squadron.widths', JSON.stringify(layout.widths))
+export const displayOf = (kind: PanelKind): Display => ({
+  mode: layout.full.panel ? 'full' : 'slide',
+  width: layout.widths.panel,
+  height: 40,
+  ...layout.display[kind],
+})
+
+export function setDisplay(kind: PanelKind, next: Partial<Display>) {
+  layout.display[kind] = { ...layout.display[kind], ...next }
+  keep('squadron.display', JSON.stringify(layout.display))
 }
 
-export function toggleFull() {
-  layout.full.panel = !layout.full.panel
+export function resetDisplay() {
+  for (const kind of Object.keys(layout.display)) delete layout.display[kind]
+  layout.full.panel = false
+  keep('squadron.display', '{}')
   keep('squadron.full', JSON.stringify(layout.full))
 }
 
-let leaving = 0
-
-export function closeOverlay(done: () => void) {
-  if (layout.leaving) return
-  layout.leaving = true
-  leaving = window.setTimeout(() => ((layout.leaving = false), done()), 280)
+export function resizePanel(kind: PanelKind, width: number, max: number) {
+  setDisplay(kind, { width: Math.round(Math.max(MIN_PANEL, Math.min(max, width))) })
 }
 
-export function setPanel(project: string, kind: PanelKind | null, now = false) {
-  if (!kind && !now && layout.panels[project]) closeOverlay(() => showPanel(project, null))
-  else showPanel(project, kind)
+export function resizeShare(kind: PanelKind, share: number) {
+  setDisplay(kind, { height: Math.round(Math.max(MIN_SHARE, Math.min(MAX_SHARE, share))) })
 }
 
-function showPanel(project: string, kind: PanelKind | null) {
-  clearTimeout(leaving)
-  layout.leaving = false
+export const openPanel = (project: string): PanelKind | null =>
+  projects.board ? 'kanban' : projects.pulls ? 'pulls' : (layout.panels[project] ?? null)
+
+export const bottomShare = (kind: PanelKind | null) => {
+  const shown = kind && displayOf(kind)
+  return shown && shown.mode === 'bottom' ? shown.height / 100 : 0
+}
+
+export function setPanel(project: string, kind: PanelKind | null) {
   if (kind) projects.board = projects.pulls = false
   if (kind) layout.panels[project] = kind
   else delete layout.panels[project]

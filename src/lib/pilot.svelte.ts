@@ -238,6 +238,14 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
         )
     }
     const removed = !!path && args.removed === true
+    if (path && caller.review.base) {
+      const shown = await invoke<{ new: [number, number][]; old: [number, number][] }>('review_lines', { dir: workdir(caller), base: caller.review.base, path }).catch(() => null)
+      const ranges = shown && (removed ? shown.old : shown.new)
+      if (ranges && !ranges.some(([from, to]) => line >= from && line <= to))
+        throw new Error(
+          `Line ${line} of ${path} is not in the diff of the pull request, so the comment could not be posted there. The diff shows ${removed ? 'these lines of the old version' : 'these lines'}: ${ranges.map(([from, to]) => (from === to ? from : `${from}-${to}`)).join(', ')}. Put the comment on the closest of them, or leave path and line out to comment on the whole pull request.`,
+        )
+    }
     const text = !path || removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
     const key = `${caller.review.project}#${caller.review.number}`
     reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]

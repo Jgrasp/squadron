@@ -1,32 +1,55 @@
 <script lang="ts">
-  import { layout, toggleFull } from './layout.svelte'
+  import { displayOf, setDisplay, type PanelKind } from './layout.svelte'
+  import { MODES, modeLabel } from './panels'
   import { t } from './i18n/index.svelte'
+  import ModeIcon from './ModeIcon.svelte'
 
-  let { windowed = false, onclose }: { windowed?: boolean; onclose: () => void } = $props()
+  let { kind, windowed = false, onclose }: { kind: PanelKind; windowed?: boolean; onclose: () => void } = $props()
 
-  const full = $derived(!!layout.full.panel)
+  const mode = $derived(displayOf(kind).mode)
 </script>
 
 {#if !windowed}
-  <button
-    class="icon"
-    aria-label={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
-    aria-pressed={full}
-    title={full ? t('shell.exitFullScreen') : t('shell.fullScreen')}
-    onclick={toggleFull}
-  >
-    <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true">
-      {#if full}
-        <path d="M4 14h6v6M20 10h-6V4M14 10l7-7M3 21l7-7" />
-      {:else}
-        <path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7" />
-      {/if}
-    </svg>
-  </button>
+  <div class="modes" role="group" aria-label={t('shell.panelPlacement')}>
+    {#each MODES as each (each)}
+      <button aria-pressed={mode === each} aria-label={t(modeLabel[each])} title={t(modeLabel[each])} onclick={() => setDisplay(kind, { mode: each })}>
+        <ModeIcon mode={each} />
+      </button>
+    {/each}
+  </div>
 {/if}
 <button class="icon" aria-label={t('shell.closePanel')} title={t('shell.closePanel')} onclick={onclose}>×</button>
 
 <style>
+  .modes {
+    flex: none;
+    display: flex;
+    gap: 2px;
+    padding: 2px;
+    border-radius: 6px;
+    background: var(--surface-2);
+  }
+
+  .modes button {
+    width: 30px;
+    height: 28px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .modes button:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .modes button[aria-pressed='true'] {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
   .icon {
     width: 32px;
     height: 32px;
@@ -39,17 +62,8 @@
     color: var(--text-2);
   }
 
-  .icon:hover,
-  .icon[aria-pressed='true'] {
+  .icon:hover {
     background: var(--surface-4);
     color: var(--text-strong);
-  }
-
-  .icon svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2;
-    stroke-linecap: round;
-    stroke-linejoin: round;
   }
 </style>

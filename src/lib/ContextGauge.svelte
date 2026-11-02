@@ -1,5 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { cubicOut } from 'svelte/easing'
+  import { Tween } from 'svelte/motion'
   import { send } from './agents.svelte'
   import { tokens } from './format'
   import { t } from './i18n/index.svelte'
@@ -17,8 +19,71 @@
   const left = $derived(threshold === null ? null : Math.max(0, threshold - agent.tokens))
   const near = $derived(left !== null && threshold !== null && left < threshold * 0.1)
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
-  const tone = $derived(share < 0.5 ? 'low' : share < 0.8 ? 'mid' : 'high')
-  const level = $derived(agent.tokens ? 18 - 16 * share : 20)
+  type Bite = { id: number; x: number; to: number; amount: number }
+
+  let eaten = $state(0)
+  let eating = $state(false)
+  let bites = $state<Bite[]>([])
+  let pending = 0
+  let seen = { id: '', tokens: 0 }
+  let round = 0
+  let bite = 0
+  let closing: ReturnType<typeof setTimeout> | undefined
+  const still = matchMedia('(prefers-reduced-motion: reduce)')
+
+  const fill = $derived(max ? Math.min(1, eaten / max) : 0)
+  const tone = $derived(fill < 0.5 ? 'low' : fill < 0.8 ? 'mid' : 'high')
+  const level = Tween.of(() => fill, { duration: 350, easing: cubicOut })
+
+  $effect(() => {
+    const tokens = agent.tokens
+    const add = tokens - seen.tokens
+    const same = seen.id === agent.id
+    seen = { id: agent.id, tokens }
+    if (!same || add <= 0 || still.matches) {
+      round++
+      clearTimeout(closing)
+      bites = []
+      pending = 0
+      eating = false
+      eaten = tokens
+      return
+    }
+    clearTimeout(closing)
+    eating = true
+    pending += add
+    const count = Math.max(1, Math.min(10, Math.round(add / 2000)))
+    const now = round
+    for (let i = 0; i < count; i++)
+      setTimeout(() => {
+        if (now !== round) return
+        if (bites.length >= 10) return swallow(add / count)
+        bites.push({ id: bite++, x: 13 + Math.random() * 4, to: 5 + 20 * (1 - level.current) - 1.4, amount: add / count })
+      }, 300 + i * 150)
+  })
+
+  function swallow(amount: number) {
+    eaten = Math.min(agent.tokens, eaten + amount)
+    pending -= amount
+    if (pending < 1) closing = setTimeout(() => (eating = false), 380)
+  }
+
+  function fly(node: SVGRectElement, b: Bite) {
+    node
+      .animate(
+        [
+          { transform: `translate(${b.x}px, 1px)`, opacity: 0 },
+          { opacity: 1, offset: 0.15 },
+          { transform: `translate(${b.x}px, ${b.to}px)`, opacity: 1 },
+        ],
+        { duration: 520, easing: 'cubic-bezier(.5, 0, 1, .6)', fill: 'forwards' },
+      )
+      .finished.then(() => {
+        bites = bites.filter((x) => x.id !== b.id)
+        swallow(b.amount)
+      })
+      .catch(() => {})
+  }
   const when = $derived(
     left !== null ? t('agent.autoCompactAt', { at: tokens(threshold!), left: tokens(left) }) : max ? t('agent.autoCompactOff') : t('agent.contextLater'),
   )
@@ -38,15 +103,15 @@
 
 <span class="anchor" data-context>
   <button class="gauge {tone}" aria-haspopup="dialog" aria-expanded={open} title={when} onclick={toggle}>
-    <svg class="ring" class:moving={agent.status === 'working'} width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
-      <clipPath id="context-{agent.id}"><circle cx="10" cy="10" r="8" /></clipPath>
-      <g clip-path="url(#context-{agent.id})">
-        <path class="back" d="M-10 {level - 0.6}q2.5 1.6 5 0t5 0 5 0 5 0 5 0 5 0V20H-10Z" />
-        <path class="front" d="M-10 {level}q2.5-1.6 5 0t5 0 5 0 5 0 5 0 5 0V20H-10Z" />
-      </g>
-      <circle class="rim" cx="10" cy="10" r="8.75" />
+    <svg class="ring" class:eating width="22" height="22" viewBox="3 3 24 24" aria-hidden="true">
+      <clipPath id="context-{agent.id}"><circle cx="15" cy="15" r="9.6" /></clipPath>
+      <rect class="level" clip-path="url(#context-{agent.id})" x="4" y={5 + 20 * (1 - level.current)} width="22" height="21" />
+      <circle class="rim" cx="15" cy="15" r="11" transform="rotate(-90 15 15)" />
+      {#each bites as b (b.id)}
+        <rect class="bite" x="-1.1" y="-1.1" width="2.2" height="2.2" rx="0.5" opacity="0" use:fly={b} />
+      {/each}
     </svg>
-    <span class="mono">{!max || layout.contextShown === 'tokens' ? tokens(agent.tokens) : layout.contextShown === 'both' ? t('agent.contextBoth', { tokens: tokens(agent.tokens), percent }) : t('agent.contextPercent', { percent })}</span>
+    <span class="mono">{!max || layout.contextShown === 'tokens' ? tokens(Math.round(eaten)) : layout.contextShown === 'both' ? t('agent.contextBoth', { tokens: tokens(Math.round(eaten)), percent: Math.round(fill * 100) }) : t('agent.contextPercent', { percent: Math.round(fill * 100) })}</span>
   </button>
   {#if open}
     <div class="panel" role="dialog" aria-label={t('agent.context')}>
@@ -116,45 +181,30 @@
 
   .ring {
     flex: none;
+    overflow: visible;
   }
 
-  .ring .front {
+  .ring .level,
+  .ring .bite {
     fill: var(--level);
-  }
-
-  .ring .back {
-    fill: var(--level);
-    opacity: 0.4;
   }
 
   .ring .rim {
     fill: none;
     stroke: var(--level);
-    stroke-opacity: 0.55;
+    stroke-opacity: 0.6;
     stroke-width: 1.5;
+    stroke-linecap: round;
+    stroke-dasharray: 69.1 0;
+    stroke-dashoffset: 0;
+    transition:
+      stroke-dasharray 0.4s cubic-bezier(0.3, 1.3, 0.5, 1),
+      stroke-dashoffset 0.4s cubic-bezier(0.3, 1.3, 0.5, 1);
   }
 
-  .moving .front {
-    animation: wave 1.6s linear infinite;
-  }
-
-  .moving .back {
-    animation: wave 2.4s linear infinite reverse;
-  }
-
-  @keyframes wave {
-    from {
-      transform: translateX(0);
-    }
-    to {
-      transform: translateX(10px);
-    }
-  }
-
-  @media (prefers-reduced-motion: reduce) {
-    .moving path {
-      animation: none;
-    }
+  .eating .rim {
+    stroke-dasharray: 53.1 16;
+    stroke-dashoffset: -8;
   }
 
   .panel {

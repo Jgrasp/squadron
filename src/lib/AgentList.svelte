@@ -2,7 +2,7 @@
   import { ask } from './asking.svelte'
   import { agents, archive, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
   import { ago } from './format'
-  import { layout, orderAgents, resetSort, setSort, type AgentSort } from './layout.svelte'
+  import { layout, orderAgents, resetSort, setPanel, setSort, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
   import { projects, type Project } from './projects.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
@@ -92,15 +92,13 @@
     name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
   }
   const list = $derived.by(() => {
-    const all = [...ofProject(project.path)]
+    const order = layout.orders[project.path] ?? []
+    const rank = (a: Agent) => (order.includes(a.id) ? order.indexOf(a.id) : order.length)
+    const all = [...ofProject(project.path)].sort((a, b) => rank(a) - rank(b))
+    const rest = all.filter((a) => !a.pinned)
     const by = sort.by
-    if (by !== 'none') all.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
-    else {
-      const order = layout.orders[project.path] ?? []
-      const rank = (a: Agent) => (order.includes(a.id) ? order.indexOf(a.id) : order.length)
-      all.sort((a, b) => rank(a) - rank(b))
-    }
-    return [...all.filter((a) => a.pinned), ...all.filter((a) => !a.pinned)]
+    if (by !== 'none') rest.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
+    return [...all.filter((a) => a.pinned), ...rest]
   })
   const pinned = $derived(list.filter((a) => a.pinned).length)
 
@@ -142,6 +140,8 @@
   function openAgent(event: MouseEvent, agent: Agent) {
     if (event.ctrlKey || event.metaKey || event.shiftKey) return
     chosen = []
+    projects.board = projects.pulls = false
+    setPanel(project.path, null)
     agents.current[project.path] = agent.id
   }
 
@@ -166,8 +166,12 @@
   function drop(id: string, index: number) {
     const ids = list.map((a) => a.id).filter((a) => a !== id)
     ids.splice(index, 0, id)
+    const pinnedIds = list.filter((a) => a.pinned).map((a) => a.id)
+    if (sort.by !== 'none' && pinnedIds.includes(id)) {
+      const pins = ids.filter((a) => pinnedIds.includes(a))
+      return orderAgents(project.path, [...pins, ...(layout.orders[project.path] ?? []).filter((a) => !pins.includes(a))])
+    }
     orderAgents(project.path, ids)
-    if (sort.by !== 'none') setSort(project.path, { by: 'none' })
   }
   $effect(() => {
     if (ofProject(project.path).some((a) => a.review)) lookUpLists(project.path)
@@ -365,7 +369,7 @@
       {#each list as agent, i (agent.id)}
         {#if pinned && i === pinned}<span class="divider" aria-hidden="true"></span>{/if}
         {#if editing === agent.id}
-          <div class="agent {look(agent)}" data-item={agent.id} aria-current={agent.id === current?.id ? 'true' : undefined}>
+          <div class="agent {look(agent)}" data-item={agent.id} data-keep={sort.by !== 'none' && !agent.pinned ? '' : undefined} aria-current={agent.id === current?.id ? 'true' : undefined}>
             {@render card(agent)}
           </div>
         {:else}
@@ -374,6 +378,7 @@
             class:picked={chosen.includes(agent.id)}
             class:fresh={agent.status === 'done' && agent.unread}
             data-item={agent.id}
+            data-keep={sort.by !== 'none' && !agent.pinned ? '' : undefined}
             aria-current={agent.id === current?.id ? 'true' : undefined}
             aria-pressed={chosen.length ? chosen.includes(agent.id) : undefined}
             title={t('shell.renameHint')}

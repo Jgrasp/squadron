@@ -4,6 +4,7 @@
   import { ask } from './asking.svelte'
   import { agents, clock, find, reply, send, show } from './agents.svelte'
   import { ui } from './actions.svelte'
+  import { settings } from './settings.svelte'
   import type { Project } from './projects.svelte'
   import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, fixWithAgent, reopen, behind, reviewChanges, reviewerOf, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
@@ -40,6 +41,11 @@
     else delete agents.current[project.path]
     launched = { id, number: pull.number }
   }
+  const asking = (pull: Pull): Choice => ({
+    label: t('review.askAgent'),
+    title: settings.pilot ? t('review.askAgentTitle') : t('review.askAgentNeedsPilot'),
+    run: () => (settings.pilot ? askAgent(pull).catch((e) => (failure = `#${pull.number}: ${errorText(e)}`)) : (ui.settings = 'preferences')),
+  })
   async function askAgain(agent: Agent, pull: Pull) {
     failure = ''
     try {
@@ -173,7 +179,7 @@
               `review-${pull.number}`,
               main,
               waitsFor(project.path, pull) && main !== seeing,
-              [...(main === reviewing ? [] : [reviewing]), ...(seeing && main !== seeing ? [seeing] : []), openOn(pull), ...approving(pull)],
+              [...(main === reviewing ? [] : [reviewing]), ...(seeing && main !== seeing ? [seeing] : []), ...(reviewer ? [] : [asking(pull)]), openOn(pull), ...approving(pull)],
               main === reviewing && opened?.number === pull.number,
             )}
           </article>
@@ -221,7 +227,7 @@
       onreview={(summary, list) => handOver(opened!, summary, list)}
       handTo={(opened && agentOn(opened)?.name) || t('review.newAgent')}
       onposted={() => ((opened = null), lookUpLists(project.path, true))}
-      reviewer={reviewerOf(opened) ?? null}
+      reviewer={reviewerOf(project.path, opened) ?? null}
       onagent={() => askAgent(opened!)}
       banner={flashes}
       onclose={() => (opened = null)}

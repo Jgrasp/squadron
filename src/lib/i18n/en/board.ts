@@ -108,4 +108,6 @@ export default {
   taskShowBoard: 'Show in the Kanban →',
   taskShowAgent: 'Go to the agent →',
   taskOpenPull: 'Open the pull request →',
+  taskView: 'View the task',
+  taskGoAgent: 'Go to the agent',
 }

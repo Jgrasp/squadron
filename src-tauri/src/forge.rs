@@ -98,6 +98,12 @@ pub struct Lists {
 }
 
 #[derive(Debug, PartialEq, Serialize)]
+pub struct Person {
+    pub name: String,
+    pub avatar: String,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
 pub struct Remark {
     pub id: u64,
     pub author: String,
@@ -122,6 +128,7 @@ pub struct Draft {
 #[derive(Serialize)]
 pub struct Posted {
     pub done: usize,
+    pub said: bool,
     pub error: Option<String>,
 }
 
@@ -295,9 +302,26 @@ fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
     }
     let out = child.wait_with_output().map_err(|e| e.to_string())?;
     if !out.status.success() {
-        return Err(String::from_utf8_lossy(&out.stderr).trim().to_string());
+        return Err(gh_error(&out.stderr, &out.stdout));
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
+}
+
+fn gh_error(stderr: &[u8], stdout: &[u8]) -> String {
+    let said = String::from_utf8_lossy(stderr).trim().to_string();
+    let body: Value = serde_json::from_slice(stdout).unwrap_or_default();
+    let details: Vec<&str> = body["errors"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|e| e["message"].as_str().or(e.as_str()))
+        .filter(|detail| !said.contains(detail))
+        .collect();
+    if details.is_empty() {
+        said
+    } else {
+        format!("{said}: {}", details.join("; "))
+    }
 }
 
 fn lines(out: &str) -> Vec<Value> {
@@ -875,6 +899,35 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
     }
 }
 
+pub async fn me(dir: &Path) -> Result<Person, String> {
+    let repo = repo_of(dir)?;
+    match repo.host {
+        Host::Bitbucket => bitbucket(
+            Method::GET,
+            "/user",
+            &[("fields", "display_name,links.avatar.href")],
+            None,
+        )
+        .await
+        .map(|user| person(&user, "display_name", &user["links"]["avatar"]["href"])),
+        Host::GitHub => {
+            blocking(|| {
+                let user: Value = serde_json::from_str(&gh(&["api", "user"], None)?)
+                    .map_err(|e| e.to_string())?;
+                Ok(person(&user, "login", &user["avatar_url"]))
+            })
+            .await
+        }
+    }
+}
+
+fn person(user: &Value, name: &str, avatar: &Value) -> Person {
+    Person {
+        name: text(&user[name]),
+        avatar: text(avatar),
+    }
+}
+
 fn bitbucket_remark(found: &Value) -> Option<Remark> {
     if found["deleted"] == true {
         return None;
@@ -980,6 +1033,7 @@ pub async fn post(
                 if let Err(error) = sent {
                     return Ok(Posted {
                         done,
+                        said: false,
                         error: Some(error),
                     });
                 }
@@ -989,6 +1043,7 @@ pub async fn post(
             } else {
                 bitbucket(Method::POST, &url, &[], Some(json!({ "content": { "raw": summary } }))).await
             };
+            let said = sent.is_ok();
             let decision = match verdict.as_str() {
                 "approve" => Some("approve"),
                 "request_changes" => Some("request-changes"),
@@ -1000,6 +1055,7 @@ pub async fn post(
             }
             Ok(Posted {
                 done: total,
+                said,
                 error: sent.err(),
             })
         }
@@ -1020,7 +1076,11 @@ pub async fn post(
                 _ => "COMMENT",
             };
             if event == "COMMENT" && comments.is_empty() && summary.is_empty() {
-                return Ok(Posted { done: 0, error: None });
+                return Ok(Posted {
+                    done: 0,
+                    said: true,
+                    error: None,
+                });
             }
             let review = json!({ "commit_id": head, "event": event, "body": summary, "comments": comments });
             let sent = gh(
@@ -1029,6 +1089,7 @@ pub async fn post(
             );
             Ok(Posted {
                 done: if sent.is_ok() { drafts.len() } else { 0 },
+                said: sent.is_ok(),
                 error: sent.err(),
             })
         })
@@ -1446,6 +1507,44 @@ mod tests {
         assert_eq!(
             github_pull(&running, "x").checks.as_deref(),
             Some("pending")
+        );
+    }
+
+    #[test]
+    fn explains_why_github_refused() {
+        let body = br#"{"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff"],"status":"422"}"#;
+        assert_eq!(
+            gh_error(b"gh: Unprocessable Entity (HTTP 422)\n", body),
+            "gh: Unprocessable Entity (HTTP 422): Pull request review thread line must be part of the diff"
+        );
+        let body = br#"{"message":"Invalid request.","status":"422"}"#;
+        assert_eq!(
+            gh_error(b"gh: Invalid request. (HTTP 422)", body),
+            "gh: Invalid request. (HTTP 422)"
+        );
+    }
+
+    #[test]
+    fn reads_who_you_are_on_both_hosts() {
+        let bitbucket = json!({ "display_name": "Quentin Briais", "links": { "avatar": { "href": "https://a/q.png" } } });
+        assert_eq!(
+            person(
+                &bitbucket,
+                "display_name",
+                &bitbucket["links"]["avatar"]["href"]
+            ),
+            Person {
+                name: "Quentin Briais".into(),
+                avatar: "https://a/q.png".into()
+            }
+        );
+        let github = json!({ "login": "Jgrasp", "avatar_url": "https://a/j.png" });
+        assert_eq!(
+            person(&github, "login", &github["avatar_url"]),
+            Person {
+                name: "Jgrasp".into(),
+                avatar: "https://a/j.png".into()
+            }
         );
     }
 

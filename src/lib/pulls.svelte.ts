@@ -221,7 +221,7 @@ function tell(pull: Pull, text: string, comments: Comment[] = []) {
 export async function post(dir: string, pull: Pull, list: Comment[], summary = '', verdict = '') {
   const drafts = list.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
   try {
-    const result = await invoke<{ done: number; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary, verdict })
+    const result = await invoke<{ done: number; said: boolean; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary, verdict })
     if (!result.error)
       tell(
         pull,
@@ -230,7 +230,7 @@ export async function post(dir: string, pull: Pull, list: Comment[], summary = '
       )
     return result
   } catch (e) {
-    return { done: 0, error: String(e) }
+    return { done: 0, said: false, error: String(e) }
   } finally {
     lookUp(dir, true)
   }

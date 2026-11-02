@@ -931,6 +931,13 @@ async fn pull_lists(dir: PathBuf) -> Result<forge::Lists, String> {
 }
 
 #[tauri::command]
+async fn review_lines(dir: PathBuf, base: String, path: String) -> Result<git::Shown, String> {
+    tauri::async_runtime::spawn_blocking(move || git::shown(&dir, &base, &path))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn changed_files(dir: PathBuf, base: String) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || git::changed_files(&dir, &base))
         .await
@@ -981,6 +988,11 @@ async fn pull_changes(
 #[tauri::command]
 async fn pull_remarks(dir: PathBuf, number: u64) -> Result<Vec<forge::Remark>, String> {
     forge::remarks(&dir, number).await
+}
+
+#[tauri::command]
+async fn pull_me(dir: PathBuf) -> Result<forge::Person, String> {
+    forge::me(&dir).await
 }
 
 #[tauri::command]
@@ -1833,8 +1845,10 @@ pub fn run() {
             linked_pull,
             review_checkout,
             changed_files,
+            review_lines,
             pull_changes,
             pull_remarks,
+            pull_me,
             pull_reply,
             post_remarks,
             merge_pull,

@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { Card } from './board'
 import { ofProject } from './agents.svelte'
-import { closeOverlay, setPanel } from './layout.svelte'
+import { setPanel } from './layout.svelte'
 import { settings } from './settings.svelte'
 import type { Options } from './stream'
 import type { Source } from './tickets.svelte'
@@ -154,10 +154,10 @@ export async function toggleBoard() {
   const popped = await WebviewWindow.getByLabel('board')
   if (popped) return popped.setFocus()
   projects.overview = false
-  if (projects.board) return closeOverlay(() => (projects.board = false))
+  if (projects.board) return void (projects.board = false)
   projects.pulls = false
   projects.board = true
-  setPanel(projects.current, null, true)
+  setPanel(projects.current, null)
 }
 
 export async function showBoard() {
@@ -166,15 +166,15 @@ export async function showBoard() {
   projects.overview = false
   projects.pulls = false
   projects.board = true
-  setPanel(projects.current, null, true)
+  setPanel(projects.current, null)
 }
 
 export function togglePulls() {
   projects.overview = false
-  if (projects.pulls) return closeOverlay(() => (projects.pulls = false))
+  if (projects.pulls) return void (projects.pulls = false)
   projects.board = false
   projects.pulls = true
-  setPanel(projects.current, null, true)
+  setPanel(projects.current, null)
 }
 
 export async function popOut() {

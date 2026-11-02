@@ -34,7 +34,6 @@
   import SidePanel from './lib/SidePanel.svelte'
   import { t } from './lib/i18n/index.svelte'
   import PanelButtons from './lib/PanelButtons.svelte'
-  import { closeOverlay } from './lib/layout.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
@@ -163,15 +162,15 @@
       <ProjectView {project}>
         {#snippet overlay()}
           {#if projects.board}
-            <SidePanel kind="kanban" title={t('shell.kanban')} onclose={() => closeOverlay(() => (projects.board = false))}>
+            <SidePanel kind="kanban" title={t('shell.kanban')} onclose={() => (projects.board = false)}>
               <Board {project} agents={mirrored} {actions} onpopout={popOut}>
-                {#snippet controls()}<PanelButtons onclose={() => closeOverlay(() => (projects.board = false))} />{/snippet}
+                {#snippet controls()}<PanelButtons kind="kanban" onclose={() => (projects.board = false)} />{/snippet}
               </Board>
             </SidePanel>
           {:else if projects.pulls}
-            <SidePanel kind="pulls" title={t('shell.pullRequests')} onclose={() => closeOverlay(() => (projects.pulls = false))}>
+            <SidePanel kind="pulls" title={t('shell.pullRequests')} onclose={() => (projects.pulls = false)}>
               <PullsView {project}>
-                {#snippet controls()}<PanelButtons onclose={() => closeOverlay(() => (projects.pulls = false))} />{/snippet}
+                {#snippet controls()}<PanelButtons kind="pulls" onclose={() => (projects.pulls = false)} />{/snippet}
               </PullsView>
             </SidePanel>
           {/if}
