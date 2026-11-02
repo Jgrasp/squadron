@@ -270,7 +270,7 @@
   .note {
     --row: var(--bg-sidebar);
     display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
+    grid-template-columns: auto minmax(0, 1fr);
     gap: 2px 6px;
     height: auto;
     padding: 5px 6px 5px 2px;
@@ -294,6 +294,7 @@
   }
 
   .at {
+    min-width: 18px;
     align-self: center;
     font: 11.5px var(--mono);
     color: var(--text-dim);

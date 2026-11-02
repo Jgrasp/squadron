@@ -1386,8 +1386,9 @@
   .review-bar {
     flex: none;
     display: flex;
+    flex-wrap: wrap;
     align-items: center;
-    gap: 10px;
+    gap: 8px 10px;
     padding: 8px 16px;
     border-bottom: 1px solid var(--border);
     background: var(--wait-bg);
@@ -1563,7 +1564,7 @@
   }
 
   .review-bar .what {
-    flex: 1;
+    flex: 1 1 220px;
     color: var(--accent-soft);
   }
 
