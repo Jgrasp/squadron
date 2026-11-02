@@ -15,6 +15,7 @@
   import { account } from './catalogs.svelte'
   import ProjectSettings from './ProjectSettings.svelte'
   import { reset } from './layout-slots.svelte'
+  import PanelSettings from './PanelSettings.svelte'
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
@@ -61,6 +62,7 @@
         ['preferences', 'settings.tabPreferences'],
         ['shortcuts', 'settings.tabShortcuts'],
         ['layout', 'settings.tabLayout'],
+        ['panels', 'settings.tabPanels'],
       ],
     ],
     [
@@ -282,6 +284,8 @@
           <button class="link" onclick={() => reset(slot as Slot)}>{t('settings.backToDefault')}</button>
         </section>
       {/each}
+    {:else if tab === 'panels'}
+      <PanelSettings />
     {:else if tab === 'shortcuts'}
       <p class="intro">{t('settings.shortcutsIntro')}</p>
       <ul class="keys">
@@ -423,7 +427,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['rules', 'layout', 'projects', 'archived', 'changelog', 'about', 'hosting'].includes(tab)}
+  {#if !['rules', 'layout', 'panels', 'projects', 'archived', 'changelog', 'about', 'hosting'].includes(tab)}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>

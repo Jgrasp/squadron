@@ -138,8 +138,10 @@ export default {
 
   resizePanel: 'Redimensionner le panneau {title}',
   dragToResize: 'Faites glisser pour redimensionner, double-cliquez pour le plein écran',
-  fullScreen: 'Plein écran',
-  exitFullScreen: 'Quitter le plein écran',
+  panelPlacement: 'Placement du panneau',
+  modeSlide: 'Par-dessus la discussion',
+  modeFull: 'Plein écran',
+  modeBottom: 'Sous la discussion',
   closePanel: 'Fermer le panneau',
 
   yourShell: 'Votre shell, dans {path}',

@@ -2,7 +2,7 @@
   import { ask } from './asking.svelte'
   import { agents, archive, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
   import { ago } from './format'
-  import { layout, orderAgents, resetSort, setSort, type AgentSort } from './layout.svelte'
+  import { layout, orderAgents, resetSort, setPanel, setSort, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
   import { projects, type Project } from './projects.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
@@ -140,6 +140,8 @@
   function openAgent(event: MouseEvent, agent: Agent) {
     if (event.ctrlKey || event.metaKey || event.shiftKey) return
     chosen = []
+    projects.board = projects.pulls = false
+    setPanel(project.path, null)
     agents.current[project.path] = agent.id
   }
 

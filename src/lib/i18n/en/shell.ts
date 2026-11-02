@@ -136,8 +136,10 @@ export default {
 
   resizePanel: 'Resize the {title} panel',
   dragToResize: 'Drag to resize, double-click for full screen',
-  fullScreen: 'Full screen',
-  exitFullScreen: 'Exit full screen',
+  panelPlacement: 'Panel placement',
+  modeSlide: 'Over the conversation',
+  modeFull: 'Full screen',
+  modeBottom: 'Under the conversation',
   closePanel: 'Close panel',
 
   yourShell: 'Your shell, in {path}',

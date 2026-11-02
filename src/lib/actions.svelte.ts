@@ -20,6 +20,7 @@ export type SettingsTab =
   | 'preferences'
   | 'shortcuts'
   | 'layout'
+  | 'panels'
   | 'changelog'
   | 'about'
 
