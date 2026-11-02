@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { errorText } from './i18n/index.svelte'
+import { setPanel } from './layout.svelte'
 
 export type OpenFile = { path: string; saved: string; dirty: boolean; error: string; base: string | null | undefined; ready: boolean; doc?: string }
 
@@ -32,6 +33,14 @@ export function openFile(project: string, path: string, activate = true) {
   }
   if (activate) ws.active = path
   remember(project)
+}
+
+export function revealFile(project: string, path: string) {
+  const ws = workspace(project)
+  const dirs = path.split('/').slice(0, -1).map((_, i, parts) => parts.slice(0, i + 1).join('/'))
+  ws.expanded = [...new Set([...ws.expanded, ...dirs])]
+  openFile(project, path)
+  setPanel(project, 'editor')
 }
 
 export function remember(project: string) {

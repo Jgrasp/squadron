@@ -787,6 +787,14 @@ fn list_dir(project: PathBuf, path: PathBuf) -> Result<Vec<Entry>, String> {
 }
 
 #[tauri::command]
+fn existing_files(project: PathBuf, paths: Vec<String>) -> Vec<String> {
+    paths
+        .into_iter()
+        .filter(|p| projects::inside(&project, Path::new(p)).is_some_and(|f| f.is_file()))
+        .collect()
+}
+
+#[tauri::command]
 async fn project_files(dir: PathBuf) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || git::files(&dir))
         .await
@@ -1803,6 +1811,7 @@ pub fn run() {
             open_artifact_folder,
             list_dir,
             project_files,
+            existing_files,
             project_grep,
             git_file,
             term_open,
