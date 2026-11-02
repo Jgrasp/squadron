@@ -19,7 +19,7 @@
   const left = $derived(threshold === null ? null : Math.max(0, threshold - agent.tokens))
   const near = $derived(left !== null && threshold !== null && left < threshold * 0.1)
   const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
-  type Bite = { id: number; y: number; amount: number }
+  type Bite = { id: number; x: number; to: number; amount: number }
 
   let eaten = $state(0)
   let eating = $state(false)
@@ -33,8 +33,7 @@
 
   const fill = $derived(max ? Math.min(1, eaten / max) : 0)
   const tone = $derived(fill < 0.5 ? 'low' : fill < 0.8 ? 'mid' : 'high')
-  const fat = Tween.of(() => fill, { duration: 350, easing: cubicOut })
-  const belly = $derived({ w: 9 + 10 * fat.current, h: 8.5 + 1.8 * fat.current })
+  const level = Tween.of(() => fill, { duration: 350, easing: cubicOut })
 
   $effect(() => {
     const tokens = agent.tokens
@@ -59,7 +58,7 @@
       setTimeout(() => {
         if (now !== round) return
         if (bites.length >= 10) return swallow(add / count)
-        bites.push({ id: bite++, y: 11 + Math.random() * 3, amount: add / count })
+        bites.push({ id: bite++, x: 13 + Math.random() * 4, to: 5 + 20 * (1 - level.current) - 1.4, amount: add / count })
       }, 300 + i * 150)
   })
 
@@ -73,11 +72,11 @@
     node
       .animate(
         [
-          { transform: `translate(32px, ${b.y}px)`, opacity: 0 },
-          { transform: 'translate(26px, 12.9px)', opacity: 1, offset: 0.55 },
-          { transform: 'translate(20px, 12.9px)', opacity: 0 },
+          { transform: `translate(${b.x}px, 1px)`, opacity: 0 },
+          { opacity: 1, offset: 0.15 },
+          { transform: `translate(${b.x}px, ${b.to}px)`, opacity: 1 },
         ],
-        { duration: 640, easing: 'cubic-bezier(.3, 0, .7, 1)', fill: 'forwards' },
+        { duration: 520, easing: 'cubic-bezier(.5, 0, 1, .6)', fill: 'forwards' },
       )
       .finished.then(() => {
         bites = bites.filter((x) => x.id !== b.id)
@@ -104,19 +103,10 @@
 
 <span class="anchor" data-context>
   <button class="gauge {tone}" aria-haspopup="dialog" aria-expanded={open} title={when} onclick={toggle}>
-    <svg class="robot" class:eating width="28" height="26" viewBox="0 0 32 30" aria-hidden="true">
-      <line class="line" x1="15" y1="14" x2="15" y2="17.5" />
-      <clipPath id="context-{agent.id}"><rect x={15 - belly.w / 2 + 1.1} y="18.6" width={belly.w - 2.2} height={belly.h - 2.2} rx="0.6" /></clipPath>
-      <rect class="level" clip-path="url(#context-{agent.id})" x={15 - belly.w / 2} y={18.6 + (belly.h - 2.2) * (1 - fat.current)} width={belly.w} height={belly.h} />
-      <rect class="line" x={15 - belly.w / 2} y="17.5" width={belly.w} height={belly.h} rx="1.6" />
-      <g class="head">
-        <line class="line" x1="15" y1="4" x2="15" y2="2.4" />
-        <circle class="antenna" cx="15" cy="1.6" r="1.1" />
-        <path class="line" d="M7 10.6V6.5Q7 4 9.5 4H20.5Q23 4 23 6.5V10.6H7" />
-        <path class="line jaw" d="M7 10.9H23V11.6Q23 14 20.5 14H9.5Q7 14 7 11.6Z" />
-        <circle class="eye" cx="11.6" cy="7.4" r="1.2" />
-        <circle class="eye" cx="18.4" cy="7.4" r="1.2" />
-      </g>
+    <svg class="ring" class:eating width="22" height="22" viewBox="3 3 24 24" aria-hidden="true">
+      <clipPath id="context-{agent.id}"><circle cx="15" cy="15" r="9.6" /></clipPath>
+      <rect class="level" clip-path="url(#context-{agent.id})" x="4" y={5 + 20 * (1 - level.current)} width="22" height="21" />
+      <circle class="rim" cx="15" cy="15" r="11" transform="rotate(-90 15 15)" />
       {#each bites as b (b.id)}
         <rect class="bite" x="-1.1" y="-1.1" width="2.2" height="2.2" rx="0.5" opacity="0" use:fly={b} />
       {/each}
@@ -189,58 +179,32 @@
     background: var(--surface-3);
   }
 
-  .robot {
+  .ring {
     flex: none;
     overflow: visible;
   }
 
-  .robot .line {
+  .ring .level,
+  .ring .bite {
+    fill: var(--level);
+  }
+
+  .ring .rim {
     fill: none;
     stroke: var(--level);
     stroke-opacity: 0.6;
-    stroke-width: 1.2;
+    stroke-width: 1.5;
     stroke-linecap: round;
-    stroke-linejoin: round;
+    stroke-dasharray: 69.1 0;
+    stroke-dashoffset: 0;
+    transition:
+      stroke-dasharray 0.4s cubic-bezier(0.3, 1.3, 0.5, 1),
+      stroke-dashoffset 0.4s cubic-bezier(0.3, 1.3, 0.5, 1);
   }
 
-  .robot .level,
-  .robot .bite {
-    fill: var(--level);
-  }
-
-  .robot .antenna {
-    fill: var(--level);
-    fill-opacity: 0.75;
-  }
-
-  .robot .eye {
-    fill: var(--text);
-    transform-box: fill-box;
-    transform-origin: center;
-  }
-
-  .robot .head,
-  .robot .jaw {
-    transform-box: view-box;
-    transform-origin: 15px 15px;
-  }
-
-  .robot .head,
-  .robot .jaw,
-  .robot .eye {
-    transition: transform 0.4s cubic-bezier(0.3, 1.3, 0.5, 1);
-  }
-
-  .eating .head {
-    transform: rotate(12deg);
-  }
-
-  .eating .jaw {
-    transform: translateY(2.4px);
-  }
-
-  .eating .eye {
-    transform: translateX(1.6px) scaleY(0.45);
+  .eating .rim {
+    stroke-dasharray: 53.1 16;
+    stroke-dashoffset: -8;
   }
 
   .panel {
