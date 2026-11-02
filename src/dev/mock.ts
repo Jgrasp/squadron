@@ -770,7 +770,7 @@ mockIPC(
         })
         return {
           review: [
-            pull(2093, 'Remove the old GfK import and its patches', 'Amandine T.', 'dev/T21', { comments: 2 }),
+            pull(2093, 'Remove the old GfK import and its patches', 'Amandine T.', 'dev/T21', { comments: 2, reviewed: 'changes_requested', reviewed_head: 'e'.repeat(40) }),
             pull(2098, 'Lower the autovacuum thresholds of sale', 'Amandine T.', 'dev/T19', { checks: 'passing' }),
             pull(2071, 'Export segments as CSV', 'Lucas M.', 'dev/T12', { reviewed: 'approved', approvals: 1, reviewed_head: 'e'.repeat(40) }),
           ],

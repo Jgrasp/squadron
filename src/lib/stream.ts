@@ -160,7 +160,7 @@ export type Agent = {
   unread?: boolean
   errorSeen?: boolean
   context?: { max: number; threshold: number | null }
-  review?: { project: string; number: number; base?: string; title?: string }
+  review?: { project: string; number: number; base?: string; title?: string; head?: string }
   imported?: string
   unsent?: unknown[]
   resumes?: number

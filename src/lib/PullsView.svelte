@@ -5,11 +5,11 @@
   import { agents, clock, find, reply, send, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import type { Project } from './projects.svelte'
-  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, fixWithAgent, reopen, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, fixWithAgent, reopen, behind, reviewChanges, reviewerOf, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
   import DiffPanel from './DiffPanel.svelte'
-  import { prompt, workdir, type Comment } from './stream'
+  import { prompt, workdir, type Agent, type Comment } from './stream'
   import Trans from './Trans.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
@@ -39,6 +39,15 @@
     if (before) agents.current[project.path] = before
     else delete agents.current[project.path]
     launched = { id, number: pull.number }
+  }
+  async function askAgain(agent: Agent, pull: Pull) {
+    failure = ''
+    try {
+      await reviewChanges(agent, pull)
+      launched = { id: agent.id, number: pull.number }
+    } catch (e) {
+      failure = `#${pull.number}: ${e}`
+    }
   }
   async function handOver(pull: Pull, summary: string, list: Comment[]) {
     opened = null
@@ -101,7 +110,6 @@
   })
 
   const agentOn = (pull: Pull) => agents.list.find((a) => a.project === project.path && pullOf(a)?.number === pull.number)
-  const reviewerOf = (pull: Pull) => agents.list.find((a) => a.review?.project === project.path && a.review.number === pull.number)
 
   function since(at: string) {
     const min = Math.max(0, Math.floor((clock.now - Date.parse(at)) / 60_000))
@@ -112,8 +120,8 @@
 
   function verdict(pull: Pull): [string, string] {
     if (!pull.reviewed) return ['act-review', t('review.waitingForYou')]
-    if (moved(project.path, pull)) return ['act-recheck', t('review.newChanges')]
     if (pull.reviewed === 'approved') return ['done-ok', t('review.youApproved')]
+    if (moved(project.path, pull)) return ['act-recheck', t('review.newChanges')]
     if (pull.reviewed === 'changes_requested') return ['wait-bad', t('review.youAskedForChanges')]
     return ['quiet', t('review.youCommented')]
   }
@@ -154,16 +162,19 @@
       <section>
         <h2>{t('review.toReview')} <span class="n">{found.review.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
-          {@const reviewer = reviewerOf(pull)}
+          {@const reviewer = reviewerOf(project.path, pull)}
+          {@const reviewing = { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) }}
+          {@const seeing = reviewer && { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, run: () => show(reviewer) }}
+          {@const main = !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
             {@render split(
               `review-${pull.number}`,
-              { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) },
-              waitsFor(project.path, pull),
-              [openOn(pull), ...(reviewer ? [{ label: t('review.goToAgent', { name: reviewer.name }), title: t('review.agentReviewing', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...approving(pull)],
-              opened?.number === pull.number,
+              main,
+              waitsFor(project.path, pull) && main !== seeing,
+              [...(main === reviewing ? [] : [reviewing]), ...(seeing && main !== seeing ? [seeing] : []), openOn(pull), ...approving(pull)],
+              main === reviewing && opened?.number === pull.number,
             )}
           </article>
         {:else}
@@ -286,7 +297,8 @@
   <div class="about">
     <strong>{pull.title}</strong>
     <span class="meta">
-      <span class="mono">#{pull.number}</span> · {pull.author} · <span class="mono">{pull.branch} → {pull.base}</span> · {t('review.updated', { when: since(pull.updated) })}
+      <span class="mono">#{pull.number}</span> · {pull.author} · <span class="mono">{pull.branch} → {pull.base}</span> ·
+      {#if pull.reviewed && moved(project.path, pull)}<span class="fresh">{pull.reviewed === 'approved' ? t('review.commitsSinceApproval') : t('review.commitsSinceReview')}</span>{:else}{t('review.updated', { when: since(pull.updated) })}{/if}
     </span>
   </div>
   <span class="facts">
@@ -491,6 +503,10 @@
 
   article.done {
     background: transparent;
+  }
+
+  .fresh {
+    color: var(--remote-text);
   }
 
   .verdict {

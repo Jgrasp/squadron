@@ -10,6 +10,8 @@
   import ImportPanel from './ImportPanel.svelte'
   import PersonaChip from './PersonaChip.svelte'
   import PullTag from './PullTag.svelte'
+  import Icon from './Icon.svelte'
+  import { behind, lists, lookUpLists } from './pulls.svelte'
   import BackgroundTip from './BackgroundTip.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
@@ -167,6 +169,20 @@
     orderAgents(project.path, ids)
     if (sort.by !== 'none') setSort(project.path, { by: 'none' })
   }
+  $effect(() => {
+    if (ofProject(project.path).some((a) => a.review)) lookUpLists(project.path)
+  })
+  const reviewed = (agent: Agent) => agent.review && lists[agent.review.project]?.review.find((p) => p.number === agent.review!.number)
+  const VERDICTS = { approved: 'review.approved', changes_requested: 'review.changesRequested', commented: 'review.commented' } as const
+  function verdictOf(agent: Agent): [string, string] | null {
+    if (agent.status === 'working') return ['run', t('review.statusReviewing')]
+    const pull = reviewed(agent)
+    return pull?.reviewed ? [pull.reviewed, t(VERDICTS[pull.reviewed])] : null
+  }
+  function reviewLine(agent: Agent) {
+    const pull = reviewed(agent)
+    return [agent.review?.title, pull && (behind(agent, pull) ? t('review.newCommits') : t('review.upToDate'))].filter(Boolean).join(' · ')
+  }
   const pending = $derived(waiting(project.path))
 
   const blocked = (agent: Agent) => !!agent.attention && agent.status !== 'working' && agent.status !== 'error' && !agent.asks.length
@@ -179,6 +195,7 @@
       case 'working':
         return activity(agent)
       case 'done':
+        if (agent.review) return reviewLine(agent)
         return t('shell.doneAgo', { ago: ago(agent.since, clock.now) })
       case 'interrupted':
         return t('shell.interruptedWaiting')
@@ -193,7 +210,11 @@
 {#snippet card(agent: Agent)}
   {@const ticket = projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket}
   <span class="line">
-    <StatusIcon status={look(agent)} />
+    {#if agent.review}
+      <span class="prnum" title={t('review.reviewingTitle', { number: String(agent.review.number) })}><Icon name="pull" size={11} />{agent.review.number}</span>
+    {:else}
+      <StatusIcon status={look(agent)} />
+    {/if}
     {#if editing === agent.id}
       <!-- svelte-ignore a11y_autofocus -->
       <input
@@ -208,10 +229,11 @@
       {#if agent.unread}<span class="unread" role="img" aria-label={t('shell.unread')} title={t('shell.unread')}></span>{/if}
       <span class="name">{agent.name}</span>
       {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
+      {#if agent.review}{@const verdict = verdictOf(agent)}{#if verdict}<span class="verdict {verdict[0]}">{verdict[1]}</span>{/if}{/if}
     {/if}
   </span>
   <span class="state">{#if ticket}<span class="ticket" title={t('tickets.linkTitle', { key: ticket.key })}><span class="logo" aria-hidden="true">J</span>{ticket.key}</span>{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
-  <PullTag {agent} gutter />
+  {#if !agent.review}<PullTag {agent} gutter />{/if}
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
   {:else if agent.status === 'waiting'}
@@ -799,6 +821,37 @@
 
   .state {
     font: 12px var(--sans);
+  }
+
+  .prnum {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    padding: 1px 6px 1px 4px;
+    border-radius: 5px;
+    background: color-mix(in srgb, var(--remote-dot) 18%, transparent);
+    color: var(--remote-text);
+    font: 600 11px var(--mono);
+  }
+
+  .verdict {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font: 600 11px var(--sans);
+  }
+
+  .verdict.changes_requested {
+    background: var(--err-bg);
+    color: var(--err-text);
+  }
+
+  .verdict.approved {
+    background: var(--ok-bg);
+    color: var(--ok-text);
   }
 
   .persona {
