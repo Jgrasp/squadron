@@ -57,6 +57,7 @@ export type Lists = { review: Pull[]; mine: Pull[]; error: string }
 export type Remark = {
   id: number
   author: string
+  avatar: string
   body: string
   path: string | null
   line: number | null

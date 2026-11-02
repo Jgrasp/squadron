@@ -11,6 +11,7 @@
     limit = 1500,
     oncomment,
     open,
+    lit = null,
     marked = [],
     editor,
     below,
@@ -24,6 +25,7 @@
     limit?: number
     oncomment?: (line: Line) => void
     open?: Pick<Line, 'side' | 'number'> | null
+    lit?: Pick<Line, 'side' | 'number'> | null
     marked?: (Pick<Line, 'side' | 'number'> & { note: string })[]
     editor?: Snippet
     below?: Snippet<[Line]>
@@ -55,6 +57,7 @@
   const unfold = (gap: number, way: 'up' | 'down', count = STEP) => file && (opened = reveal(view, file, gap, way, count))
 
   const at = (side: Line['side'], number?: number) => open?.side === side && open.number === number
+  const isLit = (side: Line['side'], number?: number) => lit?.side === side && lit.number === number
   const noteAt = (side: Line['side'], number?: number) => marked.find((m) => m.side === side && m.number === number)?.note
 
   const unified = $derived(split ? [] : rows(view))
@@ -64,10 +67,8 @@
 
 {#snippet plus(line: Line)}
   {@const note = noteAt(line.side, line.number)}
-  {#if note !== undefined}
-    <button class="plus bubble effect-snake" aria-label={t('review.editCommentOnLine', { line: String(line.number) })} title={note} onclick={() => oncomment?.(line)}>
-      <svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
-    </button>
+  {#if oncomment && note !== undefined}
+    <button class="plus" aria-label={t('review.editCommentOnLine', { line: String(line.number) })} title={note} onclick={() => oncomment(line)}>+</button>
   {:else if oncomment && (commentRemoved || line.side === 'new') && (commentRevealed || line.side === 'old' || original.has(line.number))}
     <button class="plus" aria-label={t('review.commentLine', { line: String(line.number) })} title={t('review.commentThisLine')} onclick={() => oncomment(line)}>+</button>
   {/if}
@@ -111,6 +112,8 @@
             {#if cell}
               <div
                 class="half {cell.kind}"
+                data-line={side ? `new:${cell.number}` : cell.kind === 'del' ? `old:${cell.number}` : undefined}
+                class:lit={side ? isLit('new', cell.number) : cell.kind === 'del' && isLit('old', cell.number)}
                 class:picked={side ? at('new', cell.number) : cell.kind === 'del' && at('old', cell.number)}
                 class:commented={side ? noteAt('new', cell.number) !== undefined : cell.kind === 'del' && noteAt('old', cell.number) !== undefined}
               >
@@ -139,6 +142,8 @@
       {:else}
         <div
           class="line {row.kind}"
+          data-line={row.kind === 'del' ? `old:${row.old}` : `new:${row.new}`}
+          class:lit={row.kind === 'del' ? isLit('old', row.old) : isLit('new', row.new)}
           class:picked={row.kind === 'del' ? at('old', row.old) : at('new', row.new)}
           class:commented={(row.kind === 'del' ? noteAt('old', row.old) : noteAt('new', row.new)) !== undefined}
         >
@@ -285,7 +290,12 @@
     box-shadow: inset 3px 0 0 var(--accent-soft);
   }
 
-  .picked {
+  .lit {
+    background-image: linear-gradient(rgba(224, 138, 91, 0.26), rgba(224, 138, 91, 0.26));
+  }
+
+  .picked,
+  .lit {
     box-shadow: inset 3px 0 0 var(--accent);
   }
 
@@ -307,20 +317,7 @@
 
   .line:hover .plus,
   .half:hover .plus,
-  .plus:focus-visible,
-  .bubble {
+  .plus:focus-visible {
     opacity: 1;
-  }
-
-  .bubble {
-    top: 0;
-    width: 20px;
-    height: 20px;
-    background: var(--wait-bg);
-    color: var(--accent-soft);
-  }
-
-  .bubble svg {
-    fill: currentColor;
   }
 </style>
