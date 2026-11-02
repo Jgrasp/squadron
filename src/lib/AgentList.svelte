@@ -92,15 +92,13 @@
     name: (a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }),
   }
   const list = $derived.by(() => {
-    const all = [...ofProject(project.path)]
+    const order = layout.orders[project.path] ?? []
+    const rank = (a: Agent) => (order.includes(a.id) ? order.indexOf(a.id) : order.length)
+    const all = [...ofProject(project.path)].sort((a, b) => rank(a) - rank(b))
+    const rest = all.filter((a) => !a.pinned)
     const by = sort.by
-    if (by !== 'none') all.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
-    else {
-      const order = layout.orders[project.path] ?? []
-      const rank = (a: Agent) => (order.includes(a.id) ? order.indexOf(a.id) : order.length)
-      all.sort((a, b) => rank(a) - rank(b))
-    }
-    return [...all.filter((a) => a.pinned), ...all.filter((a) => !a.pinned)]
+    if (by !== 'none') rest.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
+    return [...all.filter((a) => a.pinned), ...rest]
   })
   const pinned = $derived(list.filter((a) => a.pinned).length)
 
@@ -166,6 +164,11 @@
   function drop(id: string, index: number) {
     const ids = list.map((a) => a.id).filter((a) => a !== id)
     ids.splice(index, 0, id)
+    const pinnedIds = list.filter((a) => a.pinned).map((a) => a.id)
+    if (sort.by !== 'none' && pinnedIds.includes(id)) {
+      const pins = ids.filter((a) => pinnedIds.includes(a))
+      return orderAgents(project.path, [...pins, ...(layout.orders[project.path] ?? []).filter((a) => !pins.includes(a))])
+    }
     orderAgents(project.path, ids)
     if (sort.by !== 'none') setSort(project.path, { by: 'none' })
   }
