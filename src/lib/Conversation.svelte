@@ -20,6 +20,7 @@
   import { doing, INTERNAL, type Agent, type Block, type Subagent, type ToolCall } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
+  import BackgroundCard from './BackgroundCard.svelte'
   import ToolRow from './ToolRow.svelte'
   import Shots from './Shots.svelte'
   import ShellCard from './ShellCard.svelte'
@@ -209,7 +210,7 @@
     ms === undefined ? t('conversation.thinking') : ms < 1000 ? t('conversation.thoughtMoment') : t('conversation.thoughtForTitle', { duration: duration(ms) })
 
   const lastAgent = $derived(agent.entries.findLastIndex((e) => e.kind === 'agent'))
-  const working = $derived(agent.status === 'working')
+  const working = $derived(agent.status === 'working' && !agent.held)
 </script>
 
 {#snippet musing(thought: string, ms: number | undefined)}
@@ -433,6 +434,10 @@
       {/each}
     </ul>
   </details>
+{/if}
+
+{#if agent.held && agent.background.length}
+  <BackgroundCard {agent} {onterminal} />
 {/if}
 
 {#if working}

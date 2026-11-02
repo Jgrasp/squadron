@@ -57,6 +57,9 @@
   --ok-line: #6e9e95;
   --ok-bg: rgba(154, 214, 203, 0.1);
   --done: #b8d98c;
+  --background: #8fb3d9;
+  --background-line: #5f7f9f;
+  --background-bg: rgba(143, 179, 217, 0.12);
   --done-text: #c9e3a8;
   --err: #f59e8c;
   --err-text: #f8bdb1;

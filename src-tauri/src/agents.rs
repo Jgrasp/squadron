@@ -223,6 +223,20 @@ impl Agents {
         }
     }
 
+    pub fn stop_task(&self, id: &str, task_id: &str) -> Result<(), String> {
+        let mut list = self.list.lock().unwrap();
+        match list
+            .get_mut(id)
+            .and_then(|a| a.session.as_mut())
+            .filter(|s| s.alive())
+        {
+            Some(session) => session
+                .control(serde_json::json!({"subtype": "stop_task", "task_id": task_id}))
+                .map_err(|e| e.to_string()),
+            None => Ok(()),
+        }
+    }
+
     pub fn request(
         &self,
         id: &str,

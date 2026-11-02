@@ -549,6 +549,11 @@ fn context_usage(agents: State<Agents>, id: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn stop_task(agents: State<Agents>, id: String, task_id: String) -> Result<(), String> {
+    agents.stop_task(&id, &task_id)
+}
+
+#[tauri::command]
 fn mcp_request(
     agents: State<Agents>,
     id: String,
@@ -1781,6 +1786,7 @@ pub fn run() {
             set_agent_options,
             remote_control,
             context_usage,
+            stop_task,
             mcp_request,
             claude_config,
             cancel_permissions,

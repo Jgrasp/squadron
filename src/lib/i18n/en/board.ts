@@ -4,6 +4,7 @@ export default {
   columnReview: 'To review',
   columnDone: 'Done',
   statusWorking: 'Working',
+  statusBackground: 'Waiting on a task',
   statusWaiting: 'Waiting for you',
   statusDone: 'Done',
   statusInterrupted: 'Interrupted',

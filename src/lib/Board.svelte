@@ -36,6 +36,7 @@
 
   const LABELS: Record<string, Key> = {
     working: 'board.statusWorking',
+    background: 'board.statusBackground',
     waiting: 'board.statusWaiting',
     done: 'board.statusDone',
     interrupted: 'board.statusInterrupted',
@@ -118,7 +119,7 @@
     g.state === 'active' && g.relaunches ? t('board.goalRelaunch', { n: g.relaunches, total: GOAL_RELAUNCHES }) : t(GOALS[g.state], { count: GOAL_RELAUNCHES })
 
   const agentOf = (card: Card) => agents.find((a) => a.id === card.agent)
-  const look = (a: Mirror) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status)
+  const look = (a: Mirror) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status === 'working' && a.held ? 'background' : a.status)
   const label = (a: Mirror) => (a.status === 'waiting' && a.attention.split(' · ')[0]) || t(LABELS[look(a)])
   const virtual = $derived(
     agents
@@ -353,7 +354,7 @@
                 {#if !agent && card.goal}<span class="goal" title={card.goal}>{t('board.cardDoneWhen', { goal: card.goal })}</span>{/if}
                 {#if agent}
                   <span class="state"><StatusIcon status={look(agent)} />{label(agent)}</span>
-                  {#if agent.detail}<span class="detail">{agent.detail}</span>{/if}
+                  {#if agent.detail && look(agent) !== 'background'}<span class="detail">{agent.detail}</span>{/if}
                   {#if agent.goal}
                     <span class="goal {agent.goal.state}" title={agent.goal.condition}>{t('board.goalLine', { state: goalLine(agent.goal) })}</span>
                     {#if agent.goal.reason && agent.goal.state !== 'met'}<span class="note">{agent.goal.reason}</span>{/if}

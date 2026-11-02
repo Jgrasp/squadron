@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { follow, moveCard, type Card, type Mirror } from './board'
 
 const card = (id: string, column: Card['column'] = 'todo'): Card => ({ id, key: '', title: id, prompt: '', column, agent: null })
-const agent = (status: Mirror['status']): Mirror => ({ id: 'a', project: '/p', name: 'a', status, attention: '', goal: null, detail: '', done: 0, total: 0, add: 0, del: 0 })
+const agent = (status: Mirror['status']): Mirror => ({ id: 'a', project: '/p', name: 'a', status, attention: '', goal: null, held: false, detail: '', done: 0, total: 0, add: 0, del: 0 })
 
 describe('board', () => {
   it('moves a card when its agent changes state, and keeps a manual move until then', () => {

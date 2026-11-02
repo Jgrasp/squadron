@@ -58,6 +58,8 @@ export type Subagent = {
   log: Block[]
 }
 
+export type BackgroundTask = { id: string; toolUseId: string; name: string; started: number }
+
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
 export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments'].map((tool) => `mcp__squadron-pilot__${tool}`)
@@ -124,6 +126,7 @@ export type Agent = {
   interrupting: boolean
   held: boolean
   jobs: string[]
+  background: BackgroundTask[]
   asks: Ask[]
   allowEdits: boolean
   sessionId: string | null
@@ -180,6 +183,7 @@ export function newAgent(id: string, project: string, name: string, options: Opt
     interrupting: false,
     held: false,
     jobs: [],
+    background: [],
     asks: [],
     allowEdits: false,
     sessionId: null,
@@ -249,6 +253,7 @@ export function doing(call: Pick<ToolCall, 'name' | 'input'>) {
 }
 
 export function activity(agent: Agent) {
+  if (agent.held) return agent.action
   const last = agent.entries.at(-1)
   const block = last?.kind === 'agent' ? last.blocks.at(-1) : undefined
   const call = block?.type === 'tools' ? block.calls.at(-1) : undefined
@@ -343,11 +348,21 @@ function job(agent: Agent, d: Json) {
   if (d.subtype === 'task_started' && id && !agent.jobs.includes(id)) agent.jobs.push(id)
   const ended = d.subtype === 'task_notification' || (d.subtype === 'task_updated' && SETTLED[d.patch?.status])
   if (ended) agent.jobs = agent.jobs.filter((j) => j !== id)
+  if (d.subtype === 'task_started' && d.task_type === 'local_bash' && id && !agent.background.some((b) => b.id === id))
+    agent.background.push({ id, toolUseId: String(d.tool_use_id ?? ''), name: String(d.description ?? ''), started: Date.now() })
+  if (!ended || !agent.background.some((b) => b.id === id)) return
+  agent.background = agent.background.filter((b) => b.id !== id)
+  if (agent.held) settled(agent, SETTLED[d.status ?? d.patch?.status] ?? 'done')
 }
 
-export const running = (agent: Agent) => agent.subagents.filter((s) => s.status === 'running').length
+export const inBackground = (agent: Agent) => [
+  ...agent.subagents.filter((s) => s.status === 'running').map((s) => ({ id: s.task, toolUseId: s.id, name: s.name, started: s.started, subagent: true })),
+  ...agent.background.map((b) => ({ ...b, subagent: false })),
+]
 
-export const waitingOn = (n: number) => t('conversation.waitingOnSubagents', { count: n })
+export const running = (agent: Agent) => agent.subagents.filter((s) => s.status === 'running').length + agent.background.length
+
+export const waitingOn = (n: number) => t('conversation.waitingInBackground', { count: n })
 
 function settled(agent: Agent, status: Subagent['status']) {
   const left = running(agent)
@@ -358,7 +373,7 @@ function settled(agent: Agent, status: Subagent['status']) {
   else if (status === 'stopped') {
     agent.status = 'done'
     agent.action = ''
-  } else act(agent, t('conversation.readingSubagents'))
+  } else act(agent, t('conversation.readingBackground'))
 }
 
 function interrupted(agent: Agent, used: Usage = { cost: 0, input: 0, output: 0, ms: 0 }) {
@@ -707,6 +722,7 @@ export function exited(agent: Agent, stderr: string) {
   agent.alive = false
   agent.remote = null
   agent.jobs = []
+  agent.background = []
   agent.asks = []
   agent.held = false
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
@@ -722,6 +738,7 @@ export function reloaded(agent: Agent) {
   agent.entries.push({ kind: 'reloaded', at: Date.now() })
   agent.processCost = 0
   agent.jobs = []
+  agent.background = []
   agent.alive = true
   agent.interrupting = false
   agent.held = false

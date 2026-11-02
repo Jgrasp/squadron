@@ -10,6 +10,7 @@
   import ImportPanel from './ImportPanel.svelte'
   import PersonaChip from './PersonaChip.svelte'
   import PullTag from './PullTag.svelte'
+  import BackgroundTip from './BackgroundTip.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, type Agent } from './stream'
   import { asking, count, tally } from './subagents'
@@ -169,7 +170,7 @@
   const pending = $derived(waiting(project.path))
 
   const blocked = (agent: Agent) => !!agent.attention && agent.status !== 'working' && agent.status !== 'error' && !agent.asks.length
-  const look = (agent: Agent) => (blocked(agent) ? 'waiting' : agent.status)
+  const look = (agent: Agent) => (blocked(agent) ? 'waiting' : agent.status === 'working' && agent.held ? 'background' : agent.status)
 
   function label(agent: Agent) {
     if (blocked(agent)) return t('shell.waitingForYou')
@@ -209,7 +210,7 @@
       {#if agent.pinned}<svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>{/if}
     {/if}
   </span>
-  <span class="state">{#if ticket}<span class="ticket" title={t('tickets.linkTitle', { key: ticket.key })}><span class="logo" aria-hidden="true">J</span>{ticket.key}</span>{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{label(agent)}</span>
+  <span class="state">{#if ticket}<span class="ticket" title={t('tickets.linkTitle', { key: ticket.key })}><span class="logo" aria-hidden="true">J</span>{ticket.key}</span>{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
   <PullTag {agent} gutter />
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
@@ -237,7 +238,7 @@
   {#if agent.subagents.length}
     {@const waiting = asking(agent)}
     {@const counts = count(agent.subagents, waiting)}
-    {#if counts.running || counts.waiting}
+    {#if (counts.running || counts.waiting) && !agent.held}
       <span class="subagents">
         <span>{agent.subagents.length} subagent{agent.subagents.length > 1 ? 's' : ''}</span>
         {#each tally(agent.subagents, waiting) as part (part.look)}<span class="part"><span class="dot {part.look}" aria-hidden="true"></span>{part.text}</span>{/each}

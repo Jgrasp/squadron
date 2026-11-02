@@ -315,6 +315,7 @@ async function adopt(data: Agent) {
     ...newAgent(data.id, data.project, data.name, data.options),
     ...data,
     asks: [],
+    background: [],
     alive: false,
     remote: wanted ? { state: 'connecting', url: wanted.url } : null,
   }

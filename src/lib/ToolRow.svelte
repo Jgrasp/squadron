@@ -16,8 +16,9 @@
       return [data.stdout, data.stderr].filter(Boolean).join('\n').trim()
     return call.result?.text.trim() ?? ''
   })
+  const background = $derived(call.name === 'Bash' && !!call.result?.data?.backgroundTaskId)
   const code = $derived.by((): Key | '' => {
-    if (call.name !== 'Bash' || !call.result) return ''
+    if (call.name !== 'Bash' || !call.result || background) return ''
     if (call.result.data?.interrupted) return 'conversation.exitInterrupted'
     return failed ? 'conversation.exitFailed' : 'conversation.exitOk'
   })
@@ -40,6 +41,7 @@
       {/if}
       <span class="name">{toolLabel(call.name)}</span>
       <span class="arg" title={arg}>{arg}</span>
+      {#if background}<span class="code background">{t('conversation.background')}</span>{/if}
       {#if code}<span class="code" class:ok={code === 'conversation.exitOk'}>{t(code)}</span>{/if}
       {#if output}<span class="go">{t('conversation.output')}</span>{/if}
     </summary>
@@ -123,6 +125,10 @@
 
   .code.ok {
     color: var(--done-text);
+  }
+
+  .code.background {
+    color: var(--background);
   }
 
   .row-box {

@@ -6,6 +6,7 @@ export default {
   columnReview: 'À relire',
   columnDone: 'Terminé',
   statusWorking: 'Au travail',
+  statusBackground: 'Attend une tâche',
   statusWaiting: 'Vous attend',
   statusDone: 'Terminé',
   statusInterrupted: 'Interrompu',

@@ -8,6 +8,7 @@ import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
 import backgroundInterrupt from '../../src-tauri/tests/fixtures/background_interrupt.jsonl?raw'
+import backgroundBash from '../../src-tauri/tests/fixtures/background_bash.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
 import goalPlan from '../../src-tauri/tests/fixtures/goal_plan.jsonl?raw'
 import goalClear from '../../src-tauri/tests/fixtures/goal_clear.jsonl?raw'
@@ -290,7 +291,7 @@ describe('stream', () => {
     for (const line of lines.slice(0, turn + 1)) apply(agent, JSON.parse(line))
     expect(agent.subagents.map((s) => [s.background, s.status])).toEqual([[true, 'running']])
     expect(agent.status).toBe('working')
-    expect(agent.action).toBe('Waiting for 1 subagent…')
+    expect(agent.action).toBe('Waiting on 1 background task')
 
     const settled = lines.findIndex((l) => l.includes('"subtype":"task_updated"'))
     for (const line of lines.slice(turn + 1, settled + 1)) apply(agent, JSON.parse(line))
@@ -399,6 +400,40 @@ describe('stream', () => {
 })
 
 describe('background work', () => {
+  const started = { type: 'system', subtype: 'task_started', task_id: 'b1', tool_use_id: 't1', task_type: 'local_bash', description: 'Sleep', is_backgrounded: true }
+  const result = { type: 'result', subtype: 'success', num_turns: 1, total_cost_usd: 0 }
+
+  it('keeps the agent working until a background command ends and Claude answers again', () => {
+    const agent = fresh()
+    apply(agent, started)
+    apply(agent, result)
+    expect([agent.status, agent.held, agent.action]).toEqual(['working', true, 'Waiting on 1 background task'])
+    expect(agent.background.map((b) => b.name)).toEqual(['Sleep'])
+    apply(agent, { type: 'system', subtype: 'task_notification', task_id: 'b1', status: 'completed' })
+    expect([agent.status, agent.held, agent.background]).toEqual(['working', false, []])
+    apply(agent, result)
+    expect(agent.status).toBe('done')
+  })
+
+  it('waits for a real background command, then for the answer Claude gives when it ends', () => {
+    const agent = fresh()
+    const lines = backgroundBash.trim().split('\n')
+    const turn = lines.findIndex((l) => JSON.parse(l).type === 'result')
+    for (const line of lines.slice(0, turn + 1)) apply(agent, JSON.parse(line))
+    expect([agent.status, agent.held, agent.background.map((b) => b.name)]).toEqual(['working', true, ['Run the full import']])
+    for (const line of lines.slice(turn + 1)) apply(agent, JSON.parse(line))
+    expect([agent.status, agent.held, agent.background]).toEqual(['done', false, []])
+  })
+
+  it('ends the turn when the user stops the background command', () => {
+    const agent = fresh()
+    apply(agent, started)
+    apply(agent, result)
+    apply(agent, { type: 'system', subtype: 'task_updated', task_id: 'b1', patch: { status: 'killed' } })
+    apply(agent, { type: 'system', subtype: 'task_notification', task_id: 'b1', status: 'stopped' })
+    expect([agent.status, agent.held]).toEqual(['done', false])
+  })
+
   it('counts what lives in the process until it ends, and forgets it when the process exits', () => {
     const agent = fresh()
     apply(agent, { type: 'system', subtype: 'task_started', task_id: 'b1', task_type: 'local_bash' })
