@@ -1,3 +1,9 @@
+<script lang="ts" module>
+  import type { Person } from './ChangedFiles.svelte'
+
+  const selves: Record<string, Promise<Person | null>> = {}
+</script>
+
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
@@ -252,6 +258,14 @@
       .filter((c) => c.path === selected?.path)
       .map((c) => ({ side: c.removed ? ('old' as const) : ('new' as const), number: c.line, note: c.note })),
   )
+
+  let me = $state<Person | null>(null)
+
+  $effect(() => {
+    if (!reviewing && !comments.some(here)) return
+    const dir = folder
+    ;(selves[dir] ??= invoke<Person>('pull_me', { dir }).catch(() => null)).then((found) => dir === folder && (me = found))
+  })
 
   type Spot = Omit<Note, 'current'> & { path: string }
   const draftKey = (c: Comment) => `draft:${c.path}:${c.removed ? 'old' : 'new'}:${c.line}`
@@ -836,6 +850,7 @@
         }))}
         viewed={reviewing ? viewedCount : null}
         selected={reviewing ? spot : selected?.path}
+        {me}
         onpick={(path) => (reviewing ? scrollToFile(path) : (file = path))}
         onnote={(key) => {
           const there = spots.find((s) => s.key === key)
@@ -1054,7 +1069,11 @@
     {#each notesFor(path).filter(at(path, line)) as c, i (i)}
       <div class="thread inline-thread mine" class:hit={lit?.key === draftKey(c)}>
         <div class="remark">
-          <span class="me" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+          {#if me}
+            <span class="self"><Avatar name={me.name} src={me.avatar} size={20} /></span>
+          {:else}
+            <span class="me" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg></span>
+          {/if}
           <div class="said">
             <span class="who"><strong>{t('common.you')}</strong> · {review.includes(c) ? t('review.inReviewNotPosted') : t('review.inNextMessageTo', { agent: agent?.name ?? '' })}</span>
             <Markdown text={c.note} />
@@ -1263,6 +1282,15 @@
 
   .me svg {
     fill: currentColor;
+  }
+
+  .self {
+    display: inline-flex;
+    margin-top: 1px;
+  }
+
+  .self :global(.avatar) {
+    box-shadow: 0 0 0 2px var(--accent);
   }
 
   .inline-thread.mine {

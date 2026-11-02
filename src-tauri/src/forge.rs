@@ -98,6 +98,12 @@ pub struct Lists {
 }
 
 #[derive(Debug, PartialEq, Serialize)]
+pub struct Person {
+    pub name: String,
+    pub avatar: String,
+}
+
+#[derive(Debug, PartialEq, Serialize)]
 pub struct Remark {
     pub id: u64,
     pub author: String,
@@ -875,6 +881,35 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
     }
 }
 
+pub async fn me(dir: &Path) -> Result<Person, String> {
+    let repo = repo_of(dir)?;
+    match repo.host {
+        Host::Bitbucket => bitbucket(
+            Method::GET,
+            "/user",
+            &[("fields", "display_name,links.avatar.href")],
+            None,
+        )
+        .await
+        .map(|user| person(&user, "display_name", &user["links"]["avatar"]["href"])),
+        Host::GitHub => {
+            blocking(|| {
+                let user: Value = serde_json::from_str(&gh(&["api", "user"], None)?)
+                    .map_err(|e| e.to_string())?;
+                Ok(person(&user, "login", &user["avatar_url"]))
+            })
+            .await
+        }
+    }
+}
+
+fn person(user: &Value, name: &str, avatar: &Value) -> Person {
+    Person {
+        name: text(&user[name]),
+        avatar: text(avatar),
+    }
+}
+
 fn bitbucket_remark(found: &Value) -> Option<Remark> {
     if found["deleted"] == true {
         return None;
@@ -1446,6 +1481,30 @@ mod tests {
         assert_eq!(
             github_pull(&running, "x").checks.as_deref(),
             Some("pending")
+        );
+    }
+
+    #[test]
+    fn reads_who_you_are_on_both_hosts() {
+        let bitbucket = json!({ "display_name": "Quentin Briais", "links": { "avatar": { "href": "https://a/q.png" } } });
+        assert_eq!(
+            person(
+                &bitbucket,
+                "display_name",
+                &bitbucket["links"]["avatar"]["href"]
+            ),
+            Person {
+                name: "Quentin Briais".into(),
+                avatar: "https://a/q.png".into()
+            }
+        );
+        let github = json!({ "login": "Jgrasp", "avatar_url": "https://a/j.png" });
+        assert_eq!(
+            person(&github, "login", &github["avatar_url"]),
+            Person {
+                name: "Jgrasp".into(),
+                avatar: "https://a/j.png".into()
+            }
         );
     }
 

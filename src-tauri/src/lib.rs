@@ -984,6 +984,11 @@ async fn pull_remarks(dir: PathBuf, number: u64) -> Result<Vec<forge::Remark>, S
 }
 
 #[tauri::command]
+async fn pull_me(dir: PathBuf) -> Result<forge::Person, String> {
+    forge::me(&dir).await
+}
+
+#[tauri::command]
 async fn pull_reply(
     dir: PathBuf,
     number: u64,
@@ -1835,6 +1840,7 @@ pub fn run() {
             changed_files,
             pull_changes,
             pull_remarks,
+            pull_me,
             pull_reply,
             post_remarks,
             merge_pull,
