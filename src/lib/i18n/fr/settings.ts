@@ -147,7 +147,6 @@ export default {
   itemArtifactsHint: 'Affichés dès que l’agent a publié un artifact',
   itemCost: 'Coût',
   itemContext: 'Tokens de contexte',
-  itemTurns: 'Tours',
   itemBranch: 'Branche de travail',
   itemBranchHint: 'En vert avec un worktree, natif ou déclaré par l’agent',
   itemPull: 'Pull request',

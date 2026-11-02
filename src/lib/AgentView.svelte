@@ -189,6 +189,7 @@
   const optionOf = (key: Sub) => (key === 'advisor' ? (agent.options.advisor ?? '') : agent.options[key])
   const familyLabel = (model: string) => modelLabel(model).split(' ')[0]
   const advisorOn = $derived(advising(agent.options))
+  const effortRank = $derived(catalogOf(agent)?.models.find((m) => m.value === agent.options.model)?.supportedEffortLevels?.length === 0 ? -1 : EFFORTS.indexOf(agent.options.effort))
   const idle = $derived(advisorIdle(agent.options))
 
   function chooseOption(key: Sub, value: string) {
@@ -233,8 +234,7 @@
         (id !== 'branch' || branch) &&
         (id !== 'ticket' || ticket) &&
         (id !== 'pull' || pull || agent.review) &&
-        (id !== 'tasks' || agent.tasks.length) &&
-        (id !== 'turns' || agent.turns),
+        (id !== 'tasks' || agent.tasks.length),
     ),
   )
   const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'subagents', 'artifacts']
@@ -698,19 +698,26 @@
             <span class="info">
               {#if id === 'options'}
                 <button class="settings" aria-haspopup="dialog" aria-expanded={!!tuning} title={t('agent.changeOptions')} onclick={() => (tuning = tuning ? null : { ...agent.options })}>
-                  <span class="model">{modelLabel(agent.options.model)} · {effortLabel(agent.options.effort)}</span>
-                  {modeLabel(agent.options.mode)}
-                  <svg width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                  <span class="model">{modelLabel(agent.options.model)}</span>
+                  {#if effortRank >= 0}
+                    <span class="effort {agent.options.effort}">
+                      <span class="steps" aria-hidden="true">
+                        {#each EFFORTS as step, i (step)}
+                          <i class:on={i <= effortRank} style:opacity={i <= effortRank && effortRank < 4 ? 0.55 + (0.45 * (i + 1)) / (effortRank + 1) : null} style:animation-delay="{(i - 4) * 0.2}s"></i>
+                        {/each}
+                      </span>
+                      <span class="bubble">{t('settings.effort')} · <b>{#each [...effortLabel(agent.options.effort)] as letter, i}<span style:animation-delay="{(i - effortLabel(agent.options.effort).length + 1) * 0.3}s">{letter}</span>{/each}</b></span>
+                    </span>
+                  {/if}
+                  {#if advisorOn}
+                    <span class="advisor" class:idle={idle} title={idle ? t('settings.advisorBelow', { model: modelLabel(agent.options.model) }) : `${t('settings.advisor')} · ${modelLabel(agent.options.advisor!)}`}
+                      ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z" /></svg>{familyLabel(agent.options.advisor!)}</span
+                    >
+                  {/if}
+                  <span class="mode tone-{agent.options.mode}">{modeLabel(agent.options.mode)}</span>
                 </button>
-                {#if advisorOn}
-                  <button class="advisor" class:idle={idle} title={idle ? t('settings.advisorBelow', { model: modelLabel(agent.options.model) }) : `${t('settings.advisor')} · ${modelLabel(agent.options.advisor!)}`} onclick={() => (tuning = tuning ? null : { ...agent.options })}
-                    ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z" /></svg>{familyLabel(agent.options.advisor!)}</button
-                  >
-                {/if}
               {:else if id === 'context'}
                 <ContextGauge {agent} />
-              {:else if id === 'turns'}
-                <span class="mono">{t('agent.turns', { count: agent.turns })}</span>
               {:else if id === 'tasks'}
                 <span>{t('agent.tasksDone', { done: agent.tasks.filter((task) => task.status === 'completed').length, total: agent.tasks.length })}</span>
               {/if}
@@ -1395,7 +1402,7 @@
 
   .title {
     flex: 1;
-    min-width: 0;
+    min-width: min-content;
     display: flex;
     flex-direction: column;
     gap: 1px;
@@ -1411,6 +1418,7 @@
   }
 
   .heading {
+    contain: inline-size;
     display: flex;
     align-items: center;
     gap: 8px;
@@ -1427,7 +1435,7 @@
     display: flex;
     align-items: center;
     flex-wrap: wrap;
-    row-gap: 4px;
+    gap: 6px 14px;
     min-width: 0;
   }
 
@@ -1436,11 +1444,6 @@
     flex-wrap: wrap;
     align-items: center;
     gap: 4px;
-  }
-
-  .info:not(:last-of-type)::after {
-    content: '·';
-    margin: 0 6px;
   }
 
   .context {
@@ -1902,67 +1905,214 @@
   .settings {
     display: inline-flex;
     align-items: center;
-    gap: 4px;
-    margin: -2px -4px;
-    padding: 2px 4px;
-    border-radius: 3px;
+    gap: 10px;
+    height: 34px;
+    padding: 0 6px 0 12px;
+    border-radius: 4px;
+    background: var(--menu);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
     color: var(--text-muted);
-    font-size: 12px;
+    font-size: 14px;
+    font-weight: 500;
+    white-space: nowrap;
+  }
+
+  .settings:hover,
+  .settings[aria-expanded='true'] {
+    background: var(--surface-5);
   }
 
   .settings .model {
-    white-space: nowrap;
-    padding: 1px 7px;
-    border-radius: 4px;
-    background: var(--surface-3);
     color: var(--text-strong);
     font-weight: 600;
   }
 
-  .info .advisor {
+  .effort {
+    --effort: rgb(130, 170, 220);
+    position: relative;
+    display: inline-flex;
+    padding: 3px;
+    margin: -3px;
+    border-radius: 3px;
+  }
+
+  .effort:hover {
+    background: var(--surface-3);
+  }
+
+  .effort.medium {
+    --effort: rgb(145, 200, 130);
+  }
+
+  .effort.high {
+    --effort: rgb(250, 195, 95);
+  }
+
+  .effort.xhigh {
+    --effort: rgb(245, 139, 87);
+  }
+
+  .steps {
+    display: inline-flex;
+    flex-direction: column-reverse;
+    gap: 1px;
+  }
+
+  .steps i {
+    width: 8px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--border-strong);
+  }
+
+  .steps i.on {
+    background: var(--effort);
+  }
+
+  .effort.max .steps {
+    filter: drop-shadow(0 0 2px rgba(255, 255, 255, 0.3));
+  }
+
+  .effort.max .steps i {
+    animation: rainbow 1.6s linear infinite;
+  }
+
+  .bubble {
+    position: absolute;
+    top: calc(100% + 10px);
+    left: 50%;
+    z-index: 31;
+    transform: translateX(-50%);
+    padding: 5px 9px;
+    border-radius: 4px;
+    background: var(--bg-main);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 8px 20px rgba(0, 0, 0, 0.45);
+    color: var(--text);
     font-size: 12px;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.12s;
+  }
+
+  .effort:hover .bubble {
+    opacity: 1;
+  }
+
+  .bubble b {
+    color: var(--effort);
+    font-weight: 600;
+  }
+
+  .effort.max .bubble b span {
+    animation: rainbow-text 1.6s linear infinite;
+  }
+
+  @keyframes rainbow {
+    0%,
+    100% {
+      background: rgb(235, 95, 87);
+    }
+    14% {
+      background: rgb(245, 139, 87);
+    }
+    29% {
+      background: rgb(250, 195, 95);
+    }
+    43% {
+      background: rgb(145, 200, 130);
+    }
+    57% {
+      background: rgb(130, 170, 220);
+    }
+    71% {
+      background: rgb(155, 130, 200);
+    }
+    86% {
+      background: rgb(200, 130, 180);
+    }
+  }
+
+  @keyframes rainbow-text {
+    0%,
+    100% {
+      color: rgb(235, 95, 87);
+    }
+    14% {
+      color: rgb(245, 139, 87);
+    }
+    29% {
+      color: rgb(250, 195, 95);
+    }
+    43% {
+      color: rgb(145, 200, 130);
+    }
+    57% {
+      color: rgb(130, 170, 220);
+    }
+    71% {
+      color: rgb(155, 130, 200);
+    }
+    86% {
+      color: rgb(200, 130, 180);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .effort.max .steps i,
+    .effort.max .bubble b span {
+      animation: none;
+    }
+  }
+
+  .settings .advisor {
     display: inline-flex;
     align-items: center;
-    gap: 3px;
-    white-space: nowrap;
-    padding: 1px 6px;
-    border-radius: 4px;
-    background: var(--advisor-bg);
-    box-shadow: inset 0 0 0 1px var(--advisor-line);
+    gap: 4px;
     color: var(--advisor-text);
   }
 
-  .info .advisor.idle {
-    background: none;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
+  .settings .advisor.idle {
     color: var(--text-faint);
     text-decoration: line-through;
   }
 
-  .info .advisor svg {
+  .settings .advisor svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
   }
 
-  .settings:hover,
-  .settings[aria-expanded='true'] {
-    background: var(--surface-3);
-    color: var(--text-strong);
+  .mode {
+    --tone: var(--mode-default);
+    display: inline-flex;
+    align-items: center;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 3px;
+    background: color-mix(in srgb, var(--tone) 13%, transparent);
+    color: var(--tone);
+    font-size: 12px;
+    font-weight: 600;
   }
 
-  .settings svg {
-    fill: none;
-    stroke: currentColor;
-    stroke-width: 2.5;
-    stroke-linecap: round;
-    stroke-linejoin: round;
+  .mode.tone-acceptEdits {
+    --tone: var(--mode-accept);
+  }
+
+  .mode.tone-plan {
+    --tone: var(--mode-plan);
+  }
+
+  .mode.tone-auto {
+    --tone: var(--mode-auto);
   }
 
   .tuning {
     position: absolute;
-    top: 26px;
-    left: -4px;
+    top: 42px;
+    left: 0;
     z-index: 30;
     width: 560px;
     max-width: calc(100vw - 40px);
