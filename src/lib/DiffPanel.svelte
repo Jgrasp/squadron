@@ -617,7 +617,7 @@
       {/if}
     </div>
   {/if}
-  {#if reviewing && pull && (review.length || !agent)}
+  {#if reviewing && pull}
     <div class="review-bar" class:idle={!review.length}>
       <span class="pulse" aria-hidden="true"></span>
       <span class="what">

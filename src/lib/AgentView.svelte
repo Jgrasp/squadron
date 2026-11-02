@@ -1136,6 +1136,7 @@
       {changes}
       {proposal}
       {pull}
+      own={!agent.review}
       bind:mode={diffSource}
       onreview={sendReview}
       onhand={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}` : quote), composer.focus())}
