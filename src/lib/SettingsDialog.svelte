@@ -168,10 +168,15 @@
 
   const withRules = $derived(projects.list.filter((p) => p.rules.length))
 
+  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language, conversation_width: width, sidebar })
+  let baseline = $state(JSON.stringify(form))
+  const dirty = $derived(JSON.stringify(form) !== baseline)
+
   async function save() {
     error = ''
     try {
-      await saveSettings({ ...$state.snapshot(settings), claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, tab_order: settings.tab_order, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language, conversation_width: width, sidebar })
+      await saveSettings({ ...$state.snapshot(settings), ...form })
+      baseline = JSON.stringify(form)
       saved = true
       setTimeout(() => (saved = false), 1500)
     } catch (e) {
@@ -422,7 +427,7 @@
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
-      <button class="btn btn-primary" onclick={save}>{t('common.save')}</button>
+      <button class="btn btn-primary" onclick={save} disabled={!dirty}>{t('common.save')}</button>
     </footer>
   {/if}
   </div>
