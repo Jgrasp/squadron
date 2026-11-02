@@ -37,7 +37,7 @@
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
-  import { lookUpAgent, needsYou, openReview, progress, pullOf, reviews, stateLabel } from './pulls.svelte'
+  import { lists, lookUpAgent, lookUpLists, needsYou, openReview, progress, pullOf, reviews, stateLabel } from './pulls.svelte'
   import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
@@ -127,6 +127,10 @@
   })
 
   const pull = $derived(pullOf(agent))
+  const own = $derived(!!pull && !!lists[agent.project]?.mine.some((p) => p.number === pull.number))
+  $effect(() => {
+    if (pull && panel === 'diff') lookUpLists(agent.project)
+  })
   const project = $derived(projects.list.find((p) => p.path === agent.project))
   const ran = $derived(!!project && runsShown(project).length > 0)
   $effect(() => {
@@ -1136,7 +1140,7 @@
       {changes}
       {proposal}
       {pull}
-      own={!agent.review}
+      {own}
       bind:mode={diffSource}
       onreview={sendReview}
       onhand={(quote) => ((text = text.trim() ? `${text.trimEnd()}\n\n${quote}` : quote), composer.focus())}
