@@ -32,6 +32,8 @@ export default {
   oneClickHint: 'Un clic pour répondre, ou écrivez une réponse libre ci-dessous.',
   answered: 'Répondu',
   severalChoices: 'Plusieurs choix possibles',
+  ownAnswer: 'Votre réponse, ou un commentaire sur votre choix…',
+  clearOwnAnswer: 'Effacer la réponse',
   sendAnswers: 'Envoyer les réponses',
   answerEveryHint: 'Répondez à chaque question, ou écrivez une réponse libre ci-dessous.',
   planApproval: 'Validation du plan',

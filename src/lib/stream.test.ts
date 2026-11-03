@@ -128,7 +128,7 @@ describe('goal', () => {
 
   it('keeps the agent working while its goal waits for the end of the first turn', () => {
     const agent = fresh()
-    agent.goal = { condition: 'tests pass', state: 'sent', relaunches: 0, reason: '' }
+    agent.goal = { condition: 'tests pass', state: 'sent', relaunches: 0, reason: '', turn: 0 }
     replay(agent, hello)
     expect(agent.status).toBe('working')
     apply(agent, { type: 'assistant', message: { id: 'g', model: '<synthetic>', content: [{ type: 'text', text: 'Goal set: tests pass' }] } })
@@ -136,6 +136,15 @@ describe('goal', () => {
     apply(agent, { type: 'result', is_error: false, num_turns: 2, total_cost_usd: 0.01, usage: {} })
     expect(agent.status).toBe('done')
     expect(agent.goal?.state).toBe('met')
+  })
+
+  it('lets the agent rest when its goal command was lost before the next turn ended', () => {
+    const agent = fresh()
+    agent.goal = { condition: 'tests pass', state: 'sent', relaunches: 0, reason: '', turn: 0 }
+    replay(agent, hello)
+    apply(agent, { type: 'result', is_error: false, num_turns: 1, total_cost_usd: 0.02, usage: {} })
+    expect(agent.status).toBe('done')
+    expect(agent.goal?.state).toBe('planned')
   })
 
   it('counts the relaunches with their reason, and stops at the cap of Claude Code', () => {

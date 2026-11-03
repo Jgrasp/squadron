@@ -42,7 +42,15 @@ import {
   type Options,
 } from './stream'
 
-export const agents = $state({ list: [] as Agent[], current: {} as Record<string, string> })
+export const agents = $state({ list: [] as Agent[], current: stored<Record<string, string>>('squadron.current', {}) })
+
+$effect.root(() => {
+  $effect(() => {
+    try {
+      localStorage.setItem('squadron.current', JSON.stringify(agents.current))
+    } catch {}
+  })
+})
 
 export const clock = $state({ now: Date.now() })
 
@@ -298,7 +306,9 @@ const RESUME =
 const blocks = (content: unknown) => (typeof content === 'string' ? [{ type: 'text', text: content }] : Array.isArray(content) ? content : [])
 
 async function resume(agent: Agent) {
-  const unsent = agent.unsent ?? []
+  const rearm = agent.goal?.state === 'sent'
+  if (rearm) agent.goal!.state = 'planned'
+  const unsent = (agent.unsent ?? []).flatMap(blocks).filter((b) => !(rearm && b?.type === 'text' && String(b.text).startsWith('/goal ')))
   const note = unsent.length ? `${RESUME}\n\nThese messages reached you while you were working, and you had not read them yet:` : RESUME
   agent.unsent = undefined
   agent.resumes = (agent.resumes ?? 0) + 1
@@ -306,7 +316,10 @@ async function resume(agent: Agent) {
   starting(agent)
   agent.action = t('shell.resuming')
   persist(agent)
-  await invoke('resume_agent', { id: agent.id, content: [{ type: 'text', text: note }, ...unsent.flatMap(blocks)] }).catch((e) => fail(agent, String(e)))
+  await invoke('resume_agent', { id: agent.id, content: [{ type: 'text', text: note }, ...unsent] }).then(
+    () => arm(agent),
+    (e) => fail(agent, String(e)),
+  )
 }
 
 async function adopt(data: Agent) {
@@ -604,6 +617,7 @@ export function plan(agent: Agent, ask: Ask, choice: 'auto' | 'edits' | 'ask' | 
 async function arm(agent: Agent) {
   if (agent.goal?.state !== 'planned') return
   agent.goal.state = 'sent'
+  agent.goal.turn = agent.turns
   persist(agent)
   await invoke('send_message', { id: agent.id, text: `/goal ${agent.goal.condition}` }).catch((e) => fail(agent, String(e)))
 }

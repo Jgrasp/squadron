@@ -30,6 +30,8 @@ export default {
   oneClickHint: 'One click to answer, or write a free answer below.',
   answered: 'Answered',
   severalChoices: 'Several choices allowed',
+  ownAnswer: 'Your own answer, or a comment on your choice…',
+  clearOwnAnswer: 'Clear the answer',
   sendAnswers: 'Send answers',
   answerEveryHint: 'Answer every question, or write a free answer below.',
   planApproval: 'Plan approval',

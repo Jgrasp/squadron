@@ -11,7 +11,9 @@
   const questions = $derived((ask.input.questions ?? []) as Question[])
   const simple = $derived(questions.length === 1 && !questions[0].multiSelect)
   let picked = $state<Record<string, string[]>>({})
-  const done = $derived(questions.filter((q) => picked[q.question]?.length).length)
+  let own = $state<Record<string, string>>({})
+  const reply = (q: Question) => [(picked[q.question] ?? []).join(', '), own[q.question]?.trim()].filter(Boolean).join(' — ')
+  const done = $derived(questions.filter((q) => reply(q)).length)
 
   const clean = (label: string) => label.replace(/\s*\((recommended|recommandé)\)\s*$/i, '')
   const recommended = (label: string) => /\((recommended|recommandé)\)\s*$/i.test(label)
@@ -28,7 +30,7 @@
 
   function send() {
     if (done < questions.length) return
-    answer(agent, ask, Object.fromEntries(questions.map((q) => [q.question, picked[q.question].join(', ')])))
+    answer(agent, ask, Object.fromEntries(questions.map((q) => [q.question, reply(q)])))
   }
 
   function keys(event: KeyboardEvent) {
@@ -71,10 +73,10 @@
     <span class="hint">{t('agent.oneClickHint')}</span>
   {:else}
     {#each questions as q, n (q.question)}
-      <div class="question" role="group" aria-label={q.question} class:current={!picked[q.question]?.length && questions.findIndex((x) => !picked[x.question]?.length) === n}>
+      <div class="question" role="group" aria-label={q.question}>
         <div class="legend">
           <span>{n + 1} · {q.question}</span>
-          {#if picked[q.question]?.length}
+          {#if reply(q)}
             <span class="ok">{t('agent.answered')}</span>
           {:else if q.multiSelect}
             <span class="multi">{t('agent.severalChoices')}</span>
@@ -100,6 +102,19 @@
               </button>
             {/if}
           {/each}
+        </div>
+        <div class="own">
+          <input
+            class:on={own[q.question]?.trim()}
+            placeholder={t('agent.ownAnswer')}
+            aria-label={t('agent.ownAnswer')}
+            value={own[q.question] ?? ''}
+            oninput={(e) => (own[q.question] = e.currentTarget.value)}
+            onkeydown={(e) => e.key === 'Enter' && send()}
+          />
+          {#if own[q.question]}
+            <button class="clear" aria-label={t('agent.clearOwnAnswer')} title={t('agent.clearOwnAnswer')} onclick={() => (own[q.question] = '')}>×</button>
+          {/if}
         </div>
       </div>
     {/each}
@@ -228,11 +243,6 @@
     gap: 8px;
   }
 
-  .question.current {
-    background: var(--option);
-    box-shadow: inset 0 0 0 1px #a55e37;
-  }
-
   .legend {
     padding: 0 0 4px;
     display: flex;
@@ -315,6 +325,51 @@
     height: 16px;
     margin: 0;
     accent-color: var(--accent);
+  }
+
+  .own {
+    position: relative;
+    display: flex;
+  }
+
+  .own input {
+    flex: 1;
+    min-height: 34px;
+    padding: 0 36px 0 12px;
+    border: none;
+    border-radius: 4px;
+    background: var(--option-off);
+    color: var(--wait-text);
+    font: inherit;
+    outline: none;
+  }
+
+  .own input::placeholder {
+    color: var(--wait-muted);
+  }
+
+  .own input:focus,
+  .own input.on {
+    background: var(--option-on);
+    box-shadow: inset 0 0 0 2px var(--accent-soft);
+  }
+
+  .clear {
+    position: absolute;
+    top: 50%;
+    right: 6px;
+    width: 24px;
+    height: 24px;
+    transform: translateY(-50%);
+    border-radius: 3px;
+    color: var(--wait-muted);
+    font-size: 18px;
+    line-height: 1;
+  }
+
+  .clear:hover {
+    background: var(--wait-btn);
+    color: var(--wait-text);
   }
 
   .footer {

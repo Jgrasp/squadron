@@ -94,6 +94,7 @@ export type Goal = {
   state: 'planned' | 'sent' | 'active' | 'met' | 'stopping' | 'partial' | 'cleared'
   relaunches: number
   reason: string
+  turn?: number
 }
 
 export type Entry =
@@ -744,7 +745,8 @@ function result(agent: Agent, d: Json) {
     fail(agent, message || t('conversation.sessionStopped'))
   } else {
     const left = running(agent)
-    const goal = agent.goal?.state === 'sent'
+    const goal = agent.goal?.state === 'sent' && agent.goal.turn === agent.turns
+    if (agent.goal?.state === 'sent' && !goal) agent.goal.state = 'planned'
     agent.resumes = undefined
     agent.held = !goal && left > 0
     agent.status = goal || left ? 'working' : 'done'

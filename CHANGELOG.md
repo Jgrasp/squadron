@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.27.0 · 2026-11-03
+
+### Questions
+
+- **Your own answer per question**: in a card with several questions, each question has its own field, for a free answer or a comment on the chosen option, sent along with it. A × clears it. The frame no longer jumps to the next unanswered question.
+
+### Agents
+
+- On reopening Squadron, each project shows the conversation last visited in it instead of its first one.
+- An agent whose goal was sent while Squadron was closed no longer stays in progress forever after its turns end.
+- The panel under an agent's header no longer flashes white when switching from the Overview to a project.
+
+### Pull requests
+
+- The Diff of a pull request opened from the Pull requests panel covers the panel from its top, header included.
+
 ## 0.26.0 · 2026-11-02
 
 ### Panels

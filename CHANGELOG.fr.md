@@ -1,5 +1,21 @@
 # Nouveautés
 
+## 0.27.0 · 2026-11-03
+
+### Questions
+
+- **Votre propre réponse par question** : dans une carte à plusieurs questions, chaque question a son champ, pour une réponse libre ou un commentaire sur l’option choisie, envoyé avec elle. Un × l’efface. Le cadre ne saute plus à la question suivante non répondue.
+
+### Agents
+
+- À la réouverture de Squadron, chaque projet affiche la dernière conversation visitée au lieu de la première.
+- Un agent dont l’objectif a été envoyé pendant que Squadron était fermé ne reste plus en cours indéfiniment après la fin de ses tours.
+- Le panneau sous l’en-tête d’un agent ne clignote plus en blanc en passant de la Vue d’ensemble à un projet.
+
+### Pull requests
+
+- Le Diff d’une pull request ouverte depuis le panneau Pull requests couvre le panneau depuis son haut, en-tête compris.
+
 ## 0.26.0 · 2026-11-02
 
 ### Panneaux

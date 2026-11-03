@@ -135,7 +135,7 @@
 
 <svelte:window onclick={(e) => menu && !(e.target as HTMLElement).closest('[data-menu]') && (menu = '')} onkeydown={(e) => e.key === 'Escape' && menu && (menu = '')} />
 
-<div class="page">
+<div class="page" style:--panel-top="0px">
 <main>
   <div class="top">
     <div class="heading">
