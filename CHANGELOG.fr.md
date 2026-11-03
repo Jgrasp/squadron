@@ -1,5 +1,13 @@
 # Nouveautés
 
+## 0.28.1 · 2026-11-03
+
+### Corrections
+
+- La puce de contrôle à distance d’une conversation l’active d’un clic, sans menu ; le menu reste pour quand il est actif. La puce ne grandit plus à l’activation.
+- Toutes les façons d’ouvrir un panneau le font glisser comme son bouton : le bouton Pull requests de la barre de titre, la Vue d’ensemble, la palette de commandes, une carte de pull request, le bouton Kanban d’une tâche. Ouvrir la liste des pull requests ferme le panneau ouvert dans la conversation, qui ne revient plus quand la liste se ferme.
+- Les menus de la barre de titre et de la barre de conversation, comme Pull requests à relire ou Actions et pipelines, s’ouvrent au-dessus du panneau Kanban ou Pull requests au lieu de passer dessous.
+
 ## 0.28.0 · 2026-11-03
 
 ### Agents
