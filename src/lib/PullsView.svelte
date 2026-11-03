@@ -6,6 +6,7 @@
   import { ui } from './actions.svelte'
   import { settings } from './settings.svelte'
   import type { Project } from './projects.svelte'
+  import { requestPanel } from './layout.svelte'
   import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
@@ -29,7 +30,9 @@
       opened = null
       await tick()
     }
-    if (!again) opened = pull
+    if (again) return
+    requestPanel('diff')
+    opened = pull
   }
 
   async function askAgent(pull: Pull) {

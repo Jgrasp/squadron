@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { projects } from './projects.svelte'
+import { requestPanel, setPanel } from './layout.svelte'
 import type { Pull } from './pulls.svelte'
 
 export type Linked = {
@@ -31,4 +32,6 @@ export function showPulls(project: string) {
   projects.board = false
   projects.current = project
   projects.pulls = true
+  setPanel(project, null)
+  requestPanel('pulls')
 }

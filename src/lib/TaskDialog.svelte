@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { COLUMNS } from './board'
   import { find, show } from './agents.svelte'
-  import { projects } from './projects.svelte'
+  import { projects, showBoard } from './projects.svelte'
   import { progress, pullOf, stateLabel } from './pulls.svelte'
   import { getTicket, type Ticket } from './tickets.svelte'
   import { codeOf, nameOf } from './taskref'
@@ -28,10 +28,8 @@
 
   function board() {
     if (!project) return
-    projects.overview = false
-    projects.pulls = false
     projects.current = project.path
-    projects.board = true
+    showBoard()
     onclose()
   }
 </script>

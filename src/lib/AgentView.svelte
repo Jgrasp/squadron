@@ -810,44 +810,40 @@
               <span class="anchor" data-remote-menu data-item={id}>
                 <button
                   class="chip {agent.remote ? `on effect-${settings.tab_effect}` : ''}"
-                  aria-haspopup="menu"
-                  aria-expanded={remoteOpen}
-                  title={agent.remote ? t('agent.remoteOnTitle') : t('agent.remoteOffTitle')}
-                  onclick={() => (remoteOpen = !remoteOpen)}
+                  aria-haspopup={agent.remote ? 'menu' : undefined}
+                  aria-expanded={agent.remote ? remoteOpen : undefined}
+                  title={agent.remote ? t('agent.remoteOnTitle') : t('agent.turnOnRemote')}
+                  onclick={() => (agent.remote ? (remoteOpen = !remoteOpen) : remote(agent.id, true))}
                 >
                   <span class="ping" class:off={!agent.remote} class:live={agent.remote?.state === 'connected'} aria-hidden="true"></span>
                   {t('agent.remoteControl')}
                   {#if agent.remote?.state === 'connecting'}<span class="state">{t('agent.connecting')}</span>{/if}
-                  <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                  <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" style:visibility={agent.remote ? null : 'hidden'}><path d="M6 9l6 6 6-6" /></svg>
                 </button>
-                {#if remoteOpen}
-                  <div class="remote-menu" class:short={!agent.remote} role="menu" aria-label={t('agent.remoteControl')} data-keep>
-                    {#if agent.remote}
-                      <span class="about">
-                        <strong>{t('agent.remoteOn')}</strong>
-                        <span>{agent.remote.since ? t('agent.remoteAboutSince', { time: time(agent.remote.since) }) : t('agent.remoteAbout')}</span>
-                      </span>
-                      {#if agent.remote.last}
-                        <span class="last"><span class="dot" aria-hidden="true"></span><span class="grow">{t('agent.lastRemoteMessage')}</span>{ago(agent.remote.last, clock.now)}</span>
-                      {/if}
-                      <button
-                        role="menuitem"
-                        disabled={!agent.remote.url}
-                        onclick={() => (agent.remote?.url && invoke('open_link', { url: agent.remote.url }), (remoteOpen = false))}
-                      >
-                        {t('agent.openInClaudeAi')}
-                      </button>
-                      <button
-                        role="menuitem"
-                        disabled={!agent.remote.url}
-                        onclick={() => (agent.remote?.url && navigator.clipboard.writeText(agent.remote.url), (remoteOpen = false))}
-                      >
-                        {t('agent.copySessionLink')}
-                      </button>
-                      <button role="menuitem" class="stop" onclick={() => (remote(agent.id, false), (remoteOpen = false))}>{t('agent.stopRemote')}</button>
-                    {:else}
-                      <button role="menuitem" onclick={() => (remote(agent.id, true), (remoteOpen = false))}>{t('agent.turnOnRemote')}</button>
+                {#if remoteOpen && agent.remote}
+                  <div class="remote-menu" role="menu" aria-label={t('agent.remoteControl')} data-keep>
+                    <span class="about">
+                      <strong>{t('agent.remoteOn')}</strong>
+                      <span>{agent.remote.since ? t('agent.remoteAboutSince', { time: time(agent.remote.since) }) : t('agent.remoteAbout')}</span>
+                    </span>
+                    {#if agent.remote.last}
+                      <span class="last"><span class="dot" aria-hidden="true"></span><span class="grow">{t('agent.lastRemoteMessage')}</span>{ago(agent.remote.last, clock.now)}</span>
                     {/if}
+                    <button
+                      role="menuitem"
+                      disabled={!agent.remote.url}
+                      onclick={() => (agent.remote?.url && invoke('open_link', { url: agent.remote.url }), (remoteOpen = false))}
+                    >
+                      {t('agent.openInClaudeAi')}
+                    </button>
+                    <button
+                      role="menuitem"
+                      disabled={!agent.remote.url}
+                      onclick={() => (agent.remote?.url && navigator.clipboard.writeText(agent.remote.url), (remoteOpen = false))}
+                    >
+                      {t('agent.copySessionLink')}
+                    </button>
+                    <button role="menuitem" class="stop" onclick={() => (remote(agent.id, false), (remoteOpen = false))}>{t('agent.stopRemote')}</button>
                   </div>
                 {/if}
               </span>
@@ -1436,6 +1432,8 @@
   }
 
   .top {
+    position: relative;
+    z-index: 22;
     min-height: 60px;
     flex: none;
     display: flex;
@@ -1708,11 +1706,6 @@
     box-shadow:
       inset 0 0 0 1px var(--border-strong),
       0 16px 40px rgba(0, 0, 0, 0.5);
-  }
-
-  .remote-menu.short {
-    width: 220px;
-    padding: 6px;
   }
 
   .remote-menu .about {

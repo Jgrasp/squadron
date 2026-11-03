@@ -3,6 +3,7 @@
   import { ago, effortLabel, modelLabel } from './format'
   import { ui } from './actions.svelte'
   import { home, projects } from './projects.svelte'
+  import { showPulls } from './linked.svelte'
   import PullTag from './PullTag.svelte'
   import { lists, needsYou } from './pulls.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -57,12 +58,6 @@
     projects.current = project
   }
 
-  function openPulls(project: string) {
-    open(project)
-    projects.board = false
-    projects.pulls = true
-  }
-
   const open_pulls = (project: string) => (lists[project] ? lists[project].review.length + lists[project].mine.length : 0)
   const pullsWaiting = $derived(projects.list.reduce((n, p) => n + needsYou(p.path), 0))
 </script>
@@ -108,7 +103,7 @@
                   class="pulls"
                   class:urgent={waiting > 0}
                   title={t('shell.pullsOfProject', { name: group.project.name })}
-                  onclick={() => openPulls(group.project.path)}
+                  onclick={() => showPulls(group.project.path)}
                 >
                   <svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"
                     ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4M13 3l-3 3 3 3" /></svg

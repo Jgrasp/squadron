@@ -103,7 +103,6 @@ export default {
   hideItem: 'Masquer {item}',
   sessionContext: 'Contexte de la session',
   remoteOnTitle: 'Le contrôle à distance est activé · cette conversation peut aussi être pilotée depuis claude.ai',
-  remoteOffTitle: 'Le contrôle à distance est désactivé',
   remoteControl: 'Contrôle à distance',
   connecting: 'connexion…',
   remoteOn: 'Contrôle à distance activé',

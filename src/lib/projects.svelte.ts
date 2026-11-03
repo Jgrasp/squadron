@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import type { Card } from './board'
 import { ofProject } from './agents.svelte'
-import { setPanel } from './layout.svelte'
+import { requestPanel, setPanel } from './layout.svelte'
 import { settings } from './settings.svelte'
 import type { Options } from './stream'
 import type { Source } from './tickets.svelte'
@@ -158,6 +158,7 @@ export async function toggleBoard() {
   projects.pulls = false
   projects.board = true
   setPanel(projects.current, null)
+  requestPanel('kanban')
 }
 
 export async function showBoard() {
@@ -167,6 +168,7 @@ export async function showBoard() {
   projects.pulls = false
   projects.board = true
   setPanel(projects.current, null)
+  requestPanel('kanban')
 }
 
 export function togglePulls() {
@@ -175,6 +177,7 @@ export function togglePulls() {
   projects.board = false
   projects.pulls = true
   setPanel(projects.current, null)
+  requestPanel('pulls')
 }
 
 export async function popOut() {

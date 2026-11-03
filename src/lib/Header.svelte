@@ -11,6 +11,7 @@
   import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
   import { editProject, ordered, orderProjects, projects } from './projects.svelte'
+  import { showPulls } from './linked.svelte'
   import { t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
 
@@ -60,9 +61,7 @@
   const pullTotal = $derived(pullProjects.reduce((n, entry) => n + entry.count, 0))
 
   function openPulls(path: string) {
-    projects.overview = projects.board = false
-    projects.current = path
-    projects.pulls = true
+    showPulls(path)
     pullsOpen = false
   }
 
@@ -340,6 +339,7 @@
 <style>
   header {
     position: relative;
+    z-index: 35;
     height: 54px;
     flex: none;
     display: grid;

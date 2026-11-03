@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.28.1 · 2026-11-03
+
+### Fixes
+
+- The remote control chip of a conversation turns remote control on at a click, without a menu; the menu stays for when it is on. The chip no longer grows when turned on.
+- Every way of opening a panel slides it in like its button does: the Pull requests button of the title bar, the Overview, the command palette, a pull request card, a task's Kanban button. Opening the list of pull requests closes the panel open in the conversation, so it no longer comes back when the list closes.
+- The menus of the title bar and of the conversation bar, such as Pull requests to review or Actions and pipelines, open above the Kanban or Pull requests panel instead of under it.
+
 ## 0.28.0 · 2026-11-03
 
 ### Agents
