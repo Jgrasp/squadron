@@ -42,7 +42,15 @@ import {
   type Options,
 } from './stream'
 
-export const agents = $state({ list: [] as Agent[], current: {} as Record<string, string> })
+export const agents = $state({ list: [] as Agent[], current: stored<Record<string, string>>('squadron.current', {}) })
+
+$effect.root(() => {
+  $effect(() => {
+    try {
+      localStorage.setItem('squadron.current', JSON.stringify(agents.current))
+    } catch {}
+  })
+})
 
 export const clock = $state({ now: Date.now() })
 
