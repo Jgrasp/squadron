@@ -143,8 +143,15 @@ export const bottomShare = (kind: PanelKind | null) => {
   return shown && shown.mode === 'bottom' ? shown.height / 100 : 0
 }
 
+let requested = { kind: null as PanelKind | null, at: 0 }
+
+export const requestPanel = (kind: PanelKind) => (requested = { kind, at: performance.now() })
+
+export const requestedPanel = (kind: PanelKind) => requested.kind === kind && performance.now() - requested.at < 1000
+
 export function setPanel(project: string, kind: PanelKind | null) {
   layout.review = null
+  if (kind) requestPanel(kind)
   if (kind) projects.board = projects.pulls = false
   if (kind) layout.panels[project] = kind
   else delete layout.panels[project]

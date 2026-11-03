@@ -2,6 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { archive, fork, interrupt, jumpToWaiting, pin, shelve, show } from './agents.svelte'
 import { layout, setPanel } from './layout.svelte'
 import { projects, showBoard, toggleBoard, type Project } from './projects.svelte'
+import { showPulls } from './linked.svelte'
 import type { Action } from './shortcuts'
 import type { Row } from './spotlight'
 import type { Agent } from './stream'
@@ -77,8 +78,7 @@ export async function perform({ verb, project, agent }: Row) {
       ui.creating = true
       return
     case 'pulls':
-      projects.pulls = true
-      return
+      return project && showPulls(project.path)
     case 'board':
       return showBoard()
     case 'editor':

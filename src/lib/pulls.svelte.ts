@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { agents, create, FOR_INFO, persist, send } from './agents.svelte'
 import { defaultsFor, projects } from './projects.svelte'
-import { layout, setPanel } from './layout.svelte'
+import { layout, requestPanel, setPanel } from './layout.svelte'
 import { settings } from './settings.svelte'
 import { prompt, workdir, type Agent, type Comment } from './stream'
 import { pushedTo } from './pushed'
@@ -93,6 +93,7 @@ export function openReview(project: string, number: number) {
   projects.pulls = false
   projects.current = project
   setPanel(project, null)
+  requestPanel('diff')
   layout.review = { project, number }
 }
 export const lists = $state<Record<string, Lists>>({})

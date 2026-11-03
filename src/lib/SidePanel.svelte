@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte'
   import { cubicIn, quintOut } from 'svelte/easing'
-  import { displayOf, MIN_PANEL, openPanel, resizePanel, resizeShare, setDisplay, type PanelKind } from './layout.svelte'
+  import { displayOf, MIN_PANEL, openPanel, requestedPanel, resizePanel, resizeShare, setDisplay, type PanelKind } from './layout.svelte'
   import { projects } from './projects.svelte'
   import { covers } from './panels'
   import { t } from './i18n/index.svelte'
@@ -53,7 +53,7 @@
   const move = (axis: string) => (t: number) => `transform: translate${axis}(${(1 - t) * 100}%)`
 
   function arrive(_: Element) {
-    if (windowed) return { duration: 0 }
+    if (windowed || !requestedPanel(kind)) return { duration: 0 }
     return { duration: 380, easing: quintOut, css: move(mode === 'bottom' ? 'Y' : 'X') }
   }
 
@@ -110,7 +110,7 @@
   style:left={wide ? `${left}px` : null}
   aria-label={title}
   bind:this={panel}
-  in:arrive
+  in:arrive|global
   out:depart
 >
   {#if mode === 'slide' || mode === 'bottom'}
