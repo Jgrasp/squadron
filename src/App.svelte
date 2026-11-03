@@ -17,7 +17,7 @@
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
-  import { setPanel } from './lib/layout.svelte'
+  import { layout, setPanel } from './lib/layout.svelte'
   import { trackHistory } from './lib/history.svelte'
   import './lib/pilot.svelte'
   import Board from './lib/Board.svelte'
@@ -28,15 +28,28 @@
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
-  import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
+  import { lists, lookUpAll, lookUpLists, reviewWithAgent } from './lib/pulls.svelte'
+  import { showPulls } from './lib/linked.svelte'
   import { watchRuns } from './lib/pipelines.svelte'
   import PullsView from './lib/PullsView.svelte'
+  import PullReview from './lib/PullReview.svelte'
   import SidePanel from './lib/SidePanel.svelte'
   import { t } from './lib/i18n/index.svelte'
   import PanelButtons from './lib/PanelButtons.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
+  const reviewed = $derived.by(() => {
+    const found = layout.review && lists[layout.review.project]
+    return found ? [...found.review, ...found.mine].find((p) => p.number === layout.review?.number) : undefined
+  })
+  $effect(() => {
+    const open = layout.review
+    if (!open || reviewed) return
+    if (!lists[open.project]) return void lookUpLists(open.project)
+    layout.review = null
+    showPulls(open.project)
+  })
   const mirrored = $derived(
     agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? activity(a) : a.attention)),
   )
@@ -173,6 +186,8 @@
                 {#snippet controls()}<PanelButtons kind="pulls" onclose={() => (projects.pulls = false)} />{/snippet}
               </PullsView>
             </SidePanel>
+          {:else if reviewed && layout.review?.project === project.path}
+            <PullReview {project} pull={reviewed} onagent={() => reviewWithAgent(project.path, reviewed)} onclose={() => (layout.review = null)} />
           {/if}
         {/snippet}
       </ProjectView>

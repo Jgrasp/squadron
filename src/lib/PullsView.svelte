@@ -1,16 +1,16 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte'
+  import { tick, type Snippet } from 'svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { ask } from './asking.svelte'
-  import { agents, clock, find, reply, send, show } from './agents.svelte'
+  import { agents, clock, find, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import { settings } from './settings.svelte'
   import type { Project } from './projects.svelte'
-  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, fixWithAgent, reopen, behind, reviewChanges, reviewerOf, reviewWithAgent, sinceOf, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
-  import DiffPanel from './DiffPanel.svelte'
-  import { prompt, workdir, type Agent, type Comment } from './stream'
+  import PullReview from './PullReview.svelte'
+  import type { Agent } from './stream'
   import Trans from './Trans.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
@@ -18,28 +18,22 @@
 
   let refreshing = $state(false)
   let opened = $state<Pull | null>(null)
-  let file = $state('')
-  let notes = $state<Comment[]>([])
-  let target = $state<Comment | null>(null)
   const found = $derived(lists[project.path])
-
-  $effect(() => {
-    const wanted = reopen.number
-    const match = wanted !== null && found && [...found.review, ...found.mine].find((p) => p.number === wanted)
-    if (!match) return
-    opened = match
-    reopen.number = null
-  })
 
   let launched = $state<{ id: string; number: number } | null>(null)
   const launchedAgent = $derived(launched && find(launched.id))
 
+  async function review(pull: Pull) {
+    const again = opened?.number === pull.number
+    if (opened) {
+      opened = null
+      await tick()
+    }
+    if (!again) opened = pull
+  }
+
   async function askAgent(pull: Pull) {
-    const before = agents.current[project.path]
-    const id = await reviewWithAgent(project.path, pull)
-    if (before) agents.current[project.path] = before
-    else delete agents.current[project.path]
-    launched = { id, number: pull.number }
+    launched = { id: await reviewWithAgent(project.path, pull), number: pull.number }
   }
   const asking = (pull: Pull): Choice => ({
     label: t('review.askAgent'),
@@ -54,14 +48,6 @@
     } catch (e) {
       failure = `#${pull.number}: ${e}`
     }
-  }
-  async function handOver(pull: Pull, summary: string, list: Comment[]) {
-    opened = null
-    const agent = agentOn(pull)
-    if (!agent) return show(find(await fixWithAgent(project.path, pull, summary, list))!)
-    const message = summary || `Review of pull request #${pull.number}`
-    if (!reply(agent, prompt(message, list))) send(agent.id, message, list)
-    show(agent)
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
@@ -169,7 +155,7 @@
         <h2>{t('review.toReview')} <span class="n">{found.review.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
           {@const reviewer = reviewerOf(project.path, pull)}
-          {@const reviewing = { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) }}
+          {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
           {@const seeing = reviewer && { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, run: () => show(reviewer) }}
           {@const main = !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
           <article class:done={!waitsFor(project.path, pull)}>
@@ -193,7 +179,7 @@
         {#each found.mine as pull (pull.number)}
           {@const agent = agentOn(pull)}
           {@const others = agent ? [{ label: t('review.goToAgent', { name: agent.name }), title: t('review.agentWorkingOn', { branch: pull.branch }), run: () => show(agent) }] : []}
-          {@const reviewing = { label: t('review.review'), always: true, run: () => ((opened = opened?.number === pull.number ? null : pull), (file = '')) }}
+          {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
           <article>
             <span class="verdict {standing(pull)[0]}">{standing(pull)[1]}</span>
             {@render about(pull)}
@@ -211,28 +197,7 @@
   </div>
 </main>
 {#if opened}
-  {#key opened.number}
-    <DiffPanel
-      agent={null}
-      dir={project.path}
-      changes={null}
-      pull={opened}
-      since={opened.reviewed && moved(project.path, opened) ? sinceOf(project.path, opened) : null}
-      mode="pull"
-      own={found?.mine.some((p) => p.number === opened?.number)}
-      bind:file
-      bind:comments={notes}
-      bind:target
-      onhand={() => {}}
-      onreview={(summary, list) => handOver(opened!, summary, list)}
-      handTo={(opened && agentOn(opened)?.name) || t('review.newAgent')}
-      onposted={() => ((opened = null), lookUpLists(project.path, true))}
-      reviewer={reviewerOf(project.path, opened) ?? null}
-      onagent={() => askAgent(opened!)}
-      banner={flashes}
-      onclose={() => (opened = null)}
-    />
-  {/key}
+  <PullReview {project} pull={opened} onagent={() => askAgent(opened!)} banner={flashes} onclose={() => (opened = null)} />
 {/if}
 </div>
 
