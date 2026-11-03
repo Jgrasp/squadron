@@ -11,7 +11,10 @@
   const panel = $derived(agent.infoPanel!)
   const doc = $derived(host ? panelDocument(panel.html, themeOf(host)) : '')
 
+  let ready = $state(false)
+
   function toggle() {
+    ready = false
     panel.hidden = !panel.hidden
     persist(agent)
   }
@@ -19,7 +22,7 @@
 
 <div class="info-panel" class:hidden={panel.hidden} bind:this={host}>
   {#if !panel.hidden}
-    <iframe title={t('agent.panelOf', { name: agent.name })} sandbox="" referrerpolicy="no-referrer" srcdoc={doc} style:height="{panel.height}px" tabindex="-1"></iframe>
+    <iframe title={t('agent.panelOf', { name: agent.name })} sandbox="" referrerpolicy="no-referrer" srcdoc={doc || null} class:ready style:height="{panel.height}px" tabindex="-1" onload={() => (ready = !!doc)}></iframe>
   {:else}
     <span class="label">{agent.name}’s panel is hidden</span>
   {/if}
@@ -44,6 +47,11 @@
     min-width: 0;
     border: 0;
     pointer-events: none;
+    visibility: hidden;
+  }
+
+  iframe.ready {
+    visibility: visible;
   }
 
   .hidden {
