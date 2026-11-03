@@ -818,7 +818,7 @@
                   <span class="ping" class:off={!agent.remote} class:live={agent.remote?.state === 'connected'} aria-hidden="true"></span>
                   {t('agent.remoteControl')}
                   {#if agent.remote?.state === 'connecting'}<span class="state">{t('agent.connecting')}</span>{/if}
-                  {#if agent.remote}<svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>{/if}
+                  <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true" style:visibility={agent.remote ? null : 'hidden'}><path d="M6 9l6 6 6-6" /></svg>
                 </button>
                 {#if remoteOpen && agent.remote}
                   <div class="remote-menu" role="menu" aria-label={t('agent.remoteControl')} data-keep>
