@@ -1,5 +1,12 @@
 # Nouveautés
 
+## 0.29.0 · 2026-11-03
+
+### Démarrage
+
+- **Écran d’ouverture** : pendant que Squadron démarre, une escadrille se forme au milieu de la fenêtre. Les ailiers rejoignent la formation à mesure que les agents reviennent, sous l’étape en cours et le nombre d’agents ; puis elle vous salue par votre prénom et s’envole pour dévoiler l’app. Un clic ou une touche la passe.
+- Squadron est prêt en une demi-seconde même avec beaucoup de longues conversations : l’historique d’un agent n’est lu qu’à l’ouverture de sa conversation ou quand une recherche en a besoin, et la fenêtre ne se fige plus pendant le retour des agents.
+
 ## 0.28.1 · 2026-11-03
 
 ### Corrections
