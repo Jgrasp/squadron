@@ -240,6 +240,18 @@ describe('stream', () => {
     expect(names.filter((n) => n === 'Write')).toHaveLength(3)
   })
 
+  it('starts a new task list once the finished one is followed by a message or a new task', () => {
+    const agent = fresh()
+    replay(agent, tasks)
+    userMessage(agent, 'Next')
+    expect(agent.tasks).toEqual([])
+    expect(agent.previousTasks).toHaveLength(3)
+    replay(agent, tasks)
+    apply(agent, { type: 'assistant', message: { id: 'm9', content: [{ type: 'tool_use', id: 'new', name: 'TaskCreate', input: { subject: 'Write d.txt' } }] } })
+    expect(agent.tasks.map((t) => t.subject)).toEqual(['Write d.txt'])
+    expect(agent.previousTasks?.map((t) => t.subject)).toEqual(['Write a.txt', 'Write b.txt', 'Write c.txt'])
+  })
+
   it('keeps the session id and forgets the fork once the new session starts', () => {
     const agent = fresh()
     agent.sessionId = 'parent'

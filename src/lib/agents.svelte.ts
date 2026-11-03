@@ -845,6 +845,7 @@ export async function fork(id: string, upTo?: number) {
   const resumes = upTo === undefined || !!point.at
   copy.entries = [...(upTo === undefined ? snapshot.entries : snapshot.entries.slice(0, upTo)), { kind: 'forked', at: Date.now(), from: source.name }]
   copy.tasks = upTo === undefined ? snapshot.tasks : []
+  copy.previousTasks = upTo === undefined ? snapshot.previousTasks : []
   copy.subagents = upTo === undefined ? snapshot.subagents : []
   copy.sessionId = resumes ? source.sessionId : null
   copy.forkOf = resumes ? source.name : null

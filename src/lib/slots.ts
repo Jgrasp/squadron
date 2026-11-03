@@ -19,7 +19,6 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
       ['pull', 'settings.itemPull', 'settings.itemPullHint'],
       ['tasks', 'settings.itemTasks'],
     ],
-    hidden: ['tasks'],
   },
   'agent.tools': {
     title: 'settings.slotTools',

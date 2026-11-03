@@ -41,7 +41,7 @@
   import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
-  import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type ToolCall } from './stream'
+  import { calls, known, prompt, relative, workdir, type Agent, type Comment, type Options, type Subagent, type Task, type ToolCall } from './stream'
 
   let { agent, overlay }: { agent: Agent; overlay?: Snippet } = $props()
   let headerHeight = $state(0)
@@ -237,9 +237,12 @@
         (id !== 'tasks' || agent.tasks.length),
     ),
   )
-  const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'subagents', 'artifacts']
+  const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'tasks', 'subagents', 'artifacts']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
+  let tasksOpen = $state(false)
+  let previousOpen = $state(false)
+  const tasksDone = $derived(agent.tasks.filter((task) => task.status === 'completed').length)
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
 
   type Item = { value: string; label: string; hint?: string; tone?: string; detail?: string; usage?: string; group?: string; text: string; at?: number; action?: () => void }
@@ -654,11 +657,23 @@
   }
 </script>
 
+{#snippet taskList(tasks: Task[])}
+  <ul class="task-list">
+    {#each tasks as task (task.toolUseId)}
+      <li class={task.status}>
+        <span class="mark" aria-hidden="true">{task.status === 'completed' ? '✓' : task.status === 'in_progress' ? '●' : '○'}</span>
+        {task.status === 'in_progress' ? (task.activeForm ?? task.subject) : task.subject}
+      </li>
+    {/each}
+  </ul>
+{/snippet}
+
 <svelte:window
   onclick={(e) => {
     const target = e.target as HTMLElement
     if (!target.closest('[data-agent-menu]')) menuOpen = false
     if (!target.closest('[data-remote-menu]')) remoteOpen = false
+    if (!target.closest('[data-tasks-menu]')) tasksOpen = false
     if (!target.closest('[data-options]')) tuning = null
   }}
 />
@@ -718,8 +733,6 @@
                 </button>
               {:else if id === 'context'}
                 <ContextGauge {agent} />
-              {:else if id === 'tasks'}
-                <span>{t('agent.tasksDone', { done: agent.tasks.filter((task) => task.status === 'completed').length, total: agent.tasks.length })}</span>
               {/if}
             </span>
           {/each}
@@ -834,6 +847,32 @@
                       <button role="menuitem" class="stop" onclick={() => (remote(agent.id, false), (remoteOpen = false))}>{t('agent.stopRemote')}</button>
                     {:else}
                       <button role="menuitem" onclick={() => (remote(agent.id, true), (remoteOpen = false))}>{t('agent.turnOnRemote')}</button>
+                    {/if}
+                  </div>
+                {/if}
+              </span>
+            {:else if id === 'tasks'}
+              <span class="anchor" data-tasks-menu data-item={id}>
+                <button
+                  class="chip tasks"
+                  class:finished={tasksDone === agent.tasks.length}
+                  aria-haspopup="true"
+                  aria-expanded={tasksOpen}
+                  onclick={() => ((tasksOpen = !tasksOpen), (previousOpen = false))}
+                >
+                  <span class="gauge" aria-hidden="true"><span style:width="{(tasksDone / agent.tasks.length) * 100}%"></span></span>
+                  {t('agent.tasksDone', { done: tasksDone, total: agent.tasks.length })}
+                  <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+                </button>
+                {#if tasksOpen}
+                  <div class="tasks-menu" data-keep>
+                    <span class="tasks-title">{t('conversation.tasks', { done: tasksDone, total: agent.tasks.length })}</span>
+                    {@render taskList(agent.tasks)}
+                    {#if agent.previousTasks?.length}
+                      <button class="previous" aria-expanded={previousOpen} onclick={() => (previousOpen = !previousOpen)}>
+                        {t('agent.previousTasks', { count: agent.previousTasks.length })}<span aria-hidden="true">›</span>
+                      </button>
+                      {#if previousOpen}{@render taskList(agent.previousTasks)}{/if}
                     {/if}
                   </div>
                 {/if}
@@ -1731,6 +1770,119 @@
     box-shadow: inset 0 0 0 1px var(--err-border);
     color: var(--err-text);
     font-weight: 600;
+  }
+
+  .chip.tasks {
+    gap: 8px;
+    color: var(--text-strong);
+  }
+
+  .chip.tasks.finished {
+    color: var(--text-dim);
+  }
+
+  .gauge {
+    width: 28px;
+    height: 4px;
+    border-radius: 2px;
+    background: var(--surface-5);
+    overflow: hidden;
+  }
+
+  .gauge span {
+    display: block;
+    height: 100%;
+    background: var(--accent);
+  }
+
+  .finished .gauge span {
+    background: var(--done);
+  }
+
+  .tasks-menu {
+    position: absolute;
+    top: 42px;
+    right: 0;
+    z-index: 20;
+    width: 360px;
+    max-height: 420px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 12px 14px;
+    border-radius: 8px;
+    background: var(--surface-1);
+    box-shadow:
+      inset 0 0 0 1px var(--border-strong),
+      0 16px 40px rgba(0, 0, 0, 0.5);
+  }
+
+  .tasks-title {
+    font-size: 12px;
+    color: var(--text-muted);
+  }
+
+  .task-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    font-size: 13px;
+  }
+
+  .task-list li {
+    display: flex;
+    gap: 8px;
+    color: var(--text-muted);
+  }
+
+  .task-list li.completed {
+    color: var(--text-dim);
+    text-decoration: line-through;
+    text-decoration-color: var(--text-faint);
+  }
+
+  .task-list li.in_progress {
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .mark {
+    width: 12px;
+    flex: none;
+    text-align: center;
+  }
+
+  .completed .mark {
+    color: var(--done);
+  }
+
+  .in_progress .mark {
+    color: var(--accent);
+  }
+
+  .previous {
+    display: flex;
+    justify-content: space-between;
+    padding-top: 8px;
+    border-top: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-faint);
+  }
+
+  .previous:hover {
+    color: var(--text-muted);
+  }
+
+  .previous span {
+    display: inline-block;
+  }
+
+  .previous[aria-expanded='true'] span {
+    transform: rotate(90deg);
   }
 
   .go {
