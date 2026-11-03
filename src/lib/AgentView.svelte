@@ -1432,6 +1432,8 @@
   }
 
   .top {
+    position: relative;
+    z-index: 22;
     min-height: 60px;
     flex: none;
     display: flex;
