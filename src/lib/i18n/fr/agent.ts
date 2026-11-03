@@ -85,6 +85,7 @@ export default {
   compactThenSend: 'Compacter puis envoyer',
   sendAnyway: 'Envoyer quand même',
   tasksDone: '{done}/{total} tâches',
+  previousTasks: { one: 'Liste précédente · {count} terminée', other: 'Liste précédente · {count} terminées' },
   agentOptions: 'Options de l’agent',
   optionsHint: 'Le modèle et le mode d’autorisation changent tout de suite, même en plein tour. L’effort s’applique à partir de votre prochain message.',
   openInTool: 'Ouvrir dans un outil',

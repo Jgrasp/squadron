@@ -60,7 +60,7 @@
   function depart(_: Element) {
     if (windowed) return { duration: 0 }
     const next = openPanel(projects.current)
-    if (next && next !== kind && mode && covers(displayOf(next), display)) return { duration: 380 }
+    if (next && next !== kind && mode && !panel.parentElement?.closest('.panel') && covers(displayOf(next), display)) return { duration: 380 }
     return { duration: 280, easing: cubicIn, css: move(mode === 'bottom' ? 'Y' : 'X') }
   }
 

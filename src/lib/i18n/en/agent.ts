@@ -83,6 +83,7 @@ export default {
   compactThenSend: 'Compact, then send',
   sendAnyway: 'Send anyway',
   tasksDone: '{done}/{total} tasks',
+  previousTasks: { one: 'Previous list · {count} done', other: 'Previous list · {count} done' },
   agentOptions: 'Agent options',
   optionsHint: 'Model and permission mode change at once, even mid-turn. The effort applies from your next message.',
   openInTool: 'Open in a tool',

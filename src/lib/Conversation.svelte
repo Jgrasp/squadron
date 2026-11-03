@@ -428,23 +428,6 @@
   {/if}
 {/each}
 
-{#if agent.tasks.length}
-  <details class="tasks" open={agent.tasks.some((task) => task.status !== 'completed')}>
-    <summary>
-      <span class="chevron" aria-hidden="true">›</span>
-      {t('conversation.tasks', { done: agent.tasks.filter((task) => task.status === 'completed').length, total: agent.tasks.length })}
-    </summary>
-    <ul>
-      {#each agent.tasks as task (task.toolUseId)}
-        <li class={task.status}>
-          <span class="mark" aria-hidden="true">{task.status === 'completed' ? '✓' : task.status === 'in_progress' ? '●' : '○'}</span>
-          {task.status === 'in_progress' ? (task.activeForm ?? task.subject) : task.subject}
-        </li>
-      {/each}
-    </ul>
-  </details>
-{/if}
-
 {#if agent.held && agent.background.length}
   <BackgroundCard {agent} {onterminal} />
 {/if}
@@ -1011,53 +994,6 @@
     padding-left: 38px;
     font-size: 12px;
     color: var(--text-dim);
-  }
-
-  .tasks {
-    padding: 12px 16px;
-    border-radius: 6px;
-    background: var(--surface-1);
-  }
-
-  .tasks ul {
-    margin: 8px 0 0;
-    padding: 0 0 0 26px;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-    font-size: 13px;
-  }
-
-  .tasks li {
-    display: flex;
-    gap: 8px;
-    color: var(--text-muted);
-  }
-
-  .tasks li.completed {
-    color: var(--text-dim);
-    text-decoration: line-through;
-    text-decoration-color: var(--text-faint);
-  }
-
-  .tasks li.in_progress {
-    color: var(--text);
-    font-weight: 600;
-  }
-
-  .mark {
-    width: 12px;
-    flex: none;
-    text-align: center;
-  }
-
-  .completed .mark {
-    color: var(--done);
-  }
-
-  .in_progress .mark {
-    color: var(--accent);
   }
 
   .separator {

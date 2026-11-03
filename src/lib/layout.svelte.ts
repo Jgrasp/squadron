@@ -62,6 +62,7 @@ export const layout = $state({
   foldedGroups: foldedGroups0,
   launchSettings,
   contextShown,
+  review: null as { project: string; number: number } | null,
 })
 
 export function setSort(project: string | null, next: Partial<AgentSort>) {
@@ -135,7 +136,7 @@ export function resizeShare(kind: PanelKind, share: number) {
 }
 
 export const openPanel = (project: string): PanelKind | null =>
-  projects.board ? 'kanban' : projects.pulls ? 'pulls' : (layout.panels[project] ?? null)
+  projects.board ? 'kanban' : projects.pulls ? 'pulls' : layout.review?.project === project ? 'diff' : (layout.panels[project] ?? null)
 
 export const bottomShare = (kind: PanelKind | null) => {
   const shown = kind && displayOf(kind)
@@ -143,6 +144,7 @@ export const bottomShare = (kind: PanelKind | null) => {
 }
 
 export function setPanel(project: string, kind: PanelKind | null) {
+  layout.review = null
   if (kind) projects.board = projects.pulls = false
   if (kind) layout.panels[project] = kind
   else delete layout.panels[project]

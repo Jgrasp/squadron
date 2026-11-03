@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { agents, create, FOR_INFO, persist, send } from './agents.svelte'
 import { defaultsFor, projects } from './projects.svelte'
+import { layout, setPanel } from './layout.svelte'
 import { settings } from './settings.svelte'
 import { prompt, workdir, type Agent, type Comment } from './stream'
 import { pushedTo } from './pushed'
@@ -86,14 +87,13 @@ $effect.root(() => {
     } catch {}
   })
 })
-export const reopen = $state<{ number: number | null }>({ number: null })
-
 export function openReview(project: string, number: number) {
-  reopen.number = number
   projects.overview = false
   projects.board = false
+  projects.pulls = false
   projects.current = project
-  projects.pulls = true
+  setPanel(project, null)
+  layout.review = { project, number }
 }
 export const lists = $state<Record<string, Lists>>({})
 const listed: Record<string, number> = {}
@@ -260,7 +260,10 @@ export async function reviewWithAgent(project: string, pull: Pull) {
     'Do not change any file. For each problem worth raising, call add_review_comment with the file, a line the diff shows (changed or within its context: the line in the new version, or the removed line with removed: true) and a short comment. When it is about code the diff does not show, put it on the changed line it relates to best, or leave path and line out to comment on the whole pull request: what is wrong and what to do.',
     reviewPrompt(project),
   ].join('\n\n')
+  const before = agents.current[project]
   const id = await create(project, t('review.agentName', { number: String(pull.number) }), defaultsFor(project), prompt, { dir })
+  if (before) agents.current[project] = before
+  else delete agents.current[project]
   const agent = agents.list.find((a) => a.id === id)
   if (agent) {
     agent.review = { project, number: pull.number, base: pull.base, title: pull.title, head: pull.head }

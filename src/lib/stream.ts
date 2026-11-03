@@ -146,6 +146,7 @@ export type Agent = {
   forkOf: string | null
   forkAt: string | null
   tasks: Task[]
+  previousTasks?: Task[]
   summary: string
   attention: string
   autoName: boolean
@@ -286,6 +287,7 @@ export function userMessage(agent: Agent, text: string, comments: Comment[] = []
     ...(files.length ? { files } : {}),
     ...(from ? { from } : {}),
   })
+  closeTasks(agent)
   starting(agent)
 }
 
@@ -507,6 +509,7 @@ export function apply(agent: Agent, d: Json) {
     case 'conversation_reset':
       agent.entries.push({ kind: 'cleared', at: Date.now() })
       agent.tasks = []
+      agent.previousTasks = []
       agent.subagents = []
       agent.tokens = 0
       return
@@ -623,9 +626,16 @@ export function replayLog(agent: Agent, sub: Subagent, transcript: string) {
   }
 }
 
+function closeTasks(agent: Agent) {
+  if (!agent.tasks.length || agent.tasks.some((t) => t.status !== 'completed')) return
+  agent.previousTasks = agent.tasks
+  agent.tasks = []
+}
+
 function track(agent: Agent, c: Json) {
   const input = c.input ?? {}
   if (c.name === 'TaskCreate') {
+    closeTasks(agent)
     agent.tasks.push({ id: '', toolUseId: c.id, subject: String(input.subject ?? ''), activeForm: input.activeForm, status: 'pending' })
   } else if (c.name === 'TaskUpdate') {
     const task = agent.tasks.find((t) => t.id === String(input.taskId))
