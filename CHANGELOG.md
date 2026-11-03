@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.28.0 · 2026-11-03
+
+### Agents
+
+- **Task list in the header**: an agent's task list moves from the bottom of the conversation to a chip in its header that opens it. A list whose tasks are all done gives way to a new one at the next message or task, and the previous list stays at hand in the menu.
+
+### Pull requests
+
+- Review on a pull request card or on the reviewing chip of a conversation opens only that pull request's Diff, without the list of pull requests.
+- The review panel slides away when closed, like the other panels.
+
 ## 0.27.0 · 2026-11-03
 
 ### Questions

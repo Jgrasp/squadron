@@ -1,5 +1,16 @@
 # Nouveautés
 
+## 0.28.0 · 2026-11-03
+
+### Agents
+
+- **Liste de tâches dans l’en-tête** : la liste de tâches d’un agent passe du bas de la conversation à une puce de son en-tête qui l’ouvre. Une liste dont toutes les tâches sont faites laisse place à une nouvelle au message ou à la tâche suivante, et la précédente reste à portée dans le menu.
+
+### Pull requests
+
+- Review sur une carte de pull request ou sur la puce de review d’une conversation ouvre seulement le Diff de cette pull request, sans la liste des pull requests.
+- Le panneau de review glisse en se fermant, comme les autres panneaux.
+
 ## 0.27.0 · 2026-11-03
 
 ### Questions
