@@ -339,6 +339,7 @@
 <style>
   header {
     position: relative;
+    z-index: 35;
     height: 54px;
     flex: none;
     display: grid;
