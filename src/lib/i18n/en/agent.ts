@@ -101,7 +101,6 @@ export default {
   hideItem: 'Hide {item}',
   sessionContext: 'Session context',
   remoteOnTitle: 'Remote control is on · this conversation can also be steered from claude.ai',
-  remoteOffTitle: 'Remote control is off',
   remoteControl: 'Remote control',
   connecting: 'connecting…',
   remoteOn: 'Remote control on',
