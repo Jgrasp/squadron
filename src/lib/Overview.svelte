@@ -7,7 +7,7 @@
   import PullTag from './PullTag.svelte'
   import { lists, needsYou } from './pulls.svelte'
   import StatusIcon from './StatusIcon.svelte'
-  import { activity, type Agent } from './stream'
+  import { activity, blank, type Agent } from './stream'
   import { t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
 
@@ -31,7 +31,7 @@
 
   function label(agent: Agent) {
     if (look(agent) === 'waiting' && agent.status !== 'waiting') return t('shell.waitingForYou')
-    if (!agent.entries.length) return t('shell.readyForFirst')
+    if (blank(agent)) return t('shell.readyForFirst')
     switch (agent.status) {
       case 'waiting':
         return agent.asks[0]?.tool_name === 'AskUserQuestion' ? t('shell.waitingForAnswer') : t('shell.waitingForApproval')

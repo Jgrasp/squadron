@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.29.0 · 2026-11-03
+
+### Startup
+
+- **Opening screen**: while Squadron starts, a squadron forms in the middle of the window. Wingmen join the formation as the agents come back, under the step being done and the count of agents; then it greets you by your first name and flies off to reveal the app. A click or a key skips it.
+- Squadron is ready in half a second even with many long conversations: an agent's history is read only when its conversation opens or a search needs it, and the window no longer freezes while the agents come back.
+
 ## 0.28.1 · 2026-11-03
 
 ### Fixes

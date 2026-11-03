@@ -341,4 +341,12 @@ export default {
   pullsToReview: 'Pull requests à relire',
   collapseAll: 'Replier tous les groupes',
   expandAll: 'Déplier tous les groupes',
+  splashSettings: 'Lecture des réglages',
+  splashProjects: 'Ouverture des projets',
+  splashAgents: 'Reprise des agents',
+  splashPulls: 'Recherche des pull requests',
+  splashReady: 'Tout est prêt',
+  splashReadyName: 'Tout est prêt, {name}',
+  splashAgentCount: { one: '{count} agent', other: '{count} agents' },
+  splashProjectCount: { one: '{count} projet', other: '{count} projets' },
 } satisfies Catalog['shell']

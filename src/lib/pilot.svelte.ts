@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askValues, branchOf, create, find, importSession, knownSessions, ofProject, persist, pin, send, waitingFor, type Elsewhere } from './agents.svelte'
+import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
@@ -76,9 +76,10 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       cards: p.cards.map((c) => ({ id: c.id, title: c.title, prompt: c.prompt || undefined, goal: c.goal || undefined, column: c.column, agent: c.agent ?? undefined })),
     })),
 
-  read_agent: (_, args) => {
+  read_agent: async (_, args) => {
     const agent = find(String(args.agent))
     if (!agent) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    await ensureLoaded(agent)
     return { name: agent.name, status: agent.status, waiting_for_user: waitingOf(agent), goal: goalOf(agent), messages: text(agent, Number(args.last) || 10) }
   },
 

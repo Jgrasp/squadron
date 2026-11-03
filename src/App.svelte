@@ -36,6 +36,8 @@
   import SidePanel from './lib/SidePanel.svelte'
   import { t } from './lib/i18n/index.svelte'
   import PanelButtons from './lib/PanelButtons.svelte'
+  import Splash from './lib/Splash.svelte'
+  import { boot, finished } from './lib/boot.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
@@ -98,19 +100,20 @@
     (actions[payload.name] as (...args: unknown[]) => void)(...payload.args),
   )
 
-  loadSettings()
+  loadSettings().finally(() => (boot.settings = true))
   loadLayout()
   load()
-    .then(() => restore())
+    .then(() => ((boot.projects = true), restore()))
     .then(() => {
+      boot.agents = agents.list.length
       trackHistory()
       archiveIdle()
       setInterval(() => (rescan(), archiveIdle(), sleepIdle()), 15_000)
-      showChangelogOnce()
+      finished.then(showChangelogOnce)
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)
-      const lookUpPulls = () => (lookUpAll(), projects.list.forEach((p) => lookUpLists(p.path)))
-      lookUpPulls()
+      const lookUpPulls = () => (lookUpAll(), Promise.allSettled(projects.list.map((p) => lookUpLists(p.path))))
+      lookUpPulls().then(() => (boot.pulls = true))
       setInterval(lookUpPulls, 3 * 60_000)
       watchRuns()
     })
@@ -221,6 +224,7 @@
 <Confirm />
 <Viewer />
 <Password />
+<Splash />
 
 <style>
   .app {

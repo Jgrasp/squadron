@@ -1,6 +1,7 @@
 <script lang="ts">
   import { perform } from './actions.svelte'
-  import { agents, archived, find, ofProject, selected, show, unarchive, type Archived } from './agents.svelte'
+  import { invoke } from '@tauri-apps/api/core'
+  import { agents, archived, find, ofProject, onDisk, selected, show, unarchive, type Archived } from './agents.svelte'
   import { ago } from './format'
   import { t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
@@ -26,6 +27,11 @@
 
   let pool = $state<Entry[]>(agents.list.map((a) => entry(a, false)))
   archived().then((list) => (pool = [...pool, ...list.map((a) => entry(a, true))]))
+  const shelved = agents.list.filter((a) => onDisk.has(a.id)).map((a) => a.id)
+  if (shelved.length)
+    invoke<Record<string, string>>('agent_texts', { ids: shelved }).then((texts) => {
+      pool = pool.map((e) => (!e.archived && e.agent.id in texts ? { ...e, text: texts[e.agent.id], hay: texts[e.agent.id].toLowerCase() } : e))
+    })
 
   let query = $state('')
   let active = $state(0)

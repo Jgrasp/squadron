@@ -14,7 +14,7 @@
   import { behind, lists, lookUpLists } from './pulls.svelte'
   import BackgroundTip from './BackgroundTip.svelte'
   import StatusIcon from './StatusIcon.svelte'
-  import { activity, type Agent } from './stream'
+  import { activity, blank, created, type Agent } from './stream'
   import { asking, count, tally } from './subagents'
   import { list as join, t, type Key } from './i18n/index.svelte'
 
@@ -85,7 +85,6 @@
     sorting = !sorting
   }
 
-  const created = (a: Agent) => a.entries.find((e) => 'at' in e)?.at ?? 0
   const key: Record<Exclude<AgentSort['by'], 'none'>, (a: Agent, b: Agent) => number> = {
     updated: (a, b) => a.since - b.since,
     created: (a, b) => created(a) - created(b),
@@ -194,7 +193,7 @@
 
   function label(agent: Agent) {
     if (blocked(agent)) return t('shell.waitingForYou')
-    if (!agent.entries.length) return t('shell.readyForFirst')
+    if (blank(agent)) return t('shell.readyForFirst')
     switch (agent.status) {
       case 'working':
         return activity(agent)

@@ -6,7 +6,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
-  import { archiveProject, create, ofProject, selected, waiting } from './agents.svelte'
+  import { archiveProject, create, ensureLoaded, ofProject, onDisk, selected, waiting } from './agents.svelte'
   import {
     bottomShare,
     layout,
@@ -34,6 +34,9 @@
   let error = $state('')
 
   const agent = $derived(selected(project.path))
+  $effect(() => {
+    if (agent) ensureLoaded(agent).catch(() => {})
+  })
   const panel = $derived(projects.board || projects.pulls ? null : (layout.panels[project.path] ?? null))
   const toggle = (kind: PanelKind) => setPanel(project.path, panel === kind ? null : kind)
   const close = () => setPanel(project.path, null)
@@ -149,7 +152,11 @@
     </main>
   {:else if agent}
     {#key agent.id}
-      <AgentView {agent} {overlay} />
+      {#if onDisk.has(agent.id)}
+        <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))}></main>
+      {:else}
+        <AgentView {agent} {overlay} />
+      {/if}
     {/key}
   {:else}
     <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))}>

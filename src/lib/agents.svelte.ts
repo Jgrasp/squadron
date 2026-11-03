@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { SvelteSet } from 'svelte/reactivity'
 import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
@@ -27,6 +28,7 @@ import {
   fail,
   flaggedWorktree,
   GOAL_RELAUNCHES,
+  created,
   newAgent,
   notice,
   prompt,
@@ -43,6 +45,26 @@ import {
 } from './stream'
 
 export const agents = $state({ list: [] as Agent[], current: stored<Record<string, string>>('squadron.current', {}) })
+
+export const onDisk = new SvelteSet<string>()
+const loading = new Map<string, Promise<void>>()
+
+export function ensureLoaded(agent: Agent) {
+  if (!onDisk.has(agent.id)) return Promise.resolve()
+  let pending = loading.get(agent.id)
+  if (!pending) {
+    pending = invoke<ArrayBuffer | string>('load_entries', { id: agent.id })
+      .then((raw) => {
+        const kept = tidy(JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw)))
+        const found = find(agent.id) ?? agent
+        found.entries = [...kept, ...found.entries]
+        onDisk.delete(agent.id)
+      })
+      .finally(() => loading.delete(agent.id))
+    loading.set(agent.id, pending)
+  }
+  return pending
+}
 
 $effect.root(() => {
   $effect(() => {
@@ -200,12 +222,24 @@ export function persist(agent: Agent) {
   timers.set(agent.id, window.setTimeout(() => save(agent), 600))
 }
 
+const writes = new Map<string, Promise<unknown>>()
+
 function save(agent: Agent, extra: Record<string, unknown> = {}) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
-  const { live, alive, processCost, interrupting, held, jobs, asks, ...kept } = $state.snapshot(agent)
-  const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
-  return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...kept, subagents, ...extra }) })
+  const write = (writes.get(agent.id) ?? Promise.resolve())
+    .catch(() => {})
+    .then(async () => {
+      if (onDisk.has(agent.id) && agent.entries.length) await ensureLoaded(agent)
+      const { live, alive, processCost, interrupting, held, jobs, asks, stored, ...kept } = $state.snapshot(agent)
+      const { entries, ...header } = kept
+      const subagents = kept.subagents.map(({ log, ...s }) => ({ ...s, log: [] }))
+      return invoke('save_agent', { id: agent.id, data: JSON.stringify({ ...(onDisk.has(agent.id) ? header : kept), subagents, ...extra }) })
+    })
+  const done = () => writes.get(agent.id) === write && writes.delete(agent.id)
+  write.then(done, done)
+  writes.set(agent.id, write)
+  return write
 }
 
 export function saveAll() {
@@ -287,16 +321,20 @@ async function adoptSaved() {
       return []
     }
   })
-  saved.sort((a, b) => (a.entries[0]?.kind === 'user' ? a.entries[0].at : 0) - (b.entries[0]?.kind === 'user' ? b.entries[0].at : 0))
+  saved.sort((a, b) => created(a) - created(b))
   const cut: Agent[] = []
+  const adopting: Promise<void>[] = []
   for (const data of saved) {
     if (find(data.id)) continue
     if (!known.has(data.project)) invoke('delete_agent_file', { id: data.id })
-    else {
-      await adopt(data)
-      if (data.status === 'working' && (data.resumes ?? 0) < 3 && Date.now() - data.since < 86_400_000) cut.push(find(data.id)!)
-    }
+    else
+      adopting.push(
+        adopt(data).then(() => {
+          if (data.status === 'working' && (data.resumes ?? 0) < 3 && Date.now() - data.since < 86_400_000) cut.push(find(data.id)!)
+        }),
+      )
   }
+  await Promise.all(adopting)
   for (const agent of cut) if (agent.status === 'interrupted') resume(agent)
 }
 
@@ -306,6 +344,7 @@ const RESUME =
 const blocks = (content: unknown) => (typeof content === 'string' ? [{ type: 'text', text: content }] : Array.isArray(content) ? content : [])
 
 async function resume(agent: Agent) {
+  if (onDisk.has(agent.id)) await ensureLoaded(agent)
   const rearm = agent.goal?.state === 'sent'
   if (rearm) agent.goal!.state = 'planned'
   const unsent = (agent.unsent ?? []).flatMap(blocks).filter((b) => !(rearm && b?.type === 'text' && String(b.text).startsWith('/goal ')))
@@ -322,11 +361,29 @@ async function resume(agent: Agent) {
   )
 }
 
+function tidy(entries: Entry[]) {
+  for (const e of entries)
+    if (e.kind === 'shell' && e.state === 'running') {
+      e.state = 'stopped'
+      delete e.pty
+    }
+  return entries.flatMap((e): Entry[] => {
+    if (e.kind !== 'user') return [e]
+    const peer = peerMessage(e.text)
+    if (peer) return [{ ...e, text: peer.text, peer: peer.from, remote: undefined }]
+    if (e.text.endsWith(`\n\n${FOR_INFO}`)) return [{ ...e, text: e.text.slice(0, -FOR_INFO.length - 2), squadron: true }]
+    const text = commandEcho(e.text) ? commandOutput(e.text) : notice(e.text)
+    return text === undefined ? [e] : text ? [{ kind: 'note', at: e.at, command: 'notice', text }] : []
+  })
+}
+
 async function adopt(data: Agent) {
   const wanted = data.remote
+  if (!data.entries) onDisk.add(data.id)
   const agent: Agent = {
     ...newAgent(data.id, data.project, data.name, data.options),
     ...data,
+    entries: tidy(data.entries ?? []),
     asks: [],
     background: [],
     alive: false,
@@ -338,20 +395,7 @@ async function adopt(data: Agent) {
   }
   if (agent.status !== 'interrupted') agent.unsent = undefined
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
-  for (const e of agent.entries)
-    if (e.kind === 'shell' && e.state === 'running') {
-      e.state = 'stopped'
-      delete e.pty
-    }
   if (agent.goal?.state === 'stopping') agent.goal.state = 'active'
-  agent.entries = agent.entries.flatMap((e): Entry[] => {
-    if (e.kind !== 'user') return [e]
-    const peer = peerMessage(e.text)
-    if (peer) return [{ ...e, text: peer.text, peer: peer.from, remote: undefined }]
-    if (e.text.endsWith(`\n\n${FOR_INFO}`)) return [{ ...e, text: e.text.slice(0, -FOR_INFO.length - 2), squadron: true }]
-    const text = commandEcho(e.text) ? commandOutput(e.text) : notice(e.text)
-    return text === undefined ? [e] : text ? [{ kind: 'note', at: e.at, command: 'notice', text }] : []
-  })
   agents.list.push(agent)
   const moved = find(agent.id)!
   if (moved.artifacts?.length) migrate(moved).then(() => persist(moved))
@@ -364,7 +408,7 @@ async function adopt(data: Agent) {
     at: agent.forkOf ? agent.forkAt : null,
     dir: agent.worktree?.path ?? null,
   }).catch((e) => fail(find(agent.id)!, String(e)))
-  if (wanted) remote(agent.id, true)
+  if (wanted) ensureLoaded(moved).finally(() => remote(agent.id, true))
 }
 
 export type Elsewhere = {
@@ -682,6 +726,7 @@ export const FOR_INFO = 'This is for your information: wait for the user before 
 export async function send(id: string, text: string, comments: Comment[] = [], files: string[] = [], from = '', hint = '') {
   const agent = find(id)
   if (!agent) return
+  if (onDisk.has(id)) await ensureLoaded(agent)
   if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
   userMessage(agent, text, comments, files, from)
   if (hint) {
@@ -838,6 +883,7 @@ export function forkPoint(agent: Agent, upTo: number) {
 
 export async function fork(id: string, upTo?: number) {
   const source = find(id)
+  if (source && onDisk.has(id)) await ensureLoaded(source)
   const point = upTo === undefined ? { at: undefined } : source && forkPoint(source, upTo)
   if (!source || !point || (upTo === undefined && !source.sessionId)) return
   const copy = newAgent(crypto.randomUUID(), source.project, t('shell.forkName', { name: source.name }), $state.snapshot(source.options))
@@ -872,6 +918,7 @@ export async function remove(id: string) {
   clearTimeout(timers.get(id))
   await invoke('archive_agent', { id })
   await invoke('cancel_permissions', { agent: id })
+  await writes.get(id)?.catch(() => {})
   await invoke('delete_agent_file', { id })
   agents.list = agents.list.filter((a) => a.id !== id)
 }

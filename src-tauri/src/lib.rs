@@ -1,3 +1,4 @@
+pub mod account;
 pub mod agents;
 pub mod artifacts;
 pub mod askpass;
@@ -12,6 +13,7 @@ pub mod pilot;
 pub mod process;
 pub mod projects;
 pub mod sessions;
+pub mod stored;
 pub mod system;
 pub mod terminal;
 pub mod tickets;
@@ -1287,10 +1289,13 @@ impl AgentFiles {
 }
 
 #[tauri::command]
-fn save_agent(files: State<AgentFiles>, id: String, data: String) -> Result<(), String> {
+async fn save_agent(files: State<'_, AgentFiles>, id: String, data: String) -> Result<(), String> {
     let path = files.path(&id)?;
     std::fs::create_dir_all(&files.0).map_err(|e| e.to_string())?;
-    let tmp = path.with_extension("json.tmp");
+    let data = stored::keep_entries(data, || std::fs::read_to_string(&path).ok())?;
+    static WRITES: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(0);
+    let n = WRITES.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+    let tmp = path.with_extension(format!("json.{n}.tmp"));
     std::fs::write(&tmp, data).map_err(|e| e.to_string())?;
     std::fs::rename(tmp, path).map_err(|e| e.to_string())
 }
@@ -1375,14 +1380,64 @@ fn load_agent(files: State<AgentFiles>, id: String) -> Option<String> {
 }
 
 #[tauri::command]
-fn load_agents(files: State<AgentFiles>) -> Vec<String> {
+async fn account_name() -> Option<String> {
+    account::read_first_name()
+}
+
+#[tauri::command]
+async fn load_agents(files: State<'_, AgentFiles>) -> Result<Vec<String>, String> {
     let Ok(dir) = std::fs::read_dir(&files.0) else {
-        return Vec::new();
+        return Ok(Vec::new());
     };
-    dir.filter_map(Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
-        .collect()
+    let paths: Vec<PathBuf> = dir
+        .filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "json"))
+        .collect();
+    let threads = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(8);
+    let chunk = paths.len().div_ceil(threads).max(1);
+    Ok(std::thread::scope(|scope| {
+        let workers: Vec<_> = paths
+            .chunks(chunk)
+            .map(|part| {
+                scope.spawn(move || {
+                    part.iter()
+                        .filter_map(|p| stored::header(&std::fs::read_to_string(p).ok()?))
+                        .collect::<Vec<_>>()
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().unwrap_or_default())
+            .collect()
+    }))
+}
+
+#[tauri::command]
+async fn load_entries(
+    files: State<'_, AgentFiles>,
+    id: String,
+) -> Result<tauri::ipc::Response, String> {
+    let text = std::fs::read_to_string(files.path(&id)?).map_err(|e| e.to_string())?;
+    let entries = stored::entries(&text).ok_or("The agent's history could not be read.")?;
+    Ok(tauri::ipc::Response::new(entries.into_bytes()))
+}
+
+#[tauri::command]
+async fn agent_texts(
+    files: State<'_, AgentFiles>,
+    ids: Vec<String>,
+) -> Result<HashMap<String, String>, String> {
+    Ok(ids
+        .into_iter()
+        .filter_map(|id| {
+            let text = std::fs::read_to_string(files.path(&id).ok()?).ok()?;
+            Some((id, stored::texts(&text)))
+        })
+        .collect())
 }
 
 #[tauri::command]
@@ -1878,6 +1933,9 @@ pub fn run() {
             save_agent,
             delete_agent_file,
             load_agents,
+            account_name,
+            load_entries,
+            agent_texts,
             get_layout,
             set_layout,
             send_message,

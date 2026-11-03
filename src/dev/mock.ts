@@ -566,9 +566,24 @@ mockIPC(
       case 'add_rule':
         if (cmd === 'add_rule') projects.find((p) => p.path === a.path)?.rules.push(a.rule)
         return cmd === 'add_rule' ? views() : undefined
-      case 'save_agent':
-        localStorage.setItem(`agent:${a.id}`, a.data)
+      case 'save_agent': {
+        const data = JSON.parse(a.data)
+        delete data.stored
+        data.entries ??= JSON.parse(localStorage.getItem(`agent:${a.id}`) ?? '{}').entries
+        localStorage.setItem(`agent:${a.id}`, JSON.stringify(data))
         return
+      }
+      case 'load_entries':
+        return JSON.stringify(JSON.parse(localStorage.getItem(`agent:${a.id}`) ?? '{}').entries ?? [])
+      case 'agent_texts':
+        return Object.fromEntries(
+          (args as { ids: string[] }).ids.map((id) => [
+            id,
+            (JSON.parse(localStorage.getItem(`agent:${id}`) ?? '{}').entries ?? [])
+              .map((e: any) => (e.kind === 'user' ? e.text : e.kind === 'agent' ? e.blocks.map((b: any) => (b.type === 'text' ? b.text : '')).join('\n') : ''))
+              .join('\n'),
+          ]),
+        )
       case 'delete_agent_file':
         localStorage.removeItem(`agent:${a.id}`)
         return
@@ -604,7 +619,14 @@ mockIPC(
       case 'load_agent':
         return localStorage.getItem(`agent:${a.id}`)
       case 'load_agents':
-        return Object.keys(localStorage).filter((k) => k.startsWith('agent:')).map((k) => localStorage.getItem(k))
+        return Object.keys(localStorage)
+          .filter((k) => k.startsWith('agent:'))
+          .map((k) => {
+            const { entries = [], ...header } = JSON.parse(localStorage.getItem(k)!)
+            return JSON.stringify({ ...header, stored: { count: entries.length, created: entries.find((e: any) => 'at' in e)?.at ?? null } })
+          })
+      case 'account_name':
+        return 'Camille'
       case 'system_load':
         return { cpu: 18 + Math.random() * 25, used: 13.6 * 2 ** 30, total: 31.2 * 2 ** 30 }
       case 'fork_agent':

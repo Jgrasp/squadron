@@ -170,6 +170,7 @@ export type Agent = {
   artifacts?: LegacyArtifact[]
   hiddenDocs?: string[]
   guess?: string
+  stored?: { count: number; created: number | null }
 }
 
 export type LegacyArtifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number; link?: string }
@@ -177,6 +178,10 @@ export type LegacyArtifact = { id: string; title: string; kind: 'html' | 'svg' |
 type Json = Record<string, any>
 
 export const workdir = (agent: Agent) => agent.worktree?.path ?? agent.project
+
+export const created = (agent: Agent) => (agent.stored ? agent.stored.created : agent.entries.find((e) => 'at' in e)?.at) ?? 0
+
+export const blank = (agent: Agent) => !agent.entries.length && !agent.stored?.count
 
 export function newAgent(id: string, project: string, name: string, options: Options): Agent {
   return {
