@@ -1,3 +1,4 @@
+pub mod account;
 pub mod agents;
 pub mod artifacts;
 pub mod askpass;
@@ -1379,6 +1380,11 @@ fn load_agent(files: State<AgentFiles>, id: String) -> Option<String> {
 }
 
 #[tauri::command]
+async fn account_name() -> Option<String> {
+    account::read_first_name()
+}
+
+#[tauri::command]
 async fn load_agents(files: State<'_, AgentFiles>) -> Result<Vec<String>, String> {
     let Ok(dir) = std::fs::read_dir(&files.0) else {
         return Ok(Vec::new());
@@ -1927,6 +1933,7 @@ pub fn run() {
             save_agent,
             delete_agent_file,
             load_agents,
+            account_name,
             load_entries,
             agent_texts,
             get_layout,

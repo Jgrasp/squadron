@@ -339,4 +339,12 @@ export default {
   pullsToReview: 'Pull requests to review',
   collapseAll: 'Collapse all groups',
   expandAll: 'Expand all groups',
+  splashSettings: 'Reading the settings',
+  splashProjects: 'Opening the projects',
+  splashAgents: 'Bringing the agents back',
+  splashPulls: 'Looking for pull requests',
+  splashReady: 'All set',
+  splashReadyName: 'All set, {name}',
+  splashAgentCount: { one: '{count} agent', other: '{count} agents' },
+  splashProjectCount: { one: '{count} project', other: '{count} projects' },
 }

@@ -625,6 +625,8 @@ mockIPC(
             const { entries = [], ...header } = JSON.parse(localStorage.getItem(k)!)
             return JSON.stringify({ ...header, stored: { count: entries.length, created: entries.find((e: any) => 'at' in e)?.at ?? null } })
           })
+      case 'account_name':
+        return 'Camille'
       case 'system_load':
         return { cpu: 18 + Math.random() * 25, used: 13.6 * 2 ** 30, total: 31.2 * 2 ** 30 }
       case 'fork_agent':
