@@ -243,6 +243,12 @@ export async function approve(dir: string, pull: Pull) {
   markReviewed(dir, pull)
 }
 
+export async function requestChanges(dir: string, pull: Pull) {
+  const { error } = await post(dir, pull, [], '', 'request_changes')
+  if (error) throw error
+  markReviewed(dir, pull)
+}
+
 export async function merge(dir: string, pull: Pull) {
   await invoke('merge_pull', { dir, number: pull.number })
   tell(pull, `The user merged your pull request #${pull.number} into ${pull.base} on ${hostName(pull)}.`)

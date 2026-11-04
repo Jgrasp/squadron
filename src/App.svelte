@@ -150,7 +150,7 @@
     else if (/^(\/|file:\/\/)/.test(href)) invoke('open_attachment', { path: decodeURI(href.replace(/^file:\/\//, '')) }).catch(() => {})
   }
 
-  const SCOPED = ['newAgent', 'interrupt', 'editor', 'terminal', 'diff', 'sidebar']
+  const SCOPED = ['newAgent', 'interrupt', 'editor', 'terminal', 'diff', 'sidebar', 'find']
 
   function shortcuts(event: KeyboardEvent) {
     if (ui.customizing && event.key === 'Escape') return (ui.customizing = false)

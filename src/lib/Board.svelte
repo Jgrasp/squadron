@@ -7,7 +7,7 @@
   import Dialog from './Dialog.svelte'
   import JiraDrawer from './JiraDrawer.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
-  import OptionsFields from './OptionsFields.svelte'
+  import LaunchOptions from './LaunchOptions.svelte'
   import { imagePaste } from './paste'
   import { defaultsFor, home, projects, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
@@ -507,10 +507,7 @@
               placeholder={t('board.taskGoalPlaceholder')}
             ></textarea>
           </div>
-          <details class="agent">
-            <summary><span class="chevron" aria-hidden="true">›</span>{t('board.agentSettings')}</summary>
-            <div class="options"><OptionsFields bind:options={editing.options} /></div>
-          </details>
+          <LaunchOptions bind:options={editing.options} />
         {/if}
       </div>
       <footer>
@@ -1176,13 +1173,6 @@
     color: var(--text);
   }
 
-  .options {
-    display: flex;
-    flex-direction: column;
-    gap: 18px;
-    padding-top: 10px;
-  }
-
   .agent summary {
     display: flex;
     align-items: center;
@@ -1205,10 +1195,6 @@
 
   .agent[open] .chevron {
     transform: rotate(90deg);
-  }
-
-  .agent :global(.pair) {
-    margin-top: 10px;
   }
 
   .ghost {

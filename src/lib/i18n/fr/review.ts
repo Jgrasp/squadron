@@ -141,6 +141,7 @@ export default {
   merging: 'Fusion…',
   mergeInto: 'Fusionner dans {base}',
   approving: 'Approbation…',
+  requestingChanges: 'Demande en cours…',
   showMoreLines: 'Afficher {shown} lignes de plus sur {total}',
   verdictRequestChanges: 'Demander des modifications',
   submitOn: 'Soumettre sur {host}',

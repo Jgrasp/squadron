@@ -15,6 +15,7 @@
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
+  import { groups } from './agenttools'
   import AgentDefinition from './AgentDefinition.svelte'
   import PersonaChip from './PersonaChip.svelte'
   import Runs from './Runs.svelte'
@@ -226,6 +227,7 @@
     void agent.id
     reading = false
   })
+  const mcpGroups = $derived(groups(agent.tools ?? []).filter((g) => g.kind === 'mcp'))
   const info = $derived(
     shown('agent.info').filter(
       (id) =>
@@ -234,15 +236,21 @@
         (id !== 'branch' || branch) &&
         (id !== 'ticket' || ticket) &&
         (id !== 'pull' || pull || agent.review) &&
+        (id !== 'mcp' || mcpGroups.length) &&
         (id !== 'tasks' || agent.tasks.length),
     ),
   )
-  const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'tasks', 'subagents', 'artifacts']
+  const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'mcp', 'tasks', 'subagents', 'artifacts']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
+  let mcpOpen = $state(false)
   let tasksOpen = $state(false)
   let previousOpen = $state(false)
   const tasksDone = $derived(agent.tasks.filter((task) => task.status === 'completed').length)
+  let mcpFilter = $state('')
+  const mcpFiltered = $derived(
+    mcpFilter.trim() ? mcpGroups.filter((g) => (g.server ?? '').toLowerCase().includes(mcpFilter.trim().toLowerCase())) : mcpGroups,
+  )
   const running = $derived(agent.subagents.filter((s) => s.status === 'running').length)
 
   type Item = { value: string; label: string; hint?: string; tone?: string; detail?: string; usage?: string; group?: string; text: string; at?: number; action?: () => void }
@@ -521,6 +529,68 @@
     scroller.scrollTo({ top: scroller.scrollHeight, behavior: 'smooth' })
   }
 
+  const CAN_HIGHLIGHT = typeof Highlight !== 'undefined' && 'highlights' in CSS
+  let finding = $state(false)
+  let query = $state('')
+  let totalMatches = $state(0)
+  let matchIndex = $state(-1)
+  let field = $state<HTMLInputElement>()
+  let matches: Range[] = []
+
+  $effect(() => {
+    if (ui.finding) untrack(() => ((finding = true), tick().then(() => (field?.focus(), field?.select()))))
+  })
+
+  function paintMatches() {
+    if (!CAN_HIGHLIGHT) return
+    CSS.highlights.set('squadron-find', new Highlight(...matches))
+    CSS.highlights.set('squadron-find-current', new Highlight(...(matchIndex >= 0 ? [matches[matchIndex]] : [])))
+  }
+
+  function revealMatch() {
+    paintMatches()
+    const el = matches[matchIndex]?.startContainer.parentElement
+    if (!el) return
+    for (let d = el.closest('details'); d; d = d.parentElement?.closest('details') ?? null) d.open = true
+    el.scrollIntoView({ block: 'center', behavior: 'smooth' })
+  }
+
+  // shortcut: matches don't refresh while the agent streams new text; retype or press Enter to refresh
+  function search() {
+    matches = []
+    const q = query.trim().toLowerCase()
+    if (q) {
+      const walker = document.createTreeWalker(column, NodeFilter.SHOW_TEXT)
+      for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+        const text = (node as Text).data.toLowerCase()
+        for (let at = text.indexOf(q); at !== -1; at = text.indexOf(q, at + q.length)) {
+          const range = document.createRange()
+          range.setStart(node, at)
+          range.setEnd(node, at + q.length)
+          matches.push(range)
+        }
+      }
+    }
+    totalMatches = matches.length
+    matchIndex = totalMatches ? 0 : -1
+    revealMatch()
+  }
+
+  function go(delta: number) {
+    if (!totalMatches) return
+    matchIndex = (matchIndex + delta + totalMatches) % totalMatches
+    revealMatch()
+  }
+
+  function closeFind() {
+    finding = false
+    query = ''
+    matches = []
+    totalMatches = 0
+    matchIndex = -1
+    if (CAN_HIGHLIGHT) (CSS.highlights.delete('squadron-find'), CSS.highlights.delete('squadron-find-current'))
+  }
+
   let attachments = $state<string[]>(saved?.files ?? [])
 
   $effect(() => {
@@ -674,6 +744,7 @@
     const target = e.target as HTMLElement
     if (!target.closest('[data-agent-menu]')) menuOpen = false
     if (!target.closest('[data-remote-menu]')) remoteOpen = false
+    if (!target.closest('[data-mcp-menu]')) mcpOpen = false
     if (!target.closest('[data-tasks-menu]')) tasksOpen = false
     if (!target.closest('[data-options]')) tuning = null
   }}
@@ -848,6 +919,36 @@
                   </div>
                 {/if}
               </span>
+            {:else if id === 'mcp'}
+              <span class="anchor" data-mcp-menu data-item={id}>
+                <button class="chip" aria-haspopup="true" aria-expanded={mcpOpen} title={t('agent.mcpTitle')} onclick={() => (mcpOpen = !mcpOpen)}>
+                  <Icon name="mcp" size={15} />
+                  {t('agent.mcpChip')}
+                  <span class="count">{mcpGroups.length}</span>
+                </button>
+                {#if mcpOpen}
+                  <div class="mcp-menu" aria-label={t('agent.mcpTitle')} data-keep>
+                    <!-- svelte-ignore a11y_autofocus -->
+                    <input
+                      class="mcp-filter"
+                      bind:value={mcpFilter}
+                      placeholder={t('agent.mcpFilterPlaceholder')}
+                      autofocus
+                      onkeydown={(e) => e.key === 'Escape' && (mcpOpen = false)}
+                    />
+                    <div class="mcp-list" role="list">
+                      {#each mcpFiltered as group (group.server)}
+                        <div class="mcp-row" role="listitem">
+                          <span class="mcp-server">{group.server}</span>
+                          <span class="mcp-count">{t('persona.toolsCount', { count: group.tools.length })}</span>
+                        </div>
+                      {:else}
+                        <p class="mcp-empty">{t('agent.mcpEmpty', { query: mcpFilter })}</p>
+                      {/each}
+                    </div>
+                  </div>
+                {/if}
+              </span>
             {:else if id === 'tasks'}
               <span class="anchor" data-tasks-menu data-item={id}>
                 <button
@@ -959,6 +1060,25 @@
     {#if agent.infoPanel}<InfoPanel {agent} />{/if}
 
     <div class="middle">
+      {#if finding}
+        <div class="find" role="search">
+          <input
+            bind:this={field}
+            bind:value={query}
+            oninput={search}
+            placeholder={t('agent.findPlaceholder')}
+            spellcheck="false"
+            onkeydown={(e) => {
+              if (e.key === 'Escape') (e.stopPropagation(), e.preventDefault(), closeFind())
+              else if (e.key === 'Enter') (e.preventDefault(), go(e.shiftKey ? -1 : 1))
+            }}
+          />
+          <span class="count">{totalMatches ? t('agent.findCount', { index: matchIndex + 1, total: totalMatches }) : query ? t('agent.findNone') : ''}</span>
+          <button type="button" disabled={!totalMatches} aria-label={t('agent.findPrevious')} onclick={() => go(-1)}>‹</button>
+          <button type="button" disabled={!totalMatches} aria-label={t('agent.findNext')} onclick={() => go(1)}>›</button>
+          <button type="button" class="close" aria-label={t('common.close')} title={t('common.close')} onclick={closeFind}>×</button>
+        </div>
+      {/if}
       {#if users.length}
         <nav class="rail" aria-label={t('agent.landmarks')}>
           <div class="marks" class:grouped={buckets.length < users.length} bind:clientHeight={railHeight}>
@@ -1432,6 +1552,71 @@
     color: var(--border-dashed);
   }
 
+  .find {
+    position: absolute;
+    top: 12px;
+    right: 16px;
+    z-index: 8;
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    height: 36px;
+    padding: 0 6px 0 10px;
+    border-radius: 8px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 12px 30px rgba(0, 0, 0, 0.5);
+  }
+
+  .find input {
+    width: 180px;
+    height: 100%;
+    border: none;
+    background: transparent;
+    color: var(--text-strong);
+    font-size: 13px;
+    outline: none;
+  }
+
+  .find .count {
+    flex: none;
+    min-width: 46px;
+    font-size: 12px;
+    color: var(--text-dim);
+    text-align: center;
+  }
+
+  .find button {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    font-size: 16px;
+    color: var(--text-muted);
+  }
+
+  .find button:hover:not(:disabled) {
+    background: var(--menu-hover);
+    color: var(--text);
+  }
+
+  .find button:disabled {
+    opacity: 0.4;
+  }
+
+  :global(::highlight(squadron-find)) {
+    background: rgba(224, 138, 91, 0.35);
+  }
+
+  :global(::highlight(squadron-find-current)) {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
   .top {
     position: relative;
     z-index: 22;
@@ -1766,6 +1951,22 @@
     font-weight: 600;
   }
 
+  .mcp-menu {
+    position: absolute;
+    top: 42px;
+    left: 0;
+    z-index: 20;
+    width: 280px;
+    display: flex;
+    flex-direction: column;
+    border-radius: 8px;
+    background: var(--surface-1);
+    box-shadow:
+      inset 0 0 0 1px var(--border-strong),
+      0 16px 40px rgba(0, 0, 0, 0.5);
+    overflow: hidden;
+  }
+
   .chip.tasks {
     gap: 8px;
     color: var(--text-strong);
@@ -1877,6 +2078,52 @@
 
   .previous[aria-expanded='true'] span {
     transform: rotate(90deg);
+  }
+
+  .mcp-filter {
+    margin: 8px;
+    width: calc(100% - 16px);
+    height: 28px;
+    padding: 0 8px;
+    border-radius: 4px;
+    background: var(--bg-main);
+    box-shadow: inset 0 0 0 1px var(--border);
+    color: var(--text);
+    font-size: 12.5px;
+  }
+
+  .mcp-list {
+    max-height: 320px;
+    overflow-y: auto;
+    padding: 0 6px 6px;
+  }
+
+  .mcp-row {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 8px;
+    border-radius: 4px;
+    font-size: 12.5px;
+  }
+
+  .mcp-server {
+    flex: 1;
+    color: var(--text);
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .mcp-count {
+    color: var(--text-dim);
+    font-size: 11.5px;
+  }
+
+  .mcp-empty {
+    padding: 8px;
+    color: var(--text-faint);
+    font-size: 12.5px;
   }
 
   .go {

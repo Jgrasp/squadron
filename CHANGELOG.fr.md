@@ -1,5 +1,20 @@
 # Nouveautés
 
+## 0.30.0 · 2026-11-04
+
+### Conversation
+
+- **Chercher dans la conversation** : Ctrl+F ouvre une barre de recherche dans la conversation, avec le nombre de résultats et précédent et suivant.
+- **Connecteurs MCP** : une puce de la barre de conversation liste les connecteurs MCP de l’agent, avec un filtre. Elle apparaît dès que l’agent a au moins un serveur MCP et peut être masquée dans les réglages de disposition.
+
+### Pull requests
+
+- **Demander des changements** : une pull request peut être renvoyée depuis son menu, à côté d’Approuver.
+
+### Nouvel agent
+
+- Le modèle et l’effort se changent directement dans le résumé de la fenêtre Nouvel agent et d’une carte du Kanban, sans ouvrir les réglages. Les réglages restent fermés à chaque ouverture de la fenêtre.
+
 ## 0.29.1 · 2026-11-04
 
 ### Sécurité
