@@ -1,5 +1,23 @@
 # Nouveautés
 
+## 0.29.1 · 2026-11-04
+
+### Sécurité
+
+- L’app livrée embarque une Content Security Policy : les scripts ne se chargent que depuis l’app, une chaîne injectée ne peut plus exécuter ni télécharger de code.
+- Le jeton MCP n’est plus visible de tous les processus de la machine : Claude Code le lit dans un fichier privé.
+- Un mot de passe sudo, ssh ou git retenu est lié à la commande à laquelle il a répondu, et la carte affiche cette commande : une autre commande lancée par un agent ne peut plus le rejouer en silence.
+- Un lien symbolique cassé dans un projet ne peut plus faire écrire l’éditeur ou ask_values hors du projet ; un texte de tâche qui commence par un tiret ne peut plus être lu comme une option de Claude Code.
+
+### Corrections
+
+- Squadron redémarre depuis son AppImage sur les distributions autres qu’Ubuntu, et un lien ou un fichier que GIO ne sait pas ouvrir, comme sur Fedora, s’ouvre via xdg-open.
+- Un fichier déposé sur la fenêtre Nouvel agent rejoint ses pièces jointes au lieu de la conversation derrière. Un fichier copié dans le gestionnaire de fichiers puis collé est joint au lieu d’être collé comme chemin, dans la conversation aussi.
+- Une pull request GitHub sur laquelle on vient de vous demander une review apparaît tout de suite dans la liste des reviews, sans attendre l’index de recherche de GitHub.
+- Un agent qui attend une commande en arrière-plan ne reste plus bloqué indéfiniment.
+- Un projet Bitbucket dont le remote pointe vers ssh.bitbucket.org est toujours reconnu.
+- ask_values indique à l’agent que les valeurs ont été écrites dans le fichier sans lui être renvoyées.
+
 ## 0.29.0 · 2026-11-03
 
 ### Démarrage
