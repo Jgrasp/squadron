@@ -4,9 +4,11 @@
   import { projects } from './projects.svelte'
   import { names } from './pipelines.svelte'
   import { saveSettings, settings } from './settings.svelte'
-  import { errorText, t } from './i18n/index.svelte'
+  import { errorText, t, type Key } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
+  import HostLogo from './HostLogo.svelte'
 
+  type Host = 'bitbucket' | 'gitlab' | 'azure' | 'github'
   type Accounts = { bitbucket: string | null; bitbucket_user: boolean; github: string | null; gitlab: string | null; azure: string | null }
 
   let accounts = $state<Accounts | null>(null)
@@ -16,7 +18,18 @@
   let site = $state('')
   let organization = $state('')
   let tokens = $state({ gitlab: '', azure: '' })
-  let failed = $state({ gitlab: '', azure: '' })
+  let failed = $state({ bitbucket: '', gitlab: '', azure: '' })
+  let open = $state<Host | null>(null)
+  const ROWS: [Host, string, Key][][] = [
+    [
+      ['bitbucket', 'Bitbucket', 'settings.bitbucketHint'],
+      ['gitlab', 'GitLab', 'settings.gitlabHint'],
+    ],
+    [
+      ['azure', 'Azure DevOps', 'settings.azureHint'],
+      ['github', 'GitHub', 'settings.githubHint'],
+    ],
+  ]
   let busy = $state(false)
   let copied = $state('')
   const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket', 'read:pipeline:bitbucket']
@@ -44,15 +57,16 @@
 
   async function signIn(event: Event) {
     event.preventDefault()
-    error = ''
+    failed.bitbucket = ''
     busy = true
     try {
       await invoke('bitbucket_sign_in', { email, token })
       token = ''
+      open = null
       await refresh()
       lookUpAll(true)
     } catch (e) {
-      error = errorText(e)
+      failed.bitbucket = errorText(e)
     } finally {
       busy = false
     }
@@ -65,6 +79,7 @@
     try {
       await invoke(`${host}_sign_in`, { ...args, token: tokens[host] })
       tokens[host] = ''
+      open = null
       await refresh()
       lookUpAll(true)
     } catch (e) {
@@ -83,136 +98,154 @@
 
 <p class="intro">{t('settings.hostingIntro')}</p>
 
-<section>
-  <h3>Bitbucket</h3>
-  {#if !accounts}
-    <p class="intro">{t('common.checking')}</p>
-  {:else if accounts.bitbucket}
-    <div class="signed">
-      <span><Trans k="settings.bitbucketSignedIn">{#snippet email()}<strong>{accounts?.bitbucket}</strong>{/snippet}</Trans></span>
-      <button class="btn btn-secondary" onclick={() => signOut()}>{t('settings.signOut')}</button>
-    </div>
-    {#if !accounts.bitbucket_user}
-      <p class="intro">
-        <Trans k="settings.tokenLacksScope">{#snippet scope()}<code>read:user:bitbucket</code>{/snippet}</Trans>
-      </p>
-    {/if}
-  {:else}
-    <ol class="intro steps">
-      <li>
-        <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: 'https://id.atlassian.com/manage-profile/security/api-tokens' })}>
-          {t('settings.openTokens')}
-        </button>
-      </li>
-      <li>
-        <Trans k="settings.stepCreate">{#snippet create()}<strong>Create API token with scopes</strong>{/snippet}{#snippet bitbucket()}<strong>Bitbucket</strong>{/snippet}</Trans>
-      </li>
-      <li>
-        {t('settings.stepScopes')}
-        <span class="scopes">
-          {#each SCOPES as scope (scope)}
-            <button class="scope" onclick={() => copy(scope)}>{copied === scope ? t('common.copied') : scope}</button>
-          {/each}
+<div class="cards">
+  {#each ROWS as row, r (r)}
+    {#each row as [host, name, hint] (host)}
+      {@const who = accounts?.[host]}
+      <div class="card" class:selected={open === host}>
+        <span class="top">
+          <HostLogo {host} />
+          <span><strong>{name}</strong><small>{t(hint)}</small></span>
         </span>
-      </li>
-      <li>{t('settings.stepPaste')}</li>
-    </ol>
-    <form onsubmit={signIn}>
-      <label for="bitbucket-email">{t('settings.atlassianEmail')}</label>
-      <input id="bitbucket-email" class="field" type="email" autocomplete="off" bind:value={email} />
-      <label for="bitbucket-token">{t('settings.apiToken')}</label>
-      <input id="bitbucket-token" class="field mono" type="password" autocomplete="off" spellcheck="false" bind:value={token} />
-      <div class="row">
-        <button class="btn btn-primary" disabled={busy || !email.trim() || !token.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+        <span class="foot">
+          {#if !accounts}
+            <span class="status">{t('common.checking')}</span>
+          {:else if who}
+            <span class="status on"><span class="dot"></span>{who}</span>
+            {#if host !== 'github'}<button class="btn btn-ghost" onclick={() => signOut(host)}>{t('settings.signOut')}</button>{/if}
+          {:else}
+            <span class="status">{t('settings.notConnected')}</span>
+            <button class="btn btn-ghost" aria-expanded={open === host} onclick={() => (open = open === host ? null : host)}>
+              {t(host === 'github' ? 'settings.howTo' : 'settings.connect')}
+            </button>
+          {/if}
+        </span>
       </div>
-    </form>
-  {/if}
-  {#if error}<p class="bad" role="alert">{error}</p>{/if}
-</section>
-
-<section>
-  <h3>GitLab</h3>
-  {#if !accounts}
-    <p class="intro">{t('common.checking')}</p>
-  {:else if accounts.gitlab}
-    <div class="signed">
-      <span><Trans k="settings.bitbucketSignedIn">{#snippet email()}<strong>{accounts?.gitlab}</strong>{/snippet}</Trans></span>
-      <button class="btn btn-secondary" onclick={() => signOut('gitlab')}>{t('settings.signOut')}</button>
-    </div>
-  {:else}
-    <form onsubmit={(e) => connect(e, 'gitlab', { site })}>
-      <label for="gitlab-site">{t('settings.gitlabSite')}</label>
-      <input id="gitlab-site" class="field" autocomplete="off" spellcheck="false" placeholder="https://gitlab.com" bind:value={site} />
-      <ol class="intro steps">
-        <li>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            onclick={() => invoke('open_link', { url: `${(site.trim() || 'https://gitlab.com').replace(/\/+$/, '')}/-/user_settings/personal_access_tokens?name=Squadron&scopes=api` })}
-          >
-            {t('settings.openTokens')}
-          </button>
-        </li>
-        <li><Trans k="settings.gitlabStep">{#snippet scope()}<code>api</code>{/snippet}</Trans></li>
-        <li>{t('settings.stepPasteToken')}</li>
-      </ol>
-      <label for="gitlab-token">{t('settings.apiToken')}</label>
-      <input id="gitlab-token" class="field mono" type="password" autocomplete="off" spellcheck="false" bind:value={tokens.gitlab} />
-      <div class="row">
-        <button class="btn btn-primary" disabled={busy || !tokens.gitlab.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+    {/each}
+    {#if open && accounts && !accounts[open] && row.some(([host]) => host === open)}
+      <div class="drawer">
+        <div class="drawer-head">
+          <HostLogo host={open} size={20} />
+          <strong>{t(open === 'github' ? 'settings.githubTitle' : 'settings.connectHost', { name: row.find(([host]) => host === open)?.[1] ?? '' })}</strong>
+          <button class="btn btn-ghost" onclick={() => (open = null)}>{open === 'github' ? t('common.close') : t('common.cancel')}</button>
+        </div>
+        {#if open === 'bitbucket'}
+          <form onsubmit={signIn}>
+            <ol class="steps">
+              <li>
+                <div>
+                  <button type="button" class="btn btn-secondary" onclick={() => invoke('open_link', { url: 'https://id.atlassian.com/manage-profile/security/api-tokens' })}>
+                    {t('settings.openTokens')}
+                  </button>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <span><Trans k="settings.stepCreate">{#snippet create()}<strong>Create API token with scopes</strong>{/snippet}{#snippet bitbucket()}<strong>Bitbucket</strong>{/snippet}</Trans></span>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <span>{t('settings.stepScopes')}</span>
+                  <span class="scopes">
+                    {#each SCOPES as scope (scope)}
+                      <button type="button" class="scope" onclick={() => copy(scope)}>{copied === scope ? t('common.copied') : scope}</button>
+                    {/each}
+                  </span>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <span>{t('settings.stepPaste')}</span>
+                  <input class="field" type="email" autocomplete="off" placeholder={t('settings.atlassianEmail')} aria-label={t('settings.atlassianEmail')} bind:value={email} />
+                  <span class="row">
+                    <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={token} />
+                    <button class="btn btn-primary" disabled={busy || !email.trim() || !token.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+                  </span>
+                </div>
+              </li>
+            </ol>
+          </form>
+        {:else if open === 'gitlab'}
+          <form onsubmit={(e) => connect(e, 'gitlab', { site })}>
+            <ol class="steps">
+              <li>
+                <div>
+                  <span>{t('settings.gitlabSite')}</span>
+                  <input class="field" autocomplete="off" spellcheck="false" placeholder="https://gitlab.com" aria-label={t('settings.gitlabSite')} bind:value={site} />
+                </div>
+              </li>
+              <li>
+                <div>
+                  <span><Trans k="settings.gitlabStep">{#snippet scope()}<code>api</code>{/snippet}</Trans></span>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    onclick={() => invoke('open_link', { url: `${(site.trim() || 'https://gitlab.com').replace(/\/+$/, '')}/-/user_settings/personal_access_tokens?name=Squadron&scopes=api` })}
+                  >
+                    {t('settings.openTokens')}
+                  </button>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <span>{t('settings.stepPasteToken')}</span>
+                  <span class="row">
+                    <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.gitlab} />
+                    <button class="btn btn-primary" disabled={busy || !tokens.gitlab.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+                  </span>
+                </div>
+              </li>
+            </ol>
+          </form>
+        {:else if open === 'azure'}
+          <form onsubmit={(e) => connect(e, 'azure', { organization })}>
+            <ol class="steps">
+              <li>
+                <div>
+                  <span>{t('settings.azureOrganization')}</span>
+                  <input class="field" autocomplete="off" spellcheck="false" placeholder="https://dev.azure.com/…" aria-label={t('settings.azureOrganization')} bind:value={organization} />
+                </div>
+              </li>
+              <li>
+                <div>
+                  <span><Trans k="settings.azureStep">{#snippet code()}<strong>Code (Read &amp; write)</strong>{/snippet}{#snippet build()}<strong>Build (Read)</strong>{/snippet}</Trans></span>
+                  <button
+                    type="button"
+                    class="btn btn-secondary"
+                    disabled={!organization.trim()}
+                    onclick={() => invoke('open_link', { url: `https://dev.azure.com/${organization.trim().replace(/\/+$/, '').split('/').at(-1)}/_usersSettings/tokens` })}
+                  >
+                    {t('settings.openTokens')}
+                  </button>
+                </div>
+              </li>
+              <li>
+                <div>
+                  <span>{t('settings.stepPasteToken')}</span>
+                  <span class="row">
+                    <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.azure} />
+                    <button class="btn btn-primary" disabled={busy || !organization.trim() || !tokens.azure.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+                  </span>
+                </div>
+              </li>
+            </ol>
+          </form>
+        {:else}
+          <p class="intro"><Trans k="settings.githubHow">{#snippet command()}<code>gh auth login</code>{/snippet}</Trans></p>
+        {/if}
+        {#if open !== 'github'}<p class="keyring">{t('settings.keyring')}</p>{/if}
+        {#if open !== 'github' && failed[open]}<p class="bad" role="alert">{failed[open]}</p>{/if}
       </div>
-    </form>
-  {/if}
-  {#if failed.gitlab}<p class="bad" role="alert">{failed.gitlab}</p>{/if}
-</section>
-
-<section>
-  <h3>Azure DevOps</h3>
-  {#if !accounts}
-    <p class="intro">{t('common.checking')}</p>
-  {:else if accounts.azure}
-    <div class="signed">
-      <span><Trans k="settings.bitbucketSignedIn">{#snippet email()}<strong>{accounts?.azure}</strong>{/snippet}</Trans></span>
-      <button class="btn btn-secondary" onclick={() => signOut('azure')}>{t('settings.signOut')}</button>
-    </div>
-  {:else}
-    <form onsubmit={(e) => connect(e, 'azure', { organization })}>
-      <label for="azure-organization">{t('settings.azureOrganization')}</label>
-      <input id="azure-organization" class="field" autocomplete="off" spellcheck="false" placeholder="https://dev.azure.com/…" bind:value={organization} />
-      <ol class="intro steps">
-        <li>
-          <button
-            type="button"
-            class="btn btn-secondary"
-            disabled={!organization.trim()}
-            onclick={() => invoke('open_link', { url: `https://dev.azure.com/${organization.trim().replace(/\/+$/, '').split('/').at(-1)}/_usersSettings/tokens` })}
-          >
-            {t('settings.openTokens')}
-          </button>
-        </li>
-        <li><Trans k="settings.azureStep">{#snippet code()}<strong>Code (Read &amp; write)</strong>{/snippet}{#snippet build()}<strong>Build (Read)</strong>{/snippet}</Trans></li>
-        <li>{t('settings.stepPasteToken')}</li>
-      </ol>
-      <label for="azure-token">{t('settings.apiToken')}</label>
-      <input id="azure-token" class="field mono" type="password" autocomplete="off" spellcheck="false" bind:value={tokens.azure} />
-      <div class="row">
-        <button class="btn btn-primary" disabled={busy || !organization.trim() || !tokens.azure.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
-      </div>
-    </form>
-  {/if}
-  {#if failed.azure}<p class="bad" role="alert">{failed.azure}</p>{/if}
-</section>
-
-<section>
-  <h3>GitHub</h3>
-  {#if !accounts}
-    <p class="intro">{t('common.checking')}</p>
-  {:else if accounts.github}
-    <p class="intro"><Trans k="settings.githubSignedIn">{#snippet login()}<strong>{accounts?.github}</strong>{/snippet}</Trans></p>
-  {:else}
-    <p class="intro"><Trans k="settings.githubHow">{#snippet command()}<code>gh auth login</code>{/snippet}</Trans></p>
-  {/if}
-</section>
+    {/if}
+  {/each}
+</div>
+{#if accounts?.bitbucket && !accounts.bitbucket_user}
+  <p class="intro">
+    <Trans k="settings.tokenLacksScope">{#snippet scope()}<code>read:user:bitbucket</code>{/snippet}</Trans>
+  </p>
+{/if}
+{#if error}<p class="bad" role="alert">{error}</p>{/if}
 
 <section>
   <h3>{t('review.promptTitle')}</h3>
@@ -358,19 +391,151 @@
     color: var(--text-dim);
   }
 
-  .intro strong {
+  code {
+    font-size: 12.5px;
+  }
+
+  .cards {
+    display: grid;
+    grid-template-columns: repeat(2, 1fr);
+    gap: 10px;
+  }
+
+  .card {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 14px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .card.selected {
+    box-shadow: inset 0 0 0 1.5px var(--border-focus);
+  }
+
+  .top {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .top span {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .top small {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .foot {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 30px;
+  }
+
+  .status {
+    display: inline-flex;
+    align-items: center;
+    gap: 7px;
+    min-width: 0;
+    overflow-wrap: anywhere;
+    font-size: 12.5px;
+    color: var(--text-faint);
+  }
+
+  .status.on {
     color: var(--text-2);
   }
 
-  code {
-    font-size: 12.5px;
+  .dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+
+  .drawer {
+    grid-column: 1 / -1;
+    display: flex;
+    flex-direction: column;
+    gap: 14px;
+    margin: 6px 0 10px;
+    padding: 18px 20px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .drawer-head {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+  }
+
+  .drawer-head strong {
+    flex: 1;
   }
 
   .steps {
     display: flex;
     flex-direction: column;
+    gap: 12px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    counter-reset: step;
+    font-size: 13px;
+    color: var(--text-muted);
+  }
+
+  .steps li {
+    counter-increment: step;
+    display: grid;
+    grid-template-columns: 22px 1fr;
+    gap: 10px;
+  }
+
+  .steps li::before {
+    content: counter(step);
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 11.5px;
+    font-weight: 600;
+  }
+
+  .steps li > div {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
     gap: 8px;
-    padding-left: 18px;
+    padding-top: 2px;
+  }
+
+  .steps li > div > :is(.field, .row) {
+    align-self: stretch;
+  }
+
+  .steps strong {
+    color: var(--text-2);
+  }
+
+  .keyring {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-faint);
   }
 
   .scopes {
@@ -412,20 +577,6 @@
   .row {
     display: flex;
     gap: 8px;
-  }
-
-  .signed {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    padding: 10px 12px;
-    border-radius: 4px;
-    background: var(--surface-1);
-  }
-
-  .signed span {
-    flex: 1;
-    color: var(--text-2);
   }
 
   .bad {
