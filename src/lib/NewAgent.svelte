@@ -14,7 +14,6 @@
   import { tick, untrack } from 'svelte'
   import { Mention, type FileChoice } from './mention.svelte'
   import { imagePaste } from './paste'
-  import Trans from './Trans.svelte'
   import type { Options } from './stream'
 
   let {
@@ -199,9 +198,8 @@
     </div>
 
     <footer>
-      <span class="hint"><Trans k="board.ctrlEnterToStart">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>
-      <button type="button" class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
-      <button class="btn btn-primary" disabled={!ready}>{t('board.startAgent')}</button>
+      <button type="button" class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}<span class="keys"><kbd>{t('agent.keyEsc')}</kbd></span></button>
+      <button class="btn btn-primary" disabled={!ready}>{t('board.startAgent')}<span class="keys"><kbd>Ctrl</kbd><kbd>↵</kbd></span></button>
     </footer>
   </form>
 </Dialog>
@@ -345,17 +343,25 @@
     border-top: 1px solid var(--border);
   }
 
-  .hint {
-    flex: 1;
-    font-size: 12.5px;
-    color: var(--text-dim);
+  footer .btn {
+    height: 40px;
+    gap: 10px;
+  }
+
+  footer .btn:first-child {
+    margin-left: auto;
+  }
+
+  .keys {
+    display: flex;
+    gap: 3px;
+    opacity: 0.5;
   }
 
   kbd {
-    font-family: var(--mono);
-  }
-
-  footer .btn {
-    height: 40px;
+    padding: 1px 5px;
+    border: 1px solid currentColor;
+    border-radius: 4px;
+    font: 500 11px var(--mono);
   }
 </style>

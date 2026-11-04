@@ -45,7 +45,6 @@ export default {
   firstMessage: 'First message',
   firstMessagePlaceholder: 'Optional. You can also write it in the conversation, with screenshots and files.',
   agentGoalPlaceholder: 'Optional. The agent keeps working until this is true. Ask for visible proof: tests run, output shown.',
-  ctrlEnterToStart: '{keys} to start',
   startAgent: 'Start agent',
   launchSettings: 'Settings',
   importTitle: 'Import conversations · {project}',

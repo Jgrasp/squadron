@@ -47,7 +47,6 @@ export default {
   firstMessage: 'Premier message',
   firstMessagePlaceholder: 'Facultatif. Vous pouvez aussi l’écrire dans la conversation, avec captures d’écran et fichiers.',
   agentGoalPlaceholder: 'Facultatif. L’agent continue jusqu’à ce que ce soit vrai. Demandez une preuve visible : tests lancés, résultat affiché.',
-  ctrlEnterToStart: '{keys} pour lancer',
   startAgent: 'Lancer l’agent',
   launchSettings: 'Réglages',
   importTitle: 'Importer des conversations · {project}',
