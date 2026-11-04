@@ -138,8 +138,13 @@ export default {
   dragToResize: 'Drag to resize, double-click for full screen',
   panelPlacement: 'Panel placement',
   modeSlide: 'Over the conversation',
+  modeSide: 'Beside the conversation',
   modeFull: 'Full screen',
   modeBottom: 'Under the conversation',
+  modeSlideHint: 'Opens on top, the conversation keeps its width',
+  modeSideHint: 'The conversation narrows to make room',
+  modeBottomHint: 'Shares the height with the conversation',
+  modeFullHint: 'The whole width, up to the agents list',
   closePanel: 'Close panel',
 
   yourShell: 'Your shell, in {path}',

@@ -10,7 +10,7 @@
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
   import ContextGauge from './ContextGauge.svelte'
-  import { bottomShare, layout, openPanel, setPanel, type PanelKind } from './layout.svelte'
+  import { bottomShare, layout, openPanel, setPanel, sideSpan, type PanelKind } from './layout.svelte'
   import { home, projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
@@ -758,7 +758,11 @@
   }}
 />
 
-<main style:--panel-top="{headerHeight}px" style:--panel-share={bottomShare(openPanel(agent.project))}>
+<main
+  style:--panel-top="{headerHeight}px"
+  style:--panel-share={Math.max(bottomShare(openPanel(agent.project)), bottomShare(reading && 'ticket'))}
+  style:--panel-side="max({sideSpan(openPanel(agent.project))}, {sideSpan(reading && 'ticket')})"
+>
   <section class="conversation" aria-label={t('agent.conversation')}>
     {#if reading}
       <TicketPanel connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />
@@ -1359,9 +1363,12 @@
     align-self: flex-start;
     min-width: 360px;
     height: calc(100% - (100% - var(--panel-top, 0px)) * var(--panel-share, 0));
+    padding-right: var(--panel-side, 0px);
     display: flex;
     flex-direction: column;
-    transition: height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    transition:
+      height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+      padding-right 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
   :global(.resizing > .conversation) {
@@ -1370,6 +1377,7 @@
 
   .tools {
     display: flex;
+    flex-wrap: wrap;
     gap: 4px;
   }
 

@@ -21,11 +21,11 @@
   function choose(q: Question, label: string) {
     if (simple) return answer(agent, ask, { [q.question]: label })
     const current = picked[q.question] ?? []
-    picked[q.question] = q.multiSelect
-      ? current.includes(label)
-        ? current.filter((l) => l !== label)
-        : [...current, label]
-      : [label]
+    picked[q.question] = current.includes(label)
+      ? current.filter((l) => l !== label)
+      : q.multiSelect
+        ? [...current, label]
+        : [label]
   }
 
   function send() {

@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.33.0 · 2026-11-04
+
+### Panels
+
+- **Beside the conversation**: a panel can open beside the conversation, which narrows to make room, instead of over it. The placement buttons in a panel's header become a menu of four placements drawn as thumbnails: over, beside, under and full screen.
+- Settings › Panels shows every panel as a row of placements, with a Small, Medium or Large size (a third, half or two thirds of the room). A panel resized by its edge shows Custom.
+- The Jira ticket panel is a panel like the others: it resizes by its edge, changes placement from its header and has its own row in Settings › Panels.
+
+### Conversation
+
+- In a question card with several questions, clicking the picked choice again deselects it, so the question can be answered with free text only.
+- While an html block is being written, its placeholder shows the Squadron triangle with a copper stroke running around its outline, above “Creating the preview…”.
+- In the new agent window, Cancel and Start agent show their shortcut, Esc and Ctrl ↵, inside the button.
+
 ## 0.32.0 · 2026-11-04
 
 ### Conversation

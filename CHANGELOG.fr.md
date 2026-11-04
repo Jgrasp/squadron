@@ -1,5 +1,19 @@
 # Nouveautés
 
+## 0.33.0 · 2026-11-04
+
+### Panneaux
+
+- **À côté de la discussion** : un panneau peut s’ouvrir à côté de la discussion, qui se resserre pour lui faire place, au lieu de passer par-dessus. Les boutons de placement de l’en-tête d’un panneau deviennent un menu de quatre placements dessinés en vignettes : par-dessus, à côté, dessous et plein écran.
+- Réglages › Panneaux présente chaque panneau sur une ligne de placements, avec une taille Petit, Moyen ou Grand (un tiers, la moitié ou deux tiers de la place). Un panneau redimensionné par son bord affiche Sur mesure.
+- Le panneau d’un ticket Jira est un panneau comme les autres : il se redimensionne par son bord, change de placement depuis son en-tête et a sa ligne dans Réglages › Panneaux.
+
+### Conversation
+
+- Dans une carte de plusieurs questions, cliquer de nouveau sur le choix retenu le désélectionne, pour répondre à la question par un texte libre seulement.
+- Pendant l’écriture d’un bloc html, son emplacement montre le triangle de Squadron, dont le contour est parcouru d’un trait cuivré, au-dessus de « Création de l’aperçu… ».
+- Dans la fenêtre Nouvel agent, Annuler et Lancer l’agent affichent leur raccourci, Échap et Ctrl ↵, dans le bouton.
+
 ## 0.32.0 · 2026-11-04
 
 ### Conversation

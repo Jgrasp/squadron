@@ -9,6 +9,7 @@
   import { archiveProject, create, ensureLoaded, ofProject, onDisk, selected, waiting } from './agents.svelte'
   import {
     bottomShare,
+    sideSpan,
     layout,
     MAX_SIDEBAR,
     MIN_SIDEBAR,
@@ -153,13 +154,13 @@
   {:else if agent}
     {#key agent.id}
       {#if onDisk.has(agent.id)}
-        <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))}></main>
+        <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))} style:--panel-side={sideSpan(openPanel(project.path))}></main>
       {:else}
         <AgentView {agent} {overlay} />
       {/if}
     {/key}
   {:else}
-    <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))}>
+    <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))} style:--panel-side={sideSpan(openPanel(project.path))}>
       <div class="center">
       <div class="box">
         <span class="plus" aria-hidden="true">
@@ -306,7 +307,10 @@
     align-self: flex-start;
     min-width: 0;
     height: calc(100% * (1 - var(--panel-share, 0)));
-    transition: height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
+    margin-right: var(--panel-side, 0px);
+    transition:
+      height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
+      margin-right 0.38s cubic-bezier(0.22, 1, 0.36, 1);
     display: flex;
     align-items: center;
     justify-content: center;

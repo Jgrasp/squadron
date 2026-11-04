@@ -5,9 +5,12 @@ export const MIN_PANEL = 420
 
 import { projects } from './projects.svelte'
 
-export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls'
-export type PanelMode = 'slide' | 'full' | 'bottom'
-export type Display = { mode: PanelMode; width: number; height: number }
+export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls' | 'ticket'
+export type PanelMode = 'slide' | 'side' | 'full' | 'bottom'
+export type PanelSize = 'small' | 'medium' | 'large'
+export type Display = { mode: PanelMode; width: number; height: number; size?: PanelSize }
+
+export const SIZES: Record<PanelSize, number> = { small: 1 / 3, medium: 1 / 2, large: 2 / 3 }
 
 export const MIN_SHARE = 20
 export const MAX_SHARE = 75
@@ -100,12 +103,14 @@ export function setFileTree(on: boolean) {
   keep('squadron.diff-tree', on ? 'on' : 'off')
 }
 
-export const displayOf = (kind: PanelKind): Display => ({
-  mode: layout.full.panel ? 'full' : 'slide',
-  width: layout.widths.panel,
-  height: 40,
-  ...layout.display[kind],
-})
+export const displayOf = (kind: PanelKind): Display => {
+  const stored = layout.display[kind] ?? {}
+  const size = 'width' in stored || 'height' in stored ? undefined : 'medium'
+  const shown: Display = { mode: layout.full.panel ? 'full' : 'slide', width: layout.widths.panel, height: 40, size, ...stored }
+  return shown.size ? { ...shown, height: Math.round(SIZES[shown.size] * 100) } : shown
+}
+
+export const panelWidth = (shown: Display) => (shown.size ? `${SIZES[shown.size] * 100}%` : `${shown.width}px`)
 
 export function setDisplay(kind: PanelKind, next: Partial<Display>) {
   layout.display[kind] = { ...layout.display[kind], ...next }
@@ -120,11 +125,11 @@ export function resetDisplay() {
 }
 
 export function resizePanel(kind: PanelKind, width: number, max: number) {
-  setDisplay(kind, { width: Math.round(Math.max(MIN_PANEL, Math.min(max, width))) })
+  setDisplay(kind, { width: Math.round(Math.max(MIN_PANEL, Math.min(max, width))), size: undefined })
 }
 
 export function resizeShare(kind: PanelKind, share: number) {
-  setDisplay(kind, { height: Math.round(Math.max(MIN_SHARE, Math.min(MAX_SHARE, share))) })
+  setDisplay(kind, { height: Math.round(Math.max(MIN_SHARE, Math.min(MAX_SHARE, share))), size: undefined })
 }
 
 export const openPanel = (project: string): PanelKind | null =>
@@ -133,6 +138,11 @@ export const openPanel = (project: string): PanelKind | null =>
 export const bottomShare = (kind: PanelKind | null) => {
   const shown = kind && displayOf(kind)
   return shown && shown.mode === 'bottom' ? shown.height / 100 : 0
+}
+
+export const sideSpan = (kind: PanelKind | null) => {
+  const shown = kind && displayOf(kind)
+  return shown && shown.mode === 'side' ? `min(${panelWidth(shown)}, 100% - 360px)` : '0px'
 }
 
 let requested = { kind: null as PanelKind | null, at: 0 }

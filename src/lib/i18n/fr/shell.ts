@@ -140,8 +140,13 @@ export default {
   dragToResize: 'Faites glisser pour redimensionner, double-cliquez pour le plein écran',
   panelPlacement: 'Placement du panneau',
   modeSlide: 'Par-dessus la discussion',
+  modeSide: 'À côté de la discussion',
   modeFull: 'Plein écran',
   modeBottom: 'Sous la discussion',
+  modeSlideHint: 'S’ouvre au-dessus, la discussion garde sa largeur',
+  modeSideHint: 'La discussion se resserre pour lui faire place',
+  modeBottomHint: 'Partage la hauteur avec la discussion',
+  modeFullHint: 'Toute la largeur, jusqu’à la liste des agents',
   closePanel: 'Fermer le panneau',
 
   yourShell: 'Votre shell, dans {path}',

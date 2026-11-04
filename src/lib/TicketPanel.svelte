@@ -3,6 +3,9 @@
   import Avatar from './Avatar.svelte'
   import { date, errorText, t } from './i18n/index.svelte'
   import { URGENCY } from './jira'
+  import { requestPanel } from './layout.svelte'
+  import PanelButtons from './PanelButtons.svelte'
+  import SidePanel from './SidePanel.svelte'
   import Markdown from './Markdown.svelte'
   import { getTicket, type Comment, type Ticket } from './tickets.svelte'
 
@@ -20,6 +23,8 @@
   let query = $state('')
   let newest = $state(localStorage.getItem('squadron.ticket-sort') !== 'oldest')
   let thread = $state<HTMLElement>()
+
+  requestPanel('ticket')
 
   $effect(() => {
     const [c, k] = [connection, ticketKey]
@@ -87,7 +92,7 @@
 
 <svelte:window onkeydown={(e) => e.key === 'Escape' && !document.querySelector('dialog[open]') && (e.preventDefault(), onclose())} />
 
-<aside class="panel" aria-label={ticketKey}>
+<SidePanel kind="ticket" title={ticketKey} {onclose}>
   <header>
     <div class="row">
       <span class="logo" aria-hidden="true">J</span>
@@ -100,9 +105,7 @@
           <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
         </button>
       {/if}
-      <button class="close" aria-label={t('common.close')} title={t('common.close')} onclick={onclose}>
-        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 6l12 12M18 6L6 18" /></svg>
-      </button>
+      <PanelButtons kind="ticket" {onclose} />
     </div>
     {#if ticket}
       <h2>{ticket.title}</h2>
@@ -183,7 +186,7 @@
       {#if !linked}<button class="btn btn-primary" onclick={() => oncreate(ticket!)}>{t('tickets.createTask')}</button>{/if}
     </footer>
   {/if}
-</aside>
+</SidePanel>
 
 {#snippet comment(c: Comment)}
   <div class="comment">
@@ -205,20 +208,6 @@
 {/snippet}
 
 <style>
-  .panel {
-    position: absolute;
-    top: var(--panel-top, 0);
-    right: 0;
-    bottom: 0;
-    z-index: 4;
-    width: min(560px, 92%);
-    display: flex;
-    flex-direction: column;
-    border-left: 1px solid var(--border-strong);
-    background: var(--bg-tabs);
-    box-shadow: -18px 0 40px rgba(0, 0, 0, 0.35);
-  }
-
   header {
     display: flex;
     flex-direction: column;
@@ -294,8 +283,7 @@
     font-size: 10px;
   }
 
-  .open-jira svg,
-  .close svg {
+  .open-jira svg {
     fill: none;
     stroke: currentColor;
     stroke-width: 2;
@@ -305,16 +293,6 @@
 
   .open-jira svg {
     opacity: 0.7;
-  }
-
-  .close {
-    width: 28px;
-    height: 28px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 6px;
-    color: var(--text-dim);
   }
 
   .nobody {

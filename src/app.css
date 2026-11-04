@@ -353,6 +353,12 @@ pre,
   }
 }
 
+@keyframes trace {
+  to {
+    stroke-dashoffset: -54;
+  }
+}
+
 @keyframes blink {
   50% {
     opacity: 0;
