@@ -1,7 +1,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, VALUES, type Server } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, VALUES, type Server } from './agents.svelte'
   import { claudeConfig, labelOf as settingLabel, loadSettings, TERMINAL } from './claudeConfig.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
@@ -709,6 +709,14 @@
     }
     if (event.key === 'Enter' && !event.shiftKey) {
       submit(event)
+    } else if (event.key === 'ArrowUp' && !text && undoable(agent)) {
+      event.preventDefault()
+      undo(agent).then((message) => {
+        if (!message) return
+        attachments = message.files ?? []
+        comments = message.comments ?? []
+        show(area, message.text)
+      })
     } else if (event.key === 'ArrowUp' && !text.slice(0, area.selectionStart).includes('\n') && recall < sent.length - 1) {
       event.preventDefault()
       if (recall === -1) draft = text

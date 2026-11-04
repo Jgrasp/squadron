@@ -156,6 +156,23 @@ impl Agents {
         Ok(())
     }
 
+    pub fn rewind(&self, id: &str, at: Option<&str>) -> Result<(), String> {
+        if let Some(at) = at {
+            self.fork_at(id, at)?;
+        }
+        let mut list = self.list.lock().unwrap();
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        if let Some(session) = agent.session.take() {
+            let _ = session.stop();
+        }
+        agent.fork = at.is_some();
+        if at.is_none() {
+            agent.at = None;
+            *agent.session_id.lock().unwrap() = None;
+        }
+        Ok(())
+    }
+
     pub fn session_id(&self, id: &str) -> Option<String> {
         let list = self.list.lock().unwrap();
         list.get(id)?.session_id.lock().unwrap().clone()
@@ -482,6 +499,43 @@ mod tests {
             );
         }
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn rewinds_to_a_message_or_to_a_fresh_session() {
+        let agents = Agents::default();
+        let options = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+            agent: None,
+            advisor: None,
+        };
+        let session = "2654721f-e7e6-4b3c-a2a7-25979e1d1873";
+        agents
+            .register(
+                "a1",
+                PathBuf::from("/tmp"),
+                options,
+                Some(session.into()),
+                false,
+            )
+            .unwrap();
+        assert!(
+            agents
+                .rewind("a1", Some("--dangerously-skip-permissions-0000"))
+                .is_err()
+        );
+        assert!(!agents.list.lock().unwrap()["a1"].fork);
+        agents.rewind("a1", Some(session)).unwrap();
+        {
+            let list = agents.list.lock().unwrap();
+            assert!(list["a1"].fork);
+            assert_eq!(list["a1"].at.as_deref(), Some(session));
+        }
+        agents.rewind("a1", None).unwrap();
+        assert!(!agents.list.lock().unwrap()["a1"].fork);
+        assert_eq!(agents.session_id("a1"), None);
     }
 
     #[test]

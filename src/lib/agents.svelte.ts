@@ -768,6 +768,31 @@ export async function interrupt(id: string) {
   await invoke('cancel_permissions', { agent: id })
 }
 
+export function undoable(agent: Agent) {
+  const upTo = agent.entries.findLastIndex((e) => e.kind === 'user')
+  const point = agent.status === 'interrupted' && upTo >= 0 && forkPoint(agent, upTo)
+  return point ? { upTo, at: point.at } : null
+}
+
+export async function undo(agent: Agent) {
+  const point = undoable(agent)
+  if (!point) return
+  agent.status = 'done'
+  agent.action = ''
+  try {
+    await invoke('rewind_agent', { id: agent.id, at: point.at ?? null })
+  } catch (e) {
+    return fail(agent, String(e))
+  }
+  const message = agent.entries[point.upTo]
+  agent.entries = agent.entries.slice(0, point.upTo)
+  agent.forkOf = point.at ? agent.name : null
+  agent.forkAt = point.at ?? null
+  if (!point.at) agent.sessionId = null
+  persist(agent)
+  return message.kind === 'user' ? message : undefined
+}
+
 export async function reload(id: string) {
   const agent = find(id)
   if (!agent) return
@@ -876,8 +901,8 @@ export function keepDraft(id: string, draft: Draft) {
 }
 
 export function forkPoint(agent: Agent, upTo: number) {
-  const before = agent.entries.slice(0, upTo).findLast((e) => e.kind === 'agent')
-  if (!before) return { at: undefined }
+  const before = agent.entries.slice(0, upTo).findLast((e) => e.kind === 'agent' || e.kind === 'cleared')
+  if (!before || before.kind === 'cleared') return { at: undefined }
   return before.kind === 'agent' && before.uuid && agent.sessionId ? { at: before.uuid } : null
 }
 
