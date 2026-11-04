@@ -17,6 +17,7 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
       ['ticket', 'settings.itemTicket', 'settings.itemTicketHint'],
       ['branch', 'settings.itemBranch', 'settings.itemBranchHint'],
       ['pull', 'settings.itemPull', 'settings.itemPullHint'],
+      ['mcp', 'settings.itemMcp', 'settings.itemMcpHint'],
       ['tasks', 'settings.itemTasks'],
     ],
   },

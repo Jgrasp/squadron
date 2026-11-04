@@ -139,6 +139,7 @@ export default {
   merging: 'Merging…',
   mergeInto: 'Merge into {base}',
   approving: 'Approving…',
+  requestingChanges: 'Requesting changes…',
   showMoreLines: 'Show {shown} more of {total} lines',
   verdictRequestChanges: 'Request changes',
   submitOn: 'Submit on {host}',

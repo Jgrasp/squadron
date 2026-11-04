@@ -25,7 +25,7 @@ export type SettingsTab =
   | 'changelog'
   | 'about'
 
-export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', adding: null as string | null, drops: 0, drawer: false })
+export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', adding: null as string | null, drops: 0, finding: 0, drawer: false })
 
 export type Context = { project?: Project; agent?: Agent }
 
@@ -41,6 +41,9 @@ export function run(action: Action, { project, agent }: Context) {
     case 'sidebar':
       if (project && settings.sidebar !== 'pinned') ui.drawer = !ui.drawer
       else if (project) saveSettings({ ...$state.snapshot(settings), sidebar: 'peek' })
+      return
+    case 'find':
+      ui.finding++
       return
     case 'newAgent':
       if (project?.exists) ui.creating = true

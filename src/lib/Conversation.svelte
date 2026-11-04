@@ -215,7 +215,10 @@
   const took = (ms: number | undefined) =>
     ms === undefined ? t('conversation.thinking') : ms < 1000 ? t('conversation.thoughtMoment') : t('conversation.thoughtForTitle', { duration: duration(ms) })
 
-  const lastAgent = $derived(agent.entries.findLastIndex((e) => e.kind === 'agent'))
+  const lastAgent = $derived.by(() => {
+    const at = agent.entries.findLastIndex((e) => e.kind === 'agent')
+    return at > agent.entries.findLastIndex((e) => e.kind === 'user') ? at : -1
+  })
   const working = $derived(agent.status === 'working' && !agent.held)
 </script>
 
@@ -595,16 +598,13 @@
 
   .menu button {
     height: 32px;
-    padding: 0 10px;
-    border-radius: 4px;
-    text-align: left;
     display: flex;
     align-items: center;
     gap: 10px;
+    padding: 0 10px;
+    border-radius: 4px;
+    text-align: left;
   }
-
-  .menu button:hover {
-    background: var(--menu-hover);
   .menu button :global(.icon) {
     color: var(--text-dim);
   }
@@ -618,6 +618,9 @@
     border: 0;
     background: var(--border-strong);
   }
+
+  .menu button:hover {
+    background: var(--menu-hover);
   }
 
   .ticket-context {

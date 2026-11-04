@@ -37,7 +37,6 @@ export default {
   taskGoalPlaceholder: 'Optional. The agent keeps working until this is true, then the task goes to review. Ask for visible proof: tests run, output shown.',
   attach: 'Screenshots, files',
   attachTitle: 'Attach screenshots or files. You can also paste a screenshot in the description.',
-  agentSettings: 'Agent settings',
   createTask: 'Create task',
   createAndStart: 'Create and start agent',
   saveAndStart: 'Save and start agent',

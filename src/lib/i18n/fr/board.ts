@@ -39,7 +39,6 @@ export default {
   taskGoalPlaceholder: 'Facultatif. L’agent continue jusqu’à ce que ce soit vrai, puis la tâche passe en relecture. Demandez une preuve visible : tests lancés, résultat affiché.',
   attach: 'Captures, fichiers',
   attachTitle: 'Joindre des captures d’écran ou des fichiers. Une capture se colle aussi dans la description.',
-  agentSettings: 'Réglages de l’agent',
   createTask: 'Créer la tâche',
   createAndStart: 'Créer et lancer l’agent',
   saveAndStart: 'Enregistrer et lancer l’agent',

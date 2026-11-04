@@ -7,7 +7,7 @@
   import { settings } from './settings.svelte'
   import type { Project } from './projects.svelte'
   import { requestPanel } from './layout.svelte'
-  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, requestChanges, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Reviewers from './Reviewers.svelte'
   import PullReview from './PullReview.svelte'
@@ -55,10 +55,10 @@
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
 
-  let busy = $state<{ number: number; doing: 'approve' | 'merge' } | null>(null)
+  let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' } | null>(null)
   let failure = $state('')
 
-  async function act(pull: Pull, doing: 'approve' | 'merge', work: () => Promise<unknown>) {
+  async function act(pull: Pull, doing: 'approve' | 'request_changes' | 'merge', work: () => Promise<unknown>) {
     busy = { number: pull.number, doing }
     failure = ''
     try {
@@ -84,6 +84,18 @@
       : []
 
   const approvable = (pull: Pull) => pull.reviewed !== 'approved' || moved(project.path, pull)
+
+  const requesting = (pull: Pull): Choice[] =>
+    requestable(pull)
+      ? [
+          {
+            label: busy?.number === pull.number && busy.doing === 'request_changes' ? t('review.requestingChanges') : t('review.verdictRequestChanges'),
+            run: () => act(pull, 'request_changes', () => requestChanges(project.path, pull)),
+          },
+        ]
+      : []
+
+  const requestable = (pull: Pull) => pull.reviewed !== 'changes_requested' || moved(project.path, pull)
 
   async function mergeIt(pull: Pull) {
     const confirmed = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {
@@ -168,7 +180,7 @@
               `review-${pull.number}`,
               main,
               waitsFor(project.path, pull) && main !== seeing,
-              [...(main === reviewing ? [] : [reviewing]), ...(seeing && main !== seeing ? [seeing] : []), ...(reviewer ? [] : [asking(pull)]), openOn(pull), ...approving(pull)],
+              [...(main === reviewing ? [] : [reviewing]), ...(seeing && main !== seeing ? [seeing] : []), ...(reviewer ? [] : [asking(pull)]), openOn(pull), ...approving(pull), ...requesting(pull)],
               main === reviewing && opened?.number === pull.number,
             )}
           </article>
