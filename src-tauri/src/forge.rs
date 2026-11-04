@@ -3,8 +3,10 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::io::Write;
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
+use std::sync::Mutex;
 
 const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
 const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting.";
@@ -216,6 +218,69 @@ fn entry(name: &str) -> Result<keyring::Entry, String> {
     keyring::Entry::new(service, name).map_err(|e| e.to_string())
 }
 
+const KEYRING_BUSY: &str = "The system keyring is waiting to be unlocked.";
+
+static SECRETS: Mutex<BTreeMap<String, Option<String>>> = Mutex::new(BTreeMap::new());
+static READING: Mutex<()> = Mutex::new(());
+
+fn cached(user: &str) -> Option<Option<String>> {
+    SECRETS.lock().unwrap_or_else(|e| e.into_inner()).get(user).cloned()
+}
+
+fn remember(user: &str, secret: Option<String>) {
+    SECRETS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .insert(user.into(), secret);
+}
+
+fn blocking_in_place<T>(f: impl FnOnce() -> T) -> T {
+    match tokio::runtime::Handle::try_current().map(|h| h.runtime_flavor()) {
+        Ok(tokio::runtime::RuntimeFlavor::MultiThread) => tokio::task::block_in_place(f),
+        _ => f(),
+    }
+}
+
+pub(crate) fn read_secret(user: &str) -> Result<Option<String>, String> {
+    if let Some(found) = cached(user) {
+        return Ok(found);
+    }
+    let started = std::time::Instant::now();
+    let _reading = loop {
+        match READING.try_lock() {
+            Ok(guard) => break guard,
+            Err(std::sync::TryLockError::Poisoned(e)) => break e.into_inner(),
+            Err(_) if started.elapsed() > std::time::Duration::from_secs(2) => {
+                return Err(KEYRING_BUSY.into());
+            }
+            Err(_) => std::thread::sleep(std::time::Duration::from_millis(50)),
+        }
+    };
+    if let Some(found) = cached(user) {
+        return Ok(found);
+    }
+    let found = blocking_in_place(|| match entry(user)?.get_password() {
+        Ok(secret) => Ok(Some(secret)),
+        Err(keyring::Error::NoEntry) => Ok(None),
+        Err(e) => Err(e.to_string()),
+    })?;
+    remember(user, found.clone());
+    Ok(found)
+}
+
+pub(crate) fn write_secret(user: &str, secret: Option<&str>) -> Result<(), String> {
+    let entry = entry(user)?;
+    match secret {
+        Some(secret) => entry.set_password(secret).map_err(|e| e.to_string())?,
+        None => match entry.delete_credential() {
+            Ok(()) | Err(keyring::Error::NoEntry) => {}
+            Err(e) => return Err(e.to_string()),
+        },
+    }
+    remember(user, secret.map(str::to_string));
+    Ok(())
+}
+
 #[derive(Serialize, Deserialize)]
 pub(crate) struct Token {
     pub site: String,
@@ -224,18 +289,13 @@ pub(crate) struct Token {
 }
 
 pub(crate) fn token(name: &str, missing: &str) -> Result<Token, String> {
-    let secret = entry(name)?.get_password().map_err(|e| match e {
-        keyring::Error::NoEntry => missing.to_string(),
-        e => e.to_string(),
-    })?;
+    let secret = read_secret(name)?.ok_or(missing)?;
     serde_json::from_str(&secret).map_err(|e| e.to_string())
 }
 
 pub(crate) fn keep_token(name: &str, token: &Token) -> Result<(), String> {
     let secret = serde_json::to_string(token).map_err(|e| e.to_string())?;
-    entry(name)?
-        .set_password(&secret)
-        .map_err(|e| e.to_string())
+    write_secret(name, Some(&secret))
 }
 
 pub(crate) async fn send(
@@ -268,10 +328,7 @@ pub(crate) async fn send(
 }
 
 fn account() -> Result<Account, String> {
-    let secret = entry("bitbucket")?.get_password().map_err(|e| match e {
-        keyring::Error::NoEntry => NO_TOKEN.to_string(),
-        e => e.to_string(),
-    })?;
+    let secret = read_secret("bitbucket")?.ok_or(NO_TOKEN)?;
     serde_json::from_str(&secret).map_err(|e| e.to_string())
 }
 
@@ -296,9 +353,7 @@ pub async fn sign_in(email: String, token: String) -> Result<(), String> {
 
 fn keep(account: &Account) -> Result<(), String> {
     let secret = serde_json::to_string(account).map_err(|e| e.to_string())?;
-    entry("bitbucket")?
-        .set_password(&secret)
-        .map_err(|e| e.to_string())
+    write_secret("bitbucket", Some(&secret))
 }
 
 async fn bitbucket_me() -> Result<String, String> {
@@ -325,10 +380,7 @@ pub fn sign_out(name: &str) -> Result<(), String> {
     if !["bitbucket", "gitlab", "azure"].contains(&name) {
         return Err(format!("Unknown account: {name}"));
     }
-    match entry(name)?.delete_credential() {
-        Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
-        Err(e) => Err(e.to_string()),
-    }
+    write_secret(name, None)
 }
 
 pub fn accounts() -> Accounts {
@@ -372,8 +424,30 @@ async fn bitbucket(
     .await
 }
 
+static GH_TOKEN: Mutex<Option<String>> = Mutex::new(None);
+
+fn gh_token() -> Option<String> {
+    let mut token = GH_TOKEN.lock().unwrap_or_else(|e| e.into_inner());
+    if token.is_none() {
+        *token = crate::process::command("gh")
+            .args(["auth", "token"])
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            .filter(|token| !token.is_empty());
+    }
+    token.clone()
+}
+
 fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
-    let mut child = crate::process::command("gh")
+    let mut command = crate::process::command("gh");
+    if let Some(token) = gh_token() {
+        command.env("GH_TOKEN", token);
+    }
+    let mut child = command
         .args(args)
         .env("GH_PROMPT_DISABLED", "1")
         .stdin(Stdio::piped())
@@ -386,7 +460,11 @@ fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
     }
     let out = child.wait_with_output().map_err(|e| e.to_string())?;
     if !out.status.success() {
-        return Err(gh_error(&out.stderr, &out.stdout));
+        let error = gh_error(&out.stderr, &out.stdout);
+        if error.contains("HTTP 401") {
+            *GH_TOKEN.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        }
+        return Err(error);
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
@@ -1892,6 +1970,14 @@ mod tests {
         assert_eq!(entry.get_password().unwrap(), "dummy");
         entry.delete_credential().unwrap();
         assert!(matches!(entry.get_password(), Err(keyring::Error::NoEntry)));
+    }
+
+    #[test]
+    fn a_read_gives_up_while_another_waits_on_the_keyring_unless_cached() {
+        remember("cached-check", Some("kept".into()));
+        let _waiting = READING.lock().unwrap();
+        assert_eq!(read_secret("cached-check").unwrap().as_deref(), Some("kept"));
+        assert_eq!(read_secret("uncached-check").unwrap_err(), KEYRING_BUSY);
     }
 
     #[tokio::test]

@@ -123,7 +123,7 @@ export const ticketBrief = (path: string, link: TicketLink) =>
 const BLOCK = /\n*<ticket source="[^"]*" key="([^"]+)"[^>]*>\n?([\s\S]*?)<\/ticket>/g
 
 export function ticketBlocks(text: string) {
-  const blocks = [...text.matchAll(BLOCK)].map((m) => ({ key: m[1], body: m[2].trim() }))
+  const blocks = [...text.matchAll(BLOCK)].map((m) => ({ key: m[1], title: m[2].match(/^# \S+ (.+)/)?.[1] ?? '' }))
   return { text: blocks.length ? text.replace(BLOCK, '').trimEnd() : text, blocks }
 }
 

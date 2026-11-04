@@ -85,7 +85,6 @@ export default {
   regenerate: 'Régénérer',
   removeLink: 'Délier le ticket',
   linkTitle: 'Ticket Jira {key}',
-  contextOf: 'Contexte du ticket',
   openTicket: 'Relire le ticket Jira {key}',
   closeTicket: 'Fermer le ticket Jira {key}',
   jira: 'Jira',

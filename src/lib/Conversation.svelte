@@ -38,6 +38,7 @@
     onterminal = () => {},
     onrun,
     onsend,
+    onticket,
   }: {
     agent: Agent
     start?: number
@@ -50,6 +51,7 @@
     onterminal?: (command: string) => void
     onrun?: (command: string) => void
     onsend?: (text: string) => void
+    onticket?: (key: string) => void
   } = $props()
 
   const SPAWN = ['Agent', 'Task']
@@ -282,12 +284,15 @@
           <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
         {/if}
         {#if said.text}<div class="said">{#each highlight(said.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
-        {#each said.blocks as block, b (b)}
-          <details class="ticket-context">
-            <summary><span class="logo" aria-hidden="true">J</span><strong>{block.key}</strong> · {t('tickets.contextOf')}</summary>
-            <div class="said">{block.body}</div>
-          </details>
-        {/each}
+        {#if said.blocks.length}
+          <div class="tickets">
+            {#each said.blocks as block, b (b)}
+              <button class="ticket-chip" title={t('tickets.openTicket', { key: block.key })} onclick={() => onticket?.(block.key)}>
+                <span class="logo" aria-hidden="true">J</span><strong>{block.key}</strong>{#if block.title}<span class="title">{block.title}</span>{/if}
+              </button>
+            {/each}
+          </div>
+        {/if}
       </div>
     {/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
@@ -623,52 +628,55 @@
     background: var(--menu-hover);
   }
 
-  .ticket-context {
-    margin-top: 10px;
-    padding-top: 8px;
-    border-top: 1px solid rgba(36, 18, 10, 0.2);
-    font-size: 12.5px;
+  .tickets {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
   }
 
-  .ticket-context summary {
-    color: var(--accent-ink);
-    display: flex;
+  .said + .tickets {
+    margin-top: 9px;
+  }
+
+  .ticket-chip {
+    max-width: 100%;
+    display: inline-flex;
     align-items: center;
     gap: 6px;
-    cursor: pointer;
-    list-style: none;
-    opacity: 0.75;
+    padding: 3px 10px 3px 5px;
+    border-radius: 12px;
+    background: var(--accent-ink);
+    color: var(--accent-soft);
+    font-size: 12px;
   }
 
-  .ticket-context summary::-webkit-details-marker {
-    display: none;
+  .ticket-chip:hover {
+    background: var(--wait-btn);
   }
 
-  .ticket-context summary:hover {
-    opacity: 1;
-  }
-
-  .ticket-context strong {
+  .ticket-chip strong {
+    flex: none;
     font: 600 12px var(--mono);
-    color: var(--accent-ink);
   }
 
-  .ticket-context .logo {
+  .ticket-chip .title {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ticket-chip .logo {
+    flex: none;
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 12px;
-    height: 12px;
-    border-radius: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 3px;
     background: var(--jira);
     color: #fff;
-    font: 700 8px var(--sans);
-  }
-
-  .ticket-context .said {
-    margin-top: 8px;
-    max-height: 320px;
-    overflow-y: auto;
+    font: 700 9px var(--sans);
   }
 
   .user {

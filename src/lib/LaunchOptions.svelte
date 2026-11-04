@@ -43,7 +43,7 @@
 </script>
 
 {#snippet field(key: 'model' | 'effort', label: string, value: string, choices: { value: string; label: string; detail?: string; off?: boolean }[], selected: string, onpick: (v: string) => void)}
-  <div class="field" class:open={openKey === key}>
+  <div class="pick" class:open={openKey === key}>
     <button type="button" class="field-trigger" aria-haspopup="listbox" aria-expanded={openKey === key} onclick={() => (openKey = openKey === key ? null : key)}>
       <dt>{label}</dt>
       <dd>{value}<svg class="chev" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></dd>
@@ -61,7 +61,7 @@
   </div>
 {/snippet}
 
-<svelte:window onpointerdown={(e) => openKey && !(e.target as Element).closest('.field') && (openKey = null)} />
+<svelte:window onpointerdown={(e) => openKey && !(e.target as Element).closest('.pick') && (openKey = null)} />
 
 <div class="summary">
   <dl>
@@ -118,7 +118,7 @@
     margin: 0;
   }
 
-  .field {
+  .pick {
     position: relative;
   }
 
@@ -131,7 +131,7 @@
   }
 
   .field-trigger:hover,
-  .field.open .field-trigger {
+  .pick.open .field-trigger {
     background: var(--surface-3);
   }
 
@@ -152,11 +152,11 @@
   }
 
   .field-trigger:hover .chev,
-  .field.open .chev {
+  .pick.open .chev {
     opacity: 1;
   }
 
-  .field .option-menu {
+  .pick .option-menu {
     left: 0;
     right: auto;
   }

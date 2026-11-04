@@ -36,8 +36,14 @@
   }
 
   async function askAgent(pull: Pull) {
-    launched = { id: await reviewWithAgent(project.path, pull), number: pull.number }
+    busy = { number: pull.number, doing: 'ask' }
+    try {
+      launched = { id: await reviewWithAgent(project.path, pull), number: pull.number }
+    } finally {
+      busy = null
+    }
   }
+  const starting = (pull: Pull) => busy?.number === pull.number && busy.doing === 'ask'
   const asking = (pull: Pull): Choice => ({
     label: t('review.askAgent'),
     title: settings.pilot ? t('review.askAgentTitle') : t('review.askAgentNeedsPilot'),
@@ -45,17 +51,20 @@
   })
   async function askAgain(agent: Agent, pull: Pull) {
     failure = ''
+    busy = { number: pull.number, doing: 'ask' }
     try {
       await reviewChanges(agent, pull)
       launched = { id: agent.id, number: pull.number }
     } catch (e) {
       failure = `#${pull.number}: ${e}`
+    } finally {
+      busy = null
     }
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
 
-  let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' } | null>(null)
+  let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' | 'ask' } | null>(null)
   let failure = $state('')
 
   async function act(pull: Pull, doing: 'approve' | 'request_changes' | 'merge', work: () => Promise<unknown>) {
@@ -73,7 +82,7 @@
 
   let menu = $state('')
 
-  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean }
+  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean; spinning?: boolean }
 
   const openOn = (pull: Pull): Choice => ({ label: t('review.openOn', { host: hostName(pull) }), run: () => invoke('open_link', { url: pull.url }) })
   const merging = (pull: Pull): Choice[] =>
@@ -172,7 +181,7 @@
           {@const reviewer = reviewerOf(project.path, pull)}
           {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
           {@const seeing = reviewer && { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, run: () => show(reviewer) }}
-          {@const main = !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
+          {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
@@ -254,6 +263,7 @@
       <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
     {/if}
     <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={!!busy && !main.always} onclick={() => ((menu = ''), main.run())}>
+      {#if main.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>{/if}
       {main.label}
     </button>
     {#if more.length}
@@ -663,6 +673,13 @@
 
   .split .more {
     padding: 0;
+  }
+
+  .spin {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    animation: spin 1.4s linear infinite;
   }
 
   .more svg {

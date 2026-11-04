@@ -71,6 +71,7 @@ export const backend: Partial<Record<Locale, Table>> = {
       'Unknown branch.': 'Branche inconnue.',
       'Unknown conversation.': 'Conversation inconnue.',
       'Unknown project.': 'Projet inconnu.',
+      'The system keyring is waiting to be unlocked.': 'Le trousseau du système attend d’être déverrouillé.',
       'This Jira connection no longer exists.': 'Cette connexion Jira n’existe plus.',
       'Enter a Jira API token.': 'Saisissez un jeton d’API Jira.',
       'Enter the Jira site, such as company.atlassian.net.': 'Saisissez le site Jira, par exemple entreprise.atlassian.net.',

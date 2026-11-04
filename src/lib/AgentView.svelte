@@ -28,6 +28,8 @@
   import { docsOf } from './artifacts'
   import { pointed, refresh as refreshArtifacts, shelf } from './artifacts.svelte'
   import TicketPanel from './TicketPanel.svelte'
+  import { loadConnections, tickets } from './tickets.svelte'
+  import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
   import { run } from './shells.svelte'
@@ -221,12 +223,18 @@
     untrack(() => quotes.forEach(point))
   })
   const ticket = $derived(projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket)
-  let reading = $state(false)
+  let reading = $state<{ connection: string; key: string } | null>(null)
   let persona = $state(false)
   $effect(() => {
     void agent.id
-    reading = false
+    reading = null
   })
+  async function readTicket(key: string) {
+    if (reading?.key === key) return (reading = null)
+    const sources = projects.list.find((p) => p.path === agent.project)?.tickets ?? []
+    const connection = ticket?.key === key ? ticket.connection : (connectionFor(sources, key) ?? (tickets.connections ?? (await loadConnections()))[0]?.id)
+    if (connection) reading = { connection, key }
+  }
   const mcpGroups = $derived(groups(agent.tools ?? []).filter((g) => g.kind === 'mcp'))
   const info = $derived(
     shown('agent.info').filter(
@@ -752,8 +760,8 @@
 
 <main style:--panel-top="{headerHeight}px" style:--panel-share={bottomShare(openPanel(agent.project))}>
   <section class="conversation" aria-label={t('agent.conversation')}>
-    {#if reading && ticket}
-      <TicketPanel connection={ticket.connection} ticketKey={ticket.key} linked oncreate={() => {}} onclose={() => (reading = false)} />
+    {#if reading}
+      <TicketPanel connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />
     {/if}
     <div class="top" bind:offsetHeight={headerHeight}>
       <div class="title">
@@ -979,9 +987,9 @@
               <button
                 class="chip ticket"
                 data-item={id}
-                aria-pressed={reading}
-                title={t(reading ? 'tickets.closeTicket' : 'tickets.openTicket', { key: ticket.key })}
-                onclick={() => (reading = !reading)}
+                aria-pressed={reading?.key === ticket.key}
+                title={t(reading?.key === ticket.key ? 'tickets.closeTicket' : 'tickets.openTicket', { key: ticket.key })}
+                onclick={() => readTicket(ticket.key)}
               >
                 <span class="jira" aria-hidden="true">J</span><span class="mono">{ticket.key}</span><span class="go" aria-hidden="true">›</span>
               </button>
@@ -1136,6 +1144,7 @@
           onterminal={inTerminal}
           onrun={(command) => ((stuck = true), run(agent, command))}
           onsend={(message) => send(agent.id, message)}
+          onticket={readTicket}
         />
         </div>
       </div>

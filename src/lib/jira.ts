@@ -3,6 +3,8 @@ import type { Source, Summary } from './tickets.svelte'
 export type Facet = 'status' | 'kind' | 'priority' | 'epic'
 export type Filters = { source: string; mine: boolean; people: string[]; free: boolean; query: string; hidden: Record<Facet, string[]> }
 
+export const connectionFor = (sources: Source[], key: string) => (sources.find((s) => key.startsWith(`${s.key}-`)) ?? sources[0])?.connection
+
 export const FACETS: Facet[] = ['status', 'kind', 'priority', 'epic']
 export const emptyFilters = (): Filters => ({ source: '', mine: false, people: [], free: false, query: '', hidden: { status: [], kind: [], priority: [], epic: [] } })
 

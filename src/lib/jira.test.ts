@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { emptyFilters, filterTickets, kindTone, statusColumns } from './jira'
+import { connectionFor, emptyFilters, filterTickets, kindTone, statusColumns } from './jira'
 import type { Summary } from './tickets.svelte'
 
 const ticket = (key: string, status: string, category: string, extra: Partial<Summary> = {}): Summary => ({
@@ -46,5 +46,10 @@ describe('jira', () => {
 
   it('tones the issue types', () => {
     expect([kindTone('Bug'), kindTone('Récit'), kindTone('Epic'), kindTone('Sous-tâche')]).toEqual(['bug', 'story', 'epic', 'task'])
+  })
+
+  it('finds the connection of a ticket from its project key', () => {
+    const sources = [{ connection: 'a', key: 'AB', name: '' }, { connection: 'b', key: 'LR', name: '' }]
+    expect([connectionFor(sources, 'LR-282'), connectionFor(sources, 'ABC-1'), connectionFor([], 'LR-1')]).toEqual(['b', 'a', undefined])
   })
 })

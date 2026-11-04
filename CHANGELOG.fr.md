@@ -1,5 +1,25 @@
 # Nouveautés
 
+## 0.32.0 · 2026-11-04
+
+### Conversation
+
+- **Tickets Jira dans les messages envoyés** : un ticket joint à un message s’affiche en puce avec sa clé et son titre. Un clic ouvre le panneau du ticket à côté de la conversation, avec sa description, ses commentaires et ses liens.
+- Le panneau du ticket s’ouvre sous l’en-tête de l’agent au lieu de passer dessous.
+
+### Hébergement du code
+
+- Réglages › Hébergement du code présente Bitbucket, GitLab, Azure DevOps et GitHub en cartes avec leur logo et le compte. Les étapes de connexion d’un hébergeur s’ouvrent sous sa ligne au clic sur Connecter.
+
+### Pull requests
+
+- Demander à un agent et Relire les nouveautés affichent un indicateur de chargement sur le bouton de la ligne pendant le lancement de l’agent, au lieu de sembler ne rien faire.
+
+### Corrections
+
+- Les tokens, dont celui de GitHub utilisé par gh, sont lus dans le trousseau du système une fois par lancement au lieu de chaque rafraîchissement des pull requests : un trousseau redémarré verrouillé ne ramène plus la demande de déverrouillage toute la journée.
+- Le modèle et l’effort dans la fenêtre Nouvel agent et sur une carte redeviennent de simples libellés, avec l’advisor sur une ligne.
+
 ## 0.31.0 · 2026-11-04
 
 ### Hébergement du code
