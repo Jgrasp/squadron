@@ -1,3 +1,4 @@
+use crate::forge;
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -131,26 +132,16 @@ pub const FIELDS: [&str; 13] = [
     "custom",
 ];
 
-fn entry() -> Result<keyring::Entry, String> {
-    let service = if cfg!(debug_assertions) {
-        "squadron-dev"
-    } else {
-        "squadron"
-    };
-    keyring::Entry::new(service, "tickets").map_err(|e| e.to_string())
-}
-
 fn secrets() -> Result<Vec<Secret>, String> {
-    match entry()?.get_password() {
-        Ok(text) => serde_json::from_str(&text).map_err(|e| e.to_string()),
-        Err(keyring::Error::NoEntry) => Ok(Vec::new()),
-        Err(e) => Err(e.to_string()),
+    match forge::read_secret("tickets")? {
+        Some(text) => serde_json::from_str(&text).map_err(|e| e.to_string()),
+        None => Ok(Vec::new()),
     }
 }
 
 fn keep(list: &[Secret]) -> Result<(), String> {
     let text = serde_json::to_string(list).map_err(|e| e.to_string())?;
-    entry()?.set_password(&text).map_err(|e| e.to_string())
+    forge::write_secret("tickets", Some(&text))
 }
 
 fn secret(id: &str) -> Result<Secret, String> {
