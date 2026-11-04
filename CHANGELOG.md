@@ -1,5 +1,25 @@
 # Changelog
 
+## 0.32.0 · 2026-11-04
+
+### Conversation
+
+- **Jira tickets in sent messages**: a ticket attached to a message shows as a chip with its key and title. A click opens the ticket panel beside the conversation, with its description, comments and links.
+- The ticket panel opens below the agent header instead of under it.
+
+### Code hosting
+
+- Settings › Code hosting shows Bitbucket, GitLab, Azure DevOps and GitHub as cards with their logo and account. A host's connection steps open under its row when you click Connect.
+
+### Pull requests
+
+- Ask an agent and Review new changes show a spinner on the row's button while the agent launches, instead of seeming to do nothing.
+
+### Fixes
+
+- Tokens, including the GitHub one used by gh, are read from the system keyring once per launch instead of at every pull request refresh: a keyring restarted locked no longer brings back the unlock prompt all day.
+- Model and effort in the new agent window and on a card read as plain labels again, with the advisor on one line.
+
 ## 0.31.0 · 2026-11-04
 
 ### Code hosting
