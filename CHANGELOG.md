@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.29.1 · 2026-11-04
+
+### Security
+
+- The built app ships a Content Security Policy: scripts load only from the bundle, so an injected string can no longer run or fetch code.
+- The MCP token is no longer visible to every process on the machine: Claude Code reads it from a private file.
+- A remembered sudo, ssh or git password is tied to the command it answered, and the card shows that command, so another command started by an agent can no longer replay it silently.
+- A dangling symlink in a project can no longer make the editor or ask_values write outside of it; a task text starting with a dash can no longer be read as a Claude Code option.
+
+### Fixes
+
+- Squadron starts again from its AppImage on distributions other than Ubuntu, and a link or file that GIO cannot open, as on Fedora, opens through xdg-open.
+- A file dropped on the new agent window joins its attachments instead of the conversation behind it. A file copied in the file manager and pasted is attached instead of pasted as its path, in the conversation too.
+- A GitHub pull request where you were just asked for a review shows in the review list right away, without waiting for GitHub's search index.
+- An agent waiting for a background command no longer gets stuck forever.
+- A Bitbucket project whose remote points to ssh.bitbucket.org is still recognized.
+- ask_values tells the agent that the values were written into the file without being returned to it.
+
 ## 0.29.0 · 2026-11-03
 
 ### Startup

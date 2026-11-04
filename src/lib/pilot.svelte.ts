@@ -382,7 +382,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     }
     await invoke('write_project_file', { project: root, path, text })
     const left = fields.filter((f) => !(f.key in values)).map((f) => f.key)
-    return `Filled ${Object.keys(values).join(', ')} in ${path}.${left.length ? ` The user left ${left.join(', ')} empty.` : ''} You never see these values: do not read them back, print them or copy them elsewhere.`
+    return `Filled ${Object.keys(values).join(', ')} in ${path}.${left.length ? ` The user left ${left.join(', ')} empty.` : ''} Squadron wrote them straight into the file without returning them to you, so don't read them back from it, print them or copy them elsewhere.`
   },
 
 

@@ -20,6 +20,7 @@
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
   import { hint as keyOf, saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
+  import { untrack } from 'svelte'
   import { chime } from './chime'
   import { tokens } from './format'
   import { errorText, LANGUAGES, list, systemLocale, t, type Key } from './i18n/index.svelte'
@@ -171,7 +172,7 @@
   const withRules = $derived(projects.list.filter((p) => p.rules.length))
 
   const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language, conversation_width: width, sidebar })
-  let baseline = $state(JSON.stringify(form))
+  let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
   async function save() {

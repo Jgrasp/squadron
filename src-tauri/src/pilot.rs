@@ -20,7 +20,7 @@ During a long task made of many items, show where you are on your card with set_
 To name a Kanban task in a reply, link it as [its code or title](squadron:task/<card id>), with the card id that overview or create_card gives: Squadron shows a chip the user clicks to see the task, or a card when the link opens a list item. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
 When you produce a document or a page the user will read, keep or iterate on, such as a report, a plan, a diagram, a mock-up or a clickable prototype, make it an artifact (a folder in $SQUADRON_ARTIFACTS, or publish_artifact for a single file) instead of only writing it in the conversation, and update it as it changes. \
-When the user must put values such as keys, tokens, secrets, passwords or personal data into a file, call ask_values without editing the file yourself: Squadron asks the user and writes the file without you seeing them. Never ask for such values in the conversation.";
+When the user must put values such as keys, tokens, secrets, passwords or personal data into a file, call ask_values without editing the file yourself: Squadron asks the user and writes the values into the file itself, without passing them back to you. Never ask for such values in the conversation.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -449,7 +449,7 @@ impl Pilot {
         self.forward(&parts, "publish_artifact", json!(args)).await
     }
 
-    /// Asks the user, in a card of your conversation, for values to put into a file, such as API keys, tokens, passwords or a phone number, and waits for them. Do not edit the file yourself, even to prepare it: Squadron writes each value where a {{squadron:KEY}} placeholder already is, or else adds the field's line at the end of the file. It tells you which values were filled: you never see them, so never read them back, print them or copy them elsewhere.
+    /// Asks the user, in a card of your conversation, for values to put into a file, such as API keys, tokens, passwords or a phone number, and waits for them. Do not edit the file yourself, even to prepare it: Squadron writes each value where a {{squadron:KEY}} placeholder already is, or else adds the field's line at the end of the file. It tells you which values were filled, not the values themselves, so do not read them back from the file, print them or copy them elsewhere.
     #[tool]
     async fn ask_values(
         &self,

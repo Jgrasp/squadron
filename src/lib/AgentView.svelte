@@ -544,6 +544,7 @@
     untrack(() => ui.drops++)
     getCurrentWebview()
       .onDragDropEvent(({ payload }) => {
+        if (ui.creating) return
         if (payload.type === 'over' || payload.type === 'enter') dropping = true
         else if (payload.type === 'leave') dropping = false
         else if (payload.type === 'drop') {
@@ -1234,7 +1235,7 @@
     transition: height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  :global(.resizing) > .conversation {
+  :global(.resizing > .conversation) {
     transition: none;
   }
 

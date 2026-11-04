@@ -486,6 +486,13 @@ fn custom_value(value: &Value) -> String {
 }
 
 pub async fn ticket(connection: &str, key: &str) -> Result<Ticket, String> {
+    if key.is_empty()
+        || !key
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || c == '-' || c == '_')
+    {
+        return Err("Invalid ticket key.".into());
+    }
     let secret = secret(connection)?;
     let issue = request(
         &secret,

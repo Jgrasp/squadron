@@ -654,6 +654,7 @@ async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<St
                 "--no-session-persistence",
                 "--system-prompt",
                 "You name software tasks. Reply with a title of 2 to 5 words in the language of the task, with no quotes and no final punctuation.",
+                "--",
                 &task,
             ])
             .output()
@@ -756,7 +757,7 @@ fn open_artifact_folder(agent: String, id: String) -> Result<(), String> {
     if id.is_empty() || id.starts_with('.') || id.contains('/') || !dir.is_dir() {
         return Err("The artifact is gone.".into());
     }
-    tauri_plugin_opener::open_path(dir, None::<&str>).map_err(|e| e.to_string())
+    open_path(&dir)
 }
 
 #[tauri::command]
@@ -1168,7 +1169,7 @@ fn open_with(command: String, project: PathBuf, path: PathBuf) -> Result<(), Str
 #[tauri::command]
 fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
-    tauri_plugin_opener::open_path(file, None::<&str>).map_err(|e| e.to_string())
+    open_path(&file)
 }
 
 #[tauri::command]
@@ -1564,7 +1565,7 @@ fn open_attachment(path: PathBuf) -> Result<(), String> {
     if !meta.is_file() || runs {
         return Err("Squadron only opens documents and images from here.".into());
     }
-    tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+    open_path(&path)
 }
 
 #[tauri::command]
@@ -1602,6 +1603,31 @@ fn git_branch(path: PathBuf) -> Result<Option<String>, String> {
     Ok(projects::branch(&path))
 }
 
+fn open_path(path: &Path) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let uri = gtk::gio::prelude::FileExt::uri(&gtk::gio::File::for_path(path));
+        launch(&uri, gtk::gio::AppLaunchContext::new())
+    }
+    #[cfg(not(target_os = "linux"))]
+    tauri_plugin_opener::open_path(path, None::<&str>).map_err(|e| e.to_string())
+}
+
+#[cfg(target_os = "linux")]
+fn launch(uri: &str, context: gtk::gio::AppLaunchContext) -> Result<(), String> {
+    gtk::gio::prelude::AppLaunchContextExt::unsetenv(&context, "LD_LIBRARY_PATH");
+    gtk::gio::AppInfo::launch_default_for_uri(uri, Some(&context)).or_else(|e| {
+        // The AppImage's GLib looks for gio-launch-desktop where the build distribution keeps it.
+        log::warn!("{uri} did not open through GIO ({e}), trying xdg-open");
+        let mut child = process::command("xdg-open")
+            .arg(uri)
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        std::thread::spawn(move || child.wait());
+        Ok(())
+    })
+}
+
 #[tauri::command]
 fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
@@ -1612,15 +1638,13 @@ fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
         let parent = window.clone();
         window
             .run_on_main_thread(move || {
-                let shown = parent
+                let context = parent
                     .gtk_window()
-                    .map_err(|e| e.to_string())
-                    .and_then(|w| {
-                        let context = gtk::prelude::WidgetExt::display(&w).app_launch_context();
-                        gtk::gio::AppInfo::launch_default_for_uri(&url, context.as_ref())
-                            .map_err(|e| e.to_string())
-                    });
-                if let Err(e) = shown {
+                    .ok()
+                    .and_then(|w| gtk::prelude::WidgetExt::display(&w).app_launch_context())
+                    .map(gtk::prelude::Cast::upcast)
+                    .unwrap_or_else(gtk::gio::AppLaunchContext::new);
+                if let Err(e) = launch(&url, context) {
                     log::error!("{url} did not open: {e}");
                 }
             })
@@ -1685,7 +1709,7 @@ fn login_path() {
         }
         .into()
     });
-    let Ok(mut child) = std::process::Command::new(shell)
+    let Ok(mut child) = process::command(shell)
         .args(["-ilc", "printf '\\n%s' \"$PATH\""])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
@@ -1782,11 +1806,7 @@ fn restore_place(app: &tauri::App, config: &std::path::Path) {
 
 #[cfg_attr(mobile, tauri::mobile_entry_point)]
 pub fn run() {
-    for leaked in [
-        "GIO_LAUNCHED_DESKTOP_FILE",
-        "GIO_LAUNCHED_DESKTOP_FILE_PID",
-        "LD_LIBRARY_PATH",
-    ] {
+    for leaked in ["GIO_LAUNCHED_DESKTOP_FILE", "GIO_LAUNCHED_DESKTOP_FILE_PID"] {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::remove_var(leaked) };
     }
@@ -2067,7 +2087,7 @@ pub fn run() {
             }
             app.manage(askpass);
             let agents = app.state::<Agents>();
-            agents.endpoint(port, token);
+            agents.endpoint(port, token, app.path().app_data_dir()?.join("mcp"));
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);

@@ -37,7 +37,6 @@ export default {
   task: 'Tâche',
   taskPromptPlaceholder: 'Ce qu’il faut faire. L’agent le reçoit comme premier message.',
   taskGoalPlaceholder: 'Facultatif. L’agent continue jusqu’à ce que ce soit vrai, puis la tâche passe en relecture. Demandez une preuve visible : tests lancés, résultat affiché.',
-  taskFiles: 'Captures d’écran et fichiers envoyés avec la tâche',
   attach: 'Captures, fichiers',
   attachTitle: 'Joindre des captures d’écran ou des fichiers. Une capture se colle aussi dans la description.',
   agentSettings: 'Réglages de l’agent',

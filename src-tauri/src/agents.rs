@@ -28,7 +28,7 @@ struct Agent {
 #[derive(Default)]
 pub struct Agents {
     list: Mutex<HashMap<String, Agent>>,
-    endpoint: Mutex<Option<(u16, String)>>,
+    endpoint: Mutex<Option<(u16, String, PathBuf)>>,
     pilot: AtomicBool,
 }
 
@@ -44,9 +44,19 @@ struct Exit<'a> {
     stderr: &'a str,
 }
 
+fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<PathBuf> {
+    std::fs::create_dir_all(path.parent().unwrap())?;
+    let mut open = std::fs::OpenOptions::new();
+    open.write(true).create(true).truncate(true);
+    #[cfg(unix)]
+    std::os::unix::fs::OpenOptionsExt::mode(&mut open, 0o600);
+    std::io::Write::write_all(&mut open.open(path)?, text.as_bytes())?;
+    Ok(path.to_path_buf())
+}
+
 impl Agents {
-    pub fn endpoint(&self, port: u16, token: String) {
-        *self.endpoint.lock().unwrap() = Some((port, token));
+    pub fn endpoint(&self, port: u16, token: String, dir: PathBuf) {
+        *self.endpoint.lock().unwrap() = Some((port, token, dir));
     }
 
     pub fn set_pilot(&self, on: bool) {
@@ -61,13 +71,16 @@ impl Agents {
 
     fn mcp(&self, id: &str) -> Option<String> {
         let endpoint = self.endpoint.lock().unwrap();
-        let (port, token) = endpoint.as_ref()?;
-        Some(crate::permissions::mcp_config(
-            *port,
-            token,
-            id,
-            self.pilot.load(Ordering::Relaxed),
-        ))
+        let (port, token, dir) = endpoint.as_ref()?;
+        let config =
+            crate::permissions::mcp_config(*port, token, id, self.pilot.load(Ordering::Relaxed));
+        match write_private(&dir.join(format!("{id}.json")), &config) {
+            Ok(path) => Some(path.to_string_lossy().into_owned()),
+            Err(e) => {
+                log::warn!("MCP config file not written, passing it inline: {e}");
+                Some(config)
+            }
+        }
     }
 
     pub fn register(
@@ -81,6 +94,11 @@ impl Agents {
         options.check()?;
         if id.is_empty() || !id.chars().all(|c| c.is_ascii_alphanumeric() || c == '-') {
             return Err("Invalid agent id.".into());
+        }
+        if session_id.as_deref().is_some_and(|s| {
+            s.is_empty() || s.len() > 64 || !s.chars().all(|c| c.is_ascii_hexdigit() || c == '-')
+        }) {
+            return Err("Invalid session id.".into());
         }
         let mcp = self.mcp(id);
         self.list
@@ -448,6 +466,25 @@ mod tests {
     use super::*;
 
     #[test]
+    fn keeps_the_mcp_token_in_a_private_file() {
+        let dir = std::env::temp_dir().join(format!("squadron-mcp-{}", uuid::Uuid::new_v4()));
+        let agents = Agents::default();
+        agents.endpoint(4242, "secret".into(), dir.clone());
+        let path = PathBuf::from(agents.mcp("a1").unwrap());
+        assert_eq!(path, dir.join("a1.json"));
+        assert!(std::fs::read_to_string(&path).unwrap().contains("secret"));
+        #[cfg(unix)]
+        {
+            use std::os::unix::fs::PermissionsExt;
+            assert_eq!(
+                std::fs::metadata(&path).unwrap().permissions().mode() & 0o777,
+                0o600
+            );
+        }
+        std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
     fn accepts_only_a_message_uuid_as_fork_point() {
         let agents = Agents::default();
         let options = Options {
@@ -461,11 +498,22 @@ mod tests {
             .register(
                 "a1",
                 PathBuf::from("/tmp"),
-                options,
-                Some("s1".into()),
+                options.clone(),
+                Some("2654721f-e7e6-4b3c-a2a7-25979e1d1873".into()),
                 true,
             )
             .unwrap();
+        assert!(
+            agents
+                .register(
+                    "a2",
+                    PathBuf::from("/tmp"),
+                    options,
+                    Some("--resume".into()),
+                    false
+                )
+                .is_err()
+        );
         assert!(
             agents
                 .fork_at("a1", "2654721f-e7e6-4b3c-a2a7-25979e1d1873")

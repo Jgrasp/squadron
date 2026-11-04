@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
+  import { ui } from './actions.svelte'
   import AgentDefinition from './AgentDefinition.svelte'
   import AgentPicker from './AgentPicker.svelte'
   import Attachment from './Attachment.svelte'
@@ -60,6 +62,21 @@
   }
 
   const clip = imagePaste(attach, (e) => (attachError = e))
+
+  $effect(() => {
+    let stop: (() => void) | undefined
+    let gone = false
+    untrack(() => ui.drops++)
+    getCurrentWebview()
+      .onDragDropEvent(({ payload }) => payload.type === 'drop' && attach(payload.paths))
+      .then((unlisten) => (gone ? unlisten() : (stop = unlisten)))
+      .catch(() => {})
+    return () => {
+      gone = true
+      ui.drops--
+      stop?.()
+    }
+  })
 
   let message: HTMLTextAreaElement
   let dismissed = $state('')

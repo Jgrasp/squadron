@@ -33,7 +33,7 @@ fn repo(url: &str) -> Option<Repo> {
         None => url.split_once(':')?,
     };
     let host = match host.rsplit('@').next()?.split(':').next()? {
-        "bitbucket.org" => Host::Bitbucket,
+        "bitbucket.org" | "ssh.bitbucket.org" => Host::Bitbucket,
         "github.com" => Host::GitHub,
         _ => return None,
     };
@@ -569,33 +569,42 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                 let me = gh(&["api", "user", "--jq", ".login"], None)?
                     .trim()
                     .to_string();
-                let search = |query: &str| -> Result<Vec<Pull>, String> {
-                    let out = gh(
-                        &[
-                            "pr",
-                            "list",
-                            "--repo",
-                            &repo.slug,
-                            "--state",
-                            "open",
-                            "--limit",
-                            "50",
-                            "--search",
-                            query,
-                            "--json",
-                            GITHUB_FIELDS,
-                        ],
-                        None,
-                    )?;
+                let list = |query: &str| -> Result<Vec<Value>, String> {
+                    let mut args = vec![
+                        "pr",
+                        "list",
+                        "--repo",
+                        repo.slug.as_str(),
+                        "--state",
+                        "open",
+                        "--limit",
+                        "50",
+                        "--json",
+                        GITHUB_FIELDS,
+                    ];
+                    if !query.is_empty() {
+                        args.extend(["--search", query]);
+                    }
+                    let out = gh(&args, None)?;
                     let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-                    Ok(list
+                    Ok(list.as_array().cloned().unwrap_or_default())
+                };
+                let search = |query: &str| -> Result<Vec<Pull>, String> {
+                    Ok(list(query)?.iter().map(|p| github_pull(p, &me)).collect())
+                };
+                let mut review = search("review-requested:@me")?;
+                // GitHub's search index can lag hours behind a new review request.
+                for found in list("")?.iter().filter(|p| {
+                    p["reviewRequests"]
                         .as_array()
                         .into_iter()
                         .flatten()
-                        .map(|p| github_pull(p, &me))
-                        .collect())
-                };
-                let mut review = search("review-requested:@me")?;
+                        .any(|r| r["login"] == me.as_str())
+                }) {
+                    if !review.iter().any(|p| Some(p.number) == found["number"].as_u64()) {
+                        review.push(github_pull(found, &me));
+                    }
+                }
                 review.iter_mut().for_each(|p| p.reviewed = None);
                 for pull in search("reviewed-by:@me -author:@me")? {
                     if !review.iter().any(|p| p.number == pull.number) {
@@ -1340,6 +1349,10 @@ mod tests {
         );
         assert_eq!(
             repo("ssh://git@bitbucket.org:22/akki-team/fileas/"),
+            bitbucket("akki-team/fileas")
+        );
+        assert_eq!(
+            repo("git@ssh.bitbucket.org:akki-team/fileas.git"),
             bitbucket("akki-team/fileas")
         );
         assert_eq!(
