@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.30.0 · 2026-11-04
+
+### Conversation
+
+- **Find in conversation**: Ctrl+F opens a search bar in the conversation, with the count of matches and previous and next.
+- **MCP connectors**: a chip in the conversation bar lists the MCP connectors the agent has, with a filter. It shows once the agent has at least one MCP server and can be hidden from the layout settings.
+
+### Pull requests
+
+- **Request changes**: a pull request can be sent back from its menu, next to Approve.
+
+### New agent
+
+- Model and effort change right from the summary of the new agent window and of a Kanban card, without opening the settings. The settings stay closed each time the window opens.
+
 ## 0.29.1 · 2026-11-04
 
 ### Security
