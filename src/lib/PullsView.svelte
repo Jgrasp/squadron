@@ -82,7 +82,7 @@
 
   let menu = $state('')
 
-  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean }
+  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean; spinning?: boolean }
 
   const openOn = (pull: Pull): Choice => ({ label: t('review.openOn', { host: hostName(pull) }), run: () => invoke('open_link', { url: pull.url }) })
   const merging = (pull: Pull): Choice[] =>
@@ -181,7 +181,7 @@
           {@const reviewer = reviewerOf(project.path, pull)}
           {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
           {@const seeing = reviewer && { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, run: () => show(reviewer) }}
-          {@const main = starting(pull) ? { label: t('review.starting'), run: () => {} } : !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
+          {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
@@ -263,6 +263,7 @@
       <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
     {/if}
     <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={!!busy && !main.always} onclick={() => ((menu = ''), main.run())}>
+      {#if main.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>{/if}
       {main.label}
     </button>
     {#if more.length}
@@ -672,6 +673,13 @@
 
   .split .more {
     padding: 0;
+  }
+
+  .spin {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3;
+    animation: spin 1.4s linear infinite;
   }
 
   .more svg {
