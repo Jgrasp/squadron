@@ -5,6 +5,7 @@
   import { ago, duration, time } from './format'
   import { editProject, type Project } from './projects.svelte'
   import { active, dismiss, shown, type Run } from './pipelines.svelte'
+  import { hostName as host } from './pulls.svelte'
   import { saveSettings, settings } from './settings.svelte'
   import { t, type Key } from './i18n/index.svelte'
 
@@ -38,7 +39,6 @@
   ]
 
   const took = (run: Run) => duration(Math.max(0, (run.finished ? Date.parse(run.finished) : clock.now) - Date.parse(run.started)))
-  const host = (run: Run) => (run.host === 'github' ? 'GitHub' : 'Bitbucket')
 
   function enter() {
     clearTimeout(leaving)

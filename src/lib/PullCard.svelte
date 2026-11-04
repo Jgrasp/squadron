@@ -61,6 +61,10 @@
 {#snippet icon()}
   {#if pull?.host === 'bitbucket' || url.includes('bitbucket.org')}
     <svg class="host" viewBox="0 0 16 16" aria-hidden="true"><path d="M.78 1.5a.5.5 0 0 0-.5.58l2.06 12.5c.05.31.32.54.64.55h10.03a.5.5 0 0 0 .5-.42L15.6 2.08a.5.5 0 0 0-.5-.58H.78zm8.86 9.04H6.42l-.87-4.58h4.87l-.78 4.58z" /></svg>
+  {:else if pull?.host === 'gitlab' || url.includes('/-/merge_requests/')}
+    <svg class="host" viewBox="0 0 16 16" aria-hidden="true"><path d="m15.73 6.34-.02-.06-2.18-5.69a.57.57 0 0 0-1.08.04l-1.47 4.5H5.02L3.55.63a.57.57 0 0 0-1.08-.04L.29 6.28l-.02.06a4.05 4.05 0 0 0 1.34 4.68l.01.01 3.32 2.49 1.65 1.24 1 .76a.67.67 0 0 0 .82 0l1-.76 1.65-1.24 3.34-2.5a4.05 4.05 0 0 0 1.33-4.68z" /></svg>
+  {:else if pull?.host === 'azure' || url.includes('/pullrequest/')}
+    <svg class="host" viewBox="0 0 16 16" aria-hidden="true"><path d="M16 3.06v9.5l-3.94 3.22L5.94 13.6v2.19L2.48 11.27l10.08.79V3.43L16 3.06zm-3.36.48L6.98 0v2.31L1.85 3.82 0 6.23v5.38l2.2.95V5.68l10.44-2.14z" /></svg>
   {:else}
     <svg class="host" viewBox="0 0 16 16" aria-hidden="true"
       ><path

@@ -367,7 +367,7 @@ impl Pilot {
         self.forward(&parts, "set_progress", json!(args)).await
     }
 
-    /// Adds a comment to the user's draft review of the pull request you were asked to review, on a line the diff shows or, without path and line, on the whole pull request. The user reads, edits and posts the review: nothing reaches Bitbucket or GitHub without them.
+    /// Adds a comment to the user's draft review of the pull request you were asked to review, on a line the diff shows or, without path and line, on the whole pull request. The user reads, edits and posts the review: nothing reaches Bitbucket, GitHub, GitLab or Azure DevOps without them.
     #[tool]
     async fn add_review_comment(
         &self,
@@ -378,7 +378,7 @@ impl Pilot {
             .await
     }
 
-    /// Returns the comments posted on a pull request on Bitbucket or GitHub, in threads with their replies: on the whole pull request or on a file line (outdated when the line no longer exists). Squadron reads them with the user's account: no token needed.
+    /// Returns the comments posted on a pull request on Bitbucket, GitHub, GitLab or Azure DevOps, in threads with their replies: on the whole pull request or on a file line (outdated when the line no longer exists). Squadron reads them with the user's account: no token needed.
     #[tool]
     async fn read_pull_comments(
         &self,

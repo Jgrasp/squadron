@@ -9,7 +9,7 @@ import type { Linked } from './linked.svelte'
 import { t, type Key } from './i18n/index.svelte'
 
 export type Pull = {
-  host: 'bitbucket' | 'github'
+  host: 'bitbucket' | 'github' | 'gitlab' | 'azure'
   number: number
   title: string
   description: string
@@ -313,7 +313,9 @@ export async function fixWithAgent(project: string, pull: Pull, summary: string,
   return create(project, t('review.fixAgentName', { number: String(pull.number) }), defaultsFor(project), `${intro}\n\n${prompt(summary, list)}`, { dir })
 }
 
-export const hostName = (pull: Pull) => (pull.host === 'github' ? 'GitHub' : 'Bitbucket')
+const HOSTS: Record<Pull['host'], string> = { bitbucket: 'Bitbucket', github: 'GitHub', gitlab: 'GitLab', azure: 'Azure DevOps' }
+
+export const hostName = (on: { host: Pull['host'] }) => HOSTS[on.host]
 
 const STATES: Record<Pull['state'], Key> = {
   open: 'review.stateOpen',

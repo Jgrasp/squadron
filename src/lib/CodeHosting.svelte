@@ -7,12 +7,16 @@
   import { errorText, t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
 
-  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; github: string | null }
+  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; github: string | null; gitlab: string | null; azure: string | null }
 
   let accounts = $state<Accounts | null>(null)
   let email = $state('')
   let token = $state('')
   let error = $state('')
+  let site = $state('')
+  let organization = $state('')
+  let tokens = $state({ gitlab: '', azure: '' })
+  let failed = $state({ gitlab: '', azure: '' })
   let busy = $state(false)
   let copied = $state('')
   const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket', 'read:pipeline:bitbucket']
@@ -54,8 +58,24 @@
     }
   }
 
-  async function signOut() {
-    await invoke('bitbucket_sign_out')
+  async function connect(event: Event, host: 'gitlab' | 'azure', args: Record<string, string>) {
+    event.preventDefault()
+    failed[host] = ''
+    busy = true
+    try {
+      await invoke(`${host}_sign_in`, { ...args, token: tokens[host] })
+      tokens[host] = ''
+      await refresh()
+      lookUpAll(true)
+    } catch (e) {
+      failed[host] = errorText(e)
+    } finally {
+      busy = false
+    }
+  }
+
+  async function signOut(account = 'bitbucket') {
+    await invoke('forge_sign_out', { account })
     await refresh()
     lookUpAll(true)
   }
@@ -70,7 +90,7 @@
   {:else if accounts.bitbucket}
     <div class="signed">
       <span><Trans k="settings.bitbucketSignedIn">{#snippet email()}<strong>{accounts?.bitbucket}</strong>{/snippet}</Trans></span>
-      <button class="btn btn-secondary" onclick={signOut}>{t('settings.signOut')}</button>
+      <button class="btn btn-secondary" onclick={() => signOut()}>{t('settings.signOut')}</button>
     </div>
     {#if !accounts.bitbucket_user}
       <p class="intro">
@@ -108,6 +128,79 @@
     </form>
   {/if}
   {#if error}<p class="bad" role="alert">{error}</p>{/if}
+</section>
+
+<section>
+  <h3>GitLab</h3>
+  {#if !accounts}
+    <p class="intro">{t('common.checking')}</p>
+  {:else if accounts.gitlab}
+    <div class="signed">
+      <span><Trans k="settings.bitbucketSignedIn">{#snippet email()}<strong>{accounts?.gitlab}</strong>{/snippet}</Trans></span>
+      <button class="btn btn-secondary" onclick={() => signOut('gitlab')}>{t('settings.signOut')}</button>
+    </div>
+  {:else}
+    <form onsubmit={(e) => connect(e, 'gitlab', { site })}>
+      <label for="gitlab-site">{t('settings.gitlabSite')}</label>
+      <input id="gitlab-site" class="field" autocomplete="off" spellcheck="false" placeholder="https://gitlab.com" bind:value={site} />
+      <ol class="intro steps">
+        <li>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            onclick={() => invoke('open_link', { url: `${(site.trim() || 'https://gitlab.com').replace(/\/+$/, '')}/-/user_settings/personal_access_tokens?name=Squadron&scopes=api` })}
+          >
+            {t('settings.openTokens')}
+          </button>
+        </li>
+        <li><Trans k="settings.gitlabStep">{#snippet scope()}<code>api</code>{/snippet}</Trans></li>
+        <li>{t('settings.stepPasteToken')}</li>
+      </ol>
+      <label for="gitlab-token">{t('settings.apiToken')}</label>
+      <input id="gitlab-token" class="field mono" type="password" autocomplete="off" spellcheck="false" bind:value={tokens.gitlab} />
+      <div class="row">
+        <button class="btn btn-primary" disabled={busy || !tokens.gitlab.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+      </div>
+    </form>
+  {/if}
+  {#if failed.gitlab}<p class="bad" role="alert">{failed.gitlab}</p>{/if}
+</section>
+
+<section>
+  <h3>Azure DevOps</h3>
+  {#if !accounts}
+    <p class="intro">{t('common.checking')}</p>
+  {:else if accounts.azure}
+    <div class="signed">
+      <span><Trans k="settings.bitbucketSignedIn">{#snippet email()}<strong>{accounts?.azure}</strong>{/snippet}</Trans></span>
+      <button class="btn btn-secondary" onclick={() => signOut('azure')}>{t('settings.signOut')}</button>
+    </div>
+  {:else}
+    <form onsubmit={(e) => connect(e, 'azure', { organization })}>
+      <label for="azure-organization">{t('settings.azureOrganization')}</label>
+      <input id="azure-organization" class="field" autocomplete="off" spellcheck="false" placeholder="https://dev.azure.com/…" bind:value={organization} />
+      <ol class="intro steps">
+        <li>
+          <button
+            type="button"
+            class="btn btn-secondary"
+            disabled={!organization.trim()}
+            onclick={() => invoke('open_link', { url: `https://dev.azure.com/${organization.trim().replace(/\/+$/, '').split('/').at(-1)}/_usersSettings/tokens` })}
+          >
+            {t('settings.openTokens')}
+          </button>
+        </li>
+        <li><Trans k="settings.azureStep">{#snippet code()}<strong>Code (Read &amp; write)</strong>{/snippet}{#snippet build()}<strong>Build (Read)</strong>{/snippet}</Trans></li>
+        <li>{t('settings.stepPasteToken')}</li>
+      </ol>
+      <label for="azure-token">{t('settings.apiToken')}</label>
+      <input id="azure-token" class="field mono" type="password" autocomplete="off" spellcheck="false" bind:value={tokens.azure} />
+      <div class="row">
+        <button class="btn btn-primary" disabled={busy || !organization.trim() || !tokens.azure.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+      </div>
+    </form>
+  {/if}
+  {#if failed.azure}<p class="bad" role="alert">{failed.azure}</p>{/if}
 </section>
 
 <section>

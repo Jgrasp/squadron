@@ -12,7 +12,7 @@ export type Linked = {
   project: string | null
 }
 
-const PULL = /^https?:\/\/(www\.)?(github\.com\/[\w.-]+\/[\w.-]+\/pull|bitbucket\.org\/[\w.-]+\/[\w.-]+\/pull-requests)\/\d+([/?#].*)?$/
+const PULL = /^https?:\/\/(www\.)?(github\.com\/[\w.-]+\/[\w.-]+\/pull|bitbucket\.org\/[\w.-]+\/[\w.-]+\/pull-requests|[\w.-]+(?:\/[\w.-]+){2,}\/-\/merge_requests|(?:dev\.azure\.com\/[\w.-]+|[\w-]+\.visualstudio\.com(?:\/DefaultCollection)?)\/[\w.%-]+\/_git\/[\w.%-]+\/pullrequest)\/\d+([/?#].*)?$/
 
 export const isPullLink = (url: string) => PULL.test(url)
 

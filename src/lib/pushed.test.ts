@@ -18,6 +18,15 @@ describe('pushedTo', () => {
     expect(pushedTo(agent)).toEqual({ url: 'https://github.com/o/r/pull/1559' })
   })
 
+  it('takes the merge request link glab or az print', () => {
+    expect(pushedTo(ran(['glab mr create --fill --yes', 'https://gitlab.corp.fr/team/sub/app/-/merge_requests/12\n']))).toEqual({
+      url: 'https://gitlab.corp.fr/team/sub/app/-/merge_requests/12',
+    })
+    expect(pushedTo(ran(['az repos pr create --source-branch x', 'see https://dev.azure.com/org/My%20Proj/_git/shop/pullrequest/42']))).toEqual({
+      url: 'https://dev.azure.com/org/My%20Proj/_git/shop/pullrequest/42',
+    })
+  })
+
   it('takes the branch of the last push', () => {
     expect(pushedTo(ran(['cd /w && rtk git push -u origin ia/T41 2>&1 | tail -2', 'ok']))).toEqual({ branch: 'ia/T41' })
     expect(pushedTo(ran(['git push --force-with-lease origin HEAD:refs/heads/fix/x', '']))).toEqual({ branch: 'fix/x' })
