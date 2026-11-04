@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte'
   import { cubicIn, quintOut } from 'svelte/easing'
-  import { displayOf, MIN_PANEL, openPanel, requestedPanel, resizePanel, resizeShare, setDisplay, type PanelKind } from './layout.svelte'
+  import { displayOf, MIN_PANEL, openPanel, panelWidth, requestedPanel, resizePanel, resizeShare, setDisplay, sideSpan, SIZES, type Display, type PanelKind } from './layout.svelte'
   import { projects } from './projects.svelte'
   import { covers } from './panels'
   import { t } from './i18n/index.svelte'
@@ -60,12 +60,13 @@
   function depart(_: Element) {
     if (windowed) return { duration: 0 }
     const next = openPanel(projects.current)
-    if (next && next !== kind && mode && !panel.parentElement?.closest('.panel') && covers(displayOf(next), display)) return { duration: 380 }
+    if (next && next !== kind && mode && !panel.parentElement?.closest('.panel') && covers(px(displayOf(next)), px(display))) return { duration: 380 }
     return { duration: 280, easing: cubicIn, css: move(mode === 'bottom' ? 'Y' : 'X') }
   }
 
   const host = () => panel.parentElement!
   const widest = () => host().clientWidth || window.innerWidth
+  const px = (shown: Display) => (shown.size ? { ...shown, width: SIZES[shown.size] * widest() } : shown)
   const room = () => {
     const box = host().getBoundingClientRect()
     return box.height - (parseFloat(getComputedStyle(host()).getPropertyValue('--panel-top')) || 0)
@@ -92,20 +93,21 @@
   function nudge(event: KeyboardEvent) {
     if (mode === 'bottom' && event.key === 'ArrowUp') resizeShare(kind, display.height + 2)
     else if (mode === 'bottom' && event.key === 'ArrowDown') resizeShare(kind, display.height - 2)
-    else if (mode === 'slide' && event.key === 'ArrowLeft') resizePanel(kind, panel.offsetWidth + 16, widest())
-    else if (mode === 'slide' && event.key === 'ArrowRight') resizePanel(kind, panel.offsetWidth - 16, widest())
+    else if (mode !== 'bottom' && event.key === 'ArrowLeft') resizePanel(kind, panel.offsetWidth + 16, widest())
+    else if (mode !== 'bottom' && event.key === 'ArrowRight') resizePanel(kind, panel.offsetWidth - 16, widest())
   }
 </script>
 
 <section
   class="panel"
-  class:slide={mode === 'slide'}
+  class:slide={mode === 'slide' || mode === 'side'}
+  class:side={mode === 'side'}
   class:full={mode === 'full'}
   class:bottom={mode === 'bottom'}
   class:screen
   class:wide
   class:windowed
-  style:width={mode === 'slide' ? `${display.width}px` : null}
+  style:width={mode === 'slide' ? panelWidth(display) : mode === 'side' ? sideSpan(kind) : null}
   style:height={mode === 'bottom' ? `calc((100% - var(--panel-top, 0px)) * ${display.height / 100})` : null}
   style:left={wide ? `${left}px` : null}
   aria-label={title}
@@ -113,7 +115,7 @@
   in:arrive|global
   out:depart
 >
-  {#if mode === 'slide' || mode === 'bottom'}
+  {#if mode === 'slide' || mode === 'side' || mode === 'bottom'}
     <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
     <div
       class="resizer"
@@ -159,6 +161,12 @@
     max-width: 100%;
     border-left: 1px solid var(--border-strong);
     box-shadow: -18px 0 40px rgba(0, 0, 0, 0.45);
+  }
+
+  .panel.side {
+    top: 0;
+    min-width: 0;
+    box-shadow: none;
   }
 
   .panel.full {
