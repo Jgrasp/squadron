@@ -157,7 +157,10 @@
       <h1>{t('review.pullRequests')} · <span class="square" aria-hidden="true" style:background={project.color}></span>{project.name}</h1>
     </div>
     <div class="controls">
-      <button class="btn btn-secondary" disabled={refreshing} onclick={refresh}>{refreshing ? t('review.refreshing') : t('review.refresh')}</button>
+      <button class="refresh" disabled={refreshing} onclick={refresh}>
+        <svg class:spinning={refreshing} width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
+        {refreshing ? t('review.refreshing') : t('review.refresh')}
+      </button>
       {@render controls?.()}
     </div>
   </div>
@@ -348,6 +351,39 @@
     display: flex;
     align-items: center;
     gap: 8px;
+  }
+
+  .refresh {
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .refresh:hover:not(:disabled) {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .refresh:disabled {
+    opacity: 0.6;
+  }
+
+  .refresh svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .refresh .spinning {
+    animation: spin 0.9s linear infinite;
   }
 
   .heading {
