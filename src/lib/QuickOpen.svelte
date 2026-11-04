@@ -4,6 +4,7 @@
   import type { Change } from './FileTree.svelte'
   import { t } from './i18n/index.svelte'
   import { rank } from './mention.svelte'
+  import { untrack } from 'svelte'
 
   type Hit = { path: string; line: number; text: string }
   type Row = { path: string; line?: number; text?: string }
@@ -40,7 +41,7 @@
   let input: HTMLInputElement
   let list = $state<HTMLUListElement>()
 
-  invoke<string[]>('project_files', { dir: project })
+  invoke<string[]>('project_files', { dir: untrack(() => project) })
     .then((all) => (files = all.filter((p) => !p.endsWith('/'))))
     .catch(() => {})
 

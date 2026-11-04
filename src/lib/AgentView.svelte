@@ -1234,7 +1234,7 @@
     transition: height 0.38s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
-  :global(.resizing) > .conversation {
+  :global(.resizing > .conversation) {
     transition: none;
   }
 

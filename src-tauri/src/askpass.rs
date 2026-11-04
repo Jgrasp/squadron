@@ -19,6 +19,7 @@ pub struct Question {
     pub id: String,
     pub agent: String,
     pub prompt: String,
+    pub command: String,
 }
 
 type Pending = Arc<Mutex<HashMap<String, (String, oneshot::Sender<Option<String>>)>>>;
@@ -80,13 +81,25 @@ async fn ask(
         return (StatusCode::FORBIDDEN, String::new());
     }
     let agent = header("x-squadron-agent");
+    let command = base64::Engine::decode(
+        &base64::engine::general_purpose::STANDARD,
+        header("x-squadron-caller"),
+    )
+    .ok()
+    .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
+    .unwrap_or_default();
     let id = gate.next.fetch_add(1, Ordering::SeqCst).to_string();
     let (tx, rx) = oneshot::channel();
     gate.pending
         .lock()
         .unwrap()
         .insert(id.clone(), (agent.clone(), tx));
-    (gate.notify)(Question { id, agent, prompt });
+    (gate.notify)(Question {
+        id,
+        agent,
+        prompt,
+        command,
+    });
     match rx.await {
         Ok(Some(secret)) => (StatusCode::OK, secret),
         _ => (StatusCode::GONE, String::new()),
@@ -137,13 +150,26 @@ pub fn client(prompt: &str) -> i32 {
     0
 }
 
+fn caller() -> String {
+    #[cfg(target_os = "linux")]
+    {
+        let ppid = unsafe { libc::getppid() };
+        if let Ok(raw) = std::fs::read(format!("/proc/{ppid}/cmdline")) {
+            let line = String::from_utf8_lossy(&raw).replace('\0', " ");
+            return line.trim().to_string();
+        }
+    }
+    String::new()
+}
+
 fn request(variable: &str, prompt: &str) -> Option<String> {
     let mut parts = variable.splitn(3, ':');
     let (port, token, agent) = (parts.next()?, parts.next()?, parts.next()?);
+    let caller = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, caller());
     let mut stream = std::net::TcpStream::connect(("127.0.0.1", port.parse::<u16>().ok()?)).ok()?;
     write!(
         stream,
-        "POST /askpass HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Squadron-Token: {token}\r\nX-Squadron-Agent: {agent}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{prompt}",
+        "POST /askpass HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Squadron-Token: {token}\r\nX-Squadron-Agent: {agent}\r\nX-Squadron-Caller: {caller}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{prompt}",
         prompt.len()
     )
     .ok()?;
@@ -170,6 +196,7 @@ mod tests {
             let q = rx.recv().await.unwrap();
             assert_eq!(q.agent, "agent-1");
             assert_eq!(q.prompt, "[sudo] password for jgrasp: ");
+            assert_eq!(q.command, caller());
             answering.answer(&q.id, Some("hunter2".into())).unwrap();
             let q = rx.recv().await.unwrap();
             answering.answer(&q.id, None).unwrap();
