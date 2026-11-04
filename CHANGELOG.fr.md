@@ -11,7 +11,7 @@
 ### Conversation
 
 - Dans une carte de plusieurs questions, cliquer de nouveau sur le choix retenu le désélectionne, pour répondre à la question par un texte libre seulement.
-- Pendant l’écriture d’un bloc html, son emplacement montre le triangle de Squadron, dont le contour est parcouru d’un trait cuivré, au-dessus de « Création de l’aperçu… ».
+- Pendant l’écriture d’un bloc html, son emplacement montre le triangle de Squadron, dont le contour est parcouru d’un trait cuivré, au-dessus de « Création du rendu… ».
 - Dans la fenêtre Nouvel agent, Annuler et Lancer l’agent affichent leur raccourci, Échap et Ctrl ↵, dans le bouton.
 
 ## 0.32.0 · 2026-11-04
