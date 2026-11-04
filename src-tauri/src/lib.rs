@@ -654,6 +654,7 @@ async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<St
                 "--no-session-persistence",
                 "--system-prompt",
                 "You name software tasks. Reply with a title of 2 to 5 words in the language of the task, with no quotes and no final punctuation.",
+                "--",
                 &task,
             ])
             .output()
@@ -2067,7 +2068,7 @@ pub fn run() {
             }
             app.manage(askpass);
             let agents = app.state::<Agents>();
-            agents.endpoint(port, token);
+            agents.endpoint(port, token, app.path().app_data_dir()?.join("mcp"));
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);

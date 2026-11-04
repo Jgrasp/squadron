@@ -388,9 +388,10 @@ pub fn inside(project: &Path, file: &Path) -> Option<PathBuf> {
     let file = project.join(file);
     let resolved = match fs::canonicalize(&file) {
         Ok(path) => path,
-        Err(_) => fs::canonicalize(file.parent()?)
+        Err(_) if file.symlink_metadata().is_err() => fs::canonicalize(file.parent()?)
             .ok()?
             .join(file.file_name()?),
+        Err(_) => return None,
     };
     resolved.starts_with(&root).then_some(resolved)
 }
@@ -487,6 +488,8 @@ mod tests {
         assert!(inside(&root, Path::new("/etc/passwd")).is_none());
         std::os::unix::fs::symlink("/etc", root.join("src/etc")).unwrap();
         assert!(inside(&root, Path::new("src/etc/passwd")).is_none());
+        std::os::unix::fs::symlink(root.join("missing/target"), root.join("src/dangling")).unwrap();
+        assert!(inside(&root, Path::new("src/dangling")).is_none());
     }
 
     #[test]

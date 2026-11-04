@@ -211,7 +211,7 @@
     })
   }
 
-  function make<K extends keyof HTMLElementTagNameMap>(tag: K, props: Partial<HTMLElementTagNameMap[K]>, ...children: (Node | string)[]) {
+  function make<K extends keyof HTMLElementTagNameMap>(tag: K, props: Record<string, unknown>, ...children: (Node | string)[]) {
     const node = Object.assign(document.createElement(tag), props)
     node.append(...children)
     return node
@@ -290,10 +290,10 @@
       update(u) {
         let changed = false
         for (const tr of u.transactions)
-          for (const effect of tr.effects)
-            if (effect.is(setSearchQuery)) {
+          for (const fx of tr.effects)
+            if (fx.is(setSearchQuery)) {
               changed = true
-              if (!effect.value.eq(query)) (query = effect.value), show()
+              if (!fx.value.eq(query)) (query = fx.value), show()
             }
         if (changed || u.docChanged || u.selectionSet) counted()
       },

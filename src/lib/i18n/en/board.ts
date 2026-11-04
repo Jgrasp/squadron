@@ -35,7 +35,6 @@ export default {
   task: 'Task',
   taskPromptPlaceholder: 'What needs to be done. The agent gets it as its first message.',
   taskGoalPlaceholder: 'Optional. The agent keeps working until this is true, then the task goes to review. Ask for visible proof: tests run, output shown.',
-  taskFiles: 'Screenshots and files sent with the task',
   attach: 'Screenshots, files',
   attachTitle: 'Attach screenshots or files. You can also paste a screenshot in the description.',
   agentSettings: 'Agent settings',
