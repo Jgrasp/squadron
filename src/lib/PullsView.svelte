@@ -36,8 +36,14 @@
   }
 
   async function askAgent(pull: Pull) {
-    launched = { id: await reviewWithAgent(project.path, pull), number: pull.number }
+    busy = { number: pull.number, doing: 'ask' }
+    try {
+      launched = { id: await reviewWithAgent(project.path, pull), number: pull.number }
+    } finally {
+      busy = null
+    }
   }
+  const starting = (pull: Pull) => busy?.number === pull.number && busy.doing === 'ask'
   const asking = (pull: Pull): Choice => ({
     label: t('review.askAgent'),
     title: settings.pilot ? t('review.askAgentTitle') : t('review.askAgentNeedsPilot'),
@@ -45,17 +51,20 @@
   })
   async function askAgain(agent: Agent, pull: Pull) {
     failure = ''
+    busy = { number: pull.number, doing: 'ask' }
     try {
       await reviewChanges(agent, pull)
       launched = { id: agent.id, number: pull.number }
     } catch (e) {
       failure = `#${pull.number}: ${e}`
+    } finally {
+      busy = null
     }
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
 
-  let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' } | null>(null)
+  let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' | 'ask' } | null>(null)
   let failure = $state('')
 
   async function act(pull: Pull, doing: 'approve' | 'request_changes' | 'merge', work: () => Promise<unknown>) {
@@ -172,7 +181,7 @@
           {@const reviewer = reviewerOf(project.path, pull)}
           {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
           {@const seeing = reviewer && { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, run: () => show(reviewer) }}
-          {@const main = !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
+          {@const main = starting(pull) ? { label: t('review.starting'), run: () => {} } : !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
