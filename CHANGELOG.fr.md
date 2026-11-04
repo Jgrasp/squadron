@@ -1,5 +1,12 @@
 # Nouveautés
 
+## 0.31.0 · 2026-11-04
+
+### Hébergement du code
+
+- **GitLab et Azure DevOps** : Réglages › Hébergement du code se connecte à GitLab (gitlab.com ou une instance auto-hébergée) et à Azure DevOps avec un token gardé dans le trousseau du système. La pull request de la branche d’un agent, les listes de pull requests à relire et des vôtres, les liens dans les conversations, les commentaires et réponses, la relecture avec ses commentaires sur ligne, l’approbation, le merge et les pipelines y fonctionnent comme sur Bitbucket et GitHub.
+- Demander des changements n’est pas encore disponible sur GitLab : les commentaires sont publiés et Squadron indique de le faire sur GitLab.
+
 ## 0.30.0 · 2026-11-04
 
 ### Conversation
