@@ -33,7 +33,7 @@ fn repo(url: &str) -> Option<Repo> {
         None => url.split_once(':')?,
     };
     let host = match host.rsplit('@').next()?.split(':').next()? {
-        "bitbucket.org" => Host::Bitbucket,
+        "bitbucket.org" | "ssh.bitbucket.org" => Host::Bitbucket,
         "github.com" => Host::GitHub,
         _ => return None,
     };
@@ -1340,6 +1340,10 @@ mod tests {
         );
         assert_eq!(
             repo("ssh://git@bitbucket.org:22/akki-team/fileas/"),
+            bitbucket("akki-team/fileas")
+        );
+        assert_eq!(
+            repo("git@ssh.bitbucket.org:akki-team/fileas.git"),
             bitbucket("akki-team/fileas")
         );
         assert_eq!(
