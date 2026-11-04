@@ -544,6 +544,7 @@
     untrack(() => ui.drops++)
     getCurrentWebview()
       .onDragDropEvent(({ payload }) => {
+        if (ui.creating) return
         if (payload.type === 'over' || payload.type === 'enter') dropping = true
         else if (payload.type === 'leave') dropping = false
         else if (payload.type === 'drop') {

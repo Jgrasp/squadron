@@ -10,6 +10,11 @@ function base64(file: Blob) {
   })
 }
 
+export function copiedFiles(uris: string) {
+  const lines = uris.split(/\r?\n/).filter((line) => line && !line.startsWith('#'))
+  return lines.length && lines.every((line) => line.startsWith('file://')) ? lines.map((line) => decodeURIComponent(new URL(line).pathname)) : []
+}
+
 export function imagePaste(attach: (paths: string[]) => void, fail: (error: string) => void) {
   let pasting = 0
 
@@ -27,6 +32,12 @@ export function imagePaste(attach: (paths: string[]) => void, fail: (error: stri
   async function paste(event: ClipboardEvent) {
     pasting++
     const data = event.clipboardData
+    const files = copiedFiles(data?.getData('text/uri-list') ?? '')
+    if (files.length) {
+      event.preventDefault()
+      fail('')
+      return attach(files)
+    }
     const images = [...(data?.items ?? [])]
       .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
       .map((item) => item.getAsFile())
