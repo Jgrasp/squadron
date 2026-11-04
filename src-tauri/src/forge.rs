@@ -424,8 +424,30 @@ async fn bitbucket(
     .await
 }
 
+static GH_TOKEN: Mutex<Option<String>> = Mutex::new(None);
+
+fn gh_token() -> Option<String> {
+    let mut token = GH_TOKEN.lock().unwrap_or_else(|e| e.into_inner());
+    if token.is_none() {
+        *token = crate::process::command("gh")
+            .args(["auth", "token"])
+            .stdin(Stdio::null())
+            .stderr(Stdio::null())
+            .output()
+            .ok()
+            .filter(|out| out.status.success())
+            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
+            .filter(|token| !token.is_empty());
+    }
+    token.clone()
+}
+
 fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
-    let mut child = crate::process::command("gh")
+    let mut command = crate::process::command("gh");
+    if let Some(token) = gh_token() {
+        command.env("GH_TOKEN", token);
+    }
+    let mut child = command
         .args(args)
         .env("GH_PROMPT_DISABLED", "1")
         .stdin(Stdio::piped())
@@ -438,7 +460,11 @@ fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
     }
     let out = child.wait_with_output().map_err(|e| e.to_string())?;
     if !out.status.success() {
-        return Err(gh_error(&out.stderr, &out.stdout));
+        let error = gh_error(&out.stderr, &out.stdout);
+        if error.contains("HTTP 401") {
+            *GH_TOKEN.lock().unwrap_or_else(|e| e.into_inner()) = None;
+        }
+        return Err(error);
     }
     Ok(String::from_utf8_lossy(&out.stdout).into_owned())
 }
