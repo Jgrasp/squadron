@@ -17,6 +17,8 @@ export const backend: Partial<Record<Locale, Table>> = {
       'GitLab refused the token: add a new one in Settings › Code hosting.':
         'GitLab a refusé le token : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
       'GitLab refused this token.': 'GitLab a refusé ce token.',
+      'The comments are on GitLab, but Squadron cannot request changes there: do it on GitLab.':
+        'Les commentaires sont sur GitLab, mais Squadron ne peut pas y demander des modifications : faites-le sur GitLab.',
       'This GitLab address is not valid.': 'Cette adresse GitLab n’est pas valide.',
       'Add an Azure DevOps token in Settings › Code hosting.': 'Ajoutez un token Azure DevOps dans Réglages › Hébergement du code.',
       'Azure DevOps refused the token: add a new one in Settings › Code hosting.':

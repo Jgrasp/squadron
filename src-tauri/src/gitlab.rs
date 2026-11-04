@@ -6,6 +6,8 @@ use serde_json::{Value, json};
 
 const NO_TOKEN: &str = "Add a GitLab token in Settings › Code hosting.";
 const REFUSED: &str = "GitLab refused the token: add a new one in Settings › Code hosting.";
+const NO_REQUEST_CHANGES: &str =
+    "The comments are on GitLab, but Squadron cannot request changes there: do it on GitLab.";
 
 fn site_host(site: &str) -> Option<String> {
     reqwest::Url::parse(site)
@@ -416,8 +418,12 @@ pub async fn post(
         .await
     };
     let said = sent.is_ok();
-    if sent.is_ok() && verdict == "approve" {
-        sent = api(Method::POST, slug, &format!("{path}/approve"), &[], None).await;
+    match verdict.as_str() {
+        "approve" if sent.is_ok() => {
+            sent = api(Method::POST, slug, &format!("{path}/approve"), &[], None).await;
+        }
+        "request_changes" if sent.is_ok() => sent = Err(NO_REQUEST_CHANGES.into()),
+        _ => {}
     }
     Ok(Posted {
         done: total,
