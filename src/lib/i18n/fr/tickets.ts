@@ -55,6 +55,7 @@ export default {
   unassigned: 'Non assigné',
   createTask: 'Créer une tâche',
   openInJira: 'Ouvrir dans Jira',
+  panel: 'Ticket Jira',
   readOnly: 'Lecture seule',
   status: 'Statut',
   assignee: 'Assigné',

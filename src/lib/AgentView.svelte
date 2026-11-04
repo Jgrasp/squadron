@@ -758,7 +758,7 @@
   }}
 />
 
-<main style:--panel-top="{headerHeight}px" style:--panel-share={bottomShare(openPanel(agent.project))}>
+<main style:--panel-top="{headerHeight}px" style:--panel-share={Math.max(bottomShare(openPanel(agent.project)), bottomShare(reading && 'ticket'))}>
   <section class="conversation" aria-label={t('agent.conversation')}>
     {#if reading}
       <TicketPanel connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />

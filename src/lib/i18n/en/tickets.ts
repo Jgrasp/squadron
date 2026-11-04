@@ -53,6 +53,7 @@ export default {
   unassigned: 'Unassigned',
   createTask: 'Create a task',
   openInJira: 'Open in Jira',
+  panel: 'Jira ticket',
   readOnly: 'Read only',
   status: 'Status',
   assignee: 'Assignee',
