@@ -110,7 +110,7 @@
     const lang = tokens[idx].info.trim().split(/\s+/)[0] || 'text'
     const source = fence(tokens, idx, options, env, self)
     if (lang === 'html' && env?.streaming)
-      return `<div class="code"><div class="code-head"><span>html</span></div><div class="drawing"><span>${t('conversation.drawing')}</span></div></div>`
+      return `<div class="code"><div class="code-head"><span>html</span></div><div class="drawing"><svg viewBox="0 0 24 24" aria-hidden="true"><path class="track" d="M12 3 22 20H2Z"/><path class="trace" d="M12 3 22 20H2Z" pathLength="54"/><path class="core" d="M12 10.5 16 17.5H8Z"/></svg><span>${t('conversation.drawing')}</span></div></div>`
     if (lang === 'html') {
       const tabs = `<span class="views"><button type="button" data-view="preview" aria-pressed="true">${t('conversation.preview')}</button><button type="button" data-view="source" aria-pressed="false">HTML</button></span>`
       return `<div class="code"><div class="code-head">${tabs}${copyButton()}</div><div class="rendered mockup" data-mockup></div><div class="source" hidden>${source}</div></div>`
@@ -672,14 +672,36 @@
 
   .prose :global(.drawing) {
     display: grid;
-    place-items: center;
+    place-content: center;
+    justify-items: center;
+    gap: 10px;
     height: 120px;
     font-size: 12.5px;
     color: var(--text-faint);
   }
 
-  .prose :global(.drawing span) {
-    animation: pulse 1.6s ease-in-out infinite;
+  .prose :global(.drawing svg) {
+    width: 24px;
+    height: 24px;
+    fill: none;
+    stroke: var(--accent);
+    stroke-width: 2;
+    stroke-linejoin: round;
+  }
+
+  .prose :global(.drawing .track) {
+    opacity: 0.2;
+  }
+
+  .prose :global(.drawing .trace) {
+    stroke-dasharray: 14 40;
+    animation: trace 1.4s linear infinite;
+  }
+
+  .prose :global(.drawing .core) {
+    fill: var(--accent);
+    stroke: none;
+    animation: pulse 1.4s ease-in-out infinite;
   }
 
   .prose :global(.rendered > :first-child) {
