@@ -83,7 +83,6 @@ export default {
   regenerate: 'Regenerate',
   removeLink: 'Unlink the ticket',
   linkTitle: 'Jira ticket {key}',
-  contextOf: 'Ticket context',
   openTicket: 'Read the Jira ticket {key}',
   closeTicket: 'Close the Jira ticket {key}',
   jira: 'Jira',

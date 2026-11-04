@@ -835,7 +835,7 @@ mockIPC(
       case 'ticket_get':
         return new Promise((resolve) => setTimeout(() => resolve(fullTicket(a.key)), 300))
       case 'ticket_context':
-        return `<ticket source="jira" key="${a.key}">\n# ${a.key}\n</ticket>`
+        return `<ticket source="jira" key="${a.key}">\n# ${a.key} ${fullTicket(a.key).title}\n</ticket>`
       case 'ticket_brief':
         return new Promise((resolve) =>
           setTimeout(
