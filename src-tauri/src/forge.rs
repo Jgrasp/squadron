@@ -1,4 +1,4 @@
-use crate::{git, projects};
+use crate::{azure, git, gitlab, projects};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
@@ -17,6 +17,8 @@ const GITHUB_FIELDS: &str = "number,title,body,url,state,isDraft,reviewDecision,
 enum Host {
     Bitbucket,
     GitHub,
+    GitLab,
+    Azure,
 }
 
 #[derive(Debug, PartialEq)]
@@ -26,35 +28,68 @@ struct Repo {
 }
 
 fn repo(url: &str) -> Option<Repo> {
+    parse(url, gitlab::host)
+}
+
+fn parse(url: &str, gitlab: impl Fn() -> Option<String>) -> Option<Repo> {
     let url = url.trim().trim_end_matches('/');
     let url = url.strip_suffix(".git").unwrap_or(url);
     let (host, path) = match url.split_once("://") {
         Some((_, rest)) => rest.split_once('/')?,
         None => url.split_once(':')?,
     };
-    let host = match host.rsplit('@').next()?.split(':').next()? {
-        "bitbucket.org" | "ssh.bitbucket.org" => Host::Bitbucket,
-        "github.com" => Host::GitHub,
-        _ => return None,
-    };
-    let mut parts = path.trim_start_matches('/').split('/');
-    let (owner, name) = (parts.next()?, parts.next()?);
-    let valid = |s: &str| {
+    let host = host.rsplit('@').next()?.split(':').next()?.to_lowercase();
+    let parts: Vec<&str> = path.trim_start_matches('/').split('/').collect();
+    let valid = |s: &&str| {
         !s.is_empty()
             && s.chars()
                 .all(|c| c.is_ascii_alphanumeric() || "-_.".contains(c))
     };
-    (parts.next().is_none() && valid(owner) && valid(name)).then(|| Repo {
-        host,
-        slug: format!("{owner}/{name}"),
-    })
+    let azure = |org: &str, project: &str, name: &str| {
+        let named = |s: &str| !s.is_empty() && !s.contains(['?', '#']);
+        (valid(&org) && named(project) && named(name)).then(|| Repo {
+            host: Host::Azure,
+            slug: format!("{org}/{project}/{name}").to_lowercase(),
+        })
+    };
+    match (host.as_str(), parts.as_slice()) {
+        ("bitbucket.org" | "ssh.bitbucket.org", [owner, name]) if valid(owner) && valid(name) => {
+            Some(Repo {
+                host: Host::Bitbucket,
+                slug: format!("{owner}/{name}"),
+            })
+        }
+        ("github.com", [owner, name]) if valid(owner) && valid(name) => Some(Repo {
+            host: Host::GitHub,
+            slug: format!("{owner}/{name}"),
+        }),
+        ("dev.azure.com", [org, project, "_git", name]) => azure(org, project, name),
+        ("ssh.dev.azure.com" | "vs-ssh.visualstudio.com", ["v3", org, project, name]) => {
+            azure(org, project, name)
+        }
+        (site, [.., project, "_git", name]) if site.ends_with(".visualstudio.com") => {
+            azure(site.trim_end_matches(".visualstudio.com"), project, name)
+        }
+        (site, [_, _, ..])
+            if parts.iter().all(valid)
+                && (site == "gitlab.com" || gitlab().is_some_and(|saved| saved == site)) =>
+        {
+            Some(Repo {
+                host: Host::GitLab,
+                slug: format!("{site}/{}", parts.join("/")),
+            })
+        }
+        _ => None,
+    }
 }
 
 fn repo_of(dir: &Path) -> Result<Repo, String> {
     git::origin(dir)
         .and_then(|url| repo(&url))
-        .ok_or_else(|| "The project is not on Bitbucket or GitHub.".into())
+        .ok_or_else(|| NOT_HOSTED.into())
 }
+
+const NOT_HOSTED: &str = "The project is not on Bitbucket, GitHub, GitLab or Azure DevOps.";
 
 #[derive(Debug, Default, PartialEq, Serialize)]
 pub struct Pull {
@@ -137,18 +172,20 @@ pub struct Accounts {
     pub bitbucket: Option<String>,
     pub bitbucket_user: bool,
     pub github: Option<String>,
+    pub gitlab: Option<String>,
+    pub azure: Option<String>,
 }
 
-fn client() -> reqwest::Client {
+pub(crate) fn client() -> reqwest::Client {
     let _ = rustls::crypto::ring::default_provider().install_default();
     reqwest::Client::new()
 }
 
-fn text(value: &Value) -> String {
+pub(crate) fn text(value: &Value) -> String {
     value.as_str().unwrap_or_default().to_string()
 }
 
-fn checks<'a>(states: impl Iterator<Item = &'a str>) -> Option<String> {
+pub(crate) fn checks<'a>(states: impl Iterator<Item = &'a str>) -> Option<String> {
     let states: Vec<&str> = states.collect();
     let summary = if states.is_empty() {
         return None;
@@ -170,17 +207,68 @@ struct Account {
     uuid: Option<String>,
 }
 
-fn entry() -> Result<keyring::Entry, String> {
+fn entry(name: &str) -> Result<keyring::Entry, String> {
     let service = if cfg!(debug_assertions) {
         "squadron-dev"
     } else {
         "squadron"
     };
-    keyring::Entry::new(service, "bitbucket").map_err(|e| e.to_string())
+    keyring::Entry::new(service, name).map_err(|e| e.to_string())
+}
+
+#[derive(Serialize, Deserialize)]
+pub(crate) struct Token {
+    pub site: String,
+    pub token: String,
+    pub name: String,
+}
+
+pub(crate) fn token(name: &str, missing: &str) -> Result<Token, String> {
+    let secret = entry(name)?.get_password().map_err(|e| match e {
+        keyring::Error::NoEntry => missing.to_string(),
+        e => e.to_string(),
+    })?;
+    serde_json::from_str(&secret).map_err(|e| e.to_string())
+}
+
+pub(crate) fn keep_token(name: &str, token: &Token) -> Result<(), String> {
+    let secret = serde_json::to_string(token).map_err(|e| e.to_string())?;
+    entry(name)?
+        .set_password(&secret)
+        .map_err(|e| e.to_string())
+}
+
+pub(crate) async fn send(
+    request: reqwest::RequestBuilder,
+    host: &str,
+    refused: &str,
+) -> Result<Value, String> {
+    let response = request.send().await.map_err(|e| e.to_string())?;
+    let status = response.status();
+    if status == reqwest::StatusCode::UNAUTHORIZED
+        || status == reqwest::StatusCode::NON_AUTHORITATIVE_INFORMATION
+    {
+        return Err(refused.into());
+    }
+    let body = response.text().await.map_err(|e| e.to_string())?;
+    let value: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
+    if !status.is_success() {
+        let reason = [
+            &value["error"]["message"],
+            &value["message"],
+            &value["error"],
+        ]
+        .into_iter()
+        .find_map(Value::as_str)
+        .map(str::to_string)
+        .unwrap_or_else(|| body.chars().take(200).collect());
+        return Err(format!("{host} answered {status}: {reason}"));
+    }
+    Ok(value)
 }
 
 fn account() -> Result<Account, String> {
-    let secret = entry()?.get_password().map_err(|e| match e {
+    let secret = entry("bitbucket")?.get_password().map_err(|e| match e {
         keyring::Error::NoEntry => NO_TOKEN.to_string(),
         e => e.to_string(),
     })?;
@@ -208,7 +296,9 @@ pub async fn sign_in(email: String, token: String) -> Result<(), String> {
 
 fn keep(account: &Account) -> Result<(), String> {
     let secret = serde_json::to_string(account).map_err(|e| e.to_string())?;
-    entry()?.set_password(&secret).map_err(|e| e.to_string())
+    entry("bitbucket")?
+        .set_password(&secret)
+        .map_err(|e| e.to_string())
 }
 
 async fn bitbucket_me() -> Result<String, String> {
@@ -231,8 +321,11 @@ async fn bitbucket_me() -> Result<String, String> {
     Ok(uuid)
 }
 
-pub fn sign_out() -> Result<(), String> {
-    match entry()?.delete_credential() {
+pub fn sign_out(name: &str) -> Result<(), String> {
+    if !["bitbucket", "gitlab", "azure"].contains(&name) {
+        return Err(format!("Unknown account: {name}"));
+    }
+    match entry(name)?.delete_credential() {
         Ok(()) | Err(keyring::Error::NoEntry) => Ok(()),
         Err(e) => Err(e.to_string()),
     }
@@ -247,6 +340,8 @@ pub fn accounts() -> Accounts {
             .ok()
             .map(|login| login.trim().to_string())
             .filter(|login| !login.is_empty()),
+        gitlab: gitlab::account(),
+        azure: azure::account(),
     }
 }
 
@@ -269,23 +364,12 @@ async fn bitbucket(
     if let Some(body) = body {
         request = request.json(&body);
     }
-    let response = request.send().await.map_err(|e| e.to_string())?;
-    let status = response.status();
-    if status == reqwest::StatusCode::UNAUTHORIZED {
-        return Err(
-            "Bitbucket refused the API token: add a new one in Settings › Code hosting.".into(),
-        );
-    }
-    let body = response.text().await.map_err(|e| e.to_string())?;
-    let value: Value = serde_json::from_str(&body).unwrap_or(Value::Null);
-    if !status.is_success() {
-        let reason = value["error"]["message"]
-            .as_str()
-            .map(str::to_string)
-            .unwrap_or_else(|| body.chars().take(200).collect());
-        return Err(format!("Bitbucket answered {status}: {reason}"));
-    }
-    Ok(value)
+    send(
+        request,
+        "Bitbucket",
+        "Bitbucket refused the API token: add a new one in Settings › Code hosting.",
+    )
+    .await
 }
 
 fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
@@ -344,6 +428,8 @@ pub async fn pull(dir: &Path, branch: Option<String>) -> Result<Option<Pull>, St
         return Ok(None);
     };
     match repo.host {
+        Host::GitLab => gitlab::pull(&repo.slug, &branch).await,
+        Host::Azure => azure::pull(&repo.slug, &branch).await,
         Host::Bitbucket => {
             let q = format!(
                 "source.branch.name=\"{}\"",
@@ -424,20 +510,19 @@ fn pull_link(url: &str) -> Option<(Repo, u64)> {
         .strip_prefix("https://")
         .or_else(|| rest.strip_prefix("http://"))?;
     let rest = rest.strip_prefix("www.").unwrap_or(rest);
-    let parts: Vec<&str> = rest.split('/').collect();
-    let (host, owner, name, kind, number) = (
-        *parts.first()?,
-        *parts.get(1)?,
-        *parts.get(2)?,
-        *parts.get(3)?,
-        parts.get(4)?.parse().ok()?,
-    );
-    let found = repo(&format!("https://{host}/{owner}/{name}"))?;
-    let expected = match found.host {
-        Host::GitHub => "pull",
-        Host::Bitbucket => "pull-requests",
-    };
-    (kind == expected).then_some((found, number))
+    [
+        ("/-/merge_requests/", Host::GitLab),
+        ("/pullrequest/", Host::Azure),
+        ("/pull-requests/", Host::Bitbucket),
+        ("/pull/", Host::GitHub),
+    ]
+    .into_iter()
+    .find_map(|(marker, host)| {
+        let (left, right) = rest.split_once(marker)?;
+        let number = right.split('/').next()?.parse().ok()?;
+        let found = repo(&format!("https://{left}"))?;
+        (found.host == host).then_some((found, number))
+    })
 }
 
 pub async fn linked(url: &str, projects: Vec<PathBuf>) -> Result<Linked, String> {
@@ -446,6 +531,18 @@ pub async fn linked(url: &str, projects: Vec<PathBuf>) -> Result<Linked, String>
         .into_iter()
         .find(|dir| repo_of(dir).is_ok_and(|r| r == repo));
     match repo.host {
+        Host::GitLab | Host::Azure => {
+            let found = if repo.host == Host::GitLab {
+                gitlab::linked(&repo.slug, number).await?
+            } else {
+                azure::linked(&repo.slug, number).await?
+            };
+            Ok(Linked {
+                repo: repo.slug,
+                project,
+                ..found
+            })
+        }
         Host::Bitbucket => {
             let path = format!("/repositories/{}/pullrequests/{number}", repo.slug);
             let fields = BITBUCKET_FIELDS.replace("values.", "");
@@ -514,6 +611,8 @@ pub async fn linked(url: &str, projects: Vec<PathBuf>) -> Result<Linked, String>
 pub async fn lists(dir: &Path) -> Result<Lists, String> {
     let repo = repo_of(dir)?;
     match repo.host {
+        Host::GitLab => gitlab::lists(&repo.slug).await,
+        Host::Azure => azure::lists(&repo.slug).await,
         Host::Bitbucket => {
             let me = bitbucket_me().await?;
             let url = format!("/repositories/{}/pullrequests", repo.slug);
@@ -601,7 +700,10 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                         .flatten()
                         .any(|r| r["login"] == me.as_str())
                 }) {
-                    if !review.iter().any(|p| Some(p.number) == found["number"].as_u64()) {
+                    if !review
+                        .iter()
+                        .any(|p| Some(p.number) == found["number"].as_u64())
+                    {
                         review.push(github_pull(found, &me));
                     }
                 }
@@ -844,6 +946,8 @@ fn github_reviewers(found: &Value) -> Vec<Reviewer> {
 pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
     let repo = repo_of(dir)?;
     match repo.host {
+        Host::GitLab => gitlab::remarks(&repo.slug, number).await,
+        Host::Azure => azure::remarks(&repo.slug, number).await,
         Host::Bitbucket => {
             let mut url = format!("/repositories/{}/pullrequests/{number}/comments", repo.slug);
             let mut found = Vec::new();
@@ -911,6 +1015,8 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
 pub async fn me(dir: &Path) -> Result<Person, String> {
     let repo = repo_of(dir)?;
     match repo.host {
+        Host::GitLab => gitlab::me(&repo.slug).await,
+        Host::Azure => azure::me(&repo.slug).await,
         Host::Bitbucket => bitbucket(
             Method::GET,
             "/user",
@@ -991,6 +1097,8 @@ pub async fn reply(
         return Err("The reply is empty.".into());
     }
     match repo.host {
+        Host::GitLab => gitlab::reply(&repo.slug, number, to, body).await,
+        Host::Azure => azure::reply(&repo.slug, number, to, body).await,
         Host::Bitbucket => bitbucket(
             Method::POST,
             &format!("/repositories/{}/pullrequests/{number}/comments", repo.slug),
@@ -1028,6 +1136,8 @@ pub async fn post(
     let repo = repo_of(dir)?;
     let summary = summary.trim().to_string();
     match repo.host {
+        Host::GitLab => gitlab::post(&repo.slug, number, drafts, summary, verdict).await,
+        Host::Azure => azure::post(&repo.slug, number, drafts, summary, verdict).await,
         Host::Bitbucket => {
             let url = format!("/repositories/{}/pullrequests/{number}/comments", repo.slug);
             let total = drafts.len();
@@ -1109,6 +1219,8 @@ pub async fn post(
 pub async fn merge(dir: &Path, number: u64) -> Result<(), String> {
     let repo = repo_of(dir)?;
     match repo.host {
+        Host::GitLab => gitlab::merge(&repo.slug, number).await,
+        Host::Azure => azure::merge(&repo.slug, number).await,
         Host::Bitbucket => bitbucket(
             Method::POST,
             &format!("/repositories/{}/pullrequests/{number}/merge", repo.slug),
@@ -1184,12 +1296,16 @@ fn repo_given(dir: &Path, repository: &str) -> Result<Repo, String> {
     } else {
         format!("https://{given}")
     };
-    repo(&url).ok_or_else(|| "The repository is not a Bitbucket or GitHub address.".into())
+    repo(&url).ok_or_else(|| {
+        "The repository is not a Bitbucket, GitHub, GitLab or Azure DevOps address.".into()
+    })
 }
 
 pub async fn runs(dir: &Path, repository: &str) -> Result<Vec<Run>, String> {
     let repo = repo_given(dir, repository)?;
     match repo.host {
+        Host::GitLab => gitlab::runs(&repo.slug).await,
+        Host::Azure => azure::runs(&repo.slug).await,
         Host::Bitbucket => {
             let list = bitbucket(
                 Method::GET,
@@ -1327,6 +1443,19 @@ mod tests {
         assert!(pull_link("https://github.com/agence/orbit/issues/12").is_none());
         assert!(pull_link("https://bitbucket.org/steel-shed/bmc/pull/412").is_none());
         assert!(pull_link("https://gitlab.com/a/b/pull/1").is_none());
+        let (repo, number) =
+            pull_link("https://gitlab.com/grp/sub/proj/-/merge_requests/7767/diffs").unwrap();
+        assert_eq!(
+            (repo.host, repo.slug.as_str(), number),
+            (Host::GitLab, "gitlab.com/grp/sub/proj", 7767)
+        );
+        let (repo, number) =
+            pull_link("https://dev.azure.com/Org/My%20Proj/_git/Shop/pullrequest/42?_a=files")
+                .unwrap();
+        assert_eq!(
+            (repo.host, repo.slug.as_str(), number),
+            (Host::Azure, "org/my%20proj/shop", 42)
+        );
     }
 
     use super::*;
@@ -1362,8 +1491,29 @@ mod tests {
                 slug: "Jgrasp/squadron".into()
             })
         );
-        assert_eq!(repo("git@gitlab.com:a/b.git"), None);
-        assert_eq!(repo("git@github.com:a/b/c.git"), None);
+        let gitlab = |url: &str| parse(url, || Some("gitlab.corp.fr".into()));
+        assert_eq!(
+            gitlab("git@gitlab.com:grp/sub/proj.git").map(|r| (r.host, r.slug)),
+            Some((Host::GitLab, "gitlab.com/grp/sub/proj".into()))
+        );
+        assert_eq!(
+            gitlab("https://Gitlab.Corp.fr/team/app.git").map(|r| r.slug),
+            Some("gitlab.corp.fr/team/app".into())
+        );
+        assert_eq!(gitlab("git@git.other.fr:team/app.git"), None);
+        let azure = Some(Repo {
+            host: Host::Azure,
+            slug: "org/my%20proj/shop".into(),
+        });
+        for url in [
+            "https://org@dev.azure.com/Org/My%20Proj/_git/Shop",
+            "git@ssh.dev.azure.com:v3/org/My%20Proj/Shop",
+            "https://org.visualstudio.com/DefaultCollection/My%20Proj/_git/Shop",
+            "org@vs-ssh.visualstudio.com:v3/org/My%20Proj/Shop",
+        ] {
+            assert_eq!(gitlab(url), azure, "{url}");
+        }
+        assert_eq!(gitlab("git@github.com:a/b/c.git"), None);
         assert_eq!(repo("git@github.com:a/b?x=1"), None);
     }
 
@@ -1724,9 +1874,7 @@ mod tests {
                 let repo = repo_of(dir).unwrap();
                 match repo.host {
                     Host::GitHub => format!("https://github.com/{}/pull/1", repo.slug),
-                    Host::Bitbucket => {
-                        format!("https://bitbucket.org/{}/pull-requests/1", repo.slug)
-                    }
+                    _ => format!("https://bitbucket.org/{}/pull-requests/1", repo.slug),
                 }
             });
             let found = rt.block_on(linked(&url, vec![dir.to_path_buf()])).unwrap();
@@ -1855,6 +2003,10 @@ mod tests {
             Host::Bitbucket
         );
         assert!(repo_given(dir, "Jgrasp/squadron").is_err());
+        assert_eq!(
+            repo_given(dir, "gitlab.com/grp/proj").unwrap().host,
+            Host::GitLab
+        );
     }
 
     #[test]

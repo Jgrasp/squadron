@@ -3,11 +3,13 @@ pub mod agents;
 pub mod artifacts;
 pub mod askpass;
 pub mod attach;
+pub mod azure;
 pub mod claude;
 pub mod definitions;
 pub mod editors;
 pub mod forge;
 pub mod git;
+pub mod gitlab;
 pub mod permissions;
 pub mod pilot;
 pub mod process;
@@ -1034,6 +1036,8 @@ async fn forge_accounts() -> forge::Accounts {
             bitbucket: None,
             bitbucket_user: false,
             github: None,
+            gitlab: None,
+            azure: None,
         })
 }
 
@@ -1112,8 +1116,18 @@ async fn ticket_brief(
 }
 
 #[tauri::command]
-fn bitbucket_sign_out() -> Result<(), String> {
-    forge::sign_out()
+fn forge_sign_out(account: String) -> Result<(), String> {
+    forge::sign_out(&account)
+}
+
+#[tauri::command]
+async fn gitlab_sign_in(site: String, token: String) -> Result<(), String> {
+    gitlab::sign_in(site, token.trim().to_string()).await
+}
+
+#[tauri::command]
+async fn azure_sign_in(organization: String, token: String) -> Result<(), String> {
+    azure::sign_in(organization, token.trim().to_string()).await
 }
 
 #[tauri::command]
@@ -1929,7 +1943,9 @@ pub fn run() {
             merge_pull,
             forge_accounts,
             bitbucket_sign_in,
-            bitbucket_sign_out,
+            forge_sign_out,
+            gitlab_sign_in,
+            azure_sign_in,
             ticket_connections,
             ticket_connect,
             ticket_disconnect,

@@ -23,7 +23,7 @@ export default {
   startedAt: 'démarré à {time} · {duration}',
   endedAgo: 'terminé {ago} · durée {duration}',
   openOn: 'Ouvrir sur {host}',
-  settingsIntro: 'Squadron affiche dans l’en-tête des agents de chaque projet ses GitHub Actions et Bitbucket Pipelines pendant qu’ils tournent, puis un moment après leur fin.',
+  settingsIntro: 'Squadron affiche dans l’en-tête des agents de chaque projet ses GitHub Actions, Bitbucket Pipelines, pipelines GitLab et Azure Pipelines pendant qu’ils tournent, puis un moment après leur fin.',
   show: 'Afficher les actions et pipelines',
   showHint: 'Chaque projet peut les désactiver dans Réglages › Projets.',
   notify: 'Me notifier quand un pipeline se termine',

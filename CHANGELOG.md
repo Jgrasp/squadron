@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.31.0 · 2026-11-04
+
+### Code hosting
+
+- **GitLab and Azure DevOps**: Settings › Code hosting connects to GitLab (gitlab.com or a self-managed instance) and to Azure DevOps with a token kept in the system keyring. The pull request of an agent's branch, the lists of pull requests to review and of your own, links in conversations, comments and replies, the review with its line comments, approval, merge and pipelines work there as on Bitbucket and GitHub.
+- Request changes is not available on GitLab yet: the comments are posted and Squadron says to ask for changes on GitLab.
+
 ## 0.30.0 · 2026-11-04
 
 ### Conversation

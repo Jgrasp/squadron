@@ -12,7 +12,19 @@ export const backend: Partial<Record<Locale, Table>> = {
         'Bitbucket a refusé le token d’API : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
       'Add the read:pipeline:bitbucket scope to the Bitbucket API token to see pipelines.':
         'Ajoutez la portée read:pipeline:bitbucket au token d’API Bitbucket pour voir les pipelines.',
-      'The repository is not a Bitbucket or GitHub address.': 'Ce dépôt n’est pas une adresse Bitbucket ou GitHub.',
+      'The repository is not a Bitbucket, GitHub, GitLab or Azure DevOps address.': 'Ce dépôt n’est pas une adresse Bitbucket, GitHub, GitLab ou Azure DevOps.',
+      'Add a GitLab token in Settings › Code hosting.': 'Ajoutez un token GitLab dans Réglages › Hébergement du code.',
+      'GitLab refused the token: add a new one in Settings › Code hosting.':
+        'GitLab a refusé le token : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
+      'GitLab refused this token.': 'GitLab a refusé ce token.',
+      'The comments are on GitLab, but Squadron cannot request changes there: do it on GitLab.':
+        'Les commentaires sont sur GitLab, mais Squadron ne peut pas y demander des modifications : faites-le sur GitLab.',
+      'This GitLab address is not valid.': 'Cette adresse GitLab n’est pas valide.',
+      'Add an Azure DevOps token in Settings › Code hosting.': 'Ajoutez un token Azure DevOps dans Réglages › Hébergement du code.',
+      'Azure DevOps refused the token: add a new one in Settings › Code hosting.':
+        'Azure DevOps a refusé le token : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
+      'Azure DevOps refused this token.': 'Azure DevOps a refusé ce token.',
+      'Enter the Azure DevOps organization.': 'Indiquez l’organisation Azure DevOps.',
       'Bitbucket refused this email and token.': 'Bitbucket a refusé cet e-mail et ce token.',
       'Empty command.': 'Commande vide.',
       'The agent is not running.': 'L’agent n’est pas lancé.',
@@ -47,7 +59,7 @@ export const backend: Partial<Record<Locale, Table>> = {
       'The file is gone.': 'Le fichier n’existe plus.',
       'The layout must be an object.': 'La disposition doit être un objet.',
       'The project folder cannot be found.': 'Le dossier du projet est introuvable.',
-      'The project is not on Bitbucket or GitHub.': 'Le projet n’est ni sur Bitbucket ni sur GitHub.',
+      'The project is not on Bitbucket, GitHub, GitLab or Azure DevOps.': 'Le projet n’est ni sur Bitbucket, ni sur GitHub, ni sur GitLab, ni sur Azure DevOps.',
       'The project needs a name.': 'Le projet a besoin d’un nom.',
       'The pull request commit is not on this computer.': 'Le commit de la pull request n’est pas sur cet ordinateur.',
       'The reply is empty.': 'La réponse est vide.',
@@ -80,7 +92,7 @@ export const backend: Partial<Record<Locale, Table>> = {
       [/^Could not save: (.*)$/s, 'Enregistrement impossible : $1'],
       [/^Jira could not be reached at (.*)\.$/s, 'Jira est injoignable à l’adresse $1.'],
       [/^Jira: (.*)$/s, 'Jira : $1'],
-      [/^Bitbucket answered (\S+): (.*)$/s, 'Bitbucket a répondu $1 : $2'],
+      [/^(Bitbucket|GitLab|Azure DevOps) answered (\S+): (.*)$/s, '$1 a répondu $2 : $3'],
       [/^This folder is already the (.*) project\.$/s, 'Ce dossier est déjà le projet $1.'],
       [/^(.*) is not on this computer\.$/s, '$1 n’est pas sur cet ordinateur.'],
       [/^(.*) is not a git checkout\.$/s, '$1 n’est pas une copie de travail git.'],
