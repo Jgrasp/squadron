@@ -1258,6 +1258,11 @@ fn fork_agent(
 }
 
 #[tauri::command]
+fn rewind_agent(agents: State<Agents>, id: String, at: Option<String>) -> Result<(), String> {
+    agents.rewind(&id, at.as_deref())
+}
+
+#[tauri::command]
 fn system_load(cpu: State<system::Cpu>) -> Option<system::Load> {
     cpu.load()
 }
@@ -1966,6 +1971,7 @@ pub fn run() {
             create_agent,
             restore_agent,
             fork_agent,
+            rewind_agent,
             save_agent,
             delete_agent_file,
             load_agents,

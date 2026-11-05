@@ -226,7 +226,7 @@ export default {
   planChange: 'Ce qui doit changer dans le plan…',
   denyWith: 'Refuser avec une consigne pour {agent}…',
   addInstruction: 'Ajouter une consigne, lue dès la fin de l’action en cours…',
-  newInstruction: 'Nouvelle consigne, ou « continue » pour reprendre',
+  newInstruction: 'Nouvelle consigne, « continue » pour reprendre la réponse, ou ↑ pour reprendre votre message',
   writeReload: 'Écrire à {agent} : la session sera rechargée avant l’envoi',
   writeTo: 'Écrire à {agent}…',
   shellIn: 'S’exécute dans {path}',

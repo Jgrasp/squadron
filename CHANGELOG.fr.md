@@ -1,5 +1,17 @@
 # Nouveautés
 
+## 0.34.0 · 2026-11-05
+
+### Conversation
+
+- Après une interruption, ↑ dans le champ de saisie vide reprend le dernier message : il quitte la conversation et la session de Claude, qui repart juste avant lui, et revient dans le champ avec ses fichiers et ses commentaires.
+- Chercher une lettre courante dans une conversation ne fige plus Squadron : au-delà de mille occurrences, seule l’occurrence courante est surlignée.
+- Une tâche de fond qui ne fait qu’attendre ne propose plus Voir la sortie, qui ouvrait un terminal vide.
+
+### Panneaux
+
+- Dans le panneau Pull requests, Actualiser a une icône de flèche circulaire qui tourne pendant l’actualisation, et a la même hauteur que le menu de placement et le bouton de fermeture à côté.
+
 ## 0.33.0 · 2026-11-04
 
 ### Panneaux
@@ -11,7 +23,7 @@
 ### Conversation
 
 - Dans une carte de plusieurs questions, cliquer de nouveau sur le choix retenu le désélectionne, pour répondre à la question par un texte libre seulement.
-- Pendant l’écriture d’un bloc html, son emplacement montre le triangle de Squadron, dont le contour est parcouru d’un trait cuivré, au-dessus de « Création de l’aperçu… ».
+- Pendant l’écriture d’un bloc html, son emplacement montre le triangle de Squadron, dont le contour est parcouru d’un trait cuivré, au-dessus de « Création du rendu… ».
 - Dans la fenêtre Nouvel agent, Annuler et Lancer l’agent affichent leur raccourci, Échap et Ctrl ↵, dans le bouton.
 
 ## 0.32.0 · 2026-11-04

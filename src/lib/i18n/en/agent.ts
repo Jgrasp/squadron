@@ -224,7 +224,7 @@ export default {
   planChange: 'What should change in the plan…',
   denyWith: 'Deny with an instruction for {agent}…',
   addInstruction: 'Add an instruction, read once the current action ends…',
-  newInstruction: 'New instruction, or “continue” to resume',
+  newInstruction: 'New instruction, “continue” to resume, or ↑ to take back your message',
   writeReload: 'Write to {agent}: the session will reload before sending',
   writeTo: 'Write to {agent}…',
   shellIn: 'Runs in {path}',
