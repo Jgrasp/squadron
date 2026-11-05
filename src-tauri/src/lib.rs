@@ -2016,9 +2016,7 @@ pub fn run() {
                     }
                 }
             }
-            if cfg!(debug_assertions) {
-                restore_place(app, &config);
-            }
+            restore_place(app, &config);
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
             }
@@ -2116,8 +2114,7 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if cfg!(debug_assertions)
-                && window.label() == "main"
+            if window.label() == "main"
                 && matches!(
                     event,
                     WindowEvent::Moved(_) | WindowEvent::Resized(_) | WindowEvent::CloseRequested { .. }
