@@ -1,5 +1,20 @@
 # Nouveautés
 
+## 0.35.0 · 2026-11-05
+
+### Nouvel agent
+
+- Quand le premier message commence par /, le dialogue de nouvel agent propose les skills avec leurs arguments, comme le champ de saisie.
+
+### Conversation
+
+- La conversation et le champ de saisie sont centrés sur la même colonne : le rail des messages descend à côté du champ de saisie.
+- Arrêter un agent remet le curseur dans son champ de saisie.
+
+### Interface
+
+- Squadron installé se rouvre à la taille qu’il avait, et agrandi s’il l’était.
+
 ## 0.34.0 · 2026-11-05
 
 ### Conversation

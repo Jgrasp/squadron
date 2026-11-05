@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.35.0 · 2026-11-05
+
+### New agent
+
+- When the first message starts with /, the new agent dialog suggests skills with their arguments, like the message box.
+
+### Conversation
+
+- The conversation and the message box are centered on the same column: the message rail runs down beside the message box.
+- Stopping an agent puts the cursor back in its message box.
+
+### Interface
+
+- The installed Squadron reopens at the size it had, and maximized if it was.
+
 ## 0.34.0 · 2026-11-05
 
 ### Conversation
