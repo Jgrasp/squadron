@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.35.3 · 2026-11-05
+
+### Correctifs
+
+- Un Ctrl+clic ou Maj+clic sur un lien d’une conversation l’ouvre une seule fois dans le navigateur, au lieu de deux.
+
 ## 0.35.1 · 2026-11-05
 
 ### Correctifs
