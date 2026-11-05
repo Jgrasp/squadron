@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.34.0 · 2026-11-05
+
+### Conversation
+
+- After an interruption, ↑ in the empty composer takes the last message back: it leaves the conversation and Claude's session, which resumes just before it, and returns to the composer with its files and comments.
+- Searching a conversation for a common letter no longer freezes Squadron: past a thousand matches, only the current one is highlighted.
+- A background task that only sleeps no longer offers View output, which opened an empty terminal.
+
+### Panels
+
+- In the Pull requests panel, Refresh has a circular arrow icon that turns while refreshing, and is the same height as the placement menu and close buttons beside it.
+
+
 ## 0.33.0 · 2026-11-04
 
 ### Panels
