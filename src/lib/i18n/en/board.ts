@@ -43,7 +43,7 @@ export default {
   inProject: 'in {project}',
   namePlaceholder: 'Leave empty to get a title from the first message',
   firstMessage: 'First message',
-  firstMessagePlaceholder: 'Optional. You can also write it in the conversation, with screenshots and files.',
+  firstMessagePlaceholder: 'Optional. You can also write it in the conversation, with screenshots and files. Type / to launch a skill.',
   agentGoalPlaceholder: 'Optional. The agent keeps working until this is true. Ask for visible proof: tests run, output shown.',
   startAgent: 'Start agent',
   launchSettings: 'Settings',

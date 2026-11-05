@@ -45,7 +45,7 @@ export default {
   inProject: 'dans {project}',
   namePlaceholder: 'Laissez vide pour tirer un titre du premier message',
   firstMessage: 'Premier message',
-  firstMessagePlaceholder: 'Facultatif. Vous pouvez aussi l’écrire dans la conversation, avec captures d’écran et fichiers.',
+  firstMessagePlaceholder: 'Facultatif. Vous pouvez aussi l’écrire dans la conversation, avec captures d’écran et fichiers. Tapez / pour lancer une compétence.',
   agentGoalPlaceholder: 'Facultatif. L’agent continue jusqu’à ce que ce soit vrai. Demandez une preuve visible : tests lancés, résultat affiché.',
   startAgent: 'Lancer l’agent',
   launchSettings: 'Réglages',

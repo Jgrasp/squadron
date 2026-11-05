@@ -508,7 +508,7 @@ mockIPC(
         if ((a.options as unknown as { agent?: string }).agent)
           emit('agent-line', {
             id: a.id,
-            line: JSON.stringify({ type: 'system', subtype: 'init', session_id: crypto.randomUUID(), slash_commands: ['compact', 'clear'], tools: (a.options as unknown as { agent?: string }).agent === 'crew:architect' ? ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'mcp__plugin_codegraph_codegraph__codegraph_explore'] : ['Bash', 'Read', 'Edit', 'Write', 'WebFetch', 'Agent'] }),
+            line: JSON.stringify({ type: 'system', subtype: 'init', session_id: crypto.randomUUID(), slash_commands: ['compact', 'clear', 'ponytail:ponytail', 'code-review', 'codegraph:setup', 'greet'], skills: ['ponytail:ponytail', 'code-review', 'codegraph:setup', 'greet'], tools: (a.options as unknown as { agent?: string }).agent === 'crew:architect' ? ['Read', 'Glob', 'Grep', 'Write', 'Edit', 'mcp__plugin_codegraph_codegraph__codegraph_explore'] : ['Bash', 'Read', 'Edit', 'Write', 'WebFetch', 'Agent'] }),
           })
         return a.text.trim() ? replay(a.id, a.text) : undefined
       case 'send_message':

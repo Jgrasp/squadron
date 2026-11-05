@@ -315,6 +315,9 @@
     if (staged === 'config') untrack(loadSettings)
     if (staged === 'mcp') untrack(() => mcpStatus(agent.id))
   })
+  $effect(() => {
+    if (agent.status === 'interrupted') composer?.focus()
+  })
 
   function configItems(query: string): Item[] {
     const settings = claudeConfig.settings ?? []
@@ -1080,26 +1083,8 @@
     </div>
     {#if agent.infoPanel}<InfoPanel {agent} />{/if}
 
-    <div class="middle">
-      {#if finding}
-        <div class="find" role="search">
-          <input
-            bind:this={field}
-            bind:value={query}
-            oninput={search}
-            placeholder={t('agent.findPlaceholder')}
-            spellcheck="false"
-            onkeydown={(e) => {
-              if (e.key === 'Escape') (e.stopPropagation(), e.preventDefault(), closeFind())
-              else if (e.key === 'Enter') (e.preventDefault(), go(e.shiftKey ? -1 : 1))
-            }}
-          />
-          <span class="count">{totalMatches ? t('agent.findCount', { index: matchIndex + 1, total: totalMatches }) : query ? t('agent.findNone') : ''}</span>
-          <button type="button" disabled={!totalMatches} aria-label={t('agent.findPrevious')} onclick={() => go(-1)}>‹</button>
-          <button type="button" disabled={!totalMatches} aria-label={t('agent.findNext')} onclick={() => go(1)}>›</button>
-          <button type="button" class="close" aria-label={t('common.close')} title={t('common.close')} onclick={closeFind}>×</button>
-        </div>
-      {/if}
+    {#if dropping}<div class="dropzone" aria-hidden="true">{t('agent.dropToAttach', { agent: agent.name })}</div>{/if}
+    <div class="body">
       {#if users.length}
         <nav class="rail" aria-label={t('agent.landmarks')}>
           <div class="marks" class:grouped={buckets.length < users.length} bind:clientHeight={railHeight}>
@@ -1125,198 +1110,219 @@
           {/if}
         </nav>
       {/if}
-
-      <div
-        class="scroller"
-        bind:this={scroller}
-        onscroll={scrolled}
-        onwheel={touch}
-        onpointerdown={touch}
-        onkeydown={touch}
-        role="presentation"
-      >
-        <div class="column" data-gallery bind:this={column}>
-          {#if folded}
-            {@const mark = agent.entries[floor]}
-            <button class="earlier folded" onclick={() => ((unfolded = true), showEarlier())}>
-              {t('agent.beforeCompaction', { count: foldedCount, when: mark.kind === 'compacted' ? new Date(mark.at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '' })}
-              <span>{t('agent.showThem')}</span>
-            </button>
-          {:else if start > 0}
-            <button class="earlier" bind:this={earlier} onclick={showEarlier}>{t('agent.earlierMessages')}</button>
-          {/if}
-          <Conversation
-          {agent}
-          start={folded ? floor : start}
-          {ondiff}
-          onfork={(i) => fork(agent.id, i)}
-          onsubagent={openSubagent}
-          onsubagents={() => openSubagent(null)}
-          onpreview={(p) => ((proposal = p), openDiff(p.path))}
-          onreplay={replay}
-          onterminal={inTerminal}
-          onrun={(command) => ((stuck = true), run(agent, command))}
-          onsend={(message) => send(agent.id, message)}
-          onticket={readTicket}
-        />
-        </div>
-      </div>
-
-      {#if !stuck}
-        <button class="latest" onclick={bottom}>
-          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
-          {t('agent.latestMessage')}{#if below}<span>&nbsp;· {t('agent.messagesBelow', { count: below })}</span>{/if}
-        </button>
-      {/if}
-    </div>
-
-    {#if dropping}<div class="dropzone" aria-hidden="true">{t('agent.dropToAttach', { agent: agent.name })}</div>{/if}
-    <form class="composer" onsubmit={submit}>
-      {#if chilly === agent.id}
-        <div class="chilly" role="alert">
-          <p><strong>{t('agent.coldTitle', { tokens: tokens(agent.tokens), idle: ago(agent.since, Date.now()) })}</strong> {t('agent.coldDetail')}</p>
-          <div class="actions">
-            <button type="button" class="btn btn-primary" onclick={async () => (await send(agent.id, '/compact'), submit(undefined, true))}>{t('agent.compactThenSend')}</button>
-            <button type="button" class="btn btn-secondary" onclick={() => submit(undefined, true)}>{t('agent.sendAnyway')}</button>
-            <button type="button" class="close" aria-label={t('common.cancel')} title={t('common.cancel')} onclick={() => (chilly = '')}>×</button>
-          </div>
-        </div>
-      {/if}
-      {#if attachments.length || attachError}
-        <div class="attached files" aria-label={t('agent.filesSent')}>
-          {#each attachments as file, i (file)}<Attachment path={file} onremove={() => attachments.splice(i, 1)} />{/each}
-          {#if attachError}<span class="attach-error" role="alert">{attachError}</span>{/if}
-        </div>
-      {/if}
-      {#if comments.length}
-        <div class="attached" aria-label={t('agent.commentsSent')}>
-          {#each comments as comment, i (i)}
-            <CommentChip
-              {comment}
-              onopen={() => ((target = comment), (diffSource = comment.pull ? 'pull' : 'local'), openDiff(comment.path))}
-              onremove={() => comments.splice(i, 1)}
-            />
-          {/each}
-        </div>
-      {/if}
-      {#if suggestions.length || guide}
-        <div class="commands" role="listbox" aria-label={mention ? t('agent.files') : stage?.command ? t('agent.argumentsOf', { command: stage.command.name }) : t('agent.commands')}>
-          {#if stage?.command}
-            <div class="usage" role="presentation">
-              <span class="slash">/{stage.command.name}</span>
-              <span class="what">{stage.command.description}</span>
-              {#if stage.command.argumentHint}<code class="usage-hint">{stage.command.argumentHint}</code>{/if}
+      <div class="stack">
+        <div class="middle">
+          {#if finding}
+            <div class="find" role="search">
+              <input
+                bind:this={field}
+                bind:value={query}
+                oninput={search}
+                placeholder={t('agent.findPlaceholder')}
+                spellcheck="false"
+                onkeydown={(e) => {
+                  if (e.key === 'Escape') (e.stopPropagation(), e.preventDefault(), closeFind())
+                  else if (e.key === 'Enter') (e.preventDefault(), go(e.shiftKey ? -1 : 1))
+                }}
+              />
+              <span class="count">{totalMatches ? t('agent.findCount', { index: matchIndex + 1, total: totalMatches }) : query ? t('agent.findNone') : ''}</span>
+              <button type="button" disabled={!totalMatches} aria-label={t('agent.findPrevious')} onclick={() => go(-1)}>‹</button>
+              <button type="button" disabled={!totalMatches} aria-label={t('agent.findNext')} onclick={() => go(1)}>›</button>
+              <button type="button" class="close" aria-label={t('common.close')} title={t('common.close')} onclick={closeFind}>×</button>
             </div>
           {/if}
-          <div class="choices">
-            {#each sections as section (section.name ?? '')}
-              <div class="group" role="group" aria-label={section.name && groupName(section.name)}>
-                {#if section.name}
-                  <div class="section" class:current={suggestions[pick]?.group === section.name} role="presentation">{groupName(section.name)}</div>
-                {/if}
-                {#each section.items as { item, i } (item.value)}
-                  <button
-                    type="button"
-                    role="option"
-                    aria-selected={i === pick}
-                    onmousemove={() => (pick = i)}
-                    onmousedown={(e) => e.preventDefault()}
-                    onclick={() => complete(item)}
-                  >
-                    <span class="line">
-                      <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
-                      {#if item.hint}<span class="hint" data-tone={item.tone}>{item.hint}</span>{/if}
-                      {#if i === pick && item.usage}<code class="syntax">{item.usage}</code>{/if}
-                    </span>
-                    {#if i === pick && item.detail}<span class="about">{item.detail}</span>{/if}
-                  </button>
-                {/each}
-              </div>
-            {/each}
-          </div>
-          <div class="keys-help" role="presentation">
-            {#if suggestions.length}<Trans k="agent.keysMove">{#snippet up()}<kbd>↑</kbd>{/snippet}{#snippet down()}<kbd>↓</kbd>{/snippet}</Trans>{' · '}<Trans k="agent.keysChoose"
-                >{#snippet tab()}<kbd>Tab</kbd>{/snippet}{#snippet enter()}<kbd>{t('agent.keyEnter')}</kbd>{/snippet}</Trans
-              >{' · '}{/if}{#if text === chosen && text.endsWith(' ')}<Trans k="agent.keysBack">{#snippet key()}<kbd>⌫</kbd>{/snippet}</Trans>{' · '}{/if}<Trans k="agent.keysClose"
-              >{#snippet key()}<kbd>{t('agent.keyEsc')}</kbd>{/snippet}</Trans
-            >
-          </div>
-        </div>
-      {/if}
-      <div class="bar" class:bang>
-        <label for="composer" class="sr-only">{t('agent.messageToAgent')}</label>
-        <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={clip.paste} oninput={mentions.track} onkeyup={mentions.track} onmouseup={mentions.track}></textarea>
-        <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
-          <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
-            ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
+          <div
+            class="scroller"
+            bind:this={scroller}
+            onscroll={scrolled}
+            onwheel={touch}
+            onpointerdown={touch}
+            onkeydown={touch}
+            role="presentation"
           >
-        </button>
-        {#if busy}
-          <button type="button" class="btn-icon" aria-label={t('agent.interrupt')} title={t('agent.interruptTitle', { shortcut: hint('interrupt') })} onclick={() => interrupt(agent.id)}>
-            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
-          </button>
-        {/if}
-        <div class="anchor" data-agent-menu>
-          <button
-            type="button"
-            class="btn-icon"
-            class:open={menuOpen}
-            aria-label={t('agent.moreActions')}
-            title={t('agent.moreActions')}
-            aria-haspopup="menu"
-            aria-expanded={menuOpen}
-            onclick={() => (menuOpen = !menuOpen)}
-          >
-            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"
-              ><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg
-            >
-          </button>
-          {#if menuOpen}
-            <div class="menu" role="menu" aria-label={t('agent.agentActions')}>
-              {#each shown('agent.menu') as id, i (id)}
-                {#if id === 'options'}
-                  {#each SUBMENUS as [key, name] (key)}
-                    <div class="sub">
-                      <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={sub === key} class:open={sub === key} onmouseenter={() => (sub = key)} onclick={() => (sub = sub === key ? null : key)}>
-                        <strong>{t(name)}</strong>
-                        <span class="value">{key === 'model' ? modelLabel(agent.options.model) : key === 'effort' ? effortLabel(agent.options.effort) : key === 'advisor' ? advisorLabel(agent.options.advisor) : t(MODES.find(([m]) => m === agent.options.mode)?.[1] ?? 'settings.modeDefault')}</span>
-                        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
-                      </button>
-                      {#if sub === key}
-                        <div class="flyout" role="menu" aria-label={t(name)}>
-                          {#each choices(key) as choice (choice.value)}
-                            <button type="button" role="menuitemradio" aria-checked={optionOf(key) === choice.value} disabled={choice.off} onclick={() => chooseOption(key, choice.value)}>
-                              <strong>{choice.label}</strong>
-                              {#if choice.detail}<span>{choice.detail}</span>{/if}
-                            </button>
-                          {/each}
-                        </div>
-                      {/if}
-                    </div>
-                  {/each}
-                  {#if i < shown('agent.menu').length - 1}<span class="rule" aria-hidden="true"></span>{/if}
-                {:else}
-                {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
-                <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id]())}>
-                  <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}</strong>
-                  <span>{id === 'remote' && agent.remote ? t('agent.turnOffRemoteDetail') : detailOf('agent.menu', id)}</span>
+            <div class="column" data-gallery bind:this={column}>
+              {#if folded}
+                {@const mark = agent.entries[floor]}
+                <button class="earlier folded" onclick={() => ((unfolded = true), showEarlier())}>
+                  {t('agent.beforeCompaction', { count: foldedCount, when: mark.kind === 'compacted' ? new Date(mark.at).toLocaleString(undefined, { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '' })}
+                  <span>{t('agent.showThem')}</span>
                 </button>
-                {/if}
+              {:else if start > 0}
+                <button class="earlier" bind:this={earlier} onclick={showEarlier}>{t('agent.earlierMessages')}</button>
+              {/if}
+              <Conversation
+              {agent}
+              start={folded ? floor : start}
+              {ondiff}
+              onfork={(i) => fork(agent.id, i)}
+              onsubagent={openSubagent}
+              onsubagents={() => openSubagent(null)}
+              onpreview={(p) => ((proposal = p), openDiff(p.path))}
+              onreplay={replay}
+              onterminal={inTerminal}
+              onrun={(command) => ((stuck = true), run(agent, command))}
+              onsend={(message) => send(agent.id, message)}
+              onticket={readTicket}
+            />
+            </div>
+          </div>
+
+          {#if !stuck}
+            <button class="latest" onclick={bottom}>
+              <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M6 13l6 6 6-6" /></svg>
+              {t('agent.latestMessage')}{#if below}<span>&nbsp;· {t('agent.messagesBelow', { count: below })}</span>{/if}
+            </button>
+          {/if}
+        </div>
+
+        <form class="composer" onsubmit={submit}>
+          {#if chilly === agent.id}
+            <div class="chilly" role="alert">
+              <p><strong>{t('agent.coldTitle', { tokens: tokens(agent.tokens), idle: ago(agent.since, Date.now()) })}</strong> {t('agent.coldDetail')}</p>
+              <div class="actions">
+                <button type="button" class="btn btn-primary" onclick={async () => (await send(agent.id, '/compact'), submit(undefined, true))}>{t('agent.compactThenSend')}</button>
+                <button type="button" class="btn btn-secondary" onclick={() => submit(undefined, true)}>{t('agent.sendAnyway')}</button>
+                <button type="button" class="close" aria-label={t('common.cancel')} title={t('common.cancel')} onclick={() => (chilly = '')}>×</button>
+              </div>
+            </div>
+          {/if}
+          {#if attachments.length || attachError}
+            <div class="attached files" aria-label={t('agent.filesSent')}>
+              {#each attachments as file, i (file)}<Attachment path={file} onremove={() => attachments.splice(i, 1)} />{/each}
+              {#if attachError}<span class="attach-error" role="alert">{attachError}</span>{/if}
+            </div>
+          {/if}
+          {#if comments.length}
+            <div class="attached" aria-label={t('agent.commentsSent')}>
+              {#each comments as comment, i (i)}
+                <CommentChip
+                  {comment}
+                  onopen={() => ((target = comment), (diffSource = comment.pull ? 'pull' : 'local'), openDiff(comment.path))}
+                  onremove={() => comments.splice(i, 1)}
+                />
               {/each}
             </div>
           {/if}
-        </div>
-        <button class="btn btn-primary send" disabled={!text.trim() && !comments.length && !attachments.length}>
-          {pending === 'AskUserQuestion' ? t('agent.answer') : pending === 'ExitPlanMode' ? t('agent.sendFeedback') : pending && pending !== VALUES ? t('agent.deny') : t('common.send')}
-        </button>
+          {#if suggestions.length || guide}
+            <div class="commands" role="listbox" aria-label={mention ? t('agent.files') : stage?.command ? t('agent.argumentsOf', { command: stage.command.name }) : t('agent.commands')}>
+              {#if stage?.command}
+                <div class="usage" role="presentation">
+                  <span class="slash">/{stage.command.name}</span>
+                  <span class="what">{stage.command.description}</span>
+                  {#if stage.command.argumentHint}<code class="usage-hint">{stage.command.argumentHint}</code>{/if}
+                </div>
+              {/if}
+              <div class="choices">
+                {#each sections as section (section.name ?? '')}
+                  <div class="group" role="group" aria-label={section.name && groupName(section.name)}>
+                    {#if section.name}
+                      <div class="section" class:current={suggestions[pick]?.group === section.name} role="presentation">{groupName(section.name)}</div>
+                    {/if}
+                    {#each section.items as { item, i } (item.value)}
+                      <button
+                        type="button"
+                        role="option"
+                        aria-selected={i === pick}
+                        onmousemove={() => (pick = i)}
+                        onmousedown={(e) => e.preventDefault()}
+                        onclick={() => complete(item)}
+                      >
+                        <span class="line">
+                          <span class={stage?.command ? 'option' : 'slash'}>{item.label}</span>
+                          {#if item.hint}<span class="hint" data-tone={item.tone}>{item.hint}</span>{/if}
+                          {#if i === pick && item.usage}<code class="syntax">{item.usage}</code>{/if}
+                        </span>
+                        {#if i === pick && item.detail}<span class="about">{item.detail}</span>{/if}
+                      </button>
+                    {/each}
+                  </div>
+                {/each}
+              </div>
+              <div class="keys-help" role="presentation">
+                {#if suggestions.length}<Trans k="agent.keysMove">{#snippet up()}<kbd>↑</kbd>{/snippet}{#snippet down()}<kbd>↓</kbd>{/snippet}</Trans>{' · '}<Trans k="agent.keysChoose"
+                    >{#snippet tab()}<kbd>Tab</kbd>{/snippet}{#snippet enter()}<kbd>{t('agent.keyEnter')}</kbd>{/snippet}</Trans
+                  >{' · '}{/if}{#if text === chosen && text.endsWith(' ')}<Trans k="agent.keysBack">{#snippet key()}<kbd>⌫</kbd>{/snippet}</Trans>{' · '}{/if}<Trans k="agent.keysClose"
+                  >{#snippet key()}<kbd>{t('agent.keyEsc')}</kbd>{/snippet}</Trans
+                >
+              </div>
+            </div>
+          {/if}
+          <div class="bar" class:bang>
+            <label for="composer" class="sr-only">{t('agent.messageToAgent')}</label>
+            <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={clip.paste} oninput={mentions.track} onkeyup={mentions.track} onmouseup={mentions.track}></textarea>
+            <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
+              <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
+                ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
+              >
+            </button>
+            {#if busy}
+              <button type="button" class="btn-icon" aria-label={t('agent.interrupt')} title={t('agent.interruptTitle', { shortcut: hint('interrupt') })} onclick={() => interrupt(agent.id)}>
+                <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><rect x="4" y="4" width="16" height="16" rx="3" fill="currentColor" /></svg>
+              </button>
+            {/if}
+            <div class="anchor" data-agent-menu>
+              <button
+                type="button"
+                class="btn-icon"
+                class:open={menuOpen}
+                aria-label={t('agent.moreActions')}
+                title={t('agent.moreActions')}
+                aria-haspopup="menu"
+                aria-expanded={menuOpen}
+                onclick={() => (menuOpen = !menuOpen)}
+              >
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"
+                  ><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg
+                >
+              </button>
+              {#if menuOpen}
+                <div class="menu" role="menu" aria-label={t('agent.agentActions')}>
+                  {#each shown('agent.menu') as id, i (id)}
+                    {#if id === 'options'}
+                      {#each SUBMENUS as [key, name] (key)}
+                        <div class="sub">
+                          <button type="button" role="menuitem" aria-haspopup="menu" aria-expanded={sub === key} class:open={sub === key} onmouseenter={() => (sub = key)} onclick={() => (sub = sub === key ? null : key)}>
+                            <strong>{t(name)}</strong>
+                            <span class="value">{key === 'model' ? modelLabel(agent.options.model) : key === 'effort' ? effortLabel(agent.options.effort) : key === 'advisor' ? advisorLabel(agent.options.advisor) : t(MODES.find(([m]) => m === agent.options.mode)?.[1] ?? 'settings.modeDefault')}</span>
+                            <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M15 6l-6 6 6 6" /></svg>
+                          </button>
+                          {#if sub === key}
+                            <div class="flyout" role="menu" aria-label={t(name)}>
+                              {#each choices(key) as choice (choice.value)}
+                                <button type="button" role="menuitemradio" aria-checked={optionOf(key) === choice.value} disabled={choice.off} onclick={() => chooseOption(key, choice.value)}>
+                                  <strong>{choice.label}</strong>
+                                  {#if choice.detail}<span>{choice.detail}</span>{/if}
+                                </button>
+                              {/each}
+                            </div>
+                          {/if}
+                        </div>
+                      {/each}
+                      {#if i < shown('agent.menu').length - 1}<span class="rule" aria-hidden="true"></span>{/if}
+                    {:else}
+                    {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
+                    <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id]())}>
+                      <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}</strong>
+                      <span>{id === 'remote' && agent.remote ? t('agent.turnOffRemoteDetail') : detailOf('agent.menu', id)}</span>
+                    </button>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
+            </div>
+            <button class="btn btn-primary send" disabled={!text.trim() && !comments.length && !attachments.length}>
+              {pending === 'AskUserQuestion' ? t('agent.answer') : pending === 'ExitPlanMode' ? t('agent.sendFeedback') : pending && pending !== VALUES ? t('agent.deny') : t('common.send')}
+            </button>
+          </div>
+          {#if bang}
+            <div class="shell-hint">
+              <span><Trans k="agent.shellIn">{#snippet path()}<span class="mono">{home(workdir(agent))}</span>{/snippet}</Trans></span>
+              <span><Trans k="agent.shellKeys">{#snippet up()}<kbd>↑</kbd>{/snippet}{#snippet enter()}<kbd>{t('agent.keyEnter')}</kbd>{/snippet}</Trans></span>
+            </div>
+          {/if}
+        </form>
       </div>
-      {#if bang}
-        <div class="shell-hint">
-          <span><Trans k="agent.shellIn">{#snippet path()}<span class="mono">{home(workdir(agent))}</span>{/snippet}</Trans></span>
-          <span><Trans k="agent.shellKeys">{#snippet up()}<kbd>↑</kbd>{/snippet}{#snippet enter()}<kbd>{t('agent.keyEnter')}</kbd>{/snippet}</Trans></span>
-        </div>
-      {/if}
-    </form>
+    </div>
   </section>
 
   {#if panel === 'diff'}
@@ -1458,6 +1464,19 @@
 
   .del {
     color: var(--err);
+  }
+
+  .body {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+  }
+
+  .stack {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
   }
 
   .middle {
@@ -2592,6 +2611,7 @@
     flex: 1;
     min-width: 0;
     overflow-y: auto;
+    scrollbar-gutter: stable both-edges;
     padding: 20px 20px 60px;
   }
 
