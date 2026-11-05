@@ -1,5 +1,5 @@
 import { expect, it } from 'vitest'
-import { fenced, projectFile, within, windowLabel } from './filelink'
+import { fenced, localFile, projectFile, within, windowLabel } from './filelink'
 
 it('takes a link to a file of the project and leaves the rest', () => {
   expect(projectFile('a-trier/T52-01-commandes-cms-cassees-dettes.md')).toBe('a-trier/T52-01-commandes-cms-cassees-dettes.md')
@@ -26,4 +26,15 @@ it('takes an absolute path back to the project, and leaves the files outside it'
   expect(within('a-trier/T52.md', '/home/q/mercure2')).toBe('a-trier/T52.md')
   expect(within('/home/q/mercure2-old/x.md', '/home/q/mercure2')).toBe('')
   expect(within('/tmp/x.md', '')).toBe('')
+})
+
+it('reads the paths Claude writes on Windows as Windows paths', () => {
+  expect(localFile('/c/Users/W/Documents/a%20b/urls.csv', true)).toBe('c:/Users/W/Documents/a b/urls.csv')
+  expect(localFile('file:///C:/Users/W/urls.csv', true)).toBe('C:/Users/W/urls.csv')
+  expect(localFile('C:%5CUsers%5CW%5Curls.csv', true)).toBe('C:/Users/W/urls.csv')
+  expect(localFile('/c/Users/W/urls.csv', false)).toBe('/c/Users/W/urls.csv')
+  expect(localFile('C:/Users/W/urls.csv', false)).toBe('')
+  expect(localFile('docs/urls.csv', true)).toBe('')
+  expect(within('C:/Users/W/proj/src/a.ts', 'C:\\Users\\W\\proj')).toBe('src/a.ts')
+  expect(within('C:/Users/W/urls.csv', 'C:\\Users\\W\\proj')).toBe('')
 })

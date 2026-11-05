@@ -6,7 +6,7 @@
   import { t } from './i18n/index.svelte'
   import { isImage, preview } from './Attachment.svelte'
   import { isPullLink } from './linked.svelte'
-  import { projectFile, within } from './filelink'
+  import { localFile, projectFile, within } from './filelink'
 
   const grammars = new Map<string, Language | null>()
   let loaded = $state(0)
@@ -26,14 +26,6 @@
     const escape = md.utils.escapeHtml
     highlightCode(code, grammar.parser.parse(code), classHighlighter, (text, classes) => (html += classes ? `<span class="${classes}">${escape(text)}</span>` : escape(text)), () => (html += '\n'))
     return html
-  }
-
-  function localFile(href: string) {
-    let path = href.replace(/^file:\/\//, '')
-    try {
-      path = decodeURI(path)
-    } catch {}
-    return path.startsWith('/') && /\/[^/]+\.[a-z0-9]{1,8}$/i.test(path) ? path : ''
   }
 
 
@@ -94,11 +86,8 @@
   const shots = new Map<string, string>()
   md.renderer.rules.image = (tokens, idx) => {
     const alt = md.utils.escapeHtml(tokens[idx].content)
-    let path = String(tokens[idx].attrGet('src') ?? '')
-    try {
-      path = decodeURI(path)
-    } catch {}
-    if (!path.startsWith('/') || !isImage(path)) return alt
+    const path = localFile(String(tokens[idx].attrGet('src') ?? ''))
+    if (!isImage(path)) return alt
     const at = md.utils.escapeHtml(path)
     return `<button type="button" class="shot" data-shot="${at}" title="${at}"><img alt="${alt}"></button>`
   }
