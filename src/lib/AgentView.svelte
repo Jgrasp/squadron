@@ -551,7 +551,8 @@
 
   function paintMatches() {
     if (!CAN_HIGHLIGHT) return
-    CSS.highlights.set('squadron-find', new Highlight(...matches))
+    // WebKitGTK repaints every range on each scrolled frame: past a thousand, the view freezes
+    CSS.highlights.set('squadron-find', new Highlight(...(matches.length <= 1000 ? matches : [])))
     CSS.highlights.set('squadron-find-current', new Highlight(...(matchIndex >= 0 ? [matches[matchIndex]] : [])))
   }
 
