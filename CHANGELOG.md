@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.35.3 · 2026-11-05
+
+### Fixes
+
+- A Ctrl+click or Shift+click on a link in a conversation opens it once in the browser, instead of twice.
+
 ## 0.35.1 · 2026-11-05
 
 ### Fixes

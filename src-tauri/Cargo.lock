@@ -3938,7 +3938,7 @@ dependencies = [
 
 [[package]]
 name = "squadron"
-version = "0.35.2"
+version = "0.35.3"
 dependencies = [
  "axum",
  "base64 0.22.1",
