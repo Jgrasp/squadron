@@ -79,7 +79,7 @@
   }
 </script>
 
-<span class="attachment {look} {kind}" class:large class:picture={!!src} title={error || path}>
+<span class="attachment {look} {kind}" class:large class:picture={!!src} title={error ? `${error}\n${path}` : path}>
   <button type="button" class="open" data-shot={src ? path : undefined} aria-label={t('agent.openFile', { name })} onclick={open}>
     {#if src}
       <img {src} alt={name} />

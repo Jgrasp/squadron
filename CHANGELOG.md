@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.35.1 · 2026-11-05
+
+### Fixes
+
+- On Windows, the files Claude hands over in a conversation open again: their card no longer says the file is gone when Claude writes its path as /c/Users/… or C:\…
+- When a file cannot be opened, its card's tooltip still shows its path.
+
 ## 0.35.0 · 2026-11-05
 
 ### New agent

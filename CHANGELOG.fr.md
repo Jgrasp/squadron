@@ -1,5 +1,12 @@
 # Nouveautés
 
+## 0.35.1 · 2026-11-05
+
+### Correctifs
+
+- Sur Windows, les fichiers que Claude donne dans une conversation s’ouvrent de nouveau : leur carte ne dit plus que le fichier n’existe plus quand Claude écrit son chemin en /c/Users/… ou C:\…
+- Quand un fichier ne s’ouvre pas, l’infobulle de sa carte montre toujours son chemin.
+
 ## 0.35.0 · 2026-11-05
 
 ### Nouvel agent
