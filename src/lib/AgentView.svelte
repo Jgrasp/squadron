@@ -315,6 +315,9 @@
     if (staged === 'config') untrack(loadSettings)
     if (staged === 'mcp') untrack(() => mcpStatus(agent.id))
   })
+  $effect(() => {
+    if (agent.status === 'interrupted') composer?.focus()
+  })
 
   function configItems(query: string): Item[] {
     const settings = claudeConfig.settings ?? []
