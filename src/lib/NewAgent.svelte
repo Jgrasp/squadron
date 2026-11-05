@@ -4,15 +4,17 @@
   import { ui } from './actions.svelte'
   import AgentDefinition from './AgentDefinition.svelte'
   import AgentPicker from './AgentPicker.svelte'
+  import { agents } from './agents.svelte'
   import Attachment from './Attachment.svelte'
-  import { agentTypes, models, type Definition } from './catalogs.svelte'
-  import { families } from './commands'
+  import { agentTypes, catalogs, models, type Definition } from './catalogs.svelte'
+  import { families, find as findCommand, options as argumentsOf } from './commands'
+  import Trans from './Trans.svelte'
   import Dialog from './Dialog.svelte'
   import { t } from './i18n/index.svelte'
   import LaunchOptions from './LaunchOptions.svelte'
   import { defaultsFor, type Project } from './projects.svelte'
   import { tick, untrack } from 'svelte'
-  import { Mention, type FileChoice } from './mention.svelte'
+  import { Mention } from './mention.svelte'
   import { imagePaste } from './paste'
   import type { Options } from './stream'
 
@@ -75,22 +77,57 @@
     }
   })
 
+  type Choice = { value: string; label: string; text: string; at?: number; detail?: string; usage?: string }
+
   let message: HTMLTextAreaElement
   let dismissed = $state('')
+  let chosen = $state('')
   let pick = $state(0)
   const mentions = new Mention(() => text, () => project.path)
-  const choices = $derived(text === dismissed ? [] : mentions.choices)
+  const skills = $derived(
+    agents.list.findLast((a) => a.project === project.path && a.skills.length)?.skills ?? agents.list.findLast((a) => a.skills.length)?.skills ?? [],
+  )
+  const commands = $derived(
+    ((catalogs[project.path] ?? Object.values(catalogs).at(-1))?.commands ?? skills.map((name) => ({ name, description: '' }))).filter((c) =>
+      skills.some((s) => s === c.name || s.endsWith(`:${c.name}`)),
+    ),
+  )
+  const stage = $derived.by(() => {
+    if (text === dismissed || mentions.found) return null
+    const m = /^\/(\S*)(?:\s+(\S*))?$/.exec(text)
+    if (!m) return null
+    if (m[2] === undefined) return { query: m[1].toLowerCase() }
+    const command = findCommand(commands, m[1])
+    return command ? { command, query: m[2].toLowerCase() } : null
+  })
+  const choices = $derived.by((): Choice[] => {
+    if (text === dismissed) return []
+    if (!stage) return mentions.choices
+    const q = stage.query
+    if (!stage.command)
+      return commands
+        .filter((c) => c.name.toLowerCase().includes(q))
+        .map((c) => ({ value: c.name, label: `/${c.name}`, detail: c.description, usage: c.argumentHint, text: `/${c.name} ` }))
+        .sort((a, b) => Number(!a.value.startsWith(q)) - Number(!b.value.startsWith(q)) || a.value.localeCompare(b.value))
+    const name = stage.command.name
+    return argumentsOf(stage.command)
+      .filter((o) => `${o.value} ${o.label ?? ''}`.toLowerCase().includes(q))
+      .map((o) => ({ value: o.value, label: o.label ?? o.value, detail: o.detail, text: `/${name} ${o.value} ` }))
+  })
+  const usage = $derived(stage?.command && (choices.length || !stage.query) ? stage.command : null)
 
   $effect(() => {
     void mentions.found?.query
+    void stage?.command
     pick = 0
   })
 
-  function choose(choice: FileChoice) {
+  function choose(choice: Choice) {
     text = choice.text
-    mentions.caret = choice.at
+    chosen = choice.at === undefined ? choice.text : ''
+    const at = (mentions.caret = choice.at ?? choice.text.length)
     message.focus()
-    tick().then(() => message.setSelectionRange(choice.at, choice.at))
+    tick().then(() => message.setSelectionRange(at, at))
   }
 
   function keys(event: KeyboardEvent) {
@@ -102,7 +139,10 @@
     } else if (choices.length && (event.key === 'Tab' || (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey))) {
       event.preventDefault()
       choose(choices[pick])
-    } else if (choices.length && event.key === 'Escape') {
+    } else if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && message.selectionStart === text.length) {
+      event.preventDefault()
+      text = chosen = text.replace(/[^\s/]+ $/, '')
+    } else if ((choices.length || usage) && event.key === 'Escape') {
       event.preventDefault()
       event.stopPropagation()
       dismissed = text
@@ -155,13 +195,32 @@
             </button>
           </div>
         </div>
-        {#if choices.length}
-          <div class="mentions" role="listbox" aria-label={t('agent.files')}>
+        {#if choices.length || usage}
+          <div class="mentions" class:slash={!!stage} role="listbox" aria-label={usage ? t('agent.argumentsOf', { command: usage.name }) : stage ? t('agent.skills') : t('agent.files')}>
+            {#if usage}
+              <div class="usage" role="presentation">
+                <span class="name">/{usage.name}</span>
+                <span class="what">{usage.description}</span>
+                {#if usage.argumentHint}<code>{usage.argumentHint}</code>{/if}
+              </div>
+            {:else if stage}
+              <div class="section" role="presentation">{t('agent.skills')}</div>
+            {/if}
             {#each choices as choice, i (choice.value)}
-              <button type="button" role="option" aria-selected={i === pick} onmousemove={() => (pick = i)} onmousedown={(e) => e.preventDefault()} onclick={() => choose(choice)}
-                >{choice.label}</button
-              >
+              <button type="button" role="option" aria-selected={i === pick} onmousemove={() => (pick = i)} onmousedown={(e) => e.preventDefault()} onclick={() => choose(choice)}>
+                <span class="line">{choice.label}{#if i === pick && choice.usage}<code>{choice.usage}</code>{/if}</span>
+                {#if i === pick && choice.detail}<span class="about">{choice.detail}</span>{/if}
+              </button>
             {/each}
+            {#if stage}
+              <div class="keys-help" role="presentation">
+                {#if choices.length}<Trans k="agent.keysMove">{#snippet up()}<kbd>↑</kbd>{/snippet}{#snippet down()}<kbd>↓</kbd>{/snippet}</Trans>{' · '}<Trans k="agent.keysChoose"
+                    >{#snippet tab()}<kbd>Tab</kbd>{/snippet}{#snippet enter()}<kbd>{t('agent.keyEnter')}</kbd>{/snippet}</Trans
+                  >{' · '}{/if}{#if text === chosen && text.endsWith(' ')}<Trans k="agent.keysBack">{#snippet key()}<kbd>⌫</kbd>{/snippet}</Trans>{' · '}{/if}<Trans k="agent.keysClose"
+                  >{#snippet key()}<kbd>{t('agent.keyEsc')}</kbd>{/snippet}</Trans
+                >
+              </div>
+            {/if}
           </div>
         {/if}
       </div>
@@ -288,6 +347,97 @@
 
   .mentions button[aria-selected='true'] {
     background: var(--menu-hover);
+  }
+
+  .slash {
+    position: static;
+    margin-top: 4px;
+    max-height: 340px;
+  }
+
+  .slash button {
+    white-space: normal;
+  }
+
+  .line {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+  }
+
+  .mentions code {
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font: 12px var(--mono);
+    color: var(--accent-soft);
+  }
+
+  .about {
+    display: block;
+    margin-top: 3px;
+    font: 12.5px/18px var(--sans);
+    color: var(--text-muted);
+  }
+
+  .section {
+    padding: 6px 10px 4px;
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+  }
+
+  .usage {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    align-items: baseline;
+    gap: 4px 12px;
+    margin: -6px -6px 6px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-2);
+  }
+
+  .usage .name {
+    font: 13px var(--mono);
+    color: var(--text-strong);
+  }
+
+  .what {
+    min-width: 0;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-size: 12.5px;
+    color: var(--text-muted);
+  }
+
+  .usage code {
+    grid-column: 1 / -1;
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .keys-help {
+    position: sticky;
+    bottom: -6px;
+    margin: 6px -6px -6px;
+    padding: 7px 16px;
+    border-top: 1px solid var(--border);
+    background: var(--surface-2);
+    font-size: 11.5px;
+    color: var(--text-dim);
+  }
+
+  .keys-help kbd {
+    padding: 0 4px;
+    border: 0;
+    border-radius: 3px;
+    background: var(--surface-3);
+    font: 11px var(--mono);
+    color: var(--text-2);
   }
 
   textarea {
