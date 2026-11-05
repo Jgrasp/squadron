@@ -5,8 +5,27 @@ on:
     branches: [main]
 
 jobs:
-  build:
+  release:
     if: startsWith(github.event.head_commit.message, 'Squadron ')
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      id: ${{ steps.create.outputs.id }}
+    steps:
+      - id: create
+        env:
+          GH_TOKEN: ${{ github.token }}
+          MESSAGE: ${{ github.event.head_commit.message }}
+        run: |
+          version=${MESSAGE%%$'\n'*}
+          tag=v${version#Squadron }
+          id=$(gh api repos/$GITHUB_REPOSITORY/releases/tags/$tag -q .id 2>/dev/null) \
+            || id=$(gh api repos/$GITHUB_REPOSITORY/releases -f tag_name=$tag -f name="Squadron $tag" -f body="$MESSAGE" -q .id)
+          echo "id=$id" >> "$GITHUB_OUTPUT"
+
+  build:
+    needs: release
     strategy:
       fail-fast: false
       matrix:
@@ -50,7 +69,6 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         with:
           tagName: v__VERSION__
-          releaseName: Squadron v__VERSION__
-          releaseBody: ${{ github.event.head_commit.message }}
+          releaseId: ${{ needs.release.outputs.id }}
           args: ${{ matrix.args }}
           includeUpdaterJson: true
