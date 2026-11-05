@@ -173,7 +173,7 @@ GitHub
 </header>
 
 <!-- Hero -->
-<section id="top" style="padding: 88px 24px 0; background: radial-gradient(ellipse 60% 420px at 50% 120px, #241B17 0%, #141110 100%)">
+<section id="top" style="padding: 88px 24px 96px; background: radial-gradient(ellipse 60% 420px at 50% 120px, #241B17 0%, #141110 100%)">
 <div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 28px">
 <div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
 <svg width="300" height="104" sc-camel-view-box="0 0 300 104" role="img" aria-label="A copper lead triangle joined one by one by six coloured wingmen in V formation" style="max-width: 100%; height: auto; overflow: visible">
@@ -936,8 +936,8 @@ The reports table gets an **Export CSV** action.
 </div>
 </div>
 <sc-if value="{{modalOpen}}" hint-placeholder-val="{{ false }}">
-<div sc-camel-on-click="{{closeModal}}" style="position: absolute; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding: 72px 16px; background: rgba(12,9,8,0.74)">
-<div role="dialog" aria-modal="true" aria-label="{{m.title}}" sc-camel-on-click="{{stop}}" class="sq-in" style="width: 100%; max-width: 960px; display: flex; flex-direction: column; gap: 16px; padding: 24px; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 30px 80px rgba(0,0,0,0.6); font-size: 13.5px; line-height: 1.4">
+<div sc-camel-on-click="{{closeModal}}" style="position: fixed; inset: 0; z-index: 20; display: flex; justify-content: center; overflow-y: auto; padding: 24px 16px; background: rgba(12,9,8,0.74)">
+<div role="dialog" aria-modal="true" aria-label="{{m.title}}" sc-camel-on-click="{{stop}}" class="sq-in" style="width: 100%; max-width: 960px; margin: auto 0; display: flex; flex-direction: column; gap: 16px; padding: 24px; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 30px 80px rgba(0,0,0,0.6); font-size: 13.5px; line-height: 1.4">
 <div style="display: flex; align-items: flex-start; gap: 16px">
 <div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px">
 <h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #FFFFFF">{{m.title}}</h3>
