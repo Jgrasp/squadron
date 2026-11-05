@@ -1,0 +1,1548 @@
+<!DOCTYPE html>
+<html lang="en"><head>
+<meta charset="utf-8">
+<title>Squadron — Claude Code agents, side by side</title>
+<script src="assets/runtime.js"></script>
+<meta name="hz:slide-selector" content="[data-canvas-width]"><meta name="hz:canvas-width" content="1440"><meta name="hz:canvas-height" content="8000"></head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin="">
+<style>/* latin-ext */
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/dmmono/v16/aFTU7PB1QTsUX8KYthSQBLyM.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/80543b33.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/dmmono/v16/aFTR7PB1QTsUX8KYvumzEY2tbZX9.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'DM Mono';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/592bb3bd.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/dmsans/v17/rP2Hp2ywxg089UriCZ2IHSeH.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 400;
+  font-display: swap;
+  src: url("assets/132021c8.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/dmsans/v17/rP2Hp2ywxg089UriCZ2IHSeH.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("assets/132021c8.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/dmsans/v17/rP2Hp2ywxg089UriCZ2IHSeH.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 600;
+  font-display: swap;
+  src: url("assets/132021c8.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+/* latin-ext */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url(https://fonts.gstatic.com/s/dmsans/v17/rP2Hp2ywxg089UriCZ2IHSeH.woff2) format('woff2');
+  unicode-range: U+0100-02BA, U+02BD-02C5, U+02C7-02CC, U+02CE-02D7, U+02DD-02FF, U+0304, U+0308, U+0329, U+1D00-1DBF, U+1E00-1E9F, U+1EF2-1EFF, U+2020, U+20A0-20AB, U+20AD-20C4, U+2113, U+2C60-2C7F, U+A720-A7FF;
+}
+/* latin */
+@font-face {
+  font-family: 'DM Sans';
+  font-style: normal;
+  font-weight: 700;
+  font-display: swap;
+  src: url("assets/132021c8.woff2") format('woff2');
+  unicode-range: U+0000-00FF, U+0131, U+0152-0153, U+02BB-02BC, U+02C6, U+02DA, U+02DC, U+0304, U+0308, U+0329, U+2000-206F, U+20AC, U+2122, U+2191, U+2193, U+2212, U+2215, U+FEFF, U+FFFD;
+}
+</style>
+<style>
+body{margin:0;background:#141110;color:#EDE6E1;font-family:'DM Sans',ui-sans-serif,system-ui,sans-serif;-webkit-font-smoothing:antialiased}
+a{color:#F0A57A}a:hover{color:#F7C7AA}
+a:focus-visible,button:focus-visible{outline:2px solid #F7C7AA;outline-offset:2px}
+::selection{background:#6B3A24;color:#FFF3EC}
+@keyframes sq-spin{to{transform:rotate(360deg)}}
+@keyframes sq-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.sq-spin{animation:sq-spin 1.4s linear infinite}
+.sq-in{animation:sq-in .35s ease-out both}
+@media (prefers-reduced-motion: reduce){.sq-spin,.sq-in{animation:none}}
+@keyframes sq-wl{0%,50%{opacity:0;transform:translate(5px,-3px)}62%,88%{opacity:1;transform:none}100%{opacity:0;transform:translate(5px,-3px)}}
+@keyframes sq-wr{0%,50%{opacity:0;transform:translate(-5px,-3px)}62%,88%{opacity:1;transform:none}100%{opacity:0;transform:translate(-5px,-3px)}}
+@keyframes sq-lead{0%,50%,72%,100%{transform:none}60%{transform:translateY(-1.5px)}}
+.sq-wl{animation:sq-wl 6s ease-in-out infinite}
+.sq-wr{animation:sq-wr 6s ease-in-out infinite}
+.sq-lead{animation:sq-lead 6s ease-in-out infinite}
+@keyframes sq-fl{0%{opacity:0;transform:translateY(16px)}6%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-44px)}}
+@keyframes sq-j0{0%,10%{opacity:0;transform:translate(-20px,24px)}17%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-44px)}}
+@keyframes sq-j1{0%,16%{opacity:0;transform:translate(20px,24px)}23%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-44px)}}
+@keyframes sq-j2{0%,22%{opacity:0;transform:translate(-20px,24px)}29%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-44px)}}
+@keyframes sq-j3{0%,28%{opacity:0;transform:translate(20px,24px)}35%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-44px)}}
+@keyframes sq-j4{0%,34%{opacity:0;transform:translate(-20px,24px)}41%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-44px)}}
+@keyframes sq-j5{0%,40%{opacity:0;transform:translate(20px,24px)}47%,86%{opacity:1;transform:none}94%,100%{opacity:0;transform:translateY(-44px)}}
+@keyframes sq-word{0%,50%{opacity:0;letter-spacing:.42em}60%,84%{opacity:1;letter-spacing:.24em}92%,100%{opacity:0;letter-spacing:.24em}}
+.sq-fl{animation:sq-fl 10s ease-in-out infinite}
+.sq-j0{animation:sq-j0 10s ease-in-out infinite}.sq-j1{animation:sq-j1 10s ease-in-out infinite}.sq-j2{animation:sq-j2 10s ease-in-out infinite}
+.sq-j3{animation:sq-j3 10s ease-in-out infinite}.sq-j4{animation:sq-j4 10s ease-in-out infinite}.sq-j5{animation:sq-j5 10s ease-in-out infinite}
+.sq-word{animation:sq-word 10s ease-in-out infinite}
+@keyframes sq-blink{50%{opacity:0}}
+.sq-caret{animation:sq-blink 1s step-end infinite}
+@media (max-width: 760px){.sq-hide-sm{display:none !important}}
+@media (prefers-reduced-motion: reduce){.sq-wl,.sq-wr,.sq-lead,.sq-fl,.sq-j0,.sq-j1,.sq-j2,.sq-j3,.sq-j4,.sq-j5,.sq-word,.sq-caret{animation:none}}
+</style>
+</helmet>
+<div style="background: #141110; color: #EDE6E1; font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; font-size: 16px; line-height: 1.6" data-canvas-width="1440" data-canvas-height="8000" data-document-role="page" data-label="Landing page">
+
+<!-- Nav -->
+<header style="border-bottom: 1px solid #2B2522; background: #141110">
+<nav aria-label="Main" style="max-width: 1200px; margin: 0 auto; padding: 0 24px; min-height: 68px; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 12px 24px">
+<a href="#top" aria-label="Squadron, back to top" style="display: flex; align-items: center; gap: 8px; text-decoration: none; color: #EDE6E1">
+<svg width="34" height="16" sc-camel-view-box="0 0 34 16" aria-hidden="true" style="overflow: visible"><polygon class="sq-wl" points="6,9 9.5,15 2.5,15" fill="#A78BFA"></polygon><polygon class="sq-wr" points="28,9 31.5,15 24.5,15" fill="#2DD4BF"></polygon><polygon class="sq-lead" points="17,1 25,15 9,15" fill="#E08A5B"></polygon></svg>
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span>
+</a>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; font-size: 14px; font-weight: 500">
+<a href="#features" style="color: #CFC5BE; text-decoration: none; padding: 12px 0">Features</a>
+<a href="#conversation" style="color: #CFC5BE; text-decoration: none; padding: 12px 0">Conversation</a>
+<a href="https://github.com/Jgrasp/squadron" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6; text-decoration: none">
+<img src="assets/github.png" alt="" width="18" height="18" style="display: block; width: 18px; height: 18px; object-fit: contain">
+GitHub
+</a>
+</div>
+</nav>
+</header>
+
+<!-- Hero -->
+<section id="top" style="padding: 88px 24px 0; background: radial-gradient(ellipse 60% 420px at 50% 120px, #241B17 0%, #141110 100%)">
+<div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 28px">
+<div style="display: flex; flex-direction: column; align-items: center; gap: 10px">
+<svg width="300" height="104" sc-camel-view-box="0 0 300 104" role="img" aria-label="A copper lead triangle joined one by one by six coloured wingmen in V formation" style="max-width: 100%; height: auto; overflow: visible">
+<polygon class="sq-fl" points="150,0 174,40 126,40" fill="#E08A5B"></polygon>
+<polygon class="sq-j0" points="112,40 124,60 100,60" fill="#A78BFA"></polygon>
+<polygon class="sq-j1" points="188,40 200,60 176,60" fill="#60A5FA"></polygon>
+<polygon class="sq-j2" points="78,60 90,80 66,80" fill="#2DD4BF"></polygon>
+<polygon class="sq-j3" points="222,60 234,80 210,80" fill="#A3E635"></polygon>
+<polygon class="sq-j4" points="44,80 56,100 32,100" fill="#F472B6"></polygon>
+<polygon class="sq-j5" points="256,80 268,100 244,100" fill="#FACC15"></polygon>
+</svg>
+<span class="sq-word" aria-hidden="true" style="height: 22px; font-size: 15px; font-weight: 700; letter-spacing: 0.24em; color: #EDE6E1">SQUADRON</span>
+</div>
+<p style="margin: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; color: #A89C94; letter-spacing: 0.02em">Linux · macOS · Windows — v%VERSION%</p>
+<h1 style="margin: 0; max-width: 900px; font-size: clamp(40px, 6.2vw, 76px); line-height: 1.04; font-weight: 700; letter-spacing: -0.025em; color: #FFFFFF; text-wrap: balance">Your Claude Code agents, flying in formation.</h1>
+<p style="margin: 0; max-width: 640px; font-size: 19px; line-height: 1.55; color: #CFC5BE; text-wrap: pretty">Squadron is a desktop app that runs several Claude Code agents side by side. Each one gets its own conversation, diff, terminal and Kanban card. The one that needs you turns copper.</p>
+
+<div style="width: 100%; max-width: 760px; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: left">
+<div role="group" aria-label="Your system" style="display: flex; flex-wrap: wrap; gap: 4px; padding: 4px; border-radius: 6px; background: #1E1A18; box-shadow: inset 0 0 0 1px #2B2522">
+<sc-for list="{{oses}}" as="o" hint-placeholder-count="3">
+<button type="button" sc-camel-on-click="{{o.pick}}" aria-pressed="{{o.on}}" style="{{o.style}}"><img src="{{o.logo}}" alt="" width="16" height="16" style="display: block; width: 16px; height: 16px; object-fit: contain">{{o.label}}</button>
+</sc-for>
+</div>
+<sc-if value="{{osLinux}}" hint-placeholder-val="{{ true }}">
+<div class="sq-in" style="width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 20px; background: #26211E; border-radius: 6px; box-shadow: inset 0 0 0 1px #3D3531; box-sizing: border-box">
+<div style="flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap; font-family: 'DM Mono', ui-monospace, monospace; font-size: 14px; color: #EDE6E1; padding: 10px 0"><span style="color: #6E625B; user-select: none">$ </span>curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | bash</div>
+<button type="button" sc-camel-on-click="{{copyCmd}}" style="flex: 0 0 auto; min-width: 88px; min-height: 44px; padding: 0 18px; border: 0; border-radius: 4px; background: #E08A5B; color: #24120A; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer">{{copyLabel}}</button>
+</div>
+</sc-if>
+<sc-if value="{{osMac}}" hint-placeholder-val="{{ false }}">
+<a class="sq-in" href="https://github.com/Jgrasp/squadron/releases/download/v%VERSION%/Squadron_%VERSION%_universal.dmg" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 6px; background: #E08A5B; color: #24120A; font-size: 16px; font-weight: 700; text-decoration: none"><svg width="18" height="18" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>Download for macOS</a>
+</sc-if>
+<sc-if value="{{osWin}}" hint-placeholder-val="{{ false }}">
+<a class="sq-in" href="https://github.com/Jgrasp/squadron/releases/download/v%VERSION%/Squadron_%VERSION%_x64-setup.exe" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 6px; background: #E08A5B; color: #24120A; font-size: 16px; font-weight: 700; text-decoration: none"><svg width="18" height="18" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>Download for Windows</a>
+</sc-if>
+<span style="font-size: 13.5px; color: #A89C94">Needs <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> · v%VERSION% · <a href="https://github.com/Jgrasp/squadron/releases">All releases</a></span>
+</div>
+
+<div role="img" aria-label="Squadron in action: an agent works, asks to run a command, waits in copper until it is allowed, then finishes" style="margin-top: 36px; width: 100%; max-width: 1200px; height: 680px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px 8px 0 0; background: #141110; box-shadow: 0 0 0 1px #3D3531, 0 30px 80px rgba(0,0,0,0.6); text-align: left; font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
+
+<!-- App header -->
+<div style="flex: 0 0 54px; display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 0 14px; border-bottom: 1px solid #2B2522; background: #141110">
+<span style="display: flex; align-items: center; gap: 8px"><svg width="14" height="12" sc-camel-view-box="0 0 16 14" aria-hidden="true"><polygon points="8,0 16,14 0,14" fill="#E08A5B"></polygon></svg><span style="font-size: 12px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span></span>
+<span style="display: flex; gap: 4px; padding: 4px; border-radius: 6px; background: #1E1A18">
+<span class="sq-hide-sm" style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 4px; color: #B3A79F">Overview<sc-if value="{{appWaiting}}" hint-placeholder-val="{{ false }}"><span class="sq-in" style="min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 3px; box-shadow: inset 0 0 0 1px #E08A5B; color: #F7C7AA; font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span></sc-if></span>
+<span style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 4px; background: rgba(167,139,250,0.16); box-shadow: inset 0 0 0 1px rgba(167,139,250,0.75); color: #FFFFFF; font-weight: 600"><span style="width: 8px; height: 8px; border-radius: 2px; background: #A78BFA"></span>Orbit<sc-if value="{{appWaiting}}" hint-placeholder-val="{{ false }}"><span class="sq-in" style="min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 3px; background: #E08A5B; color: #24120A; font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center">1</span></sc-if></span>
+<span class="sq-hide-sm" style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 4px; color: #B3A79F"><span style="width: 8px; height: 8px; border-radius: 2px; background: #2DD4BF"></span>Nova</span>
+</span>
+<span class="sq-hide-sm" style="display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px #8E4E2E; color: #EDE6E1; font-weight: 500">Pull requests <span style="min-width: 18px; height: 18px; padding: 0 5px; box-sizing: border-box; border-radius: 3px; background: #E08A5B; color: #24120A; font-size: 11.5px; font-weight: 700; display: flex; align-items: center; justify-content: center">3</span></span>
+</div>
+
+<div style="flex: 1 1 auto; min-height: 0; display: flex">
+
+<!-- Agents list -->
+<div class="sq-hide-sm" style="flex: 0 0 272px; display: flex; flex-direction: column; gap: 6px; padding: 12px; border-right: 1px solid #2B2522; background: #171311; box-sizing: border-box">
+<div style="display: flex; align-items: center; justify-content: space-between; gap: 8px; padding: 4px 4px 10px">
+<span style="display: flex; flex-direction: column; gap: 2px"><span style="display: flex; align-items: center; gap: 8px; font-size: 15px; font-weight: 700"><span style="width: 10px; height: 10px; border-radius: 2px; background: #A78BFA"></span>Orbit</span><span style="font-size: 12px; color: #A89C94">{{appCount}}</span></span>
+<span style="height: 30px; padding: 0 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px #4A3F39; display: flex; align-items: center; font-size: 12.5px; color: #D8CDC6">+ Agent</span>
+</div>
+<div style="{{a1Style}}">
+<span style="display: flex; align-items: center; gap: 8px">
+<sc-if value="{{a1Work}}" hint-placeholder-val="{{ false }}"><svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg></sc-if>
+<sc-if value="{{a1Wait}}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6.5" fill="#E08A5B" opacity="0.3"></circle><circle cx="7" cy="7" r="4" fill="#E08A5B"></circle></svg></sc-if>
+<sc-if value="{{a1Done}}" hint-placeholder-val="{{ true }}"><svg width="13" height="13" sc-camel-view-box="0 0 24 24" fill="none" stroke="#B8D98C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></sc-if>
+<strong style="font-weight: 600">Review the diff</strong>
+</span>
+<span style="{{a1StateStyle}}">{{a1State}}</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{a1Last}}</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 6px">
+<span style="display: flex; align-items: center; gap: 8px"><svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg><strong style="font-weight: 600">Auth audit</strong></span>
+<span style="font-size: 12.5px; color: #A89C94">Working · 3 subagents</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Grep round( in src/Cart/</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 6px">
+<span style="display: flex; align-items: center; gap: 8px"><svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg><strong style="font-weight: 600">API v2 migration</strong></span>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #A89C94"><span style="flex: 0 0 90px; height: 3px; border-radius: 2px; background: #2E2724; overflow: hidden"><span style="display: block; width: 66%; height: 100%; background: #9AD6CB"></span></span>2/3 tasks</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">Edit src/api/v2/routes.ts</span>
+</div>
+<div style="display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 6px">
+<span style="display: flex; align-items: center; gap: 8px"><svg width="13" height="13" sc-camel-view-box="0 0 24 24" fill="none" stroke="#B8D98C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg><strong style="font-weight: 600">Rate limiter</strong></span>
+<span style="font-size: 12.5px; color: #A89C94">Done 2 min ago</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #9AD6CB">PR #2108 · Open · 1/2 approved</span>
+</div>
+</div>
+
+<!-- Main -->
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; background: #1C1816">
+<div style="flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; padding: 12px 20px; border-bottom: 1px solid #2B2522">
+<span style="display: flex; flex-direction: column; gap: 4px"><strong style="font-size: 15px; font-weight: 600">Review the diff</strong><span style="font-size: 12px; color: #A89C94">Opus 5.5 · High · <span style="padding: 1px 6px; border-radius: 3px; background: #2E2724; color: #CFC5BE">ask for everything</span></span></span>
+<span class="sq-hide-sm" style="display: flex; gap: 6px; font-size: 13px; color: #D8CDC6">
+<span style="height: 30px; padding: 0 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; display: flex; align-items: center">Editor</span>
+<span style="height: 30px; padding: 0 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; display: flex; align-items: center">Terminal</span>
+<span style="height: 30px; padding: 0 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; display: flex; align-items: center; gap: 6px">Diff <span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #9AD6CB">{{diffAdd}}</span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #F59E8C">{{diffDel}}</span></span>
+<span style="height: 30px; padding: 0 10px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; display: flex; align-items: center">Kanban</span>
+</span>
+</div>
+
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-end; padding: 20px">
+<div style="width: 100%; max-width: 640px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px">
+<sc-if value="{{sUser}}" hint-placeholder-val="{{ true }}">
+<div class="sq-in" style="display: flex; justify-content: flex-end"><span style="max-width: 420px; padding: 11px 15px; border-radius: 6px 6px 2px 6px; background: #E08A5B; color: #24120A; line-height: 1.5">Add pagination to the search API and update the SDK</span></div>
+</sc-if>
+<sc-if value="{{sThink}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; align-items: center; gap: 8px; font-size: 12.5px; color: #B3A79F"><span style="width: 18px; height: 18px; border-radius: 3px; background: #2E2724; display: flex; align-items: center; justify-content: center; font-size: 10px">›</span>{{thinkLabel}}</div>
+</sc-if>
+<sc-if value="{{sRead}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; border-radius: 4px; background: #221D1A"><span style="flex: 0 0 40px; color: #A89C94">Read</span><span style="flex: 1 1 auto; min-width: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">src/search/searchService.ts</span><span style="font-size: 12px; color: #A89C94">42 lines</span></div>
+</sc-if>
+<sc-if value="{{sEdit}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; border-radius: 4px; background: #221D1A"><span style="flex: 0 0 40px; color: #A89C94">Edit</span><span style="flex: 1 1 auto; min-width: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">searchService.ts</span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px"><span style="color: #9AD6CB">+4</span> <span style="color: #F59E8C">−1</span></span><span style="font-size: 12px; color: #F0A57A">Diff →</span></div>
+</sc-if>
+<sc-if value="{{sTest}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; border-radius: 4px; background: #221D1A"><span style="flex: 0 0 40px; color: #A89C94">Bash</span><span style="flex: 1 1 auto; min-width: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">npm test -- search</span>
+<sc-if value="{{testRunning}}" hint-placeholder-val="{{ false }}"><svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg></sc-if>
+<sc-if value="{{testDone}}" hint-placeholder-val="{{ false }}"><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #C9E3A8">42 passed</span></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{sPerm}}" hint-placeholder-val="{{ false }}">
+<section aria-label="Run a command?" class="sq-in" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 6px; background: #3B2216; box-shadow: 0 0 0 1px #8E4E2E">
+<div style="display: flex; gap: 10px; align-items: flex-start">
+<span style="flex: 0 0 auto; width: 30px; height: 30px; border-radius: 4px; background: #E08A5B; color: #24120A; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="4 17 10 11 4 5"></polyline><line x1="12" y1="19" x2="20" y2="19"></line></svg></span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0"><strong style="color: #FFF3EC; font-weight: 600">Run a command?</strong><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; color: #F7DCCB; overflow-wrap: anywhere">Bash · npm install @acme/sdk@latest</span></span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<span style="{{allowStyle}}">Allow</span>
+<span style="height: 34px; padding: 0 16px; border-radius: 4px; background: #57301F; color: #FFE0CF; font-weight: 500; display: flex; align-items: center">Always</span>
+<span style="height: 34px; padding: 0 16px; border-radius: 4px; background: #2E2724; color: #E3D7CF; font-weight: 500; display: flex; align-items: center">Deny</span>
+</div>
+</section>
+</sc-if>
+<sc-if value="{{sAllowed}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; flex-direction: column; gap: 3px; padding: 9px 14px; border-radius: 6px; background: #1F2321; box-shadow: inset 0 0 0 1px #33403B; font-size: 12.5px"><span style="font-weight: 600; color: #BFE7DF">Allowed</span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94">npm install @acme/sdk@latest</span></div>
+</sc-if>
+<sc-if value="{{sUpdate}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; border-radius: 4px; background: #221D1A"><span style="flex: 0 0 40px; color: #A89C94">Bash</span><span style="flex: 1 1 auto; min-width: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">npm install @acme/sdk@latest</span>
+<sc-if value="{{updRunning}}" hint-placeholder-val="{{ false }}"><svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg></sc-if>
+<sc-if value="{{updDone}}" hint-placeholder-val="{{ false }}"><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #C9E3A8">code 0</span></sc-if>
+</div>
+</sc-if>
+<sc-if value="{{sReply}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="padding: 14px 18px; border-radius: 6px; background: #221D1A; line-height: 1.65">Search results are now paginated with a <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; padding: 1px 6px; border-radius: 3px; background: #2E2724">cursor</code>. The 42 tests pass and the SDK is up to date.</div>
+</sc-if>
+<sc-if value="{{sTurn}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94"><svg width="12" height="12" sc-camel-view-box="0 0 24 24" fill="none" stroke="#B8D98C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>Turn 1 done · 133.3k in · 742 out · 8 s</div>
+</sc-if>
+</div>
+</div>
+
+<div style="flex: 0 0 auto; padding: 0 20px 18px">
+<div style="max-width: 640px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-radius: 6px; background: #26211E">
+<span style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: {{composerColor}}">{{composerText}}<sc-if value="{{typing}}" hint-placeholder-val="{{ false }}"><span class="sq-caret" style="color: #EDE6E1">|</span></sc-if></span>
+<span style="height: 34px; padding: 0 14px; border-radius: 4px; background: #EDE6E1; color: #1A1513; font-weight: 700; display: flex; align-items: center">Send</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+</section>
+
+<!-- Features -->
+<section id="features" style="padding: 128px 24px; background: #171311; border-top: 1px solid #2B2522">
+<div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 136px">
+
+<!-- 1 Overview -->
+<div style="display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 64px">
+<div style="flex: 1 1 380px; max-width: 560px; display: flex; flex-direction: column; gap: 16px">
+<p style="margin: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; color: #F0A57A; letter-spacing: 0.08em; text-transform: uppercase">Overview</p>
+<h2 style="margin: 0; font-size: 40px; line-height: 1.12; font-weight: 700; letter-spacing: -0.015em; color: #FFFFFF; text-wrap: balance">Every project, every agent, one window.</h2>
+</div>
+<div style="flex: 1 1 400px; max-width: 520px; display: flex; flex-direction: column; gap: 14px">
+<p style="margin: 0; color: #B3A79F; text-wrap: pretty">A tab for each pinned or recently active project, each in its own colour. The Overview lines up the agents of all of them: their state, their last action, their progress, and an Answer button where you are needed.</p>
+<p style="margin: 0; color: #B3A79F; font-size: 15px; text-wrap: pretty">Projects fold into groups in a panel (<span style="font-family: 'DM Mono', ui-monospace, monospace; color: #CFC5BE">Ctrl P</span>). A tab shakes, and can chime, when one of its agents waits for you.</p>
+</div>
+</div>
+<div style="margin: 0">
+<div role="img" aria-label="The Overview: agents of every project with their state, last action and progress, updating live" style="width: 100%; height: 600px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 24px 60px rgba(0,0,0,0.5); font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
+<div style="flex: 0 0 44px; display: flex; align-items: center; gap: 16px; padding: 0 14px; border-bottom: 1px solid #2B2522; background: #141110"><span style="display: flex; align-items: center; gap: 8px"><svg width="12" height="11" sc-camel-view-box="0 0 16 14" aria-hidden="true"><polygon points="8,0 16,14 0,14" fill="#E08A5B"></polygon></svg><span style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span></span><span style="display: flex; gap: 4px; padding: 3px; border-radius: 6px; background: #1E1A18"><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; background: rgba(224,138,91,0.16); box-shadow: inset 0 0 0 1px rgba(224,138,91,0.75); color: #FFFFFF; font-weight: 600">Overview</span><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; color: #B3A79F"><span style="width: 7px; height: 7px; border-radius: 2px; background: #A78BFA"></span>Orbit</span></span><span style="flex: 1 1 auto"></span></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 24px 28px; display: flex; flex-direction: column; gap: 18px">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<strong style="font-size: 22px; font-weight: 700">Overview</strong>
+<span style="color: #A89C94">Agents across all your projects · <strong style="color: #F7C7AA; font-weight: 600">{{ovWaitText}}</strong> · <strong style="color: #F7C7AA; font-weight: 600">3 pull requests for you</strong></span>
+</div>
+<div class="sq-hide-sm" style="display: flex; gap: 16px; padding: 0 12px 8px; border-bottom: 1px solid #2B2522; font-size: 11.5px; font-weight: 600; letter-spacing: 0.06em; color: #A89C94"><span style="flex: 0 0 150px">STATE</span><span style="flex: 1 1 0">AGENT</span><span style="flex: 1.3 1 0">LAST ACTION</span><span style="flex: 0 0 150px">PROGRESS</span><span style="flex: 0 0 70px"></span></div>
+<sc-for list="{{ovGroups}}" as="g" hint-placeholder-count="2">
+<div style="display: flex; flex-direction: column; gap: 4px">
+<div style="display: flex; align-items: center; gap: 10px; padding: 6px 12px"><span style="width: 10px; height: 10px; border-radius: 2px; background: {{g.color}}"></span><strong style="font-weight: 700">{{g.name}}</strong><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94">{{g.path}}</span><span style="font-size: 12.5px; color: #A89C94">{{g.count}}</span></div>
+<sc-for list="{{g.rows}}" as="r" hint-placeholder-count="3">
+<div style="{{r.rowStyle}}">
+<span style="flex: 0 0 150px; display: flex; align-items: center; gap: 8px; color: {{r.stateColor}}">
+<sc-if value="{{r.isWork}}" hint-placeholder-val="{{ true }}"><svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg></sc-if>
+<sc-if value="{{r.isWait}}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6.5" fill="#E08A5B" opacity="0.3"></circle><circle cx="7" cy="7" r="4" fill="#E08A5B"></circle></svg></sc-if>
+<sc-if value="{{r.isDone}}" hint-placeholder-val="{{ false }}"><svg width="13" height="13" sc-camel-view-box="0 0 24 24" fill="none" stroke="#B8D98C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></sc-if>
+{{r.stateText}}</span>
+<span style="flex: 1 1 0; display: flex; flex-direction: column; gap: 2px; min-width: 0"><strong style="font-weight: 600">{{r.name}}</strong><span style="font-size: 12px; color: #A89C94">{{r.meta}}</span></span>
+<span class="sq-hide-sm" style="flex: 1.3 1 0; min-width: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; color: #D8CDC6; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.last}}</span>
+<span class="sq-hide-sm" style="flex: 0 0 150px; display: flex; align-items: center; gap: 8px"><sc-if value="{{r.hasProg}}" hint-placeholder-val="{{ false }}"><span style="flex: 0 0 90px; height: 3px; border-radius: 2px; background: #2E2724; overflow: hidden"><span style="display: block; height: 100%; width: {{r.progW}}; background: #9AD6CB; transition: width .6s ease"></span></span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94">{{r.progText}}</span></sc-if></span>
+<span style="{{r.btnStyle}}">{{r.btn}}</span>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 2 Conversation widgets -->
+<div id="conversation" style="display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 64px">
+<div style="flex: 1 1 380px; max-width: 560px; display: flex; flex-direction: column; gap: 16px">
+<p style="margin: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; color: #F0A57A; letter-spacing: 0.08em; text-transform: uppercase">In the conversation</p>
+<h2 style="margin: 0; font-size: 40px; line-height: 1.12; font-weight: 700; letter-spacing: -0.015em; color: #FFFFFF; text-wrap: balance">Claude asks. You answer where you read.</h2>
+</div>
+<div style="flex: 1 1 400px; max-width: 520px; display: flex; flex-direction: column; gap: 14px">
+<p style="margin: 0; color: #B3A79F; text-wrap: pretty">What Claude Code asks in a terminal becomes a card in the conversation: what is at stake, what each answer does, one click to reply. Your answer stays in the thread, and the agent carries on.</p>
+<p style="margin: 0; color: #A89C94; font-size: 15px">Pick a card on the left, then answer it.</p>
+</div>
+</div>
+
+<div style="display: flex; flex-wrap: wrap; gap: 24px; align-items: flex-start">
+<div role="group" aria-label="Conversation cards" style="flex: 1 1 260px; max-width: 320px; display: flex; flex-direction: column; gap: 4px">
+<sc-for list="{{tabs}}" as="t" hint-placeholder-count="7">
+<button type="button" sc-camel-on-click="{{t.pick}}" aria-pressed="{{t.pressed}}" style="{{t.style}}">
+<span style="font-size: 14.5px; font-weight: 600; color: {{t.color}}">{{t.title}}</span>
+<span style="font-size: 13px; line-height: 1.4; color: #A89C94">{{t.desc}}</span>
+</button>
+</sc-for>
+</div>
+
+<div style="flex: 999 1 600px; min-width: 0; background: #1C1816; border-radius: 8px; box-shadow: 0 0 0 1px #3D3531, 0 24px 60px rgba(0,0,0,0.45); font-size: 13.5px; line-height: 1.4; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 6px 14px; padding: 14px 20px; border-bottom: 1px solid #2B2522; background: #1C1816">
+<span style="font-size: 15px; font-weight: 600; color: #EDE6E1">{{agentName}}</span>
+<span style="font-size: 12px; color: #A89C94">Opus 5.5 · High · <span style="padding: 2px 6px; border-radius: 3px; background: #2E2724; color: #CFC5BE">ask for everything</span></span>
+</div>
+<div style="min-height: 720px; padding: 24px 20px 28px; box-sizing: border-box">
+<div style="max-width: 680px; margin: 0 auto; display: flex; flex-direction: column; gap: 14px">
+
+<div style="display: flex; justify-content: flex-end">
+<div style="max-width: 440px; padding: 12px 16px; border-radius: 6px 6px 2px 6px; background: #E08A5B; color: #24120A; line-height: 1.5">{{userMsg}}</div>
+</div>
+<sc-if value="{{hasLead}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 14px 18px; border-radius: 6px; background: #221D1A; color: #EDE6E1; line-height: 1.65">{{lead}}</div>
+</sc-if>
+
+<!-- Environment values -->
+<sc-if value="{{showValues}}" hint-placeholder-val="{{ false }}">
+<section aria-label="3 values to fill in" class="sq-in" style="display: flex; flex-direction: column; gap: 14px; padding: 16px 18px; border-radius: 6px; background: #3B2216; box-shadow: 0 0 0 1px #8E4E2E">
+<div style="display: flex; gap: 10px; align-items: flex-start">
+<span aria-hidden="true" style="flex: 0 0 auto; width: 30px; height: 30px; border-radius: 4px; background: #E08A5B; color: #24120A; display: flex; align-items: center; justify-content: center; font-size: 18px; font-weight: 700">*</span>
+<span style="display: flex; flex-direction: column; gap: 2px; min-width: 0">
+<strong style="color: #FFF3EC; font-weight: 600; font-size: 15px">3 values to fill in</strong>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; color: #F7DCCB">.env.local</span>
+</span>
+</div>
+<sc-for list="{{fields}}" as="f" hint-placeholder-count="3">
+<label style="display: flex; flex-direction: column; gap: 6px">
+<span style="display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 10px"><span style="font-weight: 700; color: #FFF3EC">{{f.key}}</span><span style="font-size: 12.5px; color: #E7C3AE">{{f.hint}}</span></span>
+<span style="display: flex; align-items: center; height: 38px; border-radius: 4px; background: #2E1B12; box-shadow: inset 0 0 0 1px #8E4E2E">
+<input type="{{f.type}}" value="{{f.val}}" sc-camel-on-change="{{f.set}}" autocomplete="off" spellcheck="false" aria-label="{{f.key}}" style="flex: 1 1 auto; min-width: 0; height: 100%; padding: 0 12px; border: 0; background: transparent; color: #FFF3EC; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; outline: none">
+<sc-if value="{{f.secret}}" hint-placeholder-val="{{ false }}"><button type="button" sc-camel-on-click="{{f.toggle}}" style="flex: 0 0 auto; height: 30px; margin-right: 4px; padding: 0 10px; border: 0; border-radius: 3px; background: transparent; color: #FFE0CF; font: inherit; font-size: 12.5px; cursor: pointer">{{f.showLabel}}</button></sc-if>
+</span>
+</label>
+</sc-for>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px">
+<button type="button" sc-camel-on-click="{{saveValues}}" style="{{saveStyle}}">Save to the file</button>
+<button type="button" sc-camel-on-click="{{cancelValues}}" style="height: 36px; padding: 0 18px; border: 0; border-radius: 4px; background: #2E2724; color: #E3D7CF; font: inherit; font-weight: 500; cursor: pointer">Cancel</button>
+<span style="font-size: 12.5px; color: #E7C3AE">Squadron writes them into the file: Review the diff never sees them.</span>
+</div>
+</section>
+</sc-if>
+
+<!-- File cards -->
+<sc-if value="{{showFile}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; flex-direction: column; gap: 10px; padding: 16px 18px; border-radius: 6px; background: #221D1A; line-height: 1.65">
+<span>Fixed: the total now rounds once, at the end. Here is the file, and the export you asked for:</span>
+<div style="display: flex; flex-direction: column; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #3D3531; line-height: 1.4; overflow: hidden">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px">
+<span aria-hidden="true" style="flex: 0 0 auto; width: 34px; height: 34px; border-radius: 4px; background: #2E2724; color: #D8CDC6; display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', ui-monospace, monospace; font-size: 10px; font-weight: 500">TS</span>
+<span style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-weight: 600">invoiceTotal.ts</strong><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94; overflow-wrap: anywhere">src/billing/invoiceTotal.ts · 2.1 KB</span></span>
+<span style="display: flex; gap: 6px">
+<button type="button" style="height: 30px; padding: 0 10px; border: 0; border-radius: 4px; background: #2E2724; color: #D8CDC6; font: inherit; font-size: 12.5px; cursor: pointer">Open in the Editor</button>
+<button type="button" sc-camel-on-click="{{toggleUnfold}}" aria-expanded="{{unfold}}" style="height: 30px; padding: 0 10px; border: 0; border-radius: 4px; background: #2E2724; color: #D8CDC6; font: inherit; font-size: 12.5px; cursor: pointer">{{unfoldLabel}}</button>
+<button type="button" aria-label="Open in a window of its own" style="width: 30px; height: 30px; border: 0; border-radius: 4px; background: #2E2724; color: #D8CDC6; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg width="14" height="14" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M14 4h6v6"></path><path d="M20 4l-8 8"></path><path d="M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5"></path></svg></button>
+</span>
+</div>
+<sc-if value="{{unfold}}" hint-placeholder-val="{{ false }}">
+<pre class="sq-in" style="margin: 0; padding: 12px 14px; border-top: 1px solid #2B2522; background: #171311; overflow-x: auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; line-height: 20px; color: #EDE6E1">export function invoiceTotal(invoice: Invoice): number {
+  const sum = invoice.lines.reduce(
+    (total, line) =&gt; total + line.unitPrice * line.quantity,
+    0,
+  );
+
+  return Math.round(sum);
+}</pre>
+</sc-if>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #3D3531; line-height: 1.4">
+<span aria-hidden="true" style="flex: 0 0 auto; width: 34px; height: 34px; border-radius: 4px; background: #2E2724; color: #D8CDC6; display: flex; align-items: center; justify-content: center; font-family: 'DM Mono', ui-monospace, monospace; font-size: 10px; font-weight: 500">CSV</span>
+<span style="flex: 1 1 200px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><strong style="font-weight: 600">reports.csv</strong><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">exports/reports.csv · 18 KB</span></span>
+<button type="button" style="height: 30px; padding: 0 10px; border: 0; border-radius: 4px; background: #2E2724; color: #D8CDC6; font: inherit; font-size: 12.5px; cursor: pointer">Open</button>
+</div>
+</div>
+</sc-if>
+
+<!-- Markdown block -->
+<sc-if value="{{showMd}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 6px; background: #221D1A; line-height: 1.65">
+<span>Here is the release note, ready to paste:</span>
+<div style="border-radius: 4px; background: #1A1513; box-shadow: inset 0 0 0 1px #2B2522; overflow: hidden; line-height: 1.4">
+<div style="display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border-bottom: 1px solid #2B2522">
+<span style="flex: 1 1 auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">markdown</span>
+<span role="group" aria-label="View" style="display: flex; gap: 2px; padding: 2px; border-radius: 4px; background: #26211E">
+<button type="button" sc-camel-on-click="{{mdRendered}}" aria-pressed="{{mdIsRendered}}" style="{{mdTabR}}">Rendered</button>
+<button type="button" sc-camel-on-click="{{mdSource}}" aria-pressed="{{mdIsSource}}" style="{{mdTabS}}">Source</button>
+</span>
+<button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 4px; background: #EDE6E1; color: #1A1513; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer">Copy</button>
+</div>
+<sc-if value="{{mdIsRendered}}" hint-placeholder-val="{{ true }}">
+<div style="padding: 14px 16px; color: #EDE6E1; line-height: 1.65">
+<h3 style="margin: 0 0 6px; font-size: 15.5px; font-weight: 700">Reports · CSV export</h3>
+<p style="margin: 0 0 8px">The reports table gets an <strong>Export CSV</strong> action.</p>
+<ul style="margin: 0; padding-left: 18px">
+<li>Semicolon separator, for spreadsheet apps</li>
+<li>New columns: <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; padding: 1px 6px; border-radius: 3px; background: #2E2724">created_at</code>, <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; padding: 1px 6px; border-radius: 3px; background: #2E2724">revenue</code></li>
+</ul>
+</div>
+</sc-if>
+<sc-if value="{{mdIsSource}}" hint-placeholder-val="{{ false }}">
+<pre style="margin: 0; padding: 14px 16px; overflow-x: auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; line-height: 1.6; color: #EDE6E1">### Reports · CSV export
+
+The reports table gets an **Export CSV** action.
+
+- Semicolon separator, for spreadsheet apps
+- New columns: `created_at`, `revenue`</pre>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<!-- Bash block -->
+<sc-if value="{{showBash}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 6px; background: #221D1A; line-height: 1.65">
+<span>The config is valid. Nginx still needs a reload:</span>
+<div style="border-radius: 4px; background: #1A1513; box-shadow: inset 0 0 0 1px #2B2522; overflow: hidden">
+<div style="display: flex; align-items: center; gap: 6px; padding: 6px 6px 6px 12px; border-bottom: 1px solid #2B2522">
+<span style="flex: 1 1 auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">bash</span>
+<button type="button" style="height: 28px; padding: 0 10px; border: 0; border-radius: 4px; background: #EDE6E1; color: #1A1513; font: inherit; font-size: 12.5px; font-weight: 600; cursor: pointer">Copy</button>
+<button type="button" sc-camel-on-click="{{run}}" style="height: 28px; padding: 0 10px; border: 0; border-radius: 4px; background: #E08A5B; color: #24120A; font: inherit; font-size: 12.5px; font-weight: 700; cursor: pointer">▶ Run</button>
+</div>
+<pre style="margin: 0; padding: 14px 12px; overflow-x: auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; color: #EDE6E1">sudo nginx -t &amp;&amp; sudo systemctl reload nginx</pre>
+</div>
+</div>
+</sc-if>
+
+<!-- Pull request card -->
+<sc-if value="{{showPr}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 6px; background: #221D1A; line-height: 1.65">
+<span>Pushed and opened. One approval left before it can merge:</span>
+<div style="display: flex; flex-direction: column; gap: 8px; padding: 14px 16px; border-radius: 6px; background: #1C1816; box-shadow: inset 3px 0 0 #6E9E95, inset 0 0 0 1px #3D3531; line-height: 1.4">
+<div style="display: flex; flex-wrap: wrap; justify-content: space-between; align-items: center; gap: 6px 12px">
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94">acme/orbit #2108</span>
+<span style="display: flex; align-items: center; gap: 6px; padding: 2px 8px; border-radius: 3px; background: rgba(154,214,203,0.12); color: #BFE7DF; font-size: 11.5px; font-weight: 600"><span style="width: 6px; height: 6px; border-radius: 50%; background: #9AD6CB"></span>Open</span>
+</div>
+<strong style="font-size: 15px; font-weight: 600; color: #FFFFFF">feat(search): paginated search API</strong>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 12px; font-size: 12px; color: #A89C94">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 18px; height: 18px; border-radius: 50%; background: #2E2724; color: #D8CDC6; font-size: 9px; font-weight: 700; display: flex; align-items: center; justify-content: center">QB</span>Quentin B.</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace">main ← feat/search-pagination</span>
+<span>updated 4 min ago</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 6px; font-size: 12px">
+<span style="padding: 3px 8px; border-radius: 3px; background: rgba(154,214,203,0.10); color: #BFE7DF">✓ Builds pass</span>
+<span style="padding: 3px 8px; border-radius: 3px; background: #2E2724; color: #D8CDC6">1/2 approved</span>
+<span style="padding: 3px 8px; border-radius: 3px; background: #2E2724; color: #D8CDC6">3 comments</span>
+<span style="padding: 3px 8px; border-radius: 3px; background: #2E2724; color: #D8CDC6; font-family: 'DM Mono', ui-monospace, monospace"><span style="color: #9AD6CB">+214</span> <span style="color: #F59E8C">−38</span> · 9 files</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; margin-top: 4px; padding-top: 10px; border-top: 1px solid #2B2522">
+<button type="button" style="height: 32px; padding: 0 14px; border: 0; border-radius: 4px; background: #EDE6E1; color: #1A1513; font: inherit; font-size: 13px; font-weight: 700; cursor: pointer">Review</button>
+<button type="button" style="height: 32px; padding: 0 10px; border: 0; border-radius: 4px; background: transparent; color: #D8CDC6; font: inherit; font-size: 13px; cursor: pointer">Open with Squadron</button>
+<button type="button" style="margin-left: auto; height: 32px; padding: 0 12px; border: 0; border-radius: 4px; background: transparent; box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6; font: inherit; font-size: 13px; cursor: pointer">Open on GitHub</button>
+</div>
+</div>
+<span>I'm watching the CI.</span>
+</div>
+</sc-if>
+<!-- Subagents (swarm) -->
+<sc-if value="{{showSub}}" hint-placeholder-val="{{ false }}">
+<section aria-label="48 subagents launched" class="sq-in" style="display: flex; flex-direction: column; gap: 12px; padding: 16px 18px; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #3D3531">
+<div style="display: flex; align-items: flex-start; gap: 10px">
+<span style="flex: 0 0 auto; width: 30px; height: 30px; border-radius: 4px; background: #2E2724; color: #D8CDC6; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="6" cy="5" r="2"></circle><circle cx="6" cy="19" r="2"></circle><circle cx="18" cy="12" r="2"></circle><path d="M6 7v10M6 12h10"></path></svg></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span><strong style="font-weight: 700">48 subagents launched</strong> <span style="color: #A89C94">· general-purpose</span></span><span style="font-size: 12.5px; color: #B3A79F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">packages/payments 1 · packages/api 2 · packages/search 3 · packages/jobs 4 · packages/core 5…</span></span>
+<span style="flex: 0 0 auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #B3A79F">21/48 · 11 s</span>
+</div>
+<div role="group" aria-label="Subagents" style="display: flex; flex-wrap: wrap; gap: 3px">
+<sc-for list="{{cells}}" as="c" hint-placeholder-count="48">
+<button type="button" sc-camel-on-click="{{c.pick}}" aria-label="{{c.label}}" style="{{c.style}}"></button>
+</sc-for>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 16px; font-size: 12.5px; color: #B3A79F">
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #9AD6CB"></span>26 running</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #E08A5B"></span>1 waiting for you</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #F59E8C; box-shadow: inset 0 0 0 2px #2B1A17"></span>2 failed</span>
+<span style="display: flex; align-items: center; gap: 6px"><span style="width: 10px; height: 10px; border-radius: 2px; background: #5F7049"></span>19 done</span>
+<span style="margin-left: auto; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px">722.5k tokens</span>
+</div>
+<div class="sq-in" style="display: flex; align-items: center; gap: 12px; padding: 12px 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531">
+<span style="{{cellDot}}"></span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span><strong style="font-weight: 600">#{{cellNum}} · {{cellName}}</strong> <span style="color: #A89C94">· {{cellState}}</span></span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94; overflow-wrap: anywhere">{{cellLast}}</span></span>
+<a href="#conversation" style="flex: 0 0 auto; font-size: 12.5px; font-weight: 600; text-decoration: none">Open log →</a>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 12px; font-size: 12.5px; color: #B3A79F">
+<span>Click a square to see the subagent.</span>
+<button type="button" style="height: 32px; padding: 0 12px; border: 0; border-radius: 4px; background: #2E2724; color: #EDE6E1; font: inherit; font-size: 13px; font-weight: 500; cursor: pointer">Open the Subagents panel</button>
+</div>
+</section>
+</sc-if>
+
+<!-- Background -->
+<sc-if value="{{showBg}}" hint-placeholder-val="{{ false }}">
+<section aria-label="In the background" class="sq-in" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 6px; background: #1C1816; box-shadow: 0 0 0 1px #4A6680">
+<div style="display: flex; align-items: center; gap: 10px">
+<span style="flex: 0 0 auto; width: 30px; height: 30px; border-radius: 4px; background: #2E2724; color: #9AD6CB; display: flex; align-items: center; justify-content: center"><svg class="sq-spin" width="16" height="16" sc-camel-view-box="0 0 24 24" fill="currentColor" aria-hidden="true"><circle cx="12" cy="4" r="1.6"></circle><circle cx="19" cy="9" r="1.6" opacity="0.8"></circle><circle cx="17" cy="17" r="1.6" opacity="0.6"></circle><circle cx="7" cy="17" r="1.6" opacity="0.45"></circle><circle cx="5" cy="9" r="1.6" opacity="0.3"></circle></svg></span>
+<span style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px"><strong style="font-weight: 600">In the background</strong><span style="font-size: 12.5px; color: #B3A79F">Claude will resume on its own when the task ends</span></span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #B3A79F">7 s</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; padding: 10px 12px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531">
+<span style="flex: 1 1 220px; min-width: 0; display: flex; flex-direction: column; gap: 2px"><span>Run the full import</span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">bin/console app:import:orders --all</span></span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #B3A79F">7 s</span>
+<a href="#conversation" style="font-size: 13px; font-weight: 600; text-decoration: none">View output</a>
+<button type="button" sc-camel-on-click="{{stopBg}}" style="height: 30px; padding: 0 12px; border: 0; border-radius: 4px; background: #2E2724; color: #EDE6E1; font: inherit; font-size: 13px; cursor: pointer">Stop</button>
+</div>
+</section>
+</sc-if>
+
+<!-- Answer marker -->
+<sc-if value="{{done}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; flex-direction: column; gap: 4px; padding: 9px 14px; border-radius: 6px; font-size: 12.5px; background: {{ansBg}}; box-shadow: inset 0 0 0 1px {{ansRing}}">
+<span style="font-weight: 600; color: {{ansColor}}">{{ansLabel}}</span>
+<span style="font-size: 12px; color: #A89C94; font-family: 'DM Mono', ui-monospace, monospace; overflow-wrap: anywhere">{{ansDetail}}</span>
+</div>
+<div class="sq-in" style="display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">
+<svg class="sq-spin" width="12" height="12" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg>
+<span style="flex: 1 1 auto">{{ansNext}}</span>
+<button type="button" sc-camel-on-click="{{reset}}" style="height: 32px; padding: 0 10px; border: 0; border-radius: 4px; background: #26211E; color: #D8CDC6; font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif; font-size: 12.5px; cursor: pointer">Show the card again</button>
+</div>
+</sc-if>
+
+<sc-if value="{{showTurn}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">
+<svg width="12" height="12" sc-camel-view-box="0 0 24 24" fill="none" stroke="#B8D98C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg>
+<span>{{turnLine}}</span>
+</div>
+</sc-if>
+
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 3 Kanban -->
+<div style="display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 64px">
+<div style="flex: 1 1 380px; max-width: 560px; display: flex; flex-direction: column; gap: 16px">
+<p style="margin: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; color: #F0A57A; letter-spacing: 0.08em; text-transform: uppercase">Kanban</p>
+<h2 style="margin: 0; font-size: 40px; line-height: 1.12; font-weight: 700; letter-spacing: -0.015em; color: #FFFFFF; text-wrap: balance">A board that moves on its own.</h2>
+</div>
+<div style="flex: 1 1 400px; max-width: 520px; display: flex; flex-direction: column; gap: 14px">
+<p style="margin: 0; color: #B3A79F; text-wrap: pretty">Tasks for you or for an agent. A task with an agent moves when the agent starts or finishes, shows its pull request and its progress, and you can still move any card by hand.</p>
+<p style="margin: 0; color: #B3A79F; font-size: 15px; text-wrap: pretty">Answer a waiting agent or open it straight from its card. The board pops out in a window of its own.</p>
+</div>
+</div>
+<div style="margin: 0">
+<div role="img" aria-label="The Kanban: cards move between columns as their agents start, wait and finish" style="width: 100%; height: 600px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 24px 60px rgba(0,0,0,0.5); font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
+<div style="flex: 0 0 44px; display: flex; align-items: center; gap: 16px; padding: 0 14px; border-bottom: 1px solid #2B2522; background: #141110"><span style="display: flex; align-items: center; gap: 8px"><svg width="12" height="11" sc-camel-view-box="0 0 16 14" aria-hidden="true"><polygon points="8,0 16,14 0,14" fill="#E08A5B"></polygon></svg><span style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span></span><span style="display: flex; gap: 4px; padding: 3px; border-radius: 6px; background: #1E1A18"><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; color: #B3A79F">Overview</span><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; background: rgba(167,139,250,0.16); box-shadow: inset 0 0 0 1px rgba(167,139,250,0.75); color: #FFFFFF; font-weight: 600"><span style="width: 7px; height: 7px; border-radius: 2px; background: #A78BFA"></span>Orbit</span></span><span style="flex: 1 1 auto"></span><span class="sq-hide-sm" style="font-size: 12px; color: #A89C94">Kanban · full screen</span></div>
+<div style="flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; padding: 18px 24px 14px">
+<strong style="font-size: 22px; font-weight: 700">Kanban</strong>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 18px; font-weight: 700"><span style="width: 10px; height: 10px; border-radius: 2px; background: #A78BFA"></span>Orbit</span>
+<span style="flex: 1 1 auto"></span>
+<span style="display: flex; align-items: center; gap: 8px; height: 32px; padding: 0 12px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; font-size: 13px"><img src="assets/jira.png" alt="" width="14" height="14" style="display: block; width: 14px; height: 14px">Jira</span>
+<span style="display: flex; align-items: center; height: 32px; padding: 0 12px; border-radius: 4px; background: #EDE6E1; color: #1A1513; font-size: 13px; font-weight: 700">+ Task</span>
+</div>
+<div style="flex: 1 1 auto; min-height: 0; overflow-x: auto; overflow-y: hidden; display: flex; gap: 12px; padding: 0 24px 24px">
+<sc-for list="{{kbCols}}" as="col" hint-placeholder-count="5">
+<div style="flex: 0 0 220px; display: flex; flex-direction: column; gap: 8px; padding: 12px; border-radius: 6px; background: #171311">
+<span style="display: flex; align-items: center; gap: 8px; padding-bottom: 4px; font-size: 11.5px; font-weight: 700; letter-spacing: 0.06em; color: #B3A79F"><span style="width: 8px; height: 8px; border-radius: 2px; background: {{col.color}}"></span>{{col.title}}<span style="font-weight: 500; color: #6E625B">{{col.count}}</span></span>
+<sc-for list="{{col.cards}}" as="c" hint-placeholder-count="2">
+<div class="sq-in" style="{{c.style}}">
+<strong style="font-weight: 600; font-size: 13.5px">{{c.title}}</strong>
+<sc-if value="{{c.hasState}}" hint-placeholder-val="{{ true }}">
+<span style="display: flex; align-items: center; gap: 6px; font-size: 12.5px; color: {{c.stateColor}}">
+<sc-if value="{{c.isWork}}" hint-placeholder-val="{{ true }}"><svg class="sq-spin" width="12" height="12" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg></sc-if>
+<sc-if value="{{c.isWait}}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="6.5" fill="#E08A5B" opacity="0.3"></circle><circle cx="7" cy="7" r="4" fill="#E08A5B"></circle></svg></sc-if>
+<sc-if value="{{c.isDone}}" hint-placeholder-val="{{ false }}"><svg width="12" height="12" sc-camel-view-box="0 0 24 24" fill="none" stroke="#B8D98C" stroke-width="3" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></sc-if>
+{{c.stateText}}</span>
+</sc-if>
+<sc-if value="{{c.hasLast}}" hint-placeholder-val="{{ false }}"><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">{{c.last}}</span></sc-if>
+<sc-if value="{{c.hasProg}}" hint-placeholder-val="{{ false }}"><span style="display: flex; align-items: center; gap: 8px"><span style="flex: 1 1 auto; height: 3px; border-radius: 2px; background: #2E2724; overflow: hidden"><span style="display: block; height: 100%; width: {{c.progW}}; background: #9AD6CB; transition: width .6s ease"></span></span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94">{{c.progText}}</span></span></sc-if>
+<sc-if value="{{c.hasBtn}}" hint-placeholder-val="{{ false }}"><span style="{{c.btnStyle}}">{{c.btn}}</span></sc-if>
+</div>
+</sc-for>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 4 Tickets -->
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 48px 64px">
+<div style="flex: 1 1 340px; max-width: 480px; display: flex; flex-direction: column; gap: 18px">
+<p style="margin: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; color: #F0A57A; letter-spacing: 0.08em; text-transform: uppercase">Tickets</p>
+<h2 style="margin: 0; font-size: 40px; line-height: 1.12; font-weight: 700; letter-spacing: -0.015em; color: #FFFFFF; text-wrap: balance">Your sprint, one column away.</h2>
+<p style="margin: 0; color: #B3A79F; text-wrap: pretty">Link your ticket tracker to a project and its current sprint lands in a Tickets column of the Kanban. Turn a ticket into a task for an agent: the ticket follows it into the agent's header and into your messages.</p>
+<ul style="margin: 0; padding: 0; list-style: none; display: flex; flex-direction: column; gap: 10px; color: #CFC5BE; font-size: 15px">
+<li style="display: flex; gap: 12px; align-items: baseline"><svg width="8" height="7" sc-camel-view-box="0 0 8 7" aria-hidden="true" style="flex: 0 0 auto"><polygon points="4,0 8,7 0,7" fill="#E08A5B"></polygon></svg><span>Projects suggested from your git branches and commits</span></li>
+<li style="display: flex; gap: 12px; align-items: baseline"><svg width="8" height="7" sc-camel-view-box="0 0 8 7" aria-hidden="true" style="flex: 0 0 auto"><polygon points="4,0 8,7 0,7" fill="#E08A5B"></polygon></svg><span>Quick filters by person, status, type, priority and epic</span></li>
+<li style="display: flex; gap: 12px; align-items: baseline"><svg width="8" height="7" sc-camel-view-box="0 0 8 7" aria-hidden="true" style="flex: 0 0 auto"><polygon points="4,0 8,7 0,7" fill="#E08A5B"></polygon></svg><span>A ticket panel beside the conversation, with its description, comments and links</span></li>
+</ul>
+</div>
+<div style="flex: 999 1 480px; min-width: 0; display: flex; flex-direction: column; gap: 16px">
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(200px, 100%), 1fr)); gap: 12px">
+<div style="padding: 20px; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #3D3531; display: flex; flex-direction: column; gap: 10px">
+<span style="display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: #FFFFFF"><img src="assets/jira.png" alt="" width="28" height="28" style="display: block; width: 28px; height: 28px; object-fit: contain">Jira</span>
+<span style="align-self: flex-start; display: flex; align-items: center; gap: 6px; padding: 3px 8px; border-radius: 3px; background: rgba(154,214,203,0.12); color: #BFE7DF; font-size: 12px; font-weight: 600"><span style="width: 6px; height: 6px; border-radius: 50%; background: #9AD6CB"></span>Available</span>
+<span style="font-size: 13.5px; color: #B3A79F">Email and API token, kept in the system keyring.</span>
+</div>
+<div style="padding: 20px; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; gap: 10px">
+<span style="display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: #EDE6E1"><img src="assets/asana.png" alt="" width="28" height="28" style="display: block; width: 28px; height: 28px; object-fit: contain">Asana</span>
+<span style="align-self: flex-start; padding: 3px 8px; border-radius: 3px; background: #2E2724; color: #CFC5BE; font-size: 12px; font-weight: 600">Coming soon</span>
+<span style="font-size: 13.5px; color: #A89C94">Same Tickets column, same panel.</span>
+</div>
+<div style="padding: 20px; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; gap: 10px">
+<span style="display: flex; align-items: center; gap: 10px; font-size: 18px; font-weight: 700; color: #EDE6E1"><img src="assets/monday.png" alt="" width="28" height="28" style="display: block; width: 28px; height: 28px; object-fit: contain">Monday</span>
+<span style="align-self: flex-start; padding: 3px 8px; border-radius: 3px; background: #2E2724; color: #CFC5BE; font-size: 12px; font-weight: 600">Coming soon</span>
+<span style="font-size: 13.5px; color: #A89C94">Same Tickets column, same panel.</span>
+</div>
+</div>
+<div style="padding: 20px; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531; display: flex; flex-direction: column; gap: 12px; font-size: 13.5px; line-height: 1.4">
+<span style="font-size: 12px; color: #A89C94">A message with a ticket attached</span>
+<div style="display: flex; justify-content: flex-end">
+<div style="max-width: 420px; display: flex; flex-direction: column; align-items: flex-end; gap: 8px">
+<span style="display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 4px; background: #26211E; box-shadow: inset 0 0 0 1px #3D3531; font-size: 12.5px"><span style="font-family: 'DM Mono', ui-monospace, monospace; color: #F0A57A">ORB-809</span><span style="color: #D8CDC6">Batch status dashboard</span></span>
+<div style="padding: 12px 16px; border-radius: 6px 6px 2px 6px; background: #E08A5B; color: #24120A; line-height: 1.5">Take this ticket. Start with the batch status page.</div>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 5 Pull requests -->
+<div style="display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 64px">
+<div style="flex: 1 1 380px; max-width: 560px; display: flex; flex-direction: column; gap: 16px">
+<p style="margin: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; color: #F0A57A; letter-spacing: 0.08em; text-transform: uppercase">Pull requests</p>
+<h2 style="margin: 0; font-size: 40px; line-height: 1.12; font-weight: 700; letter-spacing: -0.015em; color: #FFFFFF; text-wrap: balance">Review with an agent at your side.</h2>
+<div style="display: flex; flex-wrap: wrap; gap: 8px">
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; padding: 4px 10px; border-radius: 3px; background: #2E2724; color: #D8CDC6">GitHub</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; padding: 4px 10px; border-radius: 3px; background: #2E2724; color: #D8CDC6">Bitbucket</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; padding: 4px 10px; border-radius: 3px; background: #2E2724; color: #D8CDC6">GitLab</span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; padding: 4px 10px; border-radius: 3px; background: #2E2724; color: #D8CDC6">Azure DevOps</span>
+</div>
+</div>
+<div style="flex: 1 1 400px; max-width: 520px; display: flex; flex-direction: column; gap: 14px">
+<p style="margin: 0; color: #B3A79F; text-wrap: pretty">The pull requests waiting for your review and your own, sorted by who has to act. Ask an agent to review one in its own worktree: its remarks land in your draft review, and nothing is posted without you.</p>
+<p style="margin: 0; color: #B3A79F; font-size: 15px; text-wrap: pretty">Comment, approve, request changes and merge from Squadron. Actions and pipelines are followed live, with a notification when one ends.</p>
+</div>
+</div>
+<div style="margin: 0">
+<div role="img" aria-label="The Pull requests panel: a review agent drafts comments on a pull request, then it gets approved" style="width: 100%; height: 600px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 24px 60px rgba(0,0,0,0.5); font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
+<div style="flex: 0 0 44px; display: flex; align-items: center; gap: 16px; padding: 0 14px; border-bottom: 1px solid #2B2522; background: #141110"><span style="display: flex; align-items: center; gap: 8px"><svg width="12" height="11" sc-camel-view-box="0 0 16 14" aria-hidden="true"><polygon points="8,0 16,14 0,14" fill="#E08A5B"></polygon></svg><span style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span></span><span style="display: flex; gap: 4px; padding: 3px; border-radius: 6px; background: #1E1A18"><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; color: #B3A79F">Overview</span><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; background: rgba(167,139,250,0.16); box-shadow: inset 0 0 0 1px rgba(167,139,250,0.75); color: #FFFFFF; font-weight: 600"><span style="width: 7px; height: 7px; border-radius: 2px; background: #A78BFA"></span>Orbit</span></span><span style="flex: 1 1 auto"></span><span class="sq-hide-sm" style="font-size: 12px; color: #A89C94">Pull requests · full screen</span></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 20px 28px; display: flex; flex-direction: column; gap: 12px">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px 14px">
+<strong style="font-size: 22px; font-weight: 700">Pull requests ·</strong>
+<span style="display: flex; align-items: center; gap: 8px; font-size: 22px; font-weight: 700"><span style="width: 10px; height: 10px; border-radius: 2px; background: #A78BFA"></span>Orbit</span>
+<span style="flex: 1 1 auto"></span>
+<span style="display: flex; align-items: center; gap: 6px; height: 32px; padding: 0 12px; border-radius: 4px; background: #26211E; font-size: 13px"><svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.6"></path><polyline points="20 4 20 9 15 9"></polyline></svg>Refresh</span>
+</div>
+<span style="display: flex; align-items: center; gap: 8px; margin-top: 6px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; color: #B3A79F">TO REVIEW <span style="padding: 1px 7px; border-radius: 3px; background: #2E2724; color: #EDE6E1">3</span></span>
+<sc-for list="{{prReview}}" as="p" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #2B2522">
+<span style="flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: #2E2724; color: #D8CDC6; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">{{p.initials}}</span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span style="{{p.badgeStyle}}">{{p.badge}}</span><strong style="font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.title}}</strong></span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{p.meta}}</span>
+</span>
+<span class="sq-hide-sm" style="{{p.buildStyle}}">{{p.build}}</span>
+<span style="{{p.btnStyle}}">{{p.btn}}</span>
+</div>
+</sc-for>
+<sc-if value="{{prAgent}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; align-items: center; gap: 10px; padding: 10px 14px; border-radius: 6px; background: #231F2B; box-shadow: inset 0 0 0 1px #4C3F6B; font-size: 13px">
+<svg class="sq-spin" width="13" height="13" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#C4B5FD" stroke-width="2" stroke-dasharray="22 12"></circle></svg>
+<span style="flex: 1 1 auto">A review agent is reading <strong style="font-weight: 600">#2098</strong> in its own worktree · <span style="font-family: 'DM Mono', ui-monospace, monospace">{{prComments}}</span> comments drafted</span>
+<span style="font-size: 12.5px; font-weight: 600; color: #C4B5FD">See review agent</span>
+</div>
+</sc-if>
+<span style="display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 12.5px; font-weight: 700; letter-spacing: 0.06em; color: #B3A79F">YOURS <span style="padding: 1px 7px; border-radius: 3px; background: #2E2724; color: #EDE6E1">2</span></span>
+<div style="display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #2B2522">
+<span style="flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: #2E2724; color: #D8CDC6; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">QB</span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span style="padding: 2px 8px; border-radius: 3px; box-shadow: inset 0 0 0 1px #60A5FA; color: #BFDBFE; font-size: 11.5px; font-weight: 600">In review</span><strong style="font-weight: 600">feat(search): paginated search API</strong></span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94">#2108 · Quentin B. · feat/search-pagination → main</span>
+</span>
+<span class="sq-hide-sm" style="{{prMineBuildStyle}}">{{prMineBuild}}</span>
+<span style="height: 32px; padding: 0 14px; border-radius: 4px; background: #EDE6E1; color: #1A1513; font-size: 13px; font-weight: 700; display: flex; align-items: center">Merge</span>
+</div>
+<div style="display: flex; align-items: center; gap: 14px; padding: 12px 14px; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #2B2522">
+<span style="flex: 0 0 auto; width: 30px; height: 30px; border-radius: 50%; background: #2E2724; color: #D8CDC6; font-size: 11px; font-weight: 700; display: flex; align-items: center; justify-content: center">QB</span>
+<span style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column; gap: 4px">
+<span style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><span style="padding: 2px 8px; border-radius: 3px; background: #F59E8C; color: #2A0D08; font-size: 11.5px; font-weight: 600">Changes requested</span><strong style="font-weight: 600">Faster search index rebuild</strong></span>
+<span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94">#2101 · Quentin B. · perf/index → main</span>
+</span>
+<span style="height: 32px; padding: 0 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6; font-size: 13px; display: flex; align-items: center">Review</span>
+</div>
+</div>
+</div>
+</div>
+</div>
+
+<!-- 6 Editor & terminal -->
+<div style="display: flex; flex-direction: column; gap: 40px">
+<div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 20px 64px">
+<div style="flex: 1 1 380px; max-width: 560px; display: flex; flex-direction: column; gap: 16px">
+<p style="margin: 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; color: #F0A57A; letter-spacing: 0.08em; text-transform: uppercase">Editor &amp; terminal</p>
+<h2 style="margin: 0; font-size: 40px; line-height: 1.12; font-weight: 700; letter-spacing: -0.015em; color: #FFFFFF; text-wrap: balance">The rest of your desk, a click away.</h2>
+</div>
+<div style="flex: 1 1 400px; max-width: 520px; display: flex; flex-direction: column; gap: 14px">
+<p style="margin: 0; color: #B3A79F; text-wrap: pretty">An editor that colours what is not committed yet, with find and replace and a project search (<span style="font-family: 'DM Mono', ui-monospace, monospace; color: #CFC5BE">Ctrl Shift F</span>). A terminal in the agent's folder. Each panel opens over the conversation, beside it, under it or full screen.</p>
+<div role="group" aria-label="Show panel" style="align-self: flex-start; display: flex; gap: 4px; padding: 4px; border-radius: 6px; background: #1E1A18">
+<button type="button" sc-camel-on-click="{{showEditorPane}}" aria-pressed="{{editorOn}}" style="{{editorTab}}">Editor</button>
+<button type="button" sc-camel-on-click="{{showTermPane}}" aria-pressed="{{termOn}}" style="{{termTab}}">Terminal</button>
+</div>
+</div>
+</div>
+<figure style="margin: 0">
+<sc-if value="{{editorOn}}" hint-placeholder-val="{{ true }}">
+<div role="img" aria-label="The Editor: an agent's changes appear line by line, marked as not committed yet" style="width: 100%; height: 560px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 24px 60px rgba(0,0,0,0.5); font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
+<div style="flex: 0 0 44px; display: flex; align-items: center; gap: 16px; padding: 0 14px; border-bottom: 1px solid #2B2522; background: #141110"><span style="display: flex; align-items: center; gap: 8px"><svg width="12" height="11" sc-camel-view-box="0 0 16 14" aria-hidden="true"><polygon points="8,0 16,14 0,14" fill="#E08A5B"></polygon></svg><span style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span></span><span style="display: flex; gap: 4px; padding: 3px; border-radius: 6px; background: #1E1A18"><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; color: #B3A79F">Overview</span><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; background: rgba(167,139,250,0.16); box-shadow: inset 0 0 0 1px rgba(167,139,250,0.75); color: #FFFFFF; font-weight: 600"><span style="width: 7px; height: 7px; border-radius: 2px; background: #A78BFA"></span>Orbit</span></span><span style="flex: 1 1 auto"></span><span class="sq-hide-sm" style="font-size: 12px; color: #A89C94">Editor · full screen</span></div>
+<div style="flex: 1 1 auto; min-height: 0; display: flex">
+<div class="sq-hide-sm" style="flex: 0 0 230px; display: flex; flex-direction: column; gap: 2px; padding: 12px 8px; border-right: 1px solid #2B2522; background: #171311; font-size: 13px">
+<span style="padding: 4px 8px; color: #B3A79F">▾ Orbit</span>
+<span style="padding: 4px 8px 4px 20px; color: #B3A79F">▸ api</span>
+<span style="padding: 4px 8px 4px 20px; color: #B3A79F">▸ billing</span>
+<span style="display: flex; justify-content: space-between; padding: 4px 8px 4px 20px; color: #D8CDC6">▾ search <span style="width: 6px; height: 6px; margin-top: 6px; border-radius: 1px; background: #FACC15"></span></span>
+<span style="padding: 4px 8px 4px 34px; border-radius: 4px; background: #3A3020; color: #FDE68A">searchService.ts</span>
+<span style="padding: 4px 8px 4px 34px; color: #9AD6CB">searchService.test.ts</span>
+<span style="padding: 4px 8px 4px 34px; color: #D8CDC6">filters.ts</span>
+<span style="padding: 4px 8px 4px 20px; color: #B3A79F">▸ shared</span>
+<span style="padding: 4px 8px; color: #D8CDC6">package.json</span>
+<span style="padding: 4px 8px; color: #D8CDC6">README.md</span>
+</div>
+<div style="flex: 1 1 auto; min-width: 0; display: flex; flex-direction: column">
+<div style="flex: 0 0 auto; display: flex; border-bottom: 1px solid #2B2522"><span style="padding: 9px 16px; box-shadow: inset 0 2px 0 #A78BFA; background: #1C1816; font-size: 13px">searchService.ts <span style="color: #6E625B">×</span></span></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; padding: 10px 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; line-height: 21px">
+<sc-for list="{{edLines}}" as="l" hint-placeholder-count="14">
+<div style="display: grid; grid-template-columns: 44px 6px 1fr; gap: 0 12px; white-space: pre">
+<span style="text-align: right; color: #6E625B">{{l.n}}</span>
+<span style="{{l.mark}}"></span>
+<span style="{{l.style}}">{{l.text}}</span>
+</div>
+</sc-for>
+</div>
+<div style="flex: 0 0 auto; display: flex; flex-wrap: wrap; gap: 6px 16px; padding: 7px 16px; border-top: 1px solid #2B2522; font-size: 12px; color: #A89C94"><span>TypeScript</span><span>UTF-8</span><span>Ln {{edLn}}</span><span style="flex: 1 1 auto"></span><span style="display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 8px; background: #9AD6CB"></span>added</span><span style="display: flex; align-items: center; gap: 6px"><span style="width: 8px; height: 3px; background: #F59E8C"></span>removed</span><span>Ctrl S to save</span></div>
+</div>
+</div>
+</div>
+</sc-if>
+<sc-if value="{{termOn}}" hint-placeholder-val="{{ false }}">
+<div role="img" aria-label="The Terminal: commands run in the agent's folder, with their output" style="width: 100%; height: 560px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 24px 60px rgba(0,0,0,0.5); font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
+<div style="flex: 0 0 44px; display: flex; align-items: center; gap: 16px; padding: 0 14px; border-bottom: 1px solid #2B2522; background: #141110"><span style="display: flex; align-items: center; gap: 8px"><svg width="12" height="11" sc-camel-view-box="0 0 16 14" aria-hidden="true"><polygon points="8,0 16,14 0,14" fill="#E08A5B"></polygon></svg><span style="font-size: 11px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span></span><span style="display: flex; gap: 4px; padding: 3px; border-radius: 6px; background: #1E1A18"><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; color: #B3A79F">Overview</span><span style="display: flex; align-items: center; gap: 6px; height: 26px; padding: 0 10px; border-radius: 4px; font-size: 12.5px; background: rgba(167,139,250,0.16); box-shadow: inset 0 0 0 1px rgba(167,139,250,0.75); color: #FFFFFF; font-weight: 600"><span style="width: 7px; height: 7px; border-radius: 2px; background: #A78BFA"></span>Orbit</span></span><span style="flex: 1 1 auto"></span><span class="sq-hide-sm" style="font-size: 12px; color: #A89C94">Terminal · full screen</span></div>
+<div style="flex: 1 1 auto; min-height: 0; overflow: hidden; display: flex; flex-direction: column; justify-content: flex-start; gap: 2px; padding: 16px 20px; background: #141110; font-family: 'DM Mono', ui-monospace, monospace; font-size: 13px; line-height: 20px">
+<sc-for list="{{teLines}}" as="l" hint-placeholder-count="8">
+<div class="sq-in" style="white-space: pre-wrap; overflow-wrap: anywhere">
+<sc-if value="{{l.prompt}}" hint-placeholder-val="{{ false }}"><span style="color: #A89C94">demo </span><span style="color: #D8CDC6">~/projects/orbit </span><span style="color: #C4B5FD">feat/search-pagination*</span>
+</sc-if><span style="{{l.style}}">{{l.text}}</span></div>
+</sc-for>
+<div style="white-space: pre"><span style="color: #A89C94">demo </span><span style="color: #D8CDC6">~/projects/orbit </span><span style="color: #C4B5FD">feat/search-pagination*</span>
+<span style="color: #EDE6E1">❯ {{teTyping}}</span><span class="sq-caret" style="display: inline-block; width: 8px; height: 15px; vertical-align: -2px; background: #EDE6E1"></span></div>
+</div>
+<div style="flex: 0 0 auto; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding: 10px 16px; border-top: 1px solid #2B2522; font-size: 12.5px; color: #A89C94"><span style="flex: 1 1 auto">Agents do not write in this terminal. Their commands stay in the conversation.</span><span style="height: 30px; padding: 0 10px; border-radius: 4px; background: #26211E; color: #D8CDC6; display: flex; align-items: center">Send the selection to Review the diff</span></div>
+</div>
+</sc-if>
+</figure>
+</div>
+
+</div>
+</section>
+
+<!-- Details -->
+<section id="details" style="position: relative; padding: 128px 24px; background: #141110; border-top: 1px solid #2B2522">
+<div style="max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; gap: 48px">
+<div style="max-width: 640px; display: flex; flex-direction: column; gap: 16px">
+<h2 style="margin: 0; font-size: 36px; line-height: 1.15; font-weight: 700; letter-spacing: -0.015em; color: #FFFFFF">And the small things that add up.</h2>
+<p style="margin: 0; color: #B3A79F">Built around Claude Code, so everything it can do shows up properly in the conversation.</p>
+</div>
+<div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(min(270px, 100%), 1fr)); gap: 16px">
+<button type="button" sc-camel-on-click="{{pop.diff}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Diff panel</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">What is not committed yet, the whole branch or the pull request, unified or split, with your comments on the lines.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.gauge}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Context gauge</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">A ring that fills green, orange then red, with Compact now and your own compaction size.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.bg}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Background tasks</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">Followed live with their elapsed time, their output and a Stop button. The agent stays working until they end.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.think}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Live thoughts</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">Each thought of the turn shows between the steps as Claude works, then folds away with the answer.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.agents}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Agents talk to agents</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">An agent can send an instruction to another one. You approve each message.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.artifacts}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Artifacts</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">Reports, plans and mock-ups beside the conversation. Point at an element to quote it in your next message.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.search}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Search everything</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F"><span style="font-family: 'DM Mono', ui-monospace, monospace; color: #CFC5BE">Ctrl Space</span> finds agents, projects and conversations, archived ones included. <span style="font-family: 'DM Mono', ui-monospace, monospace; color: #CFC5BE">Ctrl F</span> searches a conversation.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.import}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Import conversations</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">Bring in sessions started in Claude Code or the Claude app, from the project and its worktrees.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.config}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">/config and /mcp as cards</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">Claude Code's settings to search and set in a click, and MCP servers to authorize or reconnect.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.resume}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Picks up where it left off</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">An agent cut short by a restart or an update resumes at the next start, with the messages it had not read.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.files}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Files, screenshots, @</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">Paste or drop screenshots and files, and type @ to mention any file of the project.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+<button type="button" sc-camel-on-click="{{pop.update}}" aria-haspopup="dialog" style="padding: 22px 22px 20px; border: 0; border-radius: 6px; background: #1C1816; box-shadow: inset 0 0 0 1px #2B2522; display: flex; flex-direction: column; align-items: flex-start; gap: 8px; color: inherit; font: inherit; text-align: left; cursor: pointer">
+<h3 style="margin: 0; font-size: 16px; font-weight: 600; color: #FFFFFF">Updates itself</h3>
+<p style="margin: 0; font-size: 14.5px; line-height: 1.55; color: #B3A79F">Squadron checks every ten minutes. One click on Update downloads, installs and restarts.</p>
+<span style="margin-top: auto; padding-top: 6px; font-size: 13.5px; font-weight: 600; color: #F0A57A">See an example →</span>
+</button>
+</div>
+</div>
+<sc-if value="{{modalOpen}}" hint-placeholder-val="{{ false }}">
+<div sc-camel-on-click="{{closeModal}}" style="position: absolute; inset: 0; z-index: 20; display: flex; justify-content: center; align-items: flex-start; padding: 72px 16px; background: rgba(12,9,8,0.74)">
+<div role="dialog" aria-modal="true" aria-label="{{m.title}}" sc-camel-on-click="{{stop}}" class="sq-in" style="width: 100%; max-width: 960px; display: flex; flex-direction: column; gap: 16px; padding: 24px; border-radius: 8px; background: #1C1816; box-shadow: 0 0 0 1px #3D3531, 0 30px 80px rgba(0,0,0,0.6); font-size: 13.5px; line-height: 1.4">
+<div style="display: flex; align-items: flex-start; gap: 16px">
+<div style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 6px">
+<h3 style="margin: 0; font-size: 20px; font-weight: 700; color: #FFFFFF">{{m.title}}</h3>
+<p style="margin: 0; font-size: 15px; line-height: 1.55; color: #B3A79F">{{m.text}}</p>
+</div>
+<button type="button" sc-camel-on-click="{{closeModal}}" aria-label="Close" style="flex: 0 0 auto; width: 40px; height: 40px; border: 0; border-radius: 4px; background: #26211E; color: #D8CDC6; cursor: pointer; display: flex; align-items: center; justify-content: center"><svg width="16" height="16" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><line x1="18" y1="6" x2="6" y2="18"></line><line x1="6" y1="6" x2="18" y2="18"></line></svg></button>
+</div>
+<div style="border-radius: 6px; background: #171311; box-shadow: 0 0 0 1px #2B2522; overflow: hidden; font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
+
+<sc-if value="{{m.isDiff}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px; padding: 10px 14px; border-bottom: 1px solid #2B2522">
+<strong style="font-weight: 600">Diff</strong><span style="font-size: 12.5px; color: #A89C94">Review the diff · 2 files</span><span style="flex: 1 1 auto"></span>
+<span style="display: flex; gap: 2px; padding: 2px; border-radius: 4px; background: #26211E; font-size: 12px"><span style="padding: 3px 8px; border-radius: 3px; background: #433A35; color: #FFFFFF; font-weight: 600">Uncommitted</span><span style="padding: 3px 8px; color: #B3A79F">Branch</span><span style="padding: 3px 8px; color: #B3A79F">PR #2108</span></span>
+</div>
+<div style="display: flex; gap: 4px; padding: 8px 14px 0; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px"><span style="padding: 5px 10px; border-radius: 4px 4px 0 0; background: #221D1A">searchService.ts <span style="color: #9AD6CB">+{{dfAdd}}</span> <span style="color: #F59E8C">−1</span></span><span style="padding: 5px 10px; color: #A89C94">searchService.test.ts <span style="color: #9AD6CB">+12</span></span></div>
+<div style="height: 300px; overflow: hidden; padding: 8px 0; background: #221D1A; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; line-height: 20px">
+<sc-for list="{{dfLines}}" as="l" hint-placeholder-count="10">
+<div class="sq-in" style="{{l.style}}"><span style="text-align: right; color: {{l.numColor}}">{{l.a}}</span><span style="text-align: right; color: {{l.numColor}}">{{l.b}}</span><span style="text-align: center">{{l.sign}}</span><span>{{l.text}}</span></div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isGauge}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 24px; padding: 28px">
+<svg width="120" height="120" sc-camel-view-box="0 0 64 64" aria-hidden="true" style="flex: 0 0 auto"><circle cx="32" cy="32" r="26" fill="none" stroke="#2E2724" stroke-width="6"></circle><circle cx="32" cy="32" r="26" fill="none" stroke="{{gColor}}" stroke-width="6" stroke-linecap="round" stroke-dasharray="{{gDash}}" transform="rotate(-90 32 32)" style="transition: stroke-dasharray .8s ease, stroke .4s"></circle><text x="32" y="36" text-anchor="middle" font-family="DM Mono, monospace" font-size="11" fill="#EDE6E1">{{gPct}}%</text></svg>
+<div style="flex: 1 1 260px; display: flex; flex-direction: column; gap: 10px; padding: 16px; border-radius: 6px; background: #2A2421; box-shadow: 0 14px 36px rgba(0,0,0,0.5)">
+<strong style="font-weight: 600">Context</strong>
+<span style="height: 6px; border-radius: 3px; background: #433A35; overflow: hidden"><span style="display: block; height: 100%; width: {{gW}}; background: {{gColor}}; transition: width .8s ease"></span></span>
+<span>{{gTok}} of 1M tokens used ({{gPct}}%)</span>
+<span style="font-size: 12.5px; color: #A89C94">Auto-compaction at 600k tokens</span>
+<span style="{{gBtnStyle}}">{{gBtn}}</span>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isBg}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 12px; padding: 20px">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 6px; background: #1C1816; box-shadow: 0 0 0 1px #4A6680">
+<div style="display: flex; align-items: center; gap: 10px"><span style="width: 30px; height: 30px; border-radius: 4px; background: #2E2724; display: flex; align-items: center; justify-content: center"><svg class="sq-spin" width="14" height="14" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg></span><span style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px"><strong style="font-weight: 600">In the background</strong><span style="font-size: 12.5px; color: #B3A79F">Claude will resume on its own when the task ends</span></span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #B3A79F">{{bgSecs}} s</span></div>
+<div style="display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 4px; background: #141110; font-family: 'DM Mono', ui-monospace, monospace; font-size: 12px; color: #A89C94; height: 112px; overflow: hidden; justify-content: flex-end">
+<sc-for list="{{bgOut}}" as="o" hint-placeholder-count="4"><span class="sq-in">{{o.text}}</span></sc-for>
+</div>
+</div>
+<sc-if value="{{bgDone}}" hint-placeholder-val="{{ false }}"><div class="sq-in" style="padding: 12px 16px; border-radius: 6px; background: #221D1A; line-height: 1.6">The import finished: 12,418 rows, no errors. I'm moving on to the report.</div></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isThink}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 20px; min-height: 240px; box-sizing: border-box">
+<div style="display: flex; align-items: center; gap: 10px; height: 30px; padding: 0 12px; border-radius: 4px; background: #221D1A"><span style="flex: 0 0 40px; color: #A89C94">Grep</span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px">cache( in src/search/</span></div>
+<div style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 4px; box-shadow: inset 2px 0 0 #E08A5B; background: #1C1816"><span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #F7C7AA"><span class="sq-caret" style="width: 6px; height: 6px; border-radius: 50%; background: #E08A5B"></span>Thinking · {{thSecs}} s</span><span style="font-style: italic; color: #D8CDC6; line-height: 1.6">{{thText}}</span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isAgents}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-wrap: wrap; gap: 16px; padding: 20px">
+<div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; color: #A89C94">Auth audit</span>
+<sc-if value="{{agAsk}}" hint-placeholder-val="{{ true }}">
+<section aria-label="Send a message to Rate limiter?" class="sq-in" style="display: flex; flex-direction: column; gap: 10px; padding: 14px 16px; border-radius: 6px; background: #3B2216; box-shadow: 0 0 0 1px #8E4E2E">
+<strong style="color: #FFF3EC; font-weight: 600">Send a message to Rate limiter?</strong>
+<span style="padding: 10px 12px; border-radius: 4px; background: #1C1816; box-shadow: inset 0 0 0 1px #4A2E29; line-height: 1.6">The session cache is read before the user is loaded. Clear it per user in <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px">sessionCache.warm()</code>.</span>
+<span style="display: flex; gap: 8px"><span style="{{agSendStyle}}">Send</span><span style="height: 34px; padding: 0 16px; border-radius: 4px; background: #2E2724; color: #E3D7CF; display: flex; align-items: center">Deny</span></span>
+</section>
+</sc-if>
+<sc-if value="{{agSent}}" hint-placeholder-val="{{ false }}"><div class="sq-in" style="padding: 9px 14px; border-radius: 6px; background: #1F2321; box-shadow: inset 0 0 0 1px #33403B; font-size: 12.5px; color: #BFE7DF; font-weight: 600">Sent to Rate limiter</div></sc-if>
+</div>
+<div style="flex: 1 1 300px; display: flex; flex-direction: column; gap: 10px">
+<span style="font-size: 12px; color: #A89C94">Rate limiter</span>
+<div style="padding: 12px 16px; border-radius: 6px; background: #221D1A; line-height: 1.6; color: #D8CDC6">Limiter added on <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px">/api/search</code>, 60 requests a minute.</div>
+<sc-if value="{{agSent}}" hint-placeholder-val="{{ false }}">
+<div class="sq-in" style="display: flex; flex-direction: column; gap: 6px; padding: 12px 14px; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #3D3531">
+<span style="display: flex; align-items: center; gap: 8px; font-size: 12px; color: #A89C94"><span style="width: 8px; height: 8px; border-radius: 2px; background: #A78BFA"></span><strong style="color: #EDE6E1; font-weight: 600">Auth audit</strong></span>
+<span style="line-height: 1.6">The session cache is read before the user is loaded. Clear it per user in <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px">sessionCache.warm()</code>.</span>
+</div>
+</sc-if>
+<sc-if value="{{agReply}}" hint-placeholder-val="{{ false }}"><span class="sq-in" style="display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94"><svg class="sq-spin" width="12" height="12" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg>Turn in progress · Edit src/auth/sessionCache.ts</span></sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isArtifacts}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-wrap: wrap; min-height: 260px">
+<div style="flex: 1 1 220px; display: flex; flex-direction: column; gap: 4px; padding: 14px; border-right: 1px solid #2B2522">
+<strong style="font-weight: 600">Artifacts</strong><span style="font-size: 12px; color: #A89C94; margin-bottom: 6px">Published by Review the diff</span>
+<sc-for list="{{arList}}" as="a" hint-placeholder-count="3"><span style="{{a.style}}"><strong style="font-weight: 600">{{a.title}}</strong><br><span style="font-size: 12px; color: #A89C94">{{a.kind}}</span></span></sc-for>
+</div>
+<div style="flex: 999 1 380px; display: flex; flex-direction: column; gap: 10px; padding: 14px 18px; background: #1C1816">
+<div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px"><strong style="flex: 1 1 auto; font-weight: 600">{{arTitle}}</strong><span style="height: 28px; padding: 0 10px; border-radius: 4px; background: #2E2724; color: #D8CDC6; font-size: 12.5px; display: flex; align-items: center">Copy</span><span style="height: 28px; padding: 0 10px; border-radius: 4px; background: #2E2724; color: #D8CDC6; font-size: 12.5px; display: flex; align-items: center">Save as a file</span></div>
+<sc-for list="{{arLines}}" as="l" hint-placeholder-count="3"><span class="sq-in" style="{{l.style}}">{{l.text}}</span></sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isSearch}}" hint-placeholder-val="{{ false }}">
+<div style="padding: 28px 20px; min-height: 260px; box-sizing: border-box; background: rgba(12,9,8,0.5)">
+<div style="max-width: 560px; margin: 0 auto; display: flex; flex-direction: column; border-radius: 8px; background: #2A2421; box-shadow: 0 0 0 1px #3D3531, 0 30px 80px rgba(0,0,0,0.6); overflow: hidden">
+<div style="padding: 12px 16px; border-bottom: 1px solid #3D3531; font-size: 15px">{{sqQuery}}<span class="sq-caret" style="color: #EDE6E1">|</span></div>
+<div style="display: flex; flex-direction: column; padding: 6px; min-height: 150px">
+<sc-for list="{{sqResults}}" as="r" hint-placeholder-count="3"><div class="sq-in" style="{{r.style}}"><span style="display: flex; align-items: center; gap: 8px"><span style="width: 8px; height: 8px; border-radius: 2px; background: {{r.color}}"></span><strong style="font-weight: 600">{{r.title}}</strong><span style="font-size: 12px; color: #A89C94">{{r.where}}</span><span style="flex: 1 1 auto"></span><span style="font-size: 12px; color: #A89C94">{{r.when}}</span></span><span style="font-size: 12.5px; color: #B3A79F; white-space: nowrap; overflow: hidden; text-overflow: ellipsis">{{r.text}}</span></div></sc-for>
+</div>
+<div style="padding: 8px 16px; border-top: 1px solid #3D3531; font-size: 12px; color: #A89C94">↑ ↓ to move · Enter to open · archived agents included</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isImport}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 10px; padding: 18px 20px">
+<strong style="font-size: 16px; font-weight: 700">Import conversations · Orbit</strong>
+<span style="font-size: 12.5px; color: #A89C94">Conversations held in the Claude app or in Claude Code. Each one you import becomes an agent that continues it.</span>
+<sc-for list="{{imRows}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; border-radius: 4px; background: #221D1A">
+<span style="{{r.box}}"><sc-if value="{{r.on}}" hint-placeholder-val="{{ false }}"><svg width="11" height="11" sc-camel-view-box="0 0 24 24" fill="none" stroke="#24120A" stroke-width="4" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><polyline points="20 6 9 17 4 12"></polyline></svg></sc-if></span>
+<span style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px"><strong style="font-weight: 600">{{r.title}}</strong><span style="font-size: 12px; color: #A89C94">{{r.meta}}</span></span>
+</div>
+</sc-for>
+<div style="display: flex; justify-content: flex-end; gap: 8px; padding-top: 6px"><span style="height: 34px; padding: 0 14px; border-radius: 4px; background: #26211E; color: #D8CDC6; display: flex; align-items: center">Cancel</span><span style="{{imBtnStyle}}">{{imBtn}}</span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isConfig}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-wrap: wrap; gap: 14px; padding: 18px">
+<div style="flex: 1 1 300px; display: flex; flex-direction: column; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #3D3531">
+<div style="padding: 10px 14px; border-bottom: 1px solid #2B2522"><span style="font-size: 11.5px; color: #A89C94">/config</span><br><strong style="font-weight: 600">Settings of Claude Code</strong></div>
+<sc-for list="{{cfRows}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #2B2522"><span style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px"><span>{{r.label}}</span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px; color: #A89C94">{{r.key}}</span></span><span style="display: flex; gap: 2px; padding: 2px; border-radius: 4px; background: #2E2724; font-size: 12px"><span style="{{r.yes}}">yes</span><span style="{{r.no}}">no</span></span></div>
+</sc-for>
+</div>
+<div style="flex: 1 1 300px; display: flex; flex-direction: column; border-radius: 6px; background: #221D1A; box-shadow: inset 0 0 0 1px #3D3531">
+<div style="padding: 10px 14px; border-bottom: 1px solid #2B2522"><span style="font-size: 11.5px; color: #A89C94">/mcp</span><br><strong style="font-weight: 600">MCP servers · 3</strong></div>
+<sc-for list="{{mcpRows}}" as="r" hint-placeholder-count="3">
+<div style="display: flex; align-items: center; gap: 10px; padding: 9px 14px; border-bottom: 1px solid #2B2522"><span style="width: 7px; height: 7px; border-radius: 50%; background: {{r.dot}}"></span><span style="flex: 1 1 auto; display: flex; flex-direction: column; gap: 2px"><span>{{r.name}}</span><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 11px; color: {{r.dot}}">{{r.status}}</span></span><span style="height: 28px; padding: 0 10px; border-radius: 4px; background: #2E2724; color: #D8CDC6; font-size: 12px; display: flex; align-items: center">{{r.action}}</span></div>
+</sc-for>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isResume}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; gap: 14px; padding: 20px; min-height: 240px; box-sizing: border-box">
+<div style="padding: 12px 16px; border-radius: 6px; background: #221D1A; line-height: 1.6">Migrating the routes of the second package…</div>
+<sc-if value="{{rsWorking}}" hint-placeholder-val="{{ true }}"><span style="display: flex; align-items: center; gap: 8px; font-family: 'DM Mono', ui-monospace, monospace; font-size: 11.5px; color: #A89C94"><svg class="sq-spin" width="12" height="12" sc-camel-view-box="0 0 14 14" aria-hidden="true"><circle cx="7" cy="7" r="5.5" fill="none" stroke="#9AD6CB" stroke-width="2" stroke-dasharray="22 12"></circle></svg>Turn in progress · Edit src/api/v2/routes.ts</span></sc-if>
+<sc-if value="{{rsSep}}" hint-placeholder-val="{{ false }}"><div class="sq-in" style="display: flex; align-items: center; gap: 12px; font-size: 12.5px; color: #A89C94"><span style="flex: 1 1 auto; height: 1px; background: #3D3531"></span><span>Squadron updated · 09:12 · API v2 migration picks up where it left off</span><span style="flex: 1 1 auto; height: 1px; background: #3D3531"></span></div></sc-if>
+<sc-if value="{{rsBack}}" hint-placeholder-val="{{ false }}"><div class="sq-in" style="padding: 12px 16px; border-radius: 6px; background: #221D1A; line-height: 1.6">Back on it. The first package is migrated; I resume with <code style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px; padding: 1px 6px; border-radius: 3px; background: #2E2724">packages/api</code>, and I read the two messages you sent meanwhile.</div></sc-if>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isFiles}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column; justify-content: flex-end; gap: 8px; padding: 20px; min-height: 260px; box-sizing: border-box">
+<sc-if value="{{fsSugg}}" hint-placeholder-val="{{ true }}">
+<div class="sq-in" style="display: flex; flex-direction: column; padding: 4px; border-radius: 6px; background: #2A2421; box-shadow: 0 14px 36px rgba(0,0,0,0.5); font-family: 'DM Mono', ui-monospace, monospace; font-size: 12.5px">
+<sc-for list="{{fsList}}" as="f" hint-placeholder-count="3"><span style="{{f.style}}">{{f.path}}</span></sc-for>
+</div>
+</sc-if>
+<sc-if value="{{fsChip}}" hint-placeholder-val="{{ false }}"><span class="sq-in" style="align-self: flex-start; display: flex; align-items: center; gap: 8px; padding: 6px 10px; border-radius: 4px; background: #26211E; box-shadow: inset 0 0 0 1px #3D3531; font-size: 12.5px"><span style="font-family: 'DM Mono', ui-monospace, monospace; font-size: 10px; color: #A89C94">PNG</span>search-bug.png · 214 KB</span></sc-if>
+<div style="display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 16px; border-radius: 6px; background: #26211E"><span style="flex: 1 1 auto; min-width: 0; white-space: nowrap; overflow: hidden">Check {{fsText}}<span class="sq-caret">|</span></span><span style="height: 32px; padding: 0 14px; border-radius: 4px; background: #EDE6E1; color: #1A1513; font-weight: 700; display: flex; align-items: center">Send</span></div>
+</div>
+</sc-if>
+
+<sc-if value="{{m.isUpdate}}" hint-placeholder-val="{{ false }}">
+<div style="display: flex; flex-direction: column">
+<div style="height: 180px; display: flex; align-items: flex-end; justify-content: flex-end; padding: 0 16px 10px">
+<sc-if value="{{upTip}}" hint-placeholder-val="{{ false }}"><span class="sq-in" style="padding: 10px 12px; border-radius: 6px; background: #2A2421; box-shadow: 0 14px 36px rgba(0,0,0,0.5); font-size: 12.5px">{{upTipText}}</span></sc-if>
+</div>
+<div style="display: flex; align-items: center; gap: 16px; padding: 6px 14px; border-top: 1px solid #2B2522; background: #141110; font-size: 12px; color: #A89C94">
+<span>CPU <span style="font-family: 'DM Mono', ui-monospace, monospace">24%</span></span><span>Memory <span style="font-family: 'DM Mono', ui-monospace, monospace">13.6 / 31.2 GB</span></span><span style="flex: 1 1 auto"></span>
+<sc-if value="{{upBtn}}" hint-placeholder-val="{{ false }}"><span class="sq-in" style="{{upBtnStyle}}">{{upBtnText}}</span></sc-if>
+</div>
+</div>
+</sc-if>
+
+</div>
+</div>
+</div>
+</sc-if>
+</section>
+
+<!-- Footer -->
+<footer style="padding: 56px 24px; background: #141110; border-top: 1px solid #2B2522">
+<div style="max-width: 1200px; margin: 0 auto; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 20px 40px">
+<div style="display: flex; align-items: center; gap: 10px">
+<svg width="16" height="14" sc-camel-view-box="0 0 16 14" aria-hidden="true"><polygon points="8,0 16,14 0,14" fill="#E08A5B"></polygon></svg>
+<span style="font-size: 13px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span>
+</div>
+<div style="display: flex; flex-wrap: wrap; gap: 4px 28px; font-size: 14px; font-weight: 500">
+<a href="https://github.com/Jgrasp/squadron" style="display: flex; align-items: center; gap: 8px; color: #CFC5BE; text-decoration: none; padding: 10px 0"><img src="assets/github.png" alt="" width="16" height="16" style="display: block; width: 16px; height: 16px; object-fit: contain">GitHub</a>
+<a href="https://github.com/Jgrasp/squadron/releases" style="color: #CFC5BE; text-decoration: none; padding: 10px 0">Releases</a>
+<a href="https://github.com/Jgrasp/squadron/issues" style="color: #CFC5BE; text-decoration: none; padding: 10px 0">Issues</a>
+</div>
+</div>
+</footer>
+
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script="" data-props="{&quot;$preview&quot;:{&quot;width&quot;:1440,&quot;height&quot;:8800}}">
+class Component extends DCLogic {
+componentDidMount() {
+let os = 'linux';
+try {
+const ua = (navigator.userAgent || '') + ' ' + (navigator.platform || '');
+os = /Win/i.test(ua) ? 'win' : (/Mac|iPhone|iPad/i.test(ua) ? 'mac' : 'linux');
+} catch (e) {}
+let still = false;
+try { still = !!(window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches); } catch (e) {}
+this.setState({ os: os, step: still ? 13 : 0, t: still ? 6 : 0 });
+if (!still) {
+this._timer = setInterval(() => {
+const cur = (this.state && this.state.step) || 0;
+this.setState({ step: cur >= 17 ? 0 : cur + 1, t: ((this.state && this.state.t) || 0) + 1 });
+}, 1200);
+}
+}
+componentWillUnmount() {
+if (this._timer) clearInterval(this._timer);
+if (this._copyT) clearTimeout(this._copyT);
+}
+renderVals() {
+const s = Object.assign({ step: 13, t: 6, os: 'linux', copied: false, tab: 'values', ans: null, sep: null, cols: {}, pane: 'editor', vals: {}, shown: {}, cell: 37, unfold: false, md: 'rendered', modal: null }, this.state || {});
+const tab = s.tab;
+const t = s.t;
+const ovRow = (r) => {
+const isWork = r.st === 'work', isWait = r.st === 'wait', isDone = r.st === 'done';
+return { name: r.name, meta: r.meta, last: r.last, isWork: isWork, isWait: isWait, isDone: isDone,
+stateText: isWait ? 'Waiting for you' : (isWork ? 'Working' : 'Done · just now'),
+stateColor: isWait ? '#F7C7AA' : '#B3A79F',
+hasProg: r.prog != null, progW: r.prog != null ? Math.round(r.prog / 3 * 100) + '%' : '0%', progText: r.prog != null ? r.prog + '/3' : '',
+btn: isWait ? 'Answer' : 'Open',
+btnStyle: 'flex: 0 0 auto; height: 32px; padding: 0 14px; border-radius: 4px; display: flex; align-items: center; font-size: 13px; ' + (isWait ? 'background: #E08A5B; color: #24120A; font-weight: 700' : 'box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6'),
+rowStyle: 'display: flex; align-items: center; gap: 16px; padding: 10px 12px; border-radius: 6px; transition: background .3s; ' + (isWait ? 'background: #2E1D15; box-shadow: inset 0 0 0 1px #57301F' : 'background: transparent; box-shadow: inset 0 -1px 0 #2B2522') };
+};
+const ov = t % 8;
+const bgWait = ov >= 2 && ov <= 5;
+const ovGroups = [
+{ name: 'Orbit', color: '#A78BFA', path: '~/projects/orbit', count: '4 agents' + (bgWait ? ' · 1 waiting for you' : ''), rows: [
+{ name: 'Background tests', meta: 'Opus 5.5 · High · PR #2108', st: bgWait ? 'wait' : 'work', last: bgWait ? 'Waiting for your approval · Bash' : 'Bash npm test -- --runInBand' },
+{ name: 'Auth audit', meta: 'Sonnet 5.5 · Medium', st: 'work', last: ['Grep token in src/auth/', 'Read src/auth/session.ts', 'Edit src/auth/session.ts', 'Grep refresh( in src/'][ov % 4] },
+{ name: 'API v2 migration', meta: 'Opus 5.5 · High', st: ov >= 6 ? 'done' : 'work', last: ov >= 6 ? 'migrated 3 packages, all tasks completed' : 'Edit src/api/v2/routes.ts', prog: Math.min(3, 1 + Math.floor(ov / 3)) },
+{ name: 'Rate limiter', meta: 'Opus 5.5 · High · PR #2111', st: 'done', last: 'added a limiter on /api/search, 60 req/min' }
+].map(ovRow) },
+{ name: 'Nova', color: '#2DD4BF', path: '~/projects/nova', count: '1 agent', rows: [
+{ name: 'Search filters', meta: 'Sonnet 5.5 · High', st: ov < 4 ? 'work' : 'done', last: ov < 4 ? 'Bash npm test -- search' : 'filters added, 42 tests pass' }
+].map(ovRow) }
+];
+const kb = t % 10;
+const kbCard = (o) => {
+const isWork = o.st === 'work', isWait = o.st === 'wait', isDone = o.st === 'done';
+return { title: o.title, hasState: !!o.st, isWork: isWork, isWait: isWait, isDone: isDone,
+stateText: isWait ? 'Waiting for you' : (isWork ? 'Working' : 'Done'), stateColor: isWait ? '#F7C7AA' : '#B3A79F',
+hasLast: !!o.last, last: o.last || '', hasProg: o.prog != null, progW: o.prog != null ? Math.round(o.prog / 3 * 100) + '%' : '0%', progText: o.prog != null ? o.prog + '/3' : '',
+hasBtn: !!o.btn, btn: o.btn || '',
+btnStyle: 'align-self: flex-start; height: 28px; padding: 0 10px; border-radius: 4px; display: flex; align-items: center; font-size: 12.5px; ' + (isWait ? 'background: #E08A5B; color: #24120A; font-weight: 700' : 'box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6'),
+style: 'display: flex; flex-direction: column; gap: 6px; padding: 12px; border-radius: 6px; ' + (isWait ? 'background: #3B2216; box-shadow: inset 0 0 0 1px #8E4E2E' : (isWork ? 'background: #2A2438; box-shadow: inset 0 0 0 1px #4C3F6B' : 'background: #221D1A; box-shadow: inset 0 0 0 1px #2B2522')) };
+};
+const kbWait = kb >= 3 && kb <= 6;
+const sfDone = kb >= 5;
+const kbRaw = [
+{ title: 'TICKETS', color: '#60A5FA', cards: [{ title: 'ORB-812 · Admin settings page', last: 'Story · Sprint 14' }, { title: 'ORB-815 · Export the audit log', last: 'Task · Sprint 14' }] },
+{ title: 'TO DO', color: '#6E625B', cards: [{ title: 'Add rate limiting to uploads', last: 'No agent yet', btn: 'Start an agent' }] },
+{ title: 'IN PROGRESS', color: '#9AD6CB', cards: [
+{ title: 'Auth audit', st: 'work', last: ['Grep token in src/auth/', 'Read src/auth/session.ts', 'Edit src/auth/session.ts'][kb % 3] },
+{ title: 'Background tests', st: kbWait ? 'wait' : 'work', last: kbWait ? 'Waiting for your approval · Bash' : 'Bash npm test', btn: kbWait ? 'Answer ›' : '' }
+].concat(sfDone ? [] : [{ title: 'Search filters', st: 'work', last: 'Bash npm test -- search' }]).concat([{ title: 'API v2 migration', st: 'work', prog: Math.min(3, 1 + Math.floor(kb / 4)) }]) },
+{ title: 'TO REVIEW', color: '#E08A5B', cards: (sfDone ? [{ title: 'Search filters', st: 'done', last: 'PR #2112 · Open', btn: 'See the diff +42' }] : []).concat([{ title: 'Rate limiter', st: 'done', last: 'PR #2111 · 1/2 approved', btn: 'Open agent ›' }]) },
+{ title: 'DONE', color: '#B8D98C', cards: [{ title: 'Fix invoice rounding', st: 'done', last: 'Merged · PR #2104' }] }
+];
+const pr = t % 12;
+const badgeBase = 'flex: 0 0 auto; padding: 2px 8px; border-radius: 3px; font-size: 11.5px; font-weight: 600; ';
+const BADGE = { newch: 'background: #2563EB; color: #FFFFFF', wait: 'background: #E08A5B; color: #24120A', agent: 'background: #4C3F6B; color: #EDE9FE', ok: 'background: #1F3A2E; color: #9AD6CB' };
+const btnLight = 'flex: 0 0 auto; height: 32px; padding: 0 14px; border-radius: 4px; display: flex; align-items: center; font-size: 13px; background: #EDE6E1; color: #1A1513; font-weight: 700';
+const btnGhost = 'flex: 0 0 auto; height: 32px; padding: 0 14px; border-radius: 4px; display: flex; align-items: center; font-size: 13px; box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6';
+const btnAgent = 'flex: 0 0 auto; height: 32px; padding: 0 14px; border-radius: 4px; display: flex; align-items: center; font-size: 13px; background: #2A2438; color: #C4B5FD';
+const buildSt = (ok) => 'flex: 0 0 auto; font-size: 12px; ' + (ok ? 'color: #9AD6CB' : 'color: #A89C94');
+const r2 = pr < 3 ? ['Waiting for you', 'wait', 'Review', btnLight] : (pr < 8 ? ['Agent reviewing', 'agent', 'Reviewing…', btnAgent] : ['You approved', 'ok', 'Review', btnGhost]);
+const prReview = [
+{ initials: 'AP', badge: 'New changes', badgeStyle: badgeBase + BADGE.newch, title: 'Remove the legacy importer and its patches', meta: '#2093 · Ana P. · dev/T21 → main · new commits since your review', build: pr % 6 < 2 ? '◌ Builds running' : '✓ Builds pass', buildStyle: buildSt(pr % 6 >= 2), btn: 'Review', btnStyle: btnLight },
+{ initials: 'AP', badge: r2[0], badgeStyle: badgeBase + BADGE[r2[1]], title: 'Cache search results for 5 minutes', meta: '#2098 · Ana P. · perf/cache → main', build: '✓ Builds pass', buildStyle: buildSt(true), btn: r2[2], btnStyle: r2[3] },
+{ initials: 'LM', badge: 'You approved', badgeStyle: badgeBase + BADGE.ok, title: 'Export reports as CSV', meta: '#2071 · Leo M. · feat/csv → main · new commits since you approved', build: '✓ Builds pass', buildStyle: buildSt(true), btn: 'Review', btnStyle: btnGhost }
+];
+const ed = t % 14;
+const CODE = [
+['export async function search(query: SearchQuery) {', 0], ['  const filters = buildFilters(query);', 0], ['  const page = query.page ?? 1;', 1], ['  const pageSize = Math.min(query.pageSize ?? 20, 100);', 2], ['', 0],
+['  const results = await index.search(query.text, {', 0], ['    filters,', 0], ['    offset: (page - 1) * pageSize,', 4], ['    limit: pageSize,', 5], ['  });', 0], ['', 0],
+['  return {', 0], ['    items: results.hits,', 0], ['    total: results.total,', 0], ['    page,', 7], ['    hasMore: page * pageSize < results.total,', 8], ['  };', 0], ['}', 0]
+];
+const edVis = CODE.filter((c) => c[1] === 0 || ed >= c[1]);
+const term = [
+{ p: true, text: 'git status' }, { text: 'On branch feat/search-pagination' }, { text: '\tmodified:   src/search/searchService.ts', c: '#F59E8C' },
+{ p: true, text: 'npm test -- search' }, { text: ' PASS  src/search/searchService.test.ts', c: '#9AD6CB' }, { text: ' Tests:       42 passed, 42 total', c: '#C9E3A8' },
+{ p: true, text: 'git push -u origin feat/search-pagination' }, { text: 'To github.com:acme/orbit.git' }, { text: ' * [new branch]      feat/search-pagination -> feat/search-pagination', c: '#9AD6CB' }
+];
+const frames = [];
+let done = [];
+term.forEach((it) => {
+if (it.p) { frames.push({ lines: done.slice(), typing: it.text.slice(0, Math.ceil(it.text.length / 2)) }); frames.push({ lines: done.slice(), typing: it.text }); done = done.concat([it]); frames.push({ lines: done.slice(), typing: '' }); }
+else { done = done.concat([it]); frames.push({ lines: done.slice(), typing: '' }); }
+});
+frames.push(frames[frames.length - 1]); frames.push(frames[frames.length - 1]); frames.push(frames[frames.length - 1]);
+const fr = frames[t % frames.length];
+const pd = t % 10;
+const DF = [[1, 1, ' ', 'export async function search(query: SearchQuery) {', 0], [2, 2, ' ', '  const filters = buildFilters(query);', 0], ['', 3, '+', '  const page = query.page ?? 1;', 1], ['', 4, '+', '  const pageSize = Math.min(query.pageSize ?? 20, 100);', 2], [3, 5, ' ', '', 0], [4, 6, ' ', '  const results = await index.search(query.text, {', 0], [5, 7, ' ', '    filters,', 0], [6, '', '−', '    limit: 20,', 3], ['', 8, '+', '    offset: (page - 1) * pageSize,', 4], ['', 9, '+', '    limit: pageSize,', 5], [7, 10, ' ', '  });', 0], [8, 11, ' ', '  return { items: results.hits, total: results.total };', 0]];
+const dfVis = DF.filter((d) => d[4] <= pd);
+const GSEQ = [7, 18, 31, 46, 58, 71, 84, 84, 9, 7];
+const gi = t % 10, gp = GSEQ[gi];
+const gColor = gp < 50 ? '#9AD6CB' : (gp < 80 ? '#E8A33D' : '#F59E8C');
+const bgb = t % 10;
+const thh = t % 10;
+const thWords = 'The search is slow from page 2 on. The cache key ignores the page, so every page after the first misses. Adding page and pageSize to the key should fix it, and the tests need a case for page 3.'.split(' ');
+const ag = t % 8;
+const ai = Math.floor(t / 3) % 3;
+const AR = [
+{ title: 'Auth audit', kind: 'Report · 2 min ago', lines: [['2 issues, 1 risk', 1], ['• Password reset links never expire.', 0], ['• Expired tokens are refreshed twice on parallel requests.', 0], ['• Risk: the session cache is warmed before the user is loaded.', 0]] },
+{ title: 'Report export plan', kind: 'Plan · 18 min ago', lines: [['Report export', 1], ['1. Add an Export CSV action to the reports table.', 0], ['2. Stream the rows to keep memory flat.', 0], ['3. Test it with 100,000 rows.', 0]] },
+{ title: 'Batch status page', kind: 'Mock-up · 1 h ago', lines: [['Batch status', 1], ['5 of 7 batches done · 1 running · 1 failed', 0], ['Retry failed · Download the log', 0], ['Point at an element to quote it in your next message.', 0]] }
+];
+const SQ = ['', 's', 'se', 'sea', 'sear', 'searc', 'search', 'search', 'search', 'search'];
+const sq = SQ[t % 10];
+const SR = [
+{ title: 'Search filters', where: 'Nova', when: '2 h ago', text: 'Add filters to the search API and test them', color: '#2DD4BF' },
+{ title: 'Review the diff', where: 'Orbit', when: '3 h ago', text: 'Add pagination to the search API and update the SDK', color: '#A78BFA' },
+{ title: 'Rate limiter', where: 'Orbit', when: 'yesterday', text: 'Add a limiter on /api/search', color: '#A78BFA' },
+{ title: 'Auth audit', where: 'Orbit', when: 'yesterday', text: 'Audit the session handling', color: '#A78BFA' },
+{ title: 'Invoice rounding', where: 'Orbit · archived', when: 'last week', text: 'Fix the invoice total rounding', color: '#A78BFA' }
+].filter((r) => (r.title + ' ' + r.text).toLowerCase().indexOf(sq) >= 0).slice(0, 4);
+const im = t % 8;
+const imN = im < 2 ? 0 : (im < 4 ? 1 : 2);
+const cf = t % 8;
+const rs = t % 8;
+const FS = ['', '@', '@s', '@src/', '@src/se', '@src/search/', '@src/search/s', '@src/search/searchService.ts', '@src/search/searchService.ts', '@src/search/searchService.ts'];
+const fsi = t % 10;
+const fsQ = FS[fsi].slice(1);
+const FSP = ['src/search/', 'src/search/searchService.ts', 'src/search/filters.ts', 'src/settings/', 'src/auth/session.ts'].filter((p) => p.indexOf(fsQ) === 0).slice(0, 3);
+const up = t % 10;
+const pill = (on) => 'padding: 2px 8px; border-radius: 3px; ' + (on ? 'background: #433A35; color: #FFFFFF; font-weight: 600' : 'color: #A89C94');
+const st = s.step;
+const wait = st === 8 || st === 9;
+const work = (st >= 3 && st <= 7) || (st >= 10 && st <= 12);
+const fin = st >= 13 || st < 3;
+const lastByStep = ['PR #2108 · Open · 1/2 approved', 'PR #2108 · Open · 1/2 approved', 'PR #2108 · Open · 1/2 approved', 'Thinking…', 'Read searchService.ts', 'Edit searchService.ts', 'Bash vendor/bin/phpunit', 'Bash vendor/bin/phpunit', 'Waiting for your approval · Bash', 'Waiting for your approval · Bash', 'Bash npm install @acme/sdk', 'Bash npm install @acme/sdk', 'Writing…'];
+const CMD = 'curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | bash';
+const OSES = [
+{ id: 'mac', label: 'macOS', logo: 'assets/os-mac.png' },
+{ id: 'win', label: 'Windows', logo: 'assets/os-windows.png' },
+{ id: 'linux', label: 'Linux', logo: 'assets/os-linux.png' }
+];
+const TABS = [
+{ id: 'values', title: 'Fill in secrets', desc: 'Written to .env, never shown to Claude' },
+{ id: 'bash', title: 'Run a snippet', desc: 'A command in a reply, one click away' },
+{ id: 'file', title: 'Files', desc: 'Open, unfold or pop out a file' },
+{ id: 'md', title: 'Markdown', desc: 'Rendered, with its source one click away' },
+{ id: 'pr', title: 'Pull request card', desc: 'Live builds, approvals and comments' },
+{ id: 'sub', title: 'Subagents', desc: 'Dozens of them, at a glance' },
+{ id: 'bg', title: 'In the background', desc: 'Long commands, followed while you work' },
+];
+const MSG = {
+cmd: 'Update the SDK',
+edit: 'Add pagination to the search API',
+mcp: 'Open the pull request as a draft',
+question: 'Fix the tests broken by the split() refactor',
+questions: 'Add a CSV export to the reports table',
+plan: 'Plan the report CSV export first',
+values: 'Set up Stripe and the mailer for local dev',
+bash: 'Check the nginx config',
+file: 'The invoice total is off by a cent, fix it and export the reports',
+md: 'Write the release note for the CSV export',
+pr: 'Push the branch and open the pull request',
+sub: 'Find the deprecated API calls in every package, one subagent each',
+bg: 'Run the full import in the background',
+advisor: 'Add pagination to the search API, ask the advisor'
+};
+const LEAD = {
+values: 'I need two secrets and the shop URL. Fill them in below: I only get told they are set.',
+bg: 'The full import is running. I will pick up when it ends.'
+};
+const ok = { bg: '#1F2321', ring: '#33403B', color: '#BFE7DF' };
+const ko = { bg: '#241917', ring: '#4A2E29', color: '#F8BDB1' };
+const A = {
+cmd: { allow: ['Allowed', 'npm install @acme/sdk@latest', ok], always: ['Always allowed', 'Rule added · npm install:* in Orbit', ok], deny: ['Denied', 'Claude gets your instruction instead', ko] },
+edit: { allow: ['Allowed', 'src/search/searchService.ts · +4 −1', ok], always: ['Always allowed', 'Edits to project files, until the session ends', ok], deny: ['Denied', 'The file stays as it is', ko] },
+mcp: { allow: ['Allowed', 'github · create_pull_request', ok], always: ['Always allowed', 'Rule added · github · create_pull_request in Orbit', ok], deny: ['Denied', 'No pull request created', ko] }
+};
+const NEXT = 'Turn in progress · Review the diff carries on';
+const answer = (label, detail, c, next) => this.setState({ ans: { label: label, detail: detail, c: c || ok, next: next || NEXT } });
+const pick = (k) => () => { const a = (A[tab] || A.cmd)[k] || A.cmd[k]; answer(a[0], a[1], a[2], k === 'deny' ? 'Turn in progress · reading your instruction' : NEXT); };
+const SEPS = [
+{ id: 'semi', label: 'Semicolon', desc: 'French Excel', rec: true },
+{ id: 'comma', label: 'Comma', desc: '', rec: false },
+{ id: 'tab', label: 'Tab', desc: '', rec: false }
+];
+const COLS = ['Creation date', 'Order count', 'Revenue'];
+const optStyle = (on) => 'display: flex; align-items: center; gap: 12px; width: 100%; padding: 10px 14px; border: 0; border-radius: 4px; font: inherit; text-align: left; cursor: pointer; color: #FFF3EC; background: ' + (on ? '#6B3A24; box-shadow: inset 0 0 0 2px #F7C7AA' : '#4A2B1C');
+const anyCol = COLS.some((c) => s.cols[c]);
+const qCount = (s.sep ? 1 : 0) + (anyCol ? 1 : 0);
+const ready = qCount === 2;
+const has = (id) => tab === id && !s.ans;
+const tabBase = 'display: flex; flex-direction: column; gap: 2px; width: 100%; padding: 9px 14px; border: 0; border-radius: 6px; font: inherit; text-align: left; cursor: pointer; ';
+const paneTab = (on) => 'height: 36px; padding: 0 16px; border: 0; border-radius: 4px; font: inherit; font-size: 14px; cursor: pointer; ' + (on ? 'background: #E08A5B; color: #24120A; font-weight: 700' : 'background: transparent; color: #B3A79F; font-weight: 500');
+const staticTabs = { pr: true, sub: true, advisor: true, file: true, md: true };
+const TURN = { sub: 'Turn in progress · 48 subagents · 11 s', pr: 'Turn 4 done · 48.2k in · 1.1k out · 12 s', file: 'Turn 3 done · 88.4k in · 1.4k out · 21 s', md: 'Turn 5 done · 52.0k in · 640 out · 7 s', advisor: 'Turn 2 done · 61.3k in · 902 out · 9 s' };
+const FIELDS = [
+{ key: 'STRIPE_SECRET_KEY', hint: 'Stripe dashboard › Developers › API keys', secret: true },
+{ key: 'MAILER_DSN', hint: 'smtp://user:pass@host:port', secret: true },
+{ key: 'APP_URL', hint: 'Public URL of the shop', secret: false }
+];
+const filled = FIELDS.filter((f) => (s.vals[f.key] || '').length > 0);
+const BUNDLES = ['packages/core', 'packages/payments', 'packages/api', 'packages/search', 'packages/jobs'];
+const cellState = (i) => (i === 12 || i === 20) ? 'failed' : (i <= 21 ? 'done' : (i === 37 ? 'waiting for you' : 'working'));
+const cellColor = { 'done': 'background: #5F7049', 'failed': 'background: #F59E8C; box-shadow: inset 0 0 0 3px #2B1A17', 'working': 'background: #9AD6CB', 'waiting for you': 'background: #E08A5B' };
+const LAST = { 'done': '3 deprecated calls, fixes proposed', 'failed': 'API Error: 529 Overloaded · 3 attempts', 'working': 'Grep deprecated( in src/', 'waiting for you': 'Waiting for your approval · Bash · npm run lint' };
+const cells = [];
+for (let i = 1; i <= 48; i++) {
+const st = cellState(i);
+cells.push({
+label: '#' + i + ' ' + BUNDLES[i % 5] + ' ' + i + ', ' + st,
+style: 'width: 14px; height: 14px; padding: 0; border: 0; border-radius: 2px; cursor: pointer; ' + cellColor[st] + (s.cell === i ? '; outline: 2px solid #F7C7AA; outline-offset: 1px' : ''),
+pick: () => this.setState({ cell: i })
+});
+}
+const cst = cellState(s.cell);
+const dot = { 'done': 'background: #5F7049', 'failed': 'background: #F59E8C', 'working': 'background: #9AD6CB', 'waiting for you': 'background: #E08A5B' };
+const IMG = {
+diff: 'assets/diff.jpg', gauge: 'assets/gauge.jpg', bg: 'assets/background.jpg',
+think: 'assets/thoughts.jpg', search: 'assets/search.jpg', import: 'assets/import.jpg',
+config: 'assets/config.jpg', mcp: 'assets/mcp.jpg', at: 'assets/mention.jpg'
+};
+const POPS = {
+diff: { title: 'Diff panel', text: 'Each agent has its Diff: what is not committed yet, everything its branch changes, or its pull request. Unified or split, with your comments on the lines.', img: IMG.diff, alt: 'The Diff panel in full screen, a PHP file with added and removed lines' },
+gauge: { title: 'Context gauge', text: 'Click the ring in the agent header: tokens used, where auto-compaction starts, and Compact now. Settings › Preferences sets your own compaction size.', img: IMG.gauge, alt: 'The context menu open under the ring: 65k of 1M tokens used, Compact now' },
+bg: { title: 'Background tasks', text: 'A command Claude starts in the background is followed with its elapsed time, its output and a Stop button. The agent stays working until it ends.', img: IMG.bg, alt: 'An In the background card with a running import' },
+think: { title: 'Live thoughts', text: 'While Claude works, each thought of the turn shows between the steps. When the answer comes, they fold back into the steps.', img: IMG.think, alt: 'A thought shown in the conversation while the turn is in progress' },
+agents: { title: 'Agents talk to agents', text: 'An agent can send an instruction to another one with message_agent. You approve each message, then it lands in the other conversation with its sender.', agents: true },
+artifacts: { title: 'Artifacts', text: 'An agent publishes a report, a plan or a mock-up in a panel beside its conversation. Copy it, save it as a file, or point at an element to quote it.', artifacts: true },
+search: { title: 'Search everything', text: 'Ctrl Space finds agents, projects and conversations, archived ones included. Ctrl F searches inside a conversation.', img: IMG.search, alt: 'The search palette with two conversations matching seg' },
+import: { title: 'Import conversations', text: 'Bring in conversations held in the Claude app or in Claude Code, from the project and its worktrees. Each one becomes an agent that continues it.', img: IMG.import, alt: 'The Import conversations window listing three conversations' },
+config: { title: '/config and /mcp as cards', text: 'Type /config to search and set Claude Code’s settings in a click, /mcp to see the MCP servers and authorize, reconnect or disable them.', img: IMG.config, alt: 'The /config card with Claude Code settings', img2: IMG.mcp, alt2: 'The /mcp card listing four MCP servers with their status' },
+resume: { title: 'Picks up where it left off', text: 'An agent cut short by Squadron closing or updating resumes at the next start, with the messages it had not read yet.', resume: true },
+files: { title: 'Files, screenshots, @', text: 'Paste or drop screenshots and files. Type @ to mention any file or folder of the project.', img: IMG.at, alt: 'The @ suggestions listing project files under src/Search' },
+update: { title: 'Updates itself', text: 'Squadron checks for updates every ten minutes. When one is out, the status bar shows Update: one click downloads it, installs it and restarts.', update: true }
+};
+const m = Object.assign({ title: '', text: '', img: '', alt: '', img2: '', alt2: '', agents: false, artifacts: false, resume: false, update: false }, POPS[s.modal] || {});
+['diff', 'gauge', 'bg', 'think', 'agents', 'artifacts', 'search', 'import', 'config', 'resume', 'files', 'update'].forEach((k) => { m['is' + k.charAt(0).toUpperCase() + k.slice(1)] = s.modal === k; });
+const pop = {};
+Object.keys(POPS).forEach((k) => { pop[k] = () => this.setState({ modal: k }); });
+const mdTab = (on) => 'height: 24px; padding: 0 8px; border: 0; border-radius: 3px; font: inherit; font-size: 12px; cursor: pointer; ' + (on ? 'background: #433A35; color: #FFFFFF; font-weight: 600' : 'background: transparent; color: #B3A79F');
+return {
+tabs: TABS.map((t) => ({
+title: t.title,
+desc: t.desc,
+pressed: t.id === tab ? 'true' : 'false',
+color: t.id === tab ? '#FFFFFF' : '#D8CDC6',
+style: tabBase + (t.id === tab ? 'background: #2E2724; box-shadow: inset 0 0 0 1px #4A3F39' : 'background: transparent'),
+pick: () => this.setState({ tab: t.id, ans: null, sep: null, cols: {}, vals: {}, shown: {}, unfold: false, md: 'rendered' })
+})),
+agentName: tab === 'sub' ? 'Dependency upgrade' : 'Review the diff',
+userMsg: MSG[tab],
+hasLead: !!LEAD[tab],
+lead: LEAD[tab] || '',
+showCmd: has('cmd'), showEdit: has('edit'), showMcp: has('mcp'), showQuestion: has('question'),
+showQuestions: has('questions'), showPlan: has('plan'), showValues: has('values'), showBash: has('bash'),
+showFile: tab === 'file', showMd: tab === 'md',
+showPr: tab === 'pr', showSub: tab === 'sub', showAdvisor: tab === 'advisor', showBg: has('bg'),
+showTurn: !!staticTabs[tab],
+turnLine: TURN[tab] || '',
+allow: pick('allow'), always: pick('always'), deny: pick('deny'),
+opt1: () => answer('Answered', 'Update the tests', ok),
+opt2: () => answer('Answered', 'Restore keys in split()', ok),
+opt3: () => answer('Answered', 'Mark the tests incomplete', ok),
+seps: SEPS.map((x) => ({ label: x.label, desc: x.desc, rec: x.rec, style: optStyle(s.sep === x.id), pick: () => this.setState({ sep: x.id }) })),
+cols: COLS.map((c) => ({
+label: c,
+on: !!s.cols[c],
+box: 'flex: 0 0 auto; width: 16px; height: 16px; border-radius: 3px; display: flex; align-items: center; justify-content: center; ' + (s.cols[c] ? 'background: #F7C7AA' : 'box-shadow: inset 0 0 0 1.5px #E7C3AE'),
+pick: () => this.setState({ cols: Object.assign({}, s.cols, { [c]: !s.cols[c] }) })
+})),
+qCount: qCount,
+sendStyle: 'height: 36px; padding: 0 18px; border: 0; border-radius: 4px; font: inherit; cursor: pointer; ' + (ready ? 'background: #E08A5B; color: #24120A; font-weight: 700' : 'background: #57301F; color: #C9A592; font-weight: 600'),
+sendAnswers: () => { if (!ready) return; const sep = SEPS.find((x) => x.id === s.sep); answer('Answered', 'Separator: ' + sep.label + ' · Columns: ' + COLS.filter((c) => s.cols[c]).join(', '), ok); },
+plan1: () => answer('Plan approved', 'Starts in auto mode', ok),
+plan2: () => answer('Plan approved', 'Starts and accepts edits', ok),
+plan3: () => answer('Plan approved', 'Starts and asks for each edit', ok),
+plan4: () => answer('Keep planning', 'Write your feedback below', ko, 'Waiting for your feedback'),
+run: () => answer('Ran · code 0', 'nginx: configuration file /etc/nginx/nginx.conf test is successful', ok, 'Claude sees the output and carries on'),
+fields: FIELDS.map((f) => ({
+key: f.key, hint: f.hint, secret: f.secret,
+val: s.vals[f.key] || '',
+type: f.secret && !s.shown[f.key] ? 'password' : 'text',
+showLabel: s.shown[f.key] ? 'Hide' : 'Show',
+set: (e) => { const v = e && e.target ? e.target.value : ''; this.setState({ vals: Object.assign({}, this.state && this.state.vals, { [f.key]: v }) }); },
+toggle: () => this.setState({ shown: Object.assign({}, s.shown, { [f.key]: !s.shown[f.key] }) })
+})),
+saveStyle: 'height: 36px; padding: 0 18px; border: 0; border-radius: 4px; font: inherit; cursor: pointer; ' + (filled.length ? 'background: #E08A5B; color: #24120A; font-weight: 700' : 'background: #57301F; color: #C9A592; font-weight: 600'),
+saveValues: () => { if (!filled.length) return; answer('Values filled in', filled.map((f) => f.key).join(', ') + ' → .env.local · Review the diff never saw them', ok, 'Turn in progress · Review the diff knows the values are set'); },
+cancelValues: () => answer('Values not filled in', 'Review the diff carries on without them', ko, 'Turn in progress · Review the diff carries on'),
+unfold: !!s.unfold,
+unfoldLabel: s.unfold ? 'Fold' : 'Unfold',
+toggleUnfold: () => this.setState({ unfold: !s.unfold }),
+mdIsRendered: s.md === 'rendered',
+mdIsSource: s.md === 'source',
+mdTabR: mdTab(s.md === 'rendered'),
+mdTabS: mdTab(s.md === 'source'),
+mdRendered: () => this.setState({ md: 'rendered' }),
+mdSource: () => this.setState({ md: 'source' }),
+cells: cells,
+cellNum: s.cell,
+cellName: BUNDLES[s.cell % 5] + ' ' + s.cell,
+cellState: cst,
+cellLast: LAST[cst],
+cellDot: 'flex: 0 0 auto; width: 10px; height: 10px; border-radius: 2px; ' + dot[cst],
+stopBg: () => answer('Stopped', 'Run the full import · after 7 s', ko, 'Turn in progress · Claude is told the task was stopped'),
+done: !!s.ans,
+ansLabel: s.ans ? s.ans.label : '',
+ansDetail: s.ans ? s.ans.detail : '',
+ansNext: s.ans ? s.ans.next : '',
+ansBg: s.ans ? s.ans.c.bg : '#1F2321',
+ansRing: s.ans ? s.ans.c.ring : '#33403B',
+ansColor: s.ans ? s.ans.c.color : '#BFE7DF',
+reset: () => this.setState({ ans: null, sep: null, cols: {}, vals: {}, shown: {} }),
+editorOn: s.pane === 'editor',
+termOn: s.pane === 'term',
+editorTab: paneTab(s.pane === 'editor'),
+termTab: paneTab(s.pane === 'term'),
+showEditorPane: () => this.setState({ pane: 'editor' }),
+showTermPane: () => this.setState({ pane: 'term' }),
+oses: OSES.map((o) => ({
+label: o.label, logo: o.logo, on: s.os === o.id ? 'true' : 'false',
+style: 'display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border: 0; border-radius: 4px; font: inherit; font-size: 14px; cursor: pointer; ' + (s.os === o.id ? 'background: #433A35; color: #FFFFFF; font-weight: 600' : 'background: transparent; color: #B3A79F; font-weight: 500'),
+pick: () => this.setState({ os: o.id })
+})),
+osLinux: s.os === 'linux', osMac: s.os === 'mac', osWin: s.os === 'win',
+copyLabel: s.copied ? 'Copied' : 'Copy',
+copyCmd: () => {
+try { if (navigator.clipboard) navigator.clipboard.writeText(CMD).catch(() => {}); } catch (e) {}
+this.setState({ copied: true });
+if (this._copyT) clearTimeout(this._copyT);
+this._copyT = setTimeout(() => this.setState({ copied: false }), 1600);
+},
+appWaiting: wait,
+appCount: '4 agents · ' + (wait ? '1 waiting for you' : '3 working'),
+a1Work: work, a1Wait: wait, a1Done: fin,
+a1Style: 'display: flex; flex-direction: column; gap: 3px; padding: 12px 14px; border-radius: 6px; ' + (wait ? 'background: #3B2216; box-shadow: inset 0 0 0 1px #8E4E2E, 0 0 0 2px #F7C7AA, 0 8px 24px rgba(201,105,58,0.18)' : 'background: #221D1A; box-shadow: 0 0 0 2px #F7C7AA'),
+a1State: wait ? 'Waiting for you' : (work ? 'Working' : (st >= 13 ? 'Done just now' : 'Done 1 h ago')),
+a1StateStyle: wait ? 'font-size: 12.5px; color: #F7C7AA; font-weight: 600' : 'font-size: 12.5px; color: #A89C94',
+a1Last: st >= 13 ? 'Pagination added, 42 tests pass' : lastByStep[st],
+diffAdd: st >= 5 ? '+18' : '+14',
+diffDel: st >= 5 ? '−19' : '−18',
+typing: st === 1 || st === 2,
+composerText: st === 1 ? 'Add pagination to the search' : (st === 2 ? 'Add pagination to the search API and update the SDK' : (wait ? 'Deny with an instruction for Review the diff…' : 'Write to Review the diff…')),
+composerColor: (st === 1 || st === 2) ? '#EDE6E1' : '#A89C94',
+sUser: st >= 3, sThink: st >= 3, thinkLabel: st < 4 ? 'Thinking…' : 'Thought for 2 s, read a file, edited a file',
+sRead: st >= 4, sEdit: st >= 5, sTest: st >= 6, testRunning: st === 6, testDone: st >= 7,
+sPerm: wait,
+allowStyle: 'height: 34px; padding: 0 16px; border-radius: 4px; background: #E08A5B; color: #24120A; font-weight: 700; display: flex; align-items: center; transition: transform .2s, box-shadow .2s; ' + (st === 9 ? 'box-shadow: 0 0 0 2px #F7C7AA; transform: scale(0.96)' : ''),
+sAllowed: st >= 10, sUpdate: st >= 10, updRunning: st === 10 || st === 11, updDone: st >= 12,
+sReply: st >= 12, sTurn: st >= 13,
+pop: pop,
+ovGroups: ovGroups,
+ovWaitText: bgWait ? '1 waiting for you' : 'nothing waiting for you',
+kbCols: kbRaw.map((c) => ({ title: c.title, color: c.color, count: String(c.cards.length), cards: c.cards.map(kbCard) })),
+prReview: prReview,
+prAgent: pr >= 3 && pr < 8,
+prComments: String(Math.max(0, Math.min(3, pr - 3))),
+prMineBuild: pr < 5 ? '◌ Builds running' : '✓ Builds pass',
+prMineBuildStyle: buildSt(pr >= 5),
+edLines: edVis.map((c, i) => ({ n: String(i + 1), text: c[0] || ' ', mark: c[1] ? 'background: #9AD6CB; border-radius: 1px' : '', style: c[1] ? (ed === c[1] ? 'color: #FFFFFF; background: rgba(154,214,203,0.16)' : 'color: #EDE6E1; background: rgba(154,214,203,0.06)') : 'color: #D8CDC6' })),
+edLn: String(edVis.length),
+teLines: fr.lines.map((l) => ({ prompt: !!l.p, text: l.p ? '❯ ' + l.text : l.text, style: 'color: ' + (l.c || (l.p ? '#EDE6E1' : '#B3A79F')) })),
+teTyping: fr.typing,
+dfLines: dfVis.map((d) => ({ a: String(d[0]), b: String(d[1]), sign: d[2] === ' ' ? '' : d[2], text: d[3] || ' ', numColor: d[2] === '+' ? '#6E9E95' : (d[2] === '−' ? '#A7756C' : '#6E625B'), style: 'display: grid; grid-template-columns: 40px 40px 16px 1fr; padding-right: 12px; white-space: pre; ' + (d[2] === '+' ? 'background: rgba(154,214,203,0.10); color: #BFE7DF' : (d[2] === '−' ? 'background: rgba(245,158,140,0.10); color: #F8BDB1' : 'color: #EDE6E1')) })),
+dfAdd: String(dfVis.filter((d) => d[2] === '+').length),
+gPct: String(gp), gColor: gColor, gDash: (gp * 1.634).toFixed(1) + ' 200', gW: gp + '%', gTok: Math.round(gp * 10) + 'k',
+gBtn: gi === 7 ? 'Compacting…' : 'Compact now',
+gBtnStyle: 'align-self: flex-start; height: 30px; padding: 0 12px; border-radius: 4px; display: flex; align-items: center; font-size: 13px; ' + (gi === 7 ? 'background: #E08A5B; color: #24120A; font-weight: 700' : 'background: #36302C; color: #EDE6E1'),
+bgSecs: String(bgb * 4 + 3),
+bgOut: Array.from({ length: Math.min(bgb + 1, 8) }, (x, i) => ({ text: (bgb >= 8 && i === Math.min(bgb, 7)) ? '12,418 rows imported · code 0' : 'Imported ' + ((i + 1) * 1600).toLocaleString('en-US') + ' rows' })).slice(-5),
+bgDone: bgb >= 8,
+thSecs: String(thh + 1),
+thText: thWords.slice(0, Math.max(3, Math.ceil(thWords.length * Math.min(1, (thh + 1) / 7)))).join(' '),
+agAsk: ag < 4, agSent: ag >= 4, agReply: ag >= 5,
+agSendStyle: 'height: 34px; padding: 0 16px; border-radius: 4px; background: #E08A5B; color: #24120A; font-weight: 700; display: flex; align-items: center; transition: transform .2s, box-shadow .2s; ' + (ag === 3 ? 'box-shadow: 0 0 0 2px #F7C7AA; transform: scale(0.96)' : ''),
+arList: AR.map((a, i) => ({ title: a.title, kind: a.kind, style: 'display: block; padding: 10px 12px; border-radius: 4px; ' + (i === ai ? 'background: #2E2724; box-shadow: inset 0 0 0 1px #4A3F39' : '') })),
+arTitle: AR[ai].title,
+arLines: AR[ai].lines.map((l) => ({ text: l[0], style: l[1] ? 'font-size: 15.5px; font-weight: 700' : 'line-height: 1.6; color: #D8CDC6' })),
+sqQuery: sq,
+sqResults: SR.map((r, i) => ({ title: r.title, where: r.where, when: r.when, text: r.text, color: r.color, style: 'display: flex; flex-direction: column; gap: 4px; padding: 10px 12px; border-radius: 4px; ' + (i === 0 ? 'background: #36302C' : '') })),
+imRows: [{ title: 'Fix the CSV export', meta: 'Claude Code · 4 Nov · 625 KB' }, { title: '[ORB-809] Batch status dashboard', meta: 'Claude app · 5 Nov · 2.4 MB' }, { title: 'Admin settings page', meta: 'Claude app · 5 Nov · 1.1 MB' }].map((r, i) => ({ title: r.title, meta: r.meta, on: i < imN, box: 'flex: 0 0 auto; width: 16px; height: 16px; border-radius: 3px; display: flex; align-items: center; justify-content: center; ' + (i < imN ? 'background: #F7C7AA' : 'box-shadow: inset 0 0 0 1.5px #8E7A6E') })),
+imBtn: im >= 6 ? 'Importing…' : 'Import ' + imN,
+imBtnStyle: 'height: 34px; padding: 0 14px; border-radius: 4px; display: flex; align-items: center; font-weight: 700; ' + (imN ? 'background: #EDE6E1; color: #1A1513' : 'background: #36302C; color: #8E7A6E'),
+cfRows: [{ label: 'Compact the context automatically', key: 'autoCompact', on: cf >= 3 }, { label: 'Rewind code (checkpoints)', key: 'checkpoints', on: true }, { label: 'Show thinking', key: 'showThinking', on: cf < 5 }].map((r) => ({ label: r.label, key: r.key, yes: pill(r.on), no: pill(!r.on) })),
+mcpRows: [{ name: 'github', status: 'connected', dot: '#9AD6CB', action: 'Disable' }, { name: 'figma', status: 'authorization needed', dot: '#E8A33D', action: 'Authorize' }, { name: 'search-index', status: cf < 4 ? 'failed · spawn ENOENT' : (cf < 6 ? 'reconnecting…' : 'connected'), dot: cf < 4 ? '#F59E8C' : (cf < 6 ? '#E8A33D' : '#9AD6CB'), action: cf < 6 ? 'Reconnect' : 'Disable' }],
+rsWorking: rs < 2, rsSep: rs >= 2, rsBack: rs >= 4,
+fsText: FS[fsi], fsSugg: fsi >= 1 && fsi <= 6 && FSP.length > 0, fsChip: fsi >= 7,
+fsList: FSP.map((p, i) => ({ path: '@' + p, style: 'display: block; padding: 7px 10px; border-radius: 4px; ' + (i === 0 ? 'background: #36302C; color: #FFFFFF' : 'color: #D8CDC6') })),
+upTip: up >= 2,
+upTipText: up < 5 ? 'Squadron %NEXT_VERSION% is out. One click downloads it, installs it and restarts.' : (up < 8 ? 'Downloading %NEXT_VERSION%…' : 'Installed. Restarting…'),
+upBtn: up >= 2,
+upBtnText: up < 5 ? 'Update' : (up < 8 ? 'Downloading ' + Math.min(100, (up - 4) * 33) + '%' : 'Restarting…'),
+upBtnStyle: 'height: 26px; padding: 0 12px; border-radius: 4px; display: flex; align-items: center; font-size: 12.5px; font-weight: 700; ' + (up < 5 ? 'background: #E08A5B; color: #24120A' : 'background: #36302C; color: #EDE6E1'),
+m: m,
+modalOpen: !!s.modal,
+closeModal: () => this.setState({ modal: null }),
+stop: (e) => { if (e && e.stopPropagation) e.stopPropagation(); }
+};
+}
+}
+</script>
+
+
+</body></html>
