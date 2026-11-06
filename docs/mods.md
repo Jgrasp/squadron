@@ -180,11 +180,15 @@ Le sandbox ne protège que ce que le mod ne peut pas faire. Une commande autoris
 
 Le serveur MCP de Squadron sert les outils des mods. Pour qu'un agent déjà lancé les voie sans redémarrer, il notifie `tools/list_changed`.
 
-### À vérifier avant de coder
+### Vérifications faites (2026-11-06)
 
-1. **IPC Tauri depuis un iframe isolé** : vérifier que l'iframe n'atteint pas `__TAURI_INTERNALS__`, sur l'iframe des Artifacts qui existe déjà. Tout le modèle de sécurité des panneaux repose dessus.
-2. **`tools/list_changed`** : vérifier que Claude Code met à jour la liste des outils d'un agent en cours, sur le serveur de pilotage.
-3. **Wasmtime** : mesurer ce qu'il ajoute au binaire et au temps de compilation.
+1. **IPC Tauri depuis un iframe isolé : bloqué.** Testé dans l'iframe des Artifacts de la release (Tauri 2.12.4).
+   - `__TAURI_INTERNALS__`, `__TAURI__` et `isTauri` sont absents de l'iframe.
+   - Accéder au parent (`parent.__TAURI_INTERNALS__`, `top.document`) lève une `SecurityError`.
+   - `fetch` vers `ipc://` et `http://ipc.localhost` est bloqué.
+   - Point d'attention : `window.webkit.messageHandlers.ipc` reste joignable depuis l'iframe (WebKitGTK l'expose à toutes les frames). Seule la clé d'invocation protège ce canal : un aléa de 128 bits injecté dans la seule fenêtre principale, vérifié par `on_message` pour toute requête IPC. Il ne faut donc jamais la transmettre à une frame, et la CSP de `mod://` n'autorise ni `ipc:` ni `http://ipc.localhost`.
+2. **`tools/list_changed` : pris en compte.** Testé avec Claude Code 2.1.310 en `stream-json` et un serveur MCP HTTP. Un outil ajouté pendant la session est vu et appelé au tour suivant, que la notification passe par le flux GET ou dans la réponse POST. Sans notification, il reste invisible. Le serveur rmcp de Squadron est déjà en session stateful : il reste à déclarer `listChanged` et à garder les sessions pour les notifier.
+3. **Wasmtime 50 avec WASI** : +21,5 Mo sur le binaire strippé avec les features par défaut, +16,8 Mo en version allégée (`runtime`, `component-model`, `cranelift`), pour un Squadron de 36,5 Mo. Compter 1 à 1,5 min de compilation à froid, une seule fois, puisque la dépendance reste ensuite en cache.
 
 Taille : L au total, découpée dans l'ordre ci-dessous.
 
@@ -249,7 +253,7 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 1. **Socle** : registre des emplacements et des actions. Les boutons, menus et raccourcis existants y passent. Taille S. *Fait.*
 2. **Sujet 1** : `layout.json`, mode Customize et Settings › Layout. Taille S à M. *Fait : outils de l'agent, menu ⋯ de l'agent, menu Squadron.*
 3. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M. *Fait en partie, après qu'un agent a modifié le code de Squadron pour déplacer un bouton : outils `overview`, `read_agent`, `start_agent`, `create_card`, `move_card`, `get_layout`, `set_layout`. Restent les outils de mods et le journal Activity.*
-4. **Vérifications** : IPC depuis l'iframe, `tools/list_changed`, poids de Wasmtime. Taille S.
+4. **Vérifications** : IPC depuis l'iframe, `tools/list_changed`, poids de Wasmtime. Taille S. *Fait.*
 5. **Mods sans logique** : `mod.json`, éléments dans les emplacements, thème, prompts, Settings › Mods, installation d'un dossier local, chargement à chaud. Taille M.
 6. **Logique WASM** : Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
 7. **Panneaux** : schéma `mod://`, iframe isolé, `mod-kit.css`, messages entre le panneau et le WASM. Taille M.
