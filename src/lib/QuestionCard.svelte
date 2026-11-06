@@ -19,7 +19,7 @@
   const recommended = (label: string) => /\((recommended|recommandé)\)\s*$/i.test(label)
 
   function choose(q: Question, label: string) {
-    if (simple) return answer(agent, ask, { [q.question]: label })
+    if (simple) return answer(agent, ask, { [q.question]: [label, own[q.question]?.trim()].filter(Boolean).join(' — ') })
     const current = picked[q.question] ?? []
     picked[q.question] = current.includes(label)
       ? current.filter((l) => l !== label)
@@ -29,7 +29,8 @@
   }
 
   function send() {
-    if (done < questions.length) return
+    if (simple && own[questions[0].question]?.trim()) return answer(agent, ask, { [questions[0].question]: own[questions[0].question].trim() })
+    if (simple || done < questions.length) return
     answer(agent, ask, Object.fromEntries(questions.map((q) => [q.question, reply(q)])))
   }
 
@@ -48,6 +49,22 @@
     {#if option.description}<span>{option.description}</span>{/if}
   </span>
   {#if recommended(option.label)}<span class="badge">{t('common.recommended')}</span>{/if}
+{/snippet}
+
+{#snippet ownField(q: Question)}
+  <div class="own">
+    <input
+      class:on={own[q.question]?.trim()}
+      placeholder={t('agent.ownAnswer')}
+      aria-label={t('agent.ownAnswer')}
+      value={own[q.question] ?? ''}
+      oninput={(e) => (own[q.question] = e.currentTarget.value)}
+      onkeydown={(e) => e.key === 'Enter' && send()}
+    />
+    {#if own[q.question]}
+      <button class="clear" aria-label={t('agent.clearOwnAnswer')} title={t('agent.clearOwnAnswer')} onclick={() => (own[q.question] = '')}>×</button>
+    {/if}
+  </div>
 {/snippet}
 
 <section class="card" aria-label={t('agent.agentQuestion')}>
@@ -71,6 +88,7 @@
       {/each}
     </div>
     <span class="hint">{t('agent.oneClickHint')}</span>
+    {@render ownField(questions[0])}
   {:else}
     {#each questions as q, n (q.question)}
       <div class="question" role="group" aria-label={q.question}>
@@ -103,19 +121,7 @@
             {/if}
           {/each}
         </div>
-        <div class="own">
-          <input
-            class:on={own[q.question]?.trim()}
-            placeholder={t('agent.ownAnswer')}
-            aria-label={t('agent.ownAnswer')}
-            value={own[q.question] ?? ''}
-            oninput={(e) => (own[q.question] = e.currentTarget.value)}
-            onkeydown={(e) => e.key === 'Enter' && send()}
-          />
-          {#if own[q.question]}
-            <button class="clear" aria-label={t('agent.clearOwnAnswer')} title={t('agent.clearOwnAnswer')} onclick={() => (own[q.question] = '')}>×</button>
-          {/if}
-        </div>
+        {@render ownField(q)}
       </div>
     {/each}
     <div class="footer">
