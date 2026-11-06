@@ -550,10 +550,13 @@
   let totalMatches = $state(0)
   let matchIndex = $state(-1)
   let field = $state<HTMLInputElement>()
-  let matches: Range[] = []
+  let matches: StaticRange[] = []
+  const findAsked = ui.finding
+
+  $effect(() => closeFind)
 
   $effect(() => {
-    if (ui.finding) untrack(() => ((finding = true), tick().then(() => (field?.focus(), field?.select()))))
+    if (ui.finding !== findAsked) untrack(() => ((finding = true), tick().then(() => (field?.focus(), field?.select()))))
   })
 
   function paintMatches() {
@@ -580,10 +583,8 @@
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const text = (node as Text).data.toLowerCase()
         for (let at = text.indexOf(q); at !== -1; at = text.indexOf(q, at + q.length)) {
-          const range = document.createRange()
-          range.setStart(node, at)
-          range.setEnd(node, at + q.length)
-          matches.push(range)
+          // a live Range is updated on every DOM change: with 100k matches, each streamed token freezes the view
+          matches.push(new StaticRange({ startContainer: node, startOffset: at, endContainer: node, endOffset: at + q.length }))
         }
       }
     }
