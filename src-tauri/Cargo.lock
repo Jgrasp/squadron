@@ -4315,6 +4315,7 @@ version = "0.35.4"
 dependencies = [
  "axum",
  "base64 0.22.1",
+ "flate2",
  "gtk",
  "http",
  "keyring",
@@ -4327,8 +4328,10 @@ dependencies = [
  "schemars 1.2.3",
  "serde",
  "serde_json",
+ "sha2",
  "shell-words",
  "sysinfo",
+ "tar",
  "tauri",
  "tauri-build",
  "tauri-plugin-dialog",

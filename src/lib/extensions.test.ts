@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { grantsOf, itemsOf, load, panelsOf, themeOf, toolsOf, validate } from './extensions'
+import { catalogOf, grantsOf, itemsOf, load, newer, panelsOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -118,6 +118,23 @@ describe('extensions', () => {
     const found = [{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels: [panel] } }, error: null }]
     expect(panelsOf(load(found, [])).map((p) => p.key)).toEqual(['extension:p.main'])
     expect(panelsOf(load(found, ['p']))).toEqual([])
+  })
+
+  it('reads the catalog and finds the updates of installed extensions only', () => {
+    const entry = (id: string, version: string) => ({ id, version, name: { en: id }, repository: 'https://github.com/a/b', archive: 'https://x', sha256: 'f'.repeat(64) })
+    expect(catalogOf({ extensions: [entry('hello', '1.2.0'), { id: '../x', version: '1' }, 'junk'] }).map((e) => e.id)).toEqual(['hello'])
+    expect(catalogOf(null)).toEqual([])
+    expect([newer('1.10.0', '1.9.3'), newer('1.0.0', '1.0.0'), newer('0.9', '1.0.0'), newer('2.0.0', '1.99.99')]).toEqual([true, false, false, true])
+    const manifest = (id: string, version: string) => ({ id, version, api: 1, name: { en: id } })
+    const list = load(
+      [
+        { dir: '/x/hello', linked: false, manifest: manifest('hello', '1.0.0'), error: null },
+        { dir: '/dev/lando', linked: true, manifest: manifest('lando', '1.0.0'), error: null },
+      ],
+      [],
+    )
+    expect(updatesOf(list, [entry('hello', '1.2.0'), entry('lando', '2.0.0'), entry('other', '1.0.0')]).map((e) => e.id)).toEqual(['hello'])
+    expect(updatesOf(list, [entry('hello', '1.0.0')])).toEqual([])
   })
 
   it('asks for network hosts and checks secrets', () => {

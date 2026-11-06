@@ -323,23 +323,31 @@ L'exemple `hello` le montre avec l'outil `github_user`, qui appelle `https://api
 
 L'exemple `hello` a un panneau qui affiche le compteur et l'augmente par un bouton, à travers son WASM.
 
-### Distribution
+### Distribution (étape 8)
 
-- **Dossier** : `~/.config/dev.squadron.desktop/extensions/<id>/`, surveillé à chaud.
-- **Marketplace** : le dépôt `squadron-extensions`, curé.
-  - Une extension y entre par une PR que tu relis : un sous-module git et une entrée dans l'index.
-  - La CI compile le WASM, empaquette l'extension, calcule son sha256 et publie l'archive (GitHub Releases) et `index.json` (GitHub Pages).
-  - Squadron lit l'index et affiche le catalogue dans Settings › Extensions.
+Sur le modèle de Zed : chaque extension vit dans son dépôt, un dépôt central la recense, et c'est la CI de ce dépôt qui la compile.
+
+- **Dépôt `Jgrasp/squadron-extensions`** :
+  - `registry.json` : une entrée par extension, `{ "repository", "commit", "path", "version" }`. On publie ou on met à jour par une PR relue, une extension par PR. Changer le commit sans changer la version fait échouer la PR ;
+  - `api/` : le crate `squadron_extension_api` et son WIT, recopiés depuis `extensions/api` de Squadron, qui reste la référence ;
+  - `examples/hello` : l'extension d'exemple, publiée depuis ce dépôt ;
+  - `index.json` : écrit par la CI, lu par Squadron.
+- **CI** (`.github/workflows/registry.yml`) :
+  - `plan` vérifie les entrées et liste celles qui n'ont pas encore de release `<id>-<version>` ;
+  - `build` récupère chaque extension à son commit, vérifie que `extension.json` a le même id et la même version, compile le WASM (`cargo build --locked`) et empaquette `extension.json`, le WASM et les fichiers hors Rust. Ce job lance le code de l'extension (`build.rs`, macros), il n'a donc qu'un droit de lecture ;
+  - `publish`, seulement après fusion sur `main`, ne lance aucun code d'extension : sha256 de l'archive, release `<id>-<version>`, puis `index.json` mis à jour et commité.
+- **Catalogue dans Settings › Extensions** : Squadron lit `index.json` (depuis Rust, la CSP de la fenêtre bloque GitHub) et affiche nom, version, description et permissions demandées, avec Installer, Mettre à jour vers x ou Installée.
 - **Installer** :
-  1. télécharger l'archive ;
-  2. vérifier le sha256 de l'index ;
-  3. extraire dans un dossier neuf en refusant tout chemin qui en sort ;
-  4. valider le manifeste ;
-  5. montrer les permissions ;
-  6. déplacer le dossier dans `extensions/`. Le chargement à chaud fait le reste.
-- **Désinstaller** : fermer ses panneaux, retirer ses éléments et ses outils, arrêter son instance WASM, supprimer le dossier.
-- **Mises à jour** : notifiées, installées sur un clic. Jamais d'installation automatique.
-- **Développer** : « Installer une extension locale » charge un dossier. L'extension est rechargée à chaque build et prend la place de la version publiée.
+  1. l'archive ne peut venir que des releases de `squadron-extensions`, 50 Mo au plus ;
+  2. son sha256 doit être celui de l'index ;
+  3. extraction dans `extensions/.staging-<uuid>` : seulement des fichiers et des dossiers, aucun lien, aucun chemin qui sort, 2000 fichiers et 200 Mo au plus ;
+  4. l'`extension.json` extrait doit porter l'id attendu ;
+  5. l'ancienne version est mise de côté, la nouvelle prend sa place, l'ancienne est supprimée ;
+  6. le chargement à chaud fait le reste, et la popup d'accord demande les commandes et les domaines.
+- **Désinstaller** : retire ses secrets du trousseau, supprime son dossier et oublie ses accords. Un dossier local se retire, il ne se désinstalle pas.
+- **Mises à jour** : vérifiées au lancement puis toutes les 6 heures. Une notification par version, puis un clic sur « Mettre à jour vers x ». Jamais d'installation automatique. Une mise à jour qui ajoute une commande ou un domaine redemande l'accord.
+- **Développer** : un dossier local passe avant la version installée qui a le même id.
+- **Limite** : une extension compilée avec un SDK plus récent que le Squadron installé ne se charge pas.
 
 ### Outils des extensions chez les agents
 
@@ -422,7 +430,7 @@ Taille : M pour la lecture et l'action, S pour les outils de extensions.
 5. **Extensions sans logique** : `extension.json`, éléments dans les emplacements, thème, prompts, Settings › Extensions, installation d'un dossier local, chargement à chaud. Taille M. *Fait. Les prompts sont des éléments avec l'action `prompt.insert`. Les raccourcis clavier des extensions restent à faire.*
 6. **Logique WASM**, découpée en 6a (accord sur les commandes, commandes lancées, outils pour les agents : *fait*), 6b (Wasmtime, API, événements) et 6c (jetons et requêtes HTTP). *6b fait : Wasmtime 50, contrat WIT `squadron:api@1.0.0`, crate `squadron_extension_api`, extension d'exemple `hello`. 6c fait : secrets dans le keyring, `host::fetch` vers les domaines autorisés, jeton en en-tête et en variable d'environnement des outils.* Wasmtime, API WIT et crate `squadron_extension_api`, événements, permissions, secrets, outils pour les agents. Taille L.
 7. **Panneaux** : schéma `extension://`, iframe isolé, `extension-kit.css`, messages entre le panneau et le WASM. Taille M. *Fait : `contributes.panels`, action `panel.open`, `kit.js` et `kit.css`, événement `panel.message` et `host::panel_post`.*
-8. **Marketplace** : dépôt `squadron-extensions`, CI de build et de publication, catalogue et installation en un clic, notification des mises à jour. Taille M.
+8. **Marketplace** : dépôt `squadron-extensions`, CI de build et de publication, catalogue et installation en un clic, notification des mises à jour. Taille M. *Fait dans Squadron ; le dépôt est prêt à publier.*
 
 L'API passe avant la marketplace : la marketplace n'est qu'une couche de distribution, et elle figerait une API qui n'a jamais servi. Il faut d'abord éprouver l'API v1 sur 2 ou 3 vrais extensions.
 

@@ -1440,6 +1440,36 @@ async fn extensions_wasm_tool(
 }
 
 #[tauri::command]
+async fn extensions_catalog() -> Result<serde_json::Value, String> {
+    let body = extensions::download(extensions::INDEX, 2 << 20).await?;
+    serde_json::from_slice(&body).map_err(|e| format!("The catalog is not valid JSON: {e}"))
+}
+
+#[tauri::command]
+async fn extensions_install(
+    app: AppHandle,
+    id: String,
+    archive: String,
+    sha256: String,
+) -> Result<(), String> {
+    let bytes = extensions::fetch_archive(&archive).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<extensions::Extensions>()
+            .install(&id, &bytes, &sha256)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn extensions_uninstall(
+    extensions: State<extensions::Extensions>,
+    id: String,
+) -> Result<(), String> {
+    extensions.uninstall(&id)
+}
+
+#[tauri::command]
 fn open_extensions_folder(extensions: State<extensions::Extensions>) -> Result<(), String> {
     open_path(&extensions.dir)
 }
@@ -2188,6 +2218,9 @@ pub fn run() {
             extensions_wasm_run,
             extensions_wasm_tool,
             open_extensions_folder,
+            extensions_catalog,
+            extensions_install,
+            extensions_uninstall,
             send_message,
             save_attachment,
             attachment_preview,

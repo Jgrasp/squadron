@@ -187,4 +187,25 @@ export const toolsOf = (extensions: Extension[]): Exposed[] =>
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))
 
+export type CatalogEntry = { id: string; version: string; name: Text; description?: Text; repository: string; archive: string; sha256: string; permissions?: { exec?: string[]; network?: string[] } }
+
+export const catalogOf = (raw: unknown): CatalogEntry[] =>
+  isObject(raw) && Array.isArray(raw.extensions)
+    ? raw.extensions.filter((e): e is CatalogEntry => isObject(e) && typeof e.id === 'string' && ID.test(e.id) && typeof e.version === 'string' && isText(e.name) && typeof e.archive === 'string' && typeof e.sha256 === 'string')
+    : []
+
+export function newer(a: string, b: string) {
+  const [x, y] = [a, b].map((v) => v.split('.').map((n) => parseInt(n) || 0))
+  for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0)
+  return false
+}
+
+export const installedOf = (list: Extension[], id: string) => list.find((e) => e.id === id && !e.linked)
+
+export const updatesOf = (list: Extension[], catalog: CatalogEntry[]) =>
+  catalog.filter((c) => {
+    const here = installedOf(list, c.id)?.manifest
+    return !!here && newer(c.version, here.version)
+  })
+
 export const themeOf = (extensions: Extension[]) => Object.assign({}, ...active(extensions).map((m) => m.manifest.contributes?.theme ?? {})) as Record<string, string>

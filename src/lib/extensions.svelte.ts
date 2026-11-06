@@ -8,7 +8,7 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { EXEC, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, type Found, type Item, type Extension, type Panel } from './extensions'
+import { catalogOf, EXEC, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -113,6 +113,40 @@ export const panelMessage = (panel: Panel, agent: Agent, message: unknown) =>
   invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: info(agent), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
 
 export const extensionPanel = (kind: string | null) => panelsOf(extensions.list).find((p) => p.key === kind)
+
+export const catalog = $state({ list: null as CatalogEntry[] | null, error: '' })
+
+export async function loadCatalog() {
+  try {
+    catalog.list = catalogOf(await invoke('extensions_catalog'))
+    catalog.error = ''
+  } catch (e) {
+    catalog.error = errorText(e)
+  }
+}
+
+export const install = (entry: CatalogEntry) => invoke('extensions_install', { id: entry.id, archive: entry.archive, sha256: entry.sha256 }).then(loadExtensions)
+
+export async function uninstall(extension: Extension) {
+  for (const secret of extension.manifest?.contributes?.secrets ?? []) await invoke('extensions_secret_set', { id: extension.id, name: secret.id, value: null })
+  await invoke('extensions_uninstall', { id: extension.id })
+  await loadExtensions()
+}
+
+export const asks = (entry: CatalogEntry) => [...(entry.permissions?.exec ?? []).map((p) => commandLine(EXEC + p)), ...(entry.permissions?.network ?? []).map((h) => commandLine(NET + h))]
+
+const TOLD = 'squadron.extension-updates'
+
+export async function checkUpdates() {
+  if (getCurrentWindow().label !== 'main') return
+  await loadCatalog()
+  const told: string[] = JSON.parse(localStorage.getItem(TOLD) ?? '[]')
+  const fresh = updatesOf(extensions.list, catalog.list ?? []).filter((c) => !told.includes(`${c.id}@${c.version}`))
+  if (!fresh.length) return
+  localStorage.setItem(TOLD, JSON.stringify([...told, ...fresh.map((c) => `${c.id}@${c.version}`)]))
+  if ((await isPermissionGranted()) || (await requestPermission()) === 'granted')
+    for (const c of fresh) sendNotification({ title: t('extensions.updateTitle'), body: t('extensions.updateBody', { name: text(c.name, locale()), version: c.version }) })
+}
 
 export const approve = (extension: Extension) => invoke('extensions_approve', { id: extension.id, commands: extension.commands }).then(loadExtensions)
 

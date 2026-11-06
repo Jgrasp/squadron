@@ -25,6 +25,9 @@ schemars = "1"
 serde = { version = "1", features = ["derive"] }
 serde_json = { version = "1", features = ["raw_value"] }
 shell-words = "1.1.1"
+sha2 = "0.10"
+tar = "0.4"
+flate2 = "1"
 tauri = { version = "2.12.4", features = [] }
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"

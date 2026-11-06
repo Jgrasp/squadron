@@ -66,10 +66,11 @@ impl Extensions {
             })
             .collect();
         installed.sort();
-        installed
-            .into_iter()
-            .map(|p| (p, false))
-            .chain(choices.folders.iter().map(|f| (PathBuf::from(f), true)))
+        choices
+            .folders
+            .iter()
+            .map(|f| (PathBuf::from(f), true))
+            .chain(installed.into_iter().map(|p| (p, false)))
             .collect()
     }
 
@@ -205,6 +206,141 @@ impl Extensions {
     }
 }
 
+pub const INDEX: &str =
+    "https://raw.githubusercontent.com/Jgrasp/squadron-extensions/main/index.json";
+pub const RELEASES: &str = "https://github.com/Jgrasp/squadron-extensions/releases/download/";
+const MAX_ARCHIVE: usize = 50 << 20;
+const MAX_UNPACKED: u64 = 200 << 20;
+const MAX_FILES: usize = 2000;
+
+pub fn valid_id(id: &str) -> bool {
+    let mut bytes = id.bytes();
+    bytes
+        .next()
+        .is_some_and(|b| b.is_ascii_lowercase() || b.is_ascii_digit())
+        && id.len() <= 40
+        && bytes.all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-')
+}
+
+pub async fn download(url: &str, max: usize) -> Result<Vec<u8>, String> {
+    let mut answer = crate::forge::client()
+        .get(url)
+        .timeout(Duration::from_secs(120))
+        .send()
+        .await
+        .map_err(|e| e.without_url().to_string())?;
+    if !answer.status().is_success() {
+        return Err(format!("GitHub answered {}.", answer.status()));
+    }
+    let mut body = Vec::new();
+    while let Some(chunk) = answer.chunk().await.map_err(|e| e.to_string())? {
+        if body.len() + chunk.len() > max {
+            return Err("The download is too large.".into());
+        }
+        body.extend_from_slice(&chunk);
+    }
+    Ok(body)
+}
+
+pub async fn fetch_archive(archive: &str) -> Result<Vec<u8>, String> {
+    if !archive.starts_with(RELEASES) {
+        return Err("The archive does not come from the Squadron catalog.".into());
+    }
+    download(archive, MAX_ARCHIVE).await
+}
+
+fn extract(archive: &[u8], into: &Path) -> Result<(), String> {
+    use std::path::Component;
+    let mut tar = tar::Archive::new(flate2::read::GzDecoder::new(archive));
+    std::fs::create_dir_all(into).map_err(|e| e.to_string())?;
+    let (mut total, mut count) = (0u64, 0usize);
+    for entry in tar.entries().map_err(|e| e.to_string())? {
+        let mut entry = entry.map_err(|e| e.to_string())?;
+        count += 1;
+        total += entry.size();
+        if count > MAX_FILES || total > MAX_UNPACKED {
+            return Err("The archive is too large.".into());
+        }
+        let path = entry.path().map_err(|e| e.to_string())?.into_owned();
+        if !path
+            .components()
+            .all(|c| matches!(c, Component::Normal(_) | Component::CurDir))
+        {
+            return Err("The archive holds a path outside its folder.".into());
+        }
+        let file = into.join(&path);
+        match entry.header().entry_type() {
+            tar::EntryType::Directory => {
+                std::fs::create_dir_all(&file).map_err(|e| e.to_string())?
+            }
+            tar::EntryType::Regular => {
+                if let Some(parent) = file.parent() {
+                    std::fs::create_dir_all(parent).map_err(|e| e.to_string())?;
+                }
+                let size = entry.size();
+                let mut out = std::fs::File::create(&file).map_err(|e| e.to_string())?;
+                std::io::copy(&mut std::io::Read::take(&mut entry, size), &mut out)
+                    .map_err(|e| e.to_string())?;
+            }
+            _ => return Err("The archive holds a link or a special file.".into()),
+        }
+    }
+    Ok(())
+}
+
+impl Extensions {
+    pub fn install(&self, id: &str, archive: &[u8], sha256: &str) -> Result<(), String> {
+        use sha2::Digest;
+        if !valid_id(id) {
+            return Err(format!("{id} is not an extension id."));
+        }
+        if format!("{:x}", sha2::Sha256::digest(archive)) != sha256.to_ascii_lowercase() {
+            return Err("The archive does not match the catalog. Nothing was installed.".into());
+        }
+        let staging = self.dir.join(format!(".staging-{}", uuid::Uuid::new_v4()));
+        let unpacked = extract(archive, &staging).and_then(|()| {
+            match read(&staging, false)
+                .manifest
+                .as_ref()
+                .and_then(|m| m["id"].as_str())
+            {
+                Some(found) if found == id => Ok(()),
+                _ => Err(format!("The archive does not hold the extension {id}.")),
+            }
+        });
+        if let Err(e) = unpacked {
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(e);
+        }
+        let (target, old) = (
+            self.dir.join(id),
+            self.dir.join(format!(".old-{}", uuid::Uuid::new_v4())),
+        );
+        if target.exists() {
+            std::fs::rename(&target, &old).map_err(|e| e.to_string())?;
+        }
+        if let Err(e) = std::fs::rename(&staging, &target) {
+            let _ = std::fs::rename(&old, &target);
+            let _ = std::fs::remove_dir_all(&staging);
+            return Err(e.to_string());
+        }
+        let _ = std::fs::remove_dir_all(&old);
+        Ok(())
+    }
+
+    pub fn uninstall(&self, id: &str) -> Result<(), String> {
+        let target = self.dir.join(id);
+        if !valid_id(id) || target.is_symlink() || !target.is_dir() {
+            return Err(format!("{id} is not an installed extension."));
+        }
+        std::fs::remove_dir_all(&target).map_err(|e| e.to_string())?;
+        let mut choices = self.choices();
+        choices.disabled.retain(|d| d != id);
+        choices.approved.remove(id);
+        self.save(&choices)
+    }
+}
+
 const KIT_JS: &str = include_str!("../../extensions/kit/kit.js");
 const KIT_CSS: &str = include_str!("../../extensions/kit/kit.css");
 const PANEL_CSP: &str = "default-src 'self' extension: http://extension.localhost data: blob: 'unsafe-inline'; connect-src 'none'; form-action 'none'";
@@ -258,6 +394,102 @@ mod tests {
             dir: root.join("extensions"),
             file: root.join("extensions.json"),
         }
+    }
+
+    fn archive(entries: &[(&str, &[u8])], link: Option<&str>) -> Vec<u8> {
+        let mut tar = tar::Builder::new(flate2::write::GzEncoder::new(
+            Vec::new(),
+            flate2::Compression::default(),
+        ));
+        for (path, data) in entries {
+            let mut header = tar::Header::new_gnu();
+            header.set_size(data.len() as u64);
+            header.set_mode(0o644);
+            header.set_cksum();
+            tar.append_data(&mut header, path, *data).unwrap();
+        }
+        if let Some(name) = link {
+            let mut header = tar::Header::new_gnu();
+            header.set_entry_type(tar::EntryType::Symlink);
+            header.set_size(0);
+            tar.append_link(&mut header, name, "/etc").unwrap();
+        }
+        tar.into_inner().unwrap().finish().unwrap()
+    }
+
+    fn sum(bytes: &[u8]) -> String {
+        use sha2::Digest;
+        format!("{:x}", sha2::Sha256::digest(bytes))
+    }
+
+    #[test]
+    fn installs_a_checked_archive_and_replaces_the_previous_version() {
+        let m = extensions();
+        let good = archive(
+            &[
+                ("extension.json", br#"{"id":"hello","version":"1"}"#),
+                ("panel/index.html", b"<p>"),
+            ],
+            None,
+        );
+        assert!(
+            m.install("hello", &good, &"0".repeat(64))
+                .unwrap_err()
+                .contains("does not match")
+        );
+        m.install("hello", &good, &sum(&good)).unwrap();
+        assert!(m.dir.join("hello/panel/index.html").is_file());
+
+        let next = archive(
+            &[("extension.json", br#"{"id":"hello","version":"2"}"#)],
+            None,
+        );
+        m.install("hello", &next, &sum(&next)).unwrap();
+        assert!(!m.dir.join("hello/panel").exists());
+        assert!(
+            std::fs::read_to_string(m.dir.join("hello/extension.json"))
+                .unwrap()
+                .contains(r#""2""#)
+        );
+
+        let other = archive(&[("extension.json", br#"{"id":"other"}"#)], None);
+        assert!(m.install("hello", &other, &sum(&other)).is_err());
+        let linked = archive(&[("extension.json", br#"{"id":"evil"}"#)], Some("home"));
+        assert!(
+            m.install("evil", &linked, &sum(&linked))
+                .unwrap_err()
+                .contains("link")
+        );
+        assert!(m.install("../x", &good, &sum(&good)).is_err());
+        assert!(
+            std::fs::read_dir(&m.dir)
+                .unwrap()
+                .flatten()
+                .all(|e| !e.file_name().to_string_lossy().starts_with('.'))
+        );
+
+        m.approve("hello", vec!["exec:git".into()]).unwrap();
+        m.uninstall("hello").unwrap();
+        assert!(!m.dir.join("hello").exists());
+        assert!(!m.list().approved.contains_key("hello"));
+        assert!(m.uninstall("hello").is_err());
+        assert!(m.uninstall("..").is_err());
+    }
+
+    #[test]
+    fn refuses_paths_that_leave_the_archive() {
+        let mut raw = tar::Builder::new(Vec::new());
+        let mut header = tar::Header::new_gnu();
+        header.as_gnu_mut().unwrap().name[..9].copy_from_slice(b"../escape");
+        header.set_size(1);
+        header.set_cksum();
+        raw.append(&header, &b"x"[..]).unwrap();
+        let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::default());
+        std::io::Write::write_all(&mut gz, &raw.into_inner().unwrap()).unwrap();
+        let bytes = gz.finish().unwrap();
+        let dir = std::env::temp_dir().join(format!("squadron-unpack-{}", uuid::Uuid::new_v4()));
+        assert!(extract(&bytes, &dir).unwrap_err().contains("outside"));
+        assert!(!dir.parent().unwrap().join("escape").exists());
     }
 
     #[test]
@@ -324,16 +556,16 @@ mod tests {
 
         let list = m.list().extensions;
         assert_eq!(list.len(), 3);
+        assert!(list[0].linked && list[0].manifest.as_ref().unwrap()["id"] == "dev");
         assert!(
-            list[0].dir.ends_with("broken")
-                && list[0]
+            list[1].dir.ends_with("broken")
+                && list[1]
                     .error
                     .as_deref()
                     .unwrap()
                     .starts_with("extension.json is not valid JSON")
         );
-        assert_eq!(list[1].manifest.as_ref().unwrap()["id"], "good");
-        assert!(list[2].linked && list[2].manifest.as_ref().unwrap()["id"] == "dev");
+        assert_eq!(list[2].manifest.as_ref().unwrap()["id"], "good");
 
         m.unlink(&linked.to_string_lossy()).unwrap();
         assert_eq!(m.list().extensions.len(), 2);

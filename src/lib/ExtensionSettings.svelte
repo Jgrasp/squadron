@@ -2,8 +2,9 @@
   import { invoke } from '@tauri-apps/api/core'
   import { open } from '@tauri-apps/plugin-dialog'
   import { errorText, locale, t } from './i18n/index.svelte'
-  import { text, type Extension } from './extensions'
-  import { approve, commandLine, loadExtensions, extensions } from './extensions.svelte'
+  import { onMount } from 'svelte'
+  import { installedOf, newer, text, type CatalogEntry, type Extension } from './extensions'
+  import { approve, asks, catalog, commandLine, install, loadCatalog, loadExtensions, extensions, uninstall } from './extensions.svelte'
   import { home } from './projects.svelte'
 
   let error = $state('')
@@ -25,6 +26,16 @@
 
   const enable = (m: Extension, on: boolean) => attempt(() => invoke('extensions_enable', { id: m.id, on }))
   const unlink = (m: Extension) => attempt(() => invoke('extensions_unlink', { path: m.dir }))
+
+  let busy = $state('')
+
+  onMount(loadCatalog)
+
+  async function get(entry: CatalogEntry) {
+    busy = entry.id
+    await attempt(() => install(entry))
+    busy = ''
+  }
 
   let set = $state<Record<string, string[]>>({})
   let typed = $state<Record<string, string>>({})
@@ -73,6 +84,8 @@
       </label>
       {#if m.linked}
         <button class="remove" onclick={() => unlink(m)}>{t('common.remove')}</button>
+      {:else}
+        <button class="remove" onclick={() => attempt(() => uninstall(m))}>{t('extensions.uninstall')}</button>
       {/if}
     </li>
     {#if m.enabled && m.manifest?.contributes?.secrets?.length}
@@ -110,6 +123,36 @@
   {/each}
 </ul>
 {#if error}<p class="bad" role="alert">{error}</p>{/if}
+
+<h3>{t('extensions.catalog')}</h3>
+{#if catalog.error}
+  <p class="bad">{catalog.error}</p>
+{:else if !catalog.list}
+  <p class="empty">{t('extensions.catalogLoading')}</p>
+{:else if !catalog.list.length}
+  <p class="empty">{t('extensions.catalogEmpty')}</p>
+{/if}
+<ul>
+  {#each catalog.list ?? [] as entry (entry.id)}
+    {@const here = installedOf(extensions.list, entry.id)}
+    <li>
+      <span class="who">
+        <span>
+          <strong>{text(entry.name, locale())}<span class="version">{entry.version}</span></strong>
+          {#if entry.description}<small>{text(entry.description, locale())}</small>{/if}
+          {#if asks(entry).length}<small>{t('extensions.asks', { list: asks(entry).join(' · ') })}</small>{/if}
+        </span>
+      </span>
+      {#if here?.manifest && !newer(entry.version, here.manifest.version)}
+        <small class="done">{t('extensions.installed')}</small>
+      {:else}
+        <button class="btn btn-primary" disabled={!!busy} onclick={() => get(entry)}>
+          {busy === entry.id ? t('extensions.installing') : here ? t('extensions.update', { version: entry.version }) : t('extensions.install')}
+        </button>
+      {/if}
+    </li>
+  {/each}
+</ul>
 
 <style>
   .intro,
@@ -237,6 +280,22 @@
 
   .bad {
     color: var(--err-text);
+  }
+
+  h3 {
+    margin: 24px 0 10px;
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  li > .btn {
+    height: 30px;
+    padding: 0 12px;
+  }
+
+  .done {
+    align-self: center;
   }
 
   .secrets {
