@@ -326,6 +326,16 @@
         />
       {/key}
     {/if}
+    {#if viewing}
+      {@const open = viewing}
+      <TicketPanel
+        connection={open.connection}
+        ticketKey={open.key}
+        linked={!!linkedCard(open)}
+        oncreate={(ticket) => fromTicket(ticket)}
+        onclose={() => (viewing = null)}
+      />
+    {/if}
     <div class="columns" style:--count={COLUMNS.length}>
       {#each COLUMNS as [column, title] (column)}
         {@const list = cards.filter((c) => follow(c, agentOf(c)).column === column)}
@@ -396,16 +406,6 @@
       {/each}
     </div>
   </div>
-  {#if viewing}
-    {@const open = viewing}
-    <TicketPanel
-      connection={open.connection}
-      ticketKey={open.key}
-      linked={!!linkedCard(open)}
-      oncreate={(ticket) => fromTicket(ticket)}
-      onclose={() => (viewing = null)}
-    />
-  {/if}
 </main>
 
 {#snippet ref(card: Card)}
@@ -700,6 +700,7 @@
   }
 
   .stage {
+    --panel-top: 0px;
     position: relative;
     flex: 1;
     min-height: 0;
