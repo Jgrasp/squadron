@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { ticketBlocks } from './tickets.svelte'
   import { SvelteSet } from 'svelte/reactivity'
   import { clock, forkPoint, VALUES } from './agents.svelte'
@@ -68,7 +69,7 @@ import { fences } from './codepaste'
 
   function copy() {
     const selected = window.getSelection()?.toString()
-    navigator.clipboard.writeText(selected || menu?.text || '')
+    copyText(selected || menu?.text || '')
     menu = null
   }
 

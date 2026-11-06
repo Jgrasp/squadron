@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { save } from '@tauri-apps/plugin-dialog'
@@ -70,7 +71,7 @@
   }
 
   function copy(what: string, text: string) {
-    if (text) navigator.clipboard.writeText(text)
+    if (text) copyText(text)
     copied = what
     setTimeout(() => (copied = ''), 1500)
   }

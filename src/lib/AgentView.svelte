@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
   import { archive, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, VALUES, type Server } from './agents.svelte'
@@ -946,7 +947,7 @@
                     <button
                       role="menuitem"
                       disabled={!agent.remote.url}
-                      onclick={() => (agent.remote?.url && navigator.clipboard.writeText(agent.remote.url), (remoteOpen = false))}
+                      onclick={() => (agent.remote?.url && copyText(agent.remote.url), (remoteOpen = false))}
                     >
                       {t('agent.copySessionLink')}
                     </button>

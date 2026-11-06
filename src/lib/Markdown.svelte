@@ -3,6 +3,7 @@
   import { languages } from '@codemirror/language-data'
   import { classHighlighter, highlightCode } from '@lezer/highlight'
   import MarkdownIt from 'markdown-it'
+  import { copyText } from './clipboard'
   import { t } from './i18n/index.svelte'
   import { isImage, preview } from './Attachment.svelte'
   import { isPullLink } from './linked.svelte'
@@ -430,10 +431,11 @@
     if (target.closest('[data-run]') && code && onrun) return onrun(command(code))
     const button = target.closest<HTMLButtonElement>('[data-copy]')
     if (!button || code === undefined || code === null) return
-    navigator.clipboard.writeText(code.replace(/\n$/, ''))
     const label = button.querySelector('span')!
-    label.textContent = t('common.copied')
-    setTimeout(() => (label.textContent = t('common.copy')), 1500)
+    copyText(code.replace(/\n$/, '')).then(() => {
+      label.textContent = t('common.copied')
+      setTimeout(() => (label.textContent = t('common.copy')), 1500)
+    })
   }
 </script>
 

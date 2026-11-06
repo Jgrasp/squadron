@@ -1628,6 +1628,23 @@ async fn paste_image(
 }
 
 #[tauri::command]
+fn copy_text(window: tauri::WebviewWindow, text: String) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        window
+            .run_on_main_thread(move || {
+                gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text)
+            })
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, text);
+        Err("unsupported".into())
+    }
+}
+
+#[tauri::command]
 async fn project_sessions(project: PathBuf) -> Vec<sessions::Found> {
     tauri::async_runtime::spawn_blocking(move || sessions::list(&project))
         .await
@@ -2108,6 +2125,7 @@ pub fn run() {
             save_capture,
             open_attachment,
             paste_image,
+            copy_text,
             project_sessions,
             read_session,
             interrupt_agent,

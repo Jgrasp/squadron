@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { lookUpAll, REVIEW_PROMPT } from './pulls.svelte'
   import { projects } from './projects.svelte'
@@ -35,7 +36,7 @@
   const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket', 'read:pipeline:bitbucket']
 
   function copy(scope: string) {
-    navigator.clipboard.writeText(scope)
+    copyText(scope)
     copied = scope
     setTimeout(() => copied === scope && (copied = ''), 1500)
   }
