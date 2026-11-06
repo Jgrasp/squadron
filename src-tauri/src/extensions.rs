@@ -17,6 +17,10 @@ pub struct Choices {
     pub disabled: Vec<String>,
     #[serde(default)]
     pub approved: std::collections::BTreeMap<String, Vec<String>>,
+    #[serde(default)]
+    pub sources: Vec<String>,
+    #[serde(default)]
+    pub origins: std::collections::BTreeMap<String, String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -32,6 +36,8 @@ pub struct Listing {
     pub extensions: Vec<Found>,
     pub disabled: Vec<String>,
     pub approved: std::collections::BTreeMap<String, Vec<String>>,
+    pub sources: Vec<String>,
+    pub origins: std::collections::BTreeMap<String, String>,
 }
 
 impl Extensions {
@@ -84,6 +90,8 @@ impl Extensions {
                 .collect(),
             disabled: choices.disabled,
             approved: choices.approved,
+            sources: choices.sources,
+            origins: choices.origins,
         }
     }
 
@@ -206,9 +214,7 @@ impl Extensions {
     }
 }
 
-pub const INDEX: &str =
-    "https://raw.githubusercontent.com/Jgrasp/squadron-extensions/main/index.json";
-pub const RELEASES: &str = "https://github.com/Jgrasp/squadron-extensions/releases/download/";
+pub const OFFICIAL: &str = "Jgrasp/squadron-extensions";
 const MAX_ARCHIVE: usize = 50 << 20;
 const MAX_UNPACKED: u64 = 200 << 20;
 const MAX_FILES: usize = 2000;
@@ -242,9 +248,48 @@ pub async fn download(url: &str, max: usize) -> Result<Vec<u8>, String> {
     Ok(body)
 }
 
-pub async fn fetch_archive(archive: &str) -> Result<Vec<u8>, String> {
-    if !archive.starts_with(RELEASES) {
-        return Err("The archive does not come from the Squadron catalog.".into());
+pub fn valid_source(source: &str) -> bool {
+    let fine = |part: &str| {
+        !part.is_empty()
+            && part.len() <= 100
+            && !part.starts_with('.')
+            && part
+                .bytes()
+                .all(|b| b.is_ascii_alphanumeric() || b"-_.".contains(&b))
+    };
+    matches!(source.split_once('/'), Some((owner, repo)) if fine(owner) && fine(repo))
+}
+
+fn index_url(source: &str) -> String {
+    format!("https://raw.githubusercontent.com/{source}/main/index.json")
+}
+
+pub async fn fetch_index(source: &str) -> Result<serde_json::Value, String> {
+    let body = download(&index_url(source), 2 << 20).await?;
+    serde_json::from_slice(&body).map_err(|e| format!("index.json is not valid JSON: {e}"))
+}
+
+pub async fn catalog(sources: Vec<String>) -> Vec<serde_json::Value> {
+    let mut all = Vec::new();
+    for source in std::iter::once(OFFICIAL.to_string()).chain(sources) {
+        let official = source == OFFICIAL;
+        all.push(match fetch_index(&source).await {
+            Ok(index) => {
+                serde_json::json!({"source": source, "official": official, "index": index})
+            }
+            Err(error) => {
+                serde_json::json!({"source": source, "official": official, "error": error})
+            }
+        });
+    }
+    all
+}
+
+pub async fn fetch_archive(source: &str, archive: &str) -> Result<Vec<u8>, String> {
+    if !archive.starts_with(&format!("https://github.com/{source}/releases/download/")) {
+        return Err(format!(
+            "The archive does not come from the releases of {source}."
+        ));
     }
     download(archive, MAX_ARCHIVE).await
 }
@@ -289,7 +334,36 @@ fn extract(archive: &[u8], into: &Path) -> Result<(), String> {
 }
 
 impl Extensions {
-    pub fn install(&self, id: &str, archive: &[u8], sha256: &str) -> Result<(), String> {
+    pub fn known_source(&self, source: &str) -> bool {
+        source == OFFICIAL || self.choices().sources.iter().any(|s| s == source)
+    }
+
+    pub fn add_source(&self, source: &str) -> Result<(), String> {
+        if !valid_source(source) {
+            return Err(format!(
+                "{source} is not a GitHub repository like owner/repo."
+            ));
+        }
+        let mut choices = self.choices();
+        if source != OFFICIAL && !choices.sources.iter().any(|s| s == source) {
+            choices.sources.push(source.into());
+        }
+        self.save(&choices)
+    }
+
+    pub fn remove_source(&self, source: &str) -> Result<(), String> {
+        let mut choices = self.choices();
+        choices.sources.retain(|s| s != source);
+        self.save(&choices)
+    }
+
+    pub fn install(
+        &self,
+        source: &str,
+        id: &str,
+        archive: &[u8],
+        sha256: &str,
+    ) -> Result<(), String> {
         use sha2::Digest;
         if !valid_id(id) {
             return Err(format!("{id} is not an extension id."));
@@ -325,7 +399,9 @@ impl Extensions {
             return Err(e.to_string());
         }
         let _ = std::fs::remove_dir_all(&old);
-        Ok(())
+        let mut choices = self.choices();
+        choices.origins.insert(id.into(), source.into());
+        self.save(&choices)
     }
 
     pub fn uninstall(&self, id: &str) -> Result<(), String> {
@@ -337,6 +413,7 @@ impl Extensions {
         let mut choices = self.choices();
         choices.disabled.retain(|d| d != id);
         choices.approved.remove(id);
+        choices.origins.remove(id);
         self.save(&choices)
     }
 }
@@ -433,18 +510,18 @@ mod tests {
             None,
         );
         assert!(
-            m.install("hello", &good, &"0".repeat(64))
+            m.install("o/r", "hello", &good, &"0".repeat(64))
                 .unwrap_err()
                 .contains("does not match")
         );
-        m.install("hello", &good, &sum(&good)).unwrap();
+        m.install("o/r", "hello", &good, &sum(&good)).unwrap();
         assert!(m.dir.join("hello/panel/index.html").is_file());
 
         let next = archive(
             &[("extension.json", br#"{"id":"hello","version":"2"}"#)],
             None,
         );
-        m.install("hello", &next, &sum(&next)).unwrap();
+        m.install("o/r", "hello", &next, &sum(&next)).unwrap();
         assert!(!m.dir.join("hello/panel").exists());
         assert!(
             std::fs::read_to_string(m.dir.join("hello/extension.json"))
@@ -453,14 +530,14 @@ mod tests {
         );
 
         let other = archive(&[("extension.json", br#"{"id":"other"}"#)], None);
-        assert!(m.install("hello", &other, &sum(&other)).is_err());
+        assert!(m.install("o/r", "hello", &other, &sum(&other)).is_err());
         let linked = archive(&[("extension.json", br#"{"id":"evil"}"#)], Some("home"));
         assert!(
-            m.install("evil", &linked, &sum(&linked))
+            m.install("o/r", "evil", &linked, &sum(&linked))
                 .unwrap_err()
                 .contains("link")
         );
-        assert!(m.install("../x", &good, &sum(&good)).is_err());
+        assert!(m.install("o/r", "../x", &good, &sum(&good)).is_err());
         assert!(
             std::fs::read_dir(&m.dir)
                 .unwrap()
@@ -468,12 +545,38 @@ mod tests {
                 .all(|e| !e.file_name().to_string_lossy().starts_with('.'))
         );
 
+        assert_eq!(m.list().origins["hello"], "o/r");
         m.approve("hello", vec!["exec:git".into()]).unwrap();
         m.uninstall("hello").unwrap();
+        assert!(!m.list().origins.contains_key("hello"));
         assert!(!m.dir.join("hello").exists());
         assert!(!m.list().approved.contains_key("hello"));
         assert!(m.uninstall("hello").is_err());
         assert!(m.uninstall("..").is_err());
+    }
+
+    #[test]
+    fn keeps_the_sources_the_user_added() {
+        let m = extensions();
+        assert!(m.known_source(OFFICIAL) && !m.known_source("me/ext"));
+        m.add_source("me/ext").unwrap();
+        m.add_source("me/ext").unwrap();
+        m.add_source(OFFICIAL).unwrap();
+        assert_eq!(m.list().sources, ["me/ext"]);
+        assert!(m.known_source("me/ext"));
+        for bad in [
+            "me",
+            "me/",
+            "/ext",
+            "me/../x",
+            "me/ext/more",
+            "me/.git",
+            "a b/c",
+        ] {
+            assert!(m.add_source(bad).is_err(), "{bad}");
+        }
+        m.remove_source("me/ext").unwrap();
+        assert!(m.list().sources.is_empty());
     }
 
     #[test]

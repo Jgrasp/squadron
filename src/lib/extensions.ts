@@ -187,12 +187,43 @@ export const toolsOf = (extensions: Extension[]): Exposed[] =>
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))
 
-export type CatalogEntry = { id: string; version: string; name: Text; description?: Text; repository: string; archive: string; sha256: string; permissions?: { exec?: string[]; network?: string[] } }
+export const OFFICIAL = 'Jgrasp/squadron-extensions'
 
-export const catalogOf = (raw: unknown): CatalogEntry[] =>
-  isObject(raw) && Array.isArray(raw.extensions)
-    ? raw.extensions.filter((e): e is CatalogEntry => isObject(e) && typeof e.id === 'string' && ID.test(e.id) && typeof e.version === 'string' && isText(e.name) && typeof e.archive === 'string' && typeof e.sha256 === 'string')
-    : []
+export type CatalogEntry = {
+  id: string
+  version: string
+  name: Text
+  description?: Text
+  repository: string
+  archive: string
+  sha256: string
+  permissions?: { exec?: string[]; network?: string[] }
+  source: string
+  official: boolean
+}
+
+export type Source = { source: string; official: boolean; error?: string }
+
+const entryOf = (e: unknown): e is Omit<CatalogEntry, 'source' | 'official'> =>
+  isObject(e) && typeof e.id === 'string' && ID.test(e.id) && typeof e.version === 'string' && isText(e.name) && typeof e.archive === 'string' && typeof e.sha256 === 'string'
+
+export function catalogOf(raw: unknown): { entries: CatalogEntry[]; sources: Source[] } {
+  const entries: CatalogEntry[] = []
+  const sources: Source[] = []
+  for (const s of Array.isArray(raw) ? raw : []) {
+    if (!isObject(s) || typeof s.source !== 'string') continue
+    const official = s.official === true
+    sources.push({ source: s.source, official, error: typeof s.error === 'string' ? s.error : undefined })
+    const found = isObject(s.index) && Array.isArray(s.index.extensions) ? s.index.extensions.filter(entryOf) : []
+    entries.push(...found.map((e) => ({ ...e, source: s.source as string, official })))
+  }
+  return { entries, sources }
+}
+
+export const originOf = (origins: Record<string, string>, id: string) => origins[id] ?? OFFICIAL
+
+export const shownOf = (entries: CatalogEntry[], origins: Record<string, string>) =>
+  [...new Set(entries.map((e) => e.id))].map((id) => entries.find((e) => e.id === id && e.source === origins[id]) ?? entries.find((e) => e.id === id)!)
 
 export function newer(a: string, b: string) {
   const [x, y] = [a, b].map((v) => v.split('.').map((n) => parseInt(n) || 0))
@@ -202,10 +233,10 @@ export function newer(a: string, b: string) {
 
 export const installedOf = (list: Extension[], id: string) => list.find((e) => e.id === id && !e.linked)
 
-export const updatesOf = (list: Extension[], catalog: CatalogEntry[]) =>
-  catalog.filter((c) => {
+export const updatesOf = (list: Extension[], entries: CatalogEntry[], origins: Record<string, string>) =>
+  entries.filter((c) => {
     const here = installedOf(list, c.id)?.manifest
-    return !!here && newer(c.version, here.version)
+    return !!here && originOf(origins, c.id) === c.source && newer(c.version, here.version)
   })
 
 export const themeOf = (extensions: Extension[]) => Object.assign({}, ...active(extensions).map((m) => m.manifest.contributes?.theme ?? {})) as Record<string, string>

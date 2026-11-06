@@ -1440,22 +1440,47 @@ async fn extensions_wasm_tool(
 }
 
 #[tauri::command]
-async fn extensions_catalog() -> Result<serde_json::Value, String> {
-    let body = extensions::download(extensions::INDEX, 2 << 20).await?;
-    serde_json::from_slice(&body).map_err(|e| format!("The catalog is not valid JSON: {e}"))
+async fn extensions_catalog(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let sources = app.state::<extensions::Extensions>().choices().sources;
+    Ok(extensions::catalog(sources).await)
+}
+
+#[tauri::command]
+async fn extensions_source_add(app: AppHandle, source: String) -> Result<(), String> {
+    if !extensions::valid_source(&source) {
+        return Err(format!(
+            "{source} is not a GitHub repository like owner/repo."
+        ));
+    }
+    extensions::fetch_index(&source)
+        .await
+        .map_err(|e| format!("{source} has no extension catalog: {e}"))?;
+    app.state::<extensions::Extensions>().add_source(&source)
+}
+
+#[tauri::command]
+fn extensions_source_remove(
+    extensions: State<extensions::Extensions>,
+    source: String,
+) -> Result<(), String> {
+    extensions.remove_source(&source)
 }
 
 #[tauri::command]
 async fn extensions_install(
     app: AppHandle,
+    source: String,
     id: String,
     archive: String,
     sha256: String,
 ) -> Result<(), String> {
-    let bytes = extensions::fetch_archive(&archive).await?;
+    if !app.state::<extensions::Extensions>().known_source(&source) {
+        return Err(format!("{source} is not one of your extension sources."));
+    }
+    let bytes = extensions::fetch_archive(&source, &archive).await?;
     tauri::async_runtime::spawn_blocking(move || {
         app.state::<extensions::Extensions>()
-            .install(&id, &bytes, &sha256)
+            .install(&source, &id, &bytes, &sha256)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -2041,7 +2066,9 @@ pub fn run() {
         unsafe { std::env::remove_var(leaked) };
     }
     #[cfg(target_os = "linux")]
-    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() && std::path::Path::new("/sys/module/nvidia").exists() {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
+        && std::path::Path::new("/sys/module/nvidia").exists()
+    {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }
@@ -2219,6 +2246,8 @@ pub fn run() {
             extensions_wasm_tool,
             open_extensions_folder,
             extensions_catalog,
+            extensions_source_add,
+            extensions_source_remove,
             extensions_install,
             extensions_uninstall,
             send_message,

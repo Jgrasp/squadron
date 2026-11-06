@@ -8,12 +8,12 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { catalogOf, EXEC, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
+import { catalogOf, EXEC, type Source, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
 
-export const extensions = $state({ list: [] as Extension[], errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
+export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
 
 export const shownLabel = (key: string) => extensions.shown[key]?.label
 
@@ -25,8 +25,10 @@ export const commandLine = (key: string) =>
   key.startsWith(EXEC) ? t('extensions.anyArgs', { program: key.slice(EXEC.length) }) : key.startsWith(NET) ? t('extensions.network', { host: key.slice(NET.length) }) : key
 
 export async function loadExtensions() {
-  const { extensions: found, disabled, approved } = await invoke<{ extensions: Found[]; disabled: string[]; approved: Record<string, string[]> }>('extensions_list')
-  extensions.list = load(found, disabled, approved)
+  const listing = await invoke<{ extensions: Found[]; disabled: string[]; approved: Record<string, string[]>; sources: string[]; origins: Record<string, string> }>('extensions_list')
+  extensions.list = load(listing.extensions, listing.disabled, listing.approved)
+  extensions.sources = listing.sources
+  extensions.origins = listing.origins
   for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('extension:') && !panelsOf(extensions.list).some((p) => p.key === kind)) setPanel(project, null)
   for (const extension of extensions.list) {
     const key = `${extension.id}\n${extension.pending.join('\n')}`
@@ -114,18 +116,22 @@ export const panelMessage = (panel: Panel, agent: Agent, message: unknown) =>
 
 export const extensionPanel = (kind: string | null) => panelsOf(extensions.list).find((p) => p.key === kind)
 
-export const catalog = $state({ list: null as CatalogEntry[] | null, error: '' })
+export const catalog = $state({ entries: null as CatalogEntry[] | null, sources: [] as Source[], error: '' })
 
 export async function loadCatalog() {
   try {
-    catalog.list = catalogOf(await invoke('extensions_catalog'))
-    catalog.error = ''
+    Object.assign(catalog, catalogOf(await invoke('extensions_catalog')), { error: '' })
   } catch (e) {
     catalog.error = errorText(e)
   }
 }
 
-export const install = (entry: CatalogEntry) => invoke('extensions_install', { id: entry.id, archive: entry.archive, sha256: entry.sha256 }).then(loadExtensions)
+export const install = (entry: CatalogEntry) =>
+  invoke('extensions_install', { source: entry.source, id: entry.id, archive: entry.archive, sha256: entry.sha256 }).then(loadExtensions)
+
+export const addSource = (source: string) => invoke('extensions_source_add', { source }).then(loadExtensions).then(loadCatalog)
+
+export const removeSource = (source: string) => invoke('extensions_source_remove', { source }).then(loadExtensions).then(loadCatalog)
 
 export async function uninstall(extension: Extension) {
   for (const secret of extension.manifest?.contributes?.secrets ?? []) await invoke('extensions_secret_set', { id: extension.id, name: secret.id, value: null })
@@ -141,7 +147,7 @@ export async function checkUpdates() {
   if (getCurrentWindow().label !== 'main') return
   await loadCatalog()
   const told: string[] = JSON.parse(localStorage.getItem(TOLD) ?? '[]')
-  const fresh = updatesOf(extensions.list, catalog.list ?? []).filter((c) => !told.includes(`${c.id}@${c.version}`))
+  const fresh = updatesOf(extensions.list, catalog.entries ?? [], extensions.origins).filter((c) => !told.includes(`${c.id}@${c.version}`))
   if (!fresh.length) return
   localStorage.setItem(TOLD, JSON.stringify([...told, ...fresh.map((c) => `${c.id}@${c.version}`)]))
   if ((await isPermissionGranted()) || (await requestPermission()) === 'granted')

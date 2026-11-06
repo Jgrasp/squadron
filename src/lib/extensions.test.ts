@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { catalogOf, grantsOf, itemsOf, load, newer, panelsOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { catalogOf, grantsOf, itemsOf, load, newer, OFFICIAL, panelsOf, shownOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -120,21 +120,29 @@ describe('extensions', () => {
     expect(panelsOf(load(found, ['p']))).toEqual([])
   })
 
-  it('reads the catalog and finds the updates of installed extensions only', () => {
+  it('merges the sources and takes updates only from the source an extension came from', () => {
     const entry = (id: string, version: string) => ({ id, version, name: { en: id }, repository: 'https://github.com/a/b', archive: 'https://x', sha256: 'f'.repeat(64) })
-    expect(catalogOf({ extensions: [entry('hello', '1.2.0'), { id: '../x', version: '1' }, 'junk'] }).map((e) => e.id)).toEqual(['hello'])
-    expect(catalogOf(null)).toEqual([])
+    const { entries, sources } = catalogOf([
+      { source: OFFICIAL, official: true, index: { extensions: [entry('hello', '1.2.0'), { id: '../x', version: '1' }, 'junk'] } },
+      { source: 'me/ext', official: false, index: { extensions: [entry('hello', '9.0.0'), entry('mine', '1.0.0')] } },
+      { source: 'gone/ext', official: false, error: 'GitHub answered 404' },
+    ])
+    expect(entries.map((e) => `${e.id}@${e.source}`)).toEqual([`hello@${OFFICIAL}`, 'hello@me/ext', 'mine@me/ext'])
+    expect(sources.map((s) => [s.source, s.official, s.error])).toEqual([[OFFICIAL, true, undefined], ['me/ext', false, undefined], ['gone/ext', false, 'GitHub answered 404']])
+    expect(catalogOf(null).entries).toEqual([])
+    expect(shownOf(entries, {}).map((e) => `${e.id}@${e.source}`)).toEqual([`hello@${OFFICIAL}`, 'mine@me/ext'])
+    expect(shownOf(entries, { hello: 'me/ext' }).map((e) => `${e.id}@${e.source}`)).toEqual(['hello@me/ext', 'mine@me/ext'])
     expect([newer('1.10.0', '1.9.3'), newer('1.0.0', '1.0.0'), newer('0.9', '1.0.0'), newer('2.0.0', '1.99.99')]).toEqual([true, false, false, true])
     const manifest = (id: string, version: string) => ({ id, version, api: 1, name: { en: id } })
     const list = load(
       [
         { dir: '/x/hello', linked: false, manifest: manifest('hello', '1.0.0'), error: null },
-        { dir: '/dev/lando', linked: true, manifest: manifest('lando', '1.0.0'), error: null },
+        { dir: '/dev/mine', linked: true, manifest: manifest('mine', '0.1.0'), error: null },
       ],
       [],
     )
-    expect(updatesOf(list, [entry('hello', '1.2.0'), entry('lando', '2.0.0'), entry('other', '1.0.0')]).map((e) => e.id)).toEqual(['hello'])
-    expect(updatesOf(list, [entry('hello', '1.0.0')])).toEqual([])
+    expect(updatesOf(list, entries, {}).map((e) => `${e.id}@${e.version}`)).toEqual(['hello@1.2.0'])
+    expect(updatesOf(list, entries, { hello: 'me/ext' }).map((e) => `${e.id}@${e.version}`)).toEqual(['hello@9.0.0'])
   })
 
   it('asks for network hosts and checks secrets', () => {

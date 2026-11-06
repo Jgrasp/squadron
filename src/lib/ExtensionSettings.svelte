@@ -3,8 +3,8 @@
   import { open } from '@tauri-apps/plugin-dialog'
   import { errorText, locale, t } from './i18n/index.svelte'
   import { onMount } from 'svelte'
-  import { installedOf, newer, text, type CatalogEntry, type Extension } from './extensions'
-  import { approve, asks, catalog, commandLine, install, loadCatalog, loadExtensions, extensions, uninstall } from './extensions.svelte'
+  import { installedOf, newer, OFFICIAL, originOf, shownOf, text, type CatalogEntry, type Extension, type Source } from './extensions'
+  import { addSource, approve, asks, catalog, commandLine, install, loadCatalog, loadExtensions, extensions, removeSource, uninstall } from './extensions.svelte'
   import { home } from './projects.svelte'
 
   let error = $state('')
@@ -28,6 +28,17 @@
   const unlink = (m: Extension) => attempt(() => invoke('extensions_unlink', { path: m.dir }))
 
   let busy = $state('')
+  let source = $state('')
+
+  const sources = $derived<Source[]>(catalog.sources.length ? catalog.sources : [{ source: OFFICIAL, official: true }, ...extensions.sources.map((source) => ({ source, official: false }))])
+
+  async function addFrom(event: SubmitEvent) {
+    event.preventDefault()
+    busy = 'source'
+    await attempt(() => addSource(source.trim()))
+    if (!error) source = ''
+    busy = ''
+  }
 
   onMount(loadCatalog)
 
@@ -127,23 +138,27 @@
 <h3>{t('extensions.catalog')}</h3>
 {#if catalog.error}
   <p class="bad">{catalog.error}</p>
-{:else if !catalog.list}
+{:else if !catalog.entries}
   <p class="empty">{t('extensions.catalogLoading')}</p>
-{:else if !catalog.list.length}
+{:else if !catalog.entries.length}
   <p class="empty">{t('extensions.catalogEmpty')}</p>
 {/if}
 <ul>
-  {#each catalog.list ?? [] as entry (entry.id)}
+  {#each shownOf(catalog.entries ?? [], extensions.origins) as entry (entry.id)}
     {@const here = installedOf(extensions.list, entry.id)}
+    {@const origin = originOf(extensions.origins, entry.id)}
     <li>
       <span class="who">
         <span>
           <strong>{text(entry.name, locale())}<span class="version">{entry.version}</span></strong>
           {#if entry.description}<small>{text(entry.description, locale())}</small>{/if}
           {#if asks(entry).length}<small>{t('extensions.asks', { list: asks(entry).join(' · ') })}</small>{/if}
+          {#if !entry.official}<small class="unofficial">{t('extensions.unofficial', { source: entry.source })}</small>{/if}
         </span>
       </span>
-      {#if here?.manifest && !newer(entry.version, here.manifest.version)}
+      {#if here && origin !== entry.source}
+        <small class="done">{t('extensions.installedFrom', { source: origin })}</small>
+      {:else if here?.manifest && !newer(entry.version, here.manifest.version)}
         <small class="done">{t('extensions.installed')}</small>
       {:else}
         <button class="btn btn-primary" disabled={!!busy} onclick={() => get(entry)}>
@@ -153,6 +168,28 @@
     </li>
   {/each}
 </ul>
+
+<h3>{t('extensions.sources')}</h3>
+<p class="empty">{t('extensions.sourcesHint')}</p>
+<ul>
+  {#each sources as s (s.source)}
+    <li>
+      <span class="who">
+        <span>
+          <strong class="mono">{s.source}{#if s.official}<span class="version">{t('extensions.official')}</span>{/if}</strong>
+          {#if s.error}<small class="bad">{s.error}</small>{/if}
+        </span>
+      </span>
+      {#if !s.official}
+        <button class="remove" onclick={() => attempt(() => removeSource(s.source))}>{t('common.remove')}</button>
+      {/if}
+    </li>
+  {/each}
+</ul>
+<form class="row source" onsubmit={addFrom}>
+  <input class="field mono" placeholder={t('extensions.sourcePlaceholder')} aria-label={t('extensions.sourcePlaceholder')} spellcheck="false" autocomplete="off" bind:value={source} />
+  <button class="btn btn-secondary" disabled={!source.trim() || !!busy}>{busy === 'source' ? t('common.checking') : t('extensions.sourceAdd')}</button>
+</form>
 
 <style>
   .intro,
@@ -296,6 +333,19 @@
 
   .done {
     align-self: center;
+  }
+
+  .unofficial {
+    color: var(--wait-text);
+  }
+
+  .source {
+    margin-top: 8px;
+  }
+
+  .source .field {
+    flex: 1;
+    height: 30px;
   }
 
   .secrets {

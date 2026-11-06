@@ -346,7 +346,11 @@ Sur le modèle de Zed : chaque extension vit dans son dépôt, un dépôt centra
   6. le chargement à chaud fait le reste, et la popup d'accord demande les commandes et les domaines.
 - **Désinstaller** : retire ses secrets du trousseau, supprime son dossier et oublie ses accords. Un dossier local se retire, il ne se désinstalle pas.
 - **Mises à jour** : vérifiées au lancement puis toutes les 6 heures. Une notification par version, puis un clic sur « Mettre à jour vers x ». Jamais d'installation automatique. Une mise à jour qui ajoute une commande ou un domaine redemande l'accord.
-- **Développer** : un dossier local passe avant la version installée qui a le même id.
+- **Sources** : `Jgrasp/squadron-extensions` est la source officielle, toujours présente. L'utilisateur peut ajouter d'autres dépôts GitHub `propriétaire/dépôt` organisés de la même façon (un fork du dépôt officiel suffit) ; Squadron vérifie à l'ajout qu'ils publient un `index.json`. Leurs extensions sont marquées « Non officielle ».
+  - Une archive ne vient que des releases du dépôt qui l'a listée.
+  - Si deux sources publient le même id, l'officielle est proposée d'abord.
+  - Squadron retient la source de chaque extension installée (`origins` dans `extensions.json`) et ne propose ses mises à jour que depuis cette source : une autre source ne peut pas la remplacer.
+- **Développer** : « Ajouter un dossier… » charge une extension locale, rechargée à chaque build. Un dossier local passe avant la version installée qui a le même id.
 - **Limite** : une extension compilée avec un SDK plus récent que le Squadron installé ne se charge pas.
 
 ### Outils des extensions chez les agents
