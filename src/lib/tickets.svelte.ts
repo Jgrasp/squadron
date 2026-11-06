@@ -21,6 +21,7 @@ export type Summary = {
 }
 export type Comment = { id: string; parent: string | null; author: Person; created: string; body: string }
 export type Link = { relation: string; key: string; title: string; status: string }
+export type TicketFile = { id: string; name: string; size: number; mime: string; author: string; created: string }
 export type Ticket = {
   connection: string
   key: string
@@ -42,7 +43,7 @@ export type Ticket = {
   description: string
   subtasks: Link[]
   links: Link[]
-  attachments: string[]
+  attachments: TicketFile[]
   comments: Comment[]
   custom: { name: string; value: string }[]
 }

@@ -53,8 +53,7 @@ pub fn content(text: &str, files: &[PathBuf]) -> Result<Value, String> {
     Ok(Value::Array(blocks))
 }
 
-pub fn save(dir: &Path, name: &str, data: &str) -> Result<PathBuf, String> {
-    let bytes = STANDARD.decode(data).map_err(|e| e.to_string())?;
+pub fn safe_name(name: &str) -> String {
     let name: String = name
         .chars()
         .map(|c| {
@@ -65,13 +64,18 @@ pub fn save(dir: &Path, name: &str, data: &str) -> Result<PathBuf, String> {
             }
         })
         .collect();
-    let folder = dir.join(uuid::Uuid::new_v4().simple().to_string());
-    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
-    let file = folder.join(if name.trim_matches('.').is_empty() {
+    if name.trim_matches('.').is_empty() {
         "file".into()
     } else {
         name
-    });
+    }
+}
+
+pub fn save(dir: &Path, name: &str, data: &str) -> Result<PathBuf, String> {
+    let bytes = STANDARD.decode(data).map_err(|e| e.to_string())?;
+    let folder = dir.join(uuid::Uuid::new_v4().simple().to_string());
+    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let file = folder.join(safe_name(name));
     fs::write(&file, bytes).map_err(|e| e.to_string())?;
     Ok(file)
 }

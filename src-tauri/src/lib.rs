@@ -1093,6 +1093,16 @@ async fn ticket_get(connection: String, key: String) -> Result<tickets::Ticket, 
 }
 
 #[tauri::command]
+async fn ticket_attachment(
+    app: AppHandle,
+    connection: String,
+    id: String,
+) -> Result<PathBuf, String> {
+    let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
+    tickets::attachment(&connection, &id, &cache).await
+}
+
+#[tauri::command]
 async fn ticket_context(
     connection: String,
     key: String,
@@ -2208,6 +2218,7 @@ pub fn run() {
             ticket_mentions,
             ticket_sprint,
             ticket_get,
+            ticket_attachment,
             ticket_context,
             ticket_brief,
             subagent_log,
