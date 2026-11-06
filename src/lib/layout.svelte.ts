@@ -124,12 +124,16 @@ export function resetDisplay() {
   keep('squadron.full', JSON.stringify(layout.full))
 }
 
+export const panelSpan = (width: number, max: number) => Math.round(Math.max(MIN_PANEL, Math.min(max, width)))
+
+export const panelShare = (share: number) => Math.round(Math.max(MIN_SHARE, Math.min(MAX_SHARE, share)))
+
 export function resizePanel(kind: PanelKind, width: number, max: number) {
-  setDisplay(kind, { width: Math.round(Math.max(MIN_PANEL, Math.min(max, width))), size: undefined })
+  setDisplay(kind, { width: panelSpan(width, max), size: undefined })
 }
 
 export function resizeShare(kind: PanelKind, share: number) {
-  setDisplay(kind, { height: Math.round(Math.max(MIN_SHARE, Math.min(MAX_SHARE, share))), size: undefined })
+  setDisplay(kind, { height: panelShare(share), size: undefined })
 }
 
 export const openPanel = (project: string): PanelKind | null =>

@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte'
   import { cubicIn, quintOut } from 'svelte/easing'
-  import { displayOf, MIN_PANEL, openPanel, panelWidth, requestedPanel, resizePanel, resizeShare, setDisplay, sideSpan, SIZES, type Display, type PanelKind } from './layout.svelte'
+  import { displayOf, MIN_PANEL, openPanel, panelShare, panelSpan, panelWidth, requestedPanel, resizePanel, resizeShare, setDisplay, sideSpan, SIZES, type Display, type PanelKind } from './layout.svelte'
   import { projects } from './projects.svelte'
   import { covers } from './panels'
   import { t } from './i18n/index.svelte'
@@ -80,14 +80,19 @@
     const box = panel.getBoundingClientRect()
     const space = room()
     handle.setPointerCapture(event.pointerId)
-    host().classList.add('resizing')
-    const resize = (e: PointerEvent) =>
-      mode === 'bottom' ? resizeShare(kind, ((box.bottom - e.clientY) / space) * 100) : resizePanel(kind, box.right - e.clientX, widest())
-    const step = (e: PointerEvent) => (e.buttons ? resize(e) : up())
+    const share = (e: PointerEvent) => panelShare(((box.bottom - e.clientY) / space) * 100)
+    const width = (e: PointerEvent) => panelSpan(box.right - e.clientX, widest())
+    let last: PointerEvent | null = null
+    const preview = (e: PointerEvent) => {
+      last = e
+      if (mode === 'bottom') panel.style.height = `calc((100% - var(--panel-top, 0px)) * ${share(e) / 100})`
+      else panel.style.width = mode === 'side' ? `min(${width(e)}px, 100% - 360px)` : `${width(e)}px`
+    }
+    const step = (e: PointerEvent) => (e.buttons ? preview(e) : up())
     const up = () => {
-      host().classList.remove('resizing')
       handle.removeEventListener('pointermove', step)
       handle.removeEventListener('pointerup', up)
+      if (last) mode === 'bottom' ? resizeShare(kind, share(last)) : resizePanel(kind, width(last), widest())
     }
     handle.addEventListener('pointermove', step)
     handle.addEventListener('pointerup', up)

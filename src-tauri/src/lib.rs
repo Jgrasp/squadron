@@ -2041,7 +2041,7 @@ pub fn run() {
         unsafe { std::env::remove_var(leaked) };
     }
     #[cfg(target_os = "linux")]
-    {
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none() && std::path::Path::new("/sys/module/nvidia").exists() {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
     }

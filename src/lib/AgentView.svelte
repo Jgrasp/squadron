@@ -1401,13 +1401,6 @@
     padding-right: var(--panel-side, 0px);
     display: flex;
     flex-direction: column;
-    transition:
-      height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
-      padding-right 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  :global(.resizing > .conversation) {
-    transition: none;
   }
 
   .tools {
