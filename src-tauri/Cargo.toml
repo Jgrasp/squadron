@@ -2,7 +2,7 @@
 name = "squadron"
 version = "0.35.4"
 edition = "2024"
-rust-version = "1.90"
+rust-version = "1.97"
 
 [lib]
 name = "squadron_lib"
@@ -33,6 +33,8 @@ tauri-plugin-process = "2"
 tauri-plugin-updater = "2"
 tokio = { version = "1", features = ["net", "sync", "rt-multi-thread"] }
 uuid = { version = "1", features = ["v4"] }
+wasmtime = { version = "50", default-features = false, features = ["runtime", "component-model", "cranelift", "std"] }
+wasmtime-wasi = { version = "50", default-features = false }
 tauri-plugin-notification = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]

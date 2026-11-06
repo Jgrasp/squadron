@@ -3,7 +3,7 @@
   import { open } from '@tauri-apps/plugin-dialog'
   import { errorText, locale, t } from './i18n/index.svelte'
   import { text, type Mod } from './mods'
-  import { approve, loadMods, mods } from './mods.svelte'
+  import { approve, commandLine, loadMods, mods } from './mods.svelte'
   import { home } from './projects.svelte'
 
   let error = $state('')
@@ -47,6 +47,7 @@
           {#each m.problems as [key, values], i (i)}
             <small class="bad">{t(key, values)}</small>
           {/each}
+          {#if m.enabled && mods.errors[m.id]}<small class="bad">{mods.errors[m.id]}</small>{/if}
           {#if m.manifest?.contributes?.tools?.length}
             <small>{t('mods.tools', { tools: m.manifest.contributes.tools.map((tool) => `${m.id}_${tool.name}`).join(', ') })}</small>
           {/if}
@@ -62,7 +63,7 @@
           <strong>{t('mods.pending', { name: text(m.manifest.name, locale()) })}</strong>
           <small>{t('mods.pendingHint')}</small>
           {#each m.commands as command (command)}
-            <code class:new={m.pending.includes(command)}>{command}</code>
+            <code class:new={m.pending.includes(command)}>{commandLine(command)}</code>
           {/each}
         </span>
         <button class="btn btn-primary" onclick={() => attempt(() => approve(m))}>{t('mods.allow')}</button>

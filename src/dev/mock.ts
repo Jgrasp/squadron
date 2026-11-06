@@ -1085,7 +1085,10 @@ mockIPC(
         return
       }
       case 'mods_set_tools':
+      case 'mods_wasm_event':
         return
+      case 'mods_wasm_sync':
+        return {}
       case 'mods_enable': {
         const { id, on } = args as { id: string; on: boolean }
         const off = JSON.parse(localStorage.getItem('mods-disabled') ?? '[]').filter((d: string) => d !== id)

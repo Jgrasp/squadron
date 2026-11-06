@@ -32,7 +32,7 @@
   import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
-  import { modItem, runItem } from './mods.svelte'
+  import { badgeOf, modItem, runItem } from './mods.svelte'
   import { run } from './shells.svelte'
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
@@ -891,6 +891,7 @@
               <button class="btn btn-ghost" title={detailOf('agent.tools', id) || null} onclick={() => runItem(mod, { project, agent })}>
                 {#if mod.icon}<Icon name={mod.icon} />{/if}
                 {labelOf('agent.tools', id)}
+                {#if badgeOf(id)}<span class="count">{badgeOf(id)}</span>{/if}
               </button>
             {:else}
               {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : kanbanTool)()}
@@ -1311,7 +1312,7 @@
                     {:else}
                     {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
                     <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id] ? MENU[id]() : runItem(modItem('agent.menu', id)!, { project, agent }))}>
-                      <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}</strong>
+                      <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}{#if badgeOf(id)}&nbsp;· {badgeOf(id)}{/if}</strong>
                       <span>{id === 'remote' && agent.remote ? t('agent.turnOffRemoteDetail') : detailOf('agent.menu', id)}</span>
                     </button>
                     {/if}

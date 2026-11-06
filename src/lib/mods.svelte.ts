@@ -2,17 +2,26 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { run, type Context } from './actions.svelte'
-import { find } from './agents.svelte'
+import { agents, find } from './agents.svelte'
 import { pointed } from './artifacts.svelte'
-import { ask } from './asking.svelte'
-import { locale, t } from './i18n/index.svelte'
+import { ask, message } from './asking.svelte'
+import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
+import { errorText, locale, t } from './i18n/index.svelte'
 import { setPanel } from './layout.svelte'
-import { itemsOf, load, text, themeOf, toolsOf, type Found, type Item, type Mod } from './mods'
+import { EXEC, itemsOf, load, programsOf, text, themeOf, toolsOf, type Found, type Item, type Mod } from './mods'
 import type { Slot } from './slots'
-import { workdir } from './stream'
+import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
 
-export const mods = $state({ list: [] as Mod[] })
+export const mods = $state({ list: [] as Mod[], errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
+
+export const shownLabel = (key: string) => mods.shown[key]?.label
+
+export const badgeOf = (key: string) => mods.shown[key]?.badge
+
+const info = (agent: Agent) => ({ id: agent.id, name: agent.name, project: agent.project, dir: workdir(agent) })
+
+export const commandLine = (key: string) => (key.startsWith(EXEC) ? t('mods.anyArgs', { program: key.slice(EXEC.length) }) : key)
 
 export async function loadMods() {
   const { mods: found, disabled, approved } = await invoke<{ mods: Found[]; disabled: string[]; approved: Record<string, string[]> }>('mods_list')
@@ -35,7 +44,7 @@ export async function requestApproval(mod: Mod) {
     kind: 'warning',
     okLabel: t('mods.allow'),
     cancelLabel: t('mods.later'),
-    lines: mod.pending,
+    lines: mod.pending.map(commandLine),
   })
   if (yes) await approve(mod)
   return yes
@@ -43,12 +52,13 @@ export async function requestApproval(mod: Mod) {
 
 listen('mods-changed', () => loadMods())
 
-listen<{ id: string; agent: string; tool: string }>('mods-tool', async ({ payload: { id, agent, tool } }) => {
+listen<{ id: string; agent: string; tool: string; args: unknown }>('mods-tool', async ({ payload: { id, agent, tool, args } }) => {
   const reply = (ok: boolean, text: string) => invoke('mods_tool_reply', { id, ok, text })
   const found = toolsOf(mods.list).find((t) => t.name === tool)
   const caller = find(agent)
   if (!found || !caller) return reply(false, found ? 'Only agents started by Squadron can use mod tools.' : `The tool ${tool} is no longer available.`)
   try {
+    if (!found.command) return reply(true, await invoke<string>('mods_wasm_tool', { id: found.mod, name: found.tool, input: JSON.stringify(args ?? {}), agent: info(caller) }))
     const [ok, text] = await invoke<[boolean, string]>('mod_exec', { dir: workdir(caller), command: found.command })
     reply(ok, text || '(no output)')
   } catch (e) {
@@ -64,6 +74,8 @@ export async function runItem(item: Item, { project, agent }: Context) {
   const action = item.action
   if ('squadron' in action) return run(action.squadron, { project, agent })
   if ('url.open' in action) return invoke('open_link', { url: action['url.open'] })
+  if ('mod' in action)
+    return invoke('mods_wasm_run', { id: item.mod, action: action.mod, agent: agent && info(agent) }).catch((e) => message(errorText(e), { kind: 'error', title: item.mod }))
   if (!agent) return
   if ('prompt.insert' in action) pointed[agent.id] = [...(pointed[agent.id] ?? []), action['prompt.insert']]
   else {
@@ -75,6 +87,18 @@ export async function runItem(item: Item, { project, agent }: Context) {
 }
 
 export const approve = (mod: Mod) => invoke('mods_approve', { id: mod.id, commands: mod.commands }).then(loadMods)
+
+listen<{ mod: string; call: string; [key: string]: unknown }>('mods-host', async ({ payload: p }) => {
+  if (p.call === 'error') mods.errors[p.mod] = String(p.error)
+  if (p.call === 'set-badge' || p.call === 'set-label') {
+    const key = `${p.mod}.${p.item}`
+    mods.shown[key] = { ...mods.shown[key], [p.call === 'set-badge' ? 'badge' : 'label']: (p.value as string | null) ?? null }
+  }
+  if (p.call === 'insert-prompt' && find(String(p.agent))) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
+  if (p.call === 'notify' && ((await isPermissionGranted()) || (await requestPermission()) === 'granted')) sendNotification({ title: String(p.title), body: String(p.body) })
+})
+
+const seen = new Map<string, string>()
 
 let themed: string[] = []
 
@@ -88,6 +112,21 @@ $effect.root(() => {
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
-    invoke('mods_set_tools', { list: toolsOf(mods.list).map(({ name, description }) => ({ name, description })) })
+    invoke('mods_set_tools', { list: toolsOf(mods.list).map(({ name, description, input }) => ({ name, description, input })) })
+  })
+  $effect(() => {
+    if (getCurrentWindow().label !== 'main') return
+    const list = mods.list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: programsOf(m) }))
+    invoke<Record<string, string>>('mods_wasm_sync', { list }).then((errors) => (mods.errors = errors))
+  })
+  $effect(() => {
+    if (getCurrentWindow().label !== 'main') return
+    for (const agent of agents.list) {
+      const before = seen.get(agent.id)
+      seen.set(agent.id, agent.status)
+      if (before === undefined || before === agent.status) continue
+      if (agent.status === 'done' || agent.status === 'waiting')
+        invoke('mods_wasm_event', { name: `agent.${agent.status}`, agent: info(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action } : {}) })
+    }
   })
 })

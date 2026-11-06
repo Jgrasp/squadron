@@ -1,0 +1,19 @@
+{
+  "id": "hello",
+  "version": "1.0.0",
+  "api": 1,
+  "name": { "en": "Hello", "fr": "Hello" },
+  "description": { "en": "Example mod written in Rust", "fr": "Mod d’exemple écrit en Rust" },
+  "wasm": "target/wasm32-wasip2/release/hello.wasm",
+  "contributes": {
+    "items": [
+      { "slot": "agent.tools", "id": "count", "label": { "en": "Count", "fr": "Compter" }, "icon": "plus", "action": { "mod": "count" } },
+      { "slot": "agent.menu", "id": "greet", "label": { "en": "Greet the agent", "fr": "Saluer l’agent" }, "action": { "mod": "greet" } }
+    ],
+    "tools": [
+      { "name": "changed_files", "description": "Lists the files changed in your folder, from git status." },
+      { "name": "clicks", "description": "Tells how many times the user clicked the Count button." }
+    ]
+  },
+  "permissions": { "exec": ["git"] }
+}

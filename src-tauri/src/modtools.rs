@@ -24,6 +24,8 @@ type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<(bool, String)>>>>;
 pub struct ModTool {
     pub name: String,
     pub description: String,
+    #[serde(default)]
+    pub input: Option<Map<String, Value>>,
 }
 
 #[derive(Clone)]
@@ -123,13 +125,19 @@ impl ServerHandler for Tools {
         _request: Option<PaginatedRequestParams>,
         _context: RequestContext<RoleServer>,
     ) -> Result<ListToolsResult, ErrorData> {
-        let schema = Arc::new(Map::from_iter([("type".into(), Value::from("object"))]));
+        let empty = Map::from_iter([("type".into(), Value::from("object"))]);
         let tools = self
             .list
             .lock()
             .unwrap()
             .iter()
-            .map(|t| Tool::new(t.name.clone(), t.description.clone(), schema.clone()))
+            .map(|t| {
+                Tool::new(
+                    t.name.clone(),
+                    t.description.clone(),
+                    Arc::new(t.input.clone().unwrap_or_else(|| empty.clone())),
+                )
+            })
             .collect();
         Ok(ListToolsResult::with_all_items(tools))
     }
@@ -199,10 +207,14 @@ fn kill(pid: u32) {
     }
 }
 
-pub fn exec(dir: &Path, command: &str) -> Result<(bool, String), String> {
-    let mut cmd = shell(command);
-    cmd.current_dir(dir)
-        .stdin(std::process::Stdio::null())
+pub struct Captured {
+    pub status: Option<std::process::ExitStatus>,
+    pub stdout: String,
+    pub stderr: String,
+}
+
+pub fn capture(mut cmd: std::process::Command) -> Result<Captured, String> {
+    cmd.stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .stderr(std::process::Stdio::piped());
     #[cfg(unix)]
@@ -241,8 +253,15 @@ pub fn exec(dir: &Path, command: &str) -> Result<(bool, String), String> {
         }
         std::thread::sleep(Duration::from_millis(50));
     };
-    let mut out = String::from_utf8_lossy(&stdout.join().unwrap_or_default()).into_owned();
-    out.push_str(&String::from_utf8_lossy(&stderr.join().unwrap_or_default()));
+    let text = |out: Vec<u8>| tail(String::from_utf8_lossy(&out).into_owned());
+    Ok(Captured {
+        status,
+        stdout: text(stdout.join().unwrap_or_default()),
+        stderr: text(stderr.join().unwrap_or_default()),
+    })
+}
+
+fn tail(mut out: String) -> String {
     if out.len() > MAX_OUTPUT {
         let mut cut = out.len() - MAX_OUTPUT;
         while !out.is_char_boundary(cut) {
@@ -250,6 +269,18 @@ pub fn exec(dir: &Path, command: &str) -> Result<(bool, String), String> {
         }
         out = format!("[…]{}", &out[cut..]);
     }
+    out
+}
+
+pub fn exec(dir: &Path, command: &str) -> Result<(bool, String), String> {
+    let mut cmd = shell(command);
+    cmd.current_dir(dir);
+    let Captured {
+        status,
+        stdout,
+        stderr,
+    } = capture(cmd)?;
+    let out = tail(stdout + &stderr);
     Ok(match status {
         None => (
             false,
@@ -351,6 +382,7 @@ mod tests {
             .set(vec![ModTool {
                 name: "probe_secret".into(),
                 description: "Returns the secret word.".into(),
+                input: None,
             }])
             .await;
         session.send("Call the tool mcp__squadron-mods__probe_secret (load it with ToolSearch first if it is deferred) and tell me the secret word.").unwrap();

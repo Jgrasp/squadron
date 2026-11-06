@@ -174,6 +174,100 @@ Le sandbox ne protège que ce que le mod ne peut pas faire. Une commande autoris
 - **`contributes.tools`** (étape 6a) : `[{ "name": "logs", "description": "…", "command": "lando logs --tail 200" }]`. Les agents voient l'outil `<mod>_<nom>` sur le serveur MCP `squadron-mods`, présent chez chaque agent. La commande tourne dans le dossier de l'agent, avec 120 s au plus, et l'agent reçoit les 30 000 derniers caractères de sa sortie. Claude Code demande la permission à chaque appel, comme pour tout outil. Un outil ajouté, retiré ou autorisé apparaît chez les agents déjà lancés, sans redémarrage : notification `tools/list_changed`, envoyée par `subscriptions/listen` depuis le protocole MCP 2026-07-28, et par la session pour les clients plus anciens.
 - **Accord sur les commandes** (étape 6a) : dès qu'un mod arrive avec des commandes pas encore autorisées (`terminal.run` et outils), une popup les liste avec Autoriser ou Plus tard. « Plus tard » vaut pour la session : un clic sur un bouton du mod rouvre la popup, la demande reste dans Settings › Mods, et elle revient au prochain lancement. Avant l'accord, les outils restent cachés aux agents. Après, le bouton lance la commande dans le terminal visible et les outils sont proposés. Une commande nouvelle ou modifiée redemande l'accord (`approved` dans `mods.json`).
 
+### Logique en WASM (étape 6b)
+
+Un mod écrit sa logique en Rust avec le crate `squadron_mod_api` (`mods/api`), compilé en composant WebAssembly. L'exemple complet est `mods/examples/hello`.
+
+```rust
+use squadron_mod_api::{Agent, Mod, host, squadron_mod};
+
+struct Hello;
+
+impl Mod for Hello {
+    fn run(action: String, agent: Option<Agent>) -> Result<(), String> {
+        host::notify("Hello", &format!("{action} clicked"));
+        Ok(())
+    }
+}
+
+squadron_mod!(Hello);
+```
+
+1. `cargo build --release --target wasm32-wasip2` (la cible s'ajoute avec `rustup target add wasm32-wasip2`).
+2. Dans `mod.json`, `"wasm": "target/wasm32-wasip2/release/<nom>.wasm"`, un chemin qui reste dans le dossier du mod.
+3. Ajouter le dossier depuis Settings › Mods. Chaque build recharge le mod.
+
+Ce que le manifeste ajoute :
+
+- l'action `{ "mod": "<action>" }` pour un élément : Squadron appelle `run` ;
+- un outil sans `command`, avec un `input` facultatif (schéma JSON de type object) : Squadron appelle `call-tool` avec l'entrée en JSON ;
+- `"permissions": { "exec": ["git"] }` : les programmes que `host::exec` peut lancer, avec n'importe quels arguments, sans shell. La popup d'accord les présente ainsi (« git …, avec n'importe quels arguments »).
+
+Comment ça tourne :
+
+- une instance par mod, sur son propre fil ;
+- 5 milliards d'unités de carburant par appel et 64 Mo de mémoire au plus ;
+- WASI sans fichiers, sans réseau et sans variables d'environnement ;
+- l'état de `state-set` va dans `<config>/mods-state/<id>.json`, 1 Mo au plus ;
+- un mod qui plante est signalé dans Settings › Mods et repart sur une instance neuve, en gardant son état ;
+- les événements `agent.done` et `agent.waiting` partent quand l'état d'un agent change.
+
+Le contrat (`mods/api/wit/squadron.wit`). On peut lui ajouter des imports sans casser les mods déjà compilés. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
+
+```wit
+package squadron:api@1.0.0;
+
+interface types {
+  /// The agent a call is about.
+  record agent {
+    id: string,
+    name: string,
+    project: string,
+    /// The folder the agent works in: its worktree, or its project.
+    dir: string,
+  }
+
+  record output {
+    /// -1 when the program was stopped or could not report one.
+    code: s32,
+    stdout: string,
+    stderr: string,
+  }
+}
+
+interface host {
+  use types.{output};
+
+  /// Writes a line to Squadron's log.
+  log: func(message: string);
+  /// Shows a notification.
+  notify: func(title: string, body: string);
+  /// Adds text to the message the user is writing to an agent.
+  insert-prompt: func(agent: string, text: string);
+  /// Shows a short badge on one of the mod's items, or removes it.
+  set-badge: func(item: string, badge: option<string>);
+  /// Replaces the label of one of the mod's items, or restores the manifest's.
+  set-label: func(item: string, label: option<string>);
+  /// The mod's own storage, kept across restarts.
+  state-get: func(key: string) -> option<string>;
+  state-set: func(key: string, value: option<string>);
+  /// Runs a program the user allowed in `permissions.exec`, without a shell, for at most 120 s.
+  exec: func(program: string, args: list<string>, dir: option<string>) -> result<output, string>;
+}
+
+world squadron-mod {
+  use types.{agent};
+  import host;
+
+  /// Something happened: `started` once the mod is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user. `data` is JSON.
+  export on-event: func(name: string, agent: option<agent>, data: string);
+  /// One of the mod's items with the action `{ "mod": "<action>" }` was clicked.
+  export run: func(action: string, agent: option<agent>) -> result<_, string>;
+  /// An agent called one of the mod's tools that has no `command`. `input` is JSON.
+  export call-tool: func(name: string, input: string, agent: option<agent>) -> result<string, string>;
+}
+```
+
 ### Distribution
 
 - **Dossier** : `~/.config/dev.squadron.desktop/mods/<id>/`, surveillé à chaud.
@@ -271,7 +365,7 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 3. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M. *Fait en partie, après qu'un agent a modifié le code de Squadron pour déplacer un bouton : outils `overview`, `read_agent`, `start_agent`, `create_card`, `move_card`, `get_layout`, `set_layout`. Restent les outils de mods et le journal Activity.*
 4. **Vérifications** : IPC depuis l'iframe, `tools/list_changed`, poids de Wasmtime. Taille S. *Fait.*
 5. **Mods sans logique** : `mod.json`, éléments dans les emplacements, thème, prompts, Settings › Mods, installation d'un dossier local, chargement à chaud. Taille M. *Fait. Les prompts sont des éléments avec l'action `prompt.insert`. Les raccourcis clavier des mods restent à faire.*
-6. **Logique WASM**, découpée en 6a (accord sur les commandes, commandes lancées, outils pour les agents : *fait*), 6b (Wasmtime, API, événements) et 6c (jetons et requêtes HTTP). Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
+6. **Logique WASM**, découpée en 6a (accord sur les commandes, commandes lancées, outils pour les agents : *fait*), 6b (Wasmtime, API, événements) et 6c (jetons et requêtes HTTP). *6b fait : Wasmtime 50, contrat WIT `squadron:api@1.0.0`, crate `squadron_mod_api`, mod d'exemple `hello`.* Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
 7. **Panneaux** : schéma `mod://`, iframe isolé, `mod-kit.css`, messages entre le panneau et le WASM. Taille M.
 8. **Marketplace** : dépôt `squadron-mods`, CI de build et de publication, catalogue et installation en un clic, notification des mises à jour. Taille M.
 

@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { english, locale, t } from './i18n/index.svelte'
 import { text } from './mods'
-import { modItem, modItems } from './mods.svelte'
+import { modItem, modItems, shownLabel } from './mods.svelte'
 import { arrange, movedAmong, SLOTS, type Arrangement, type Slot } from './slots'
 
 export const arrangement = $state<Record<string, Arrangement>>({})
@@ -31,6 +31,7 @@ export const shown = (slot: Slot) => all(slot).filter((id) => !hidden(slot, id))
 const itemOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)
 
 const modText = (slot: Slot, id: string, tr: typeof t, field: 'label' | 'hint') => {
+  if (field === 'label' && modItem(slot, id) && shownLabel(id)) return shownLabel(id)!
   const value = modItem(slot, id)?.[field]
   return value && text(value, tr === english ? 'en' : locale())
 }

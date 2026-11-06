@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemsOf, load, themeOf, toolsOf, validate } from './mods'
+import { itemsOf, load, programsOf, themeOf, toolsOf, validate } from './mods'
 
 const lando = {
   id: 'lando',
@@ -77,5 +77,31 @@ describe('mods', () => {
     const allowed = load(found, [], { lando: ['lando logs -f', 'lando logs --tail 200'] })
     expect(toolsOf(allowed).map((t) => t.name)).toEqual(['lando_logs'])
     expect(itemsOf(load(found, [], {}), 'agent.tools')[0].allowed).toBe(false)
+  })
+
+  it('accepts logic in a wasm module and asks for the programs it runs', () => {
+    const hello = {
+      id: 'hello',
+      version: '1.0.0',
+      api: 1,
+      name: { en: 'Hello' },
+      wasm: 'target/wasm32-wasip2/release/hello.wasm',
+      contributes: {
+        items: [{ slot: 'agent.tools', id: 'count', label: { en: 'Count' }, action: { mod: 'count' } }],
+        tools: [{ name: 'changed_files', description: 'Changed files', input: { type: 'object', properties: {} } }],
+      },
+      permissions: { exec: ['git'] },
+    }
+    expect(keys(hello)).toEqual([])
+    expect(keys({ ...hello, wasm: undefined })).toEqual(['mods.needsWasm', 'mods.toolNeedsWasm'])
+    expect(keys({ ...hello, wasm: '../other/x.wasm' })).toEqual(['mods.badWasm'])
+    expect(keys({ ...hello, permissions: { exec: ['/bin/rm'] } })).toEqual(['mods.badExec'])
+    expect(keys({ ...hello, contributes: { tools: [{ name: 'x', description: 'X', input: { type: 'string' } }] } })).toEqual(['mods.badToolInput'])
+    const found = [{ dir: '/m/hello', linked: false, manifest: hello, error: null }]
+    const waiting = load(found, [], {})[0]
+    expect(waiting.pending).toEqual(['exec:git'])
+    expect(programsOf(waiting)).toEqual([])
+    expect(toolsOf([waiting]).map((t) => [t.name, t.tool])).toEqual([['hello_changed_files', 'changed_files']])
+    expect(programsOf(load(found, [], { hello: ['exec:git'] })[0])).toEqual(['git'])
   })
 })

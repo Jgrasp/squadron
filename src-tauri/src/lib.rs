@@ -21,6 +21,7 @@ pub mod stored;
 pub mod system;
 pub mod terminal;
 pub mod tickets;
+pub mod wasm;
 
 use agents::Agents;
 use askpass::Askpass;
@@ -1334,6 +1335,55 @@ async fn mod_exec(dir: PathBuf, command: String) -> Result<(bool, String), Strin
 }
 
 #[tauri::command]
+async fn mods_wasm_sync(
+    app: AppHandle,
+    list: Vec<wasm::Spec>,
+) -> Result<HashMap<String, String>, String> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<wasm::Runtime>().sync(list))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn mods_wasm_event(
+    runtime: State<wasm::Runtime>,
+    name: String,
+    agent: Option<wasm::AgentInfo>,
+    data: String,
+) {
+    runtime.event(&name, agent, &data);
+}
+
+#[tauri::command]
+async fn mods_wasm_run(
+    app: AppHandle,
+    id: String,
+    action: String,
+    agent: Option<wasm::AgentInfo>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<wasm::Runtime>().run(&id, &action, agent)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn mods_wasm_tool(
+    app: AppHandle,
+    id: String,
+    name: String,
+    input: String,
+    agent: Option<wasm::AgentInfo>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<wasm::Runtime>().tool(&id, &name, &input, agent)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn open_mods_folder(mods: State<mods::Mods>) -> Result<(), String> {
     open_path(&mods.dir)
 }
@@ -2046,6 +2096,10 @@ pub fn run() {
             mods_set_tools,
             mods_tool_reply,
             mod_exec,
+            mods_wasm_sync,
+            mods_wasm_event,
+            mods_wasm_run,
+            mods_wasm_tool,
             open_mods_folder,
             send_message,
             save_attachment,
@@ -2154,6 +2208,10 @@ pub fn run() {
                 let _ = handle.emit_to("main", "mods-changed", ());
             });
             app.manage(mods::Mods { dir: mods_dir, file: config.join("mods.json") });
+            let handle = app.handle().clone();
+            app.manage(wasm::Runtime::new(config.join("mods-state"), move |message| {
+                let _ = handle.emit_to("main", "mods-host", message);
+            })?);
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {

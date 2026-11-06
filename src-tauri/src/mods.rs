@@ -128,6 +128,13 @@ impl Mods {
         for (dir, _) in self.folders(&self.choices()) {
             let file = dir.join("mod.json");
             seen.push((file.clone(), modified(&file)));
+            let wasm = std::fs::read_to_string(&file)
+                .ok()
+                .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
+                .and_then(|m| m["wasm"].as_str().map(|w| dir.join(w)));
+            if let Some(wasm) = wasm {
+                seen.push((wasm.clone(), modified(&wasm)));
+            }
         }
         seen
     }
