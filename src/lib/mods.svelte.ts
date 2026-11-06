@@ -8,7 +8,7 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { setPanel } from './layout.svelte'
-import { EXEC, itemsOf, load, programsOf, text, themeOf, toolsOf, type Found, type Item, type Mod } from './mods'
+import { EXEC, grantsOf, itemsOf, load, NET, text, themeOf, toolsOf, type Found, type Item, type Mod } from './mods'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -21,7 +21,8 @@ export const badgeOf = (key: string) => mods.shown[key]?.badge
 
 const info = (agent: Agent) => ({ id: agent.id, name: agent.name, project: agent.project, dir: workdir(agent) })
 
-export const commandLine = (key: string) => (key.startsWith(EXEC) ? t('mods.anyArgs', { program: key.slice(EXEC.length) }) : key)
+export const commandLine = (key: string) =>
+  key.startsWith(EXEC) ? t('mods.anyArgs', { program: key.slice(EXEC.length) }) : key.startsWith(NET) ? t('mods.network', { host: key.slice(NET.length) }) : key
 
 export async function loadMods() {
   const { mods: found, disabled, approved } = await invoke<{ mods: Found[]; disabled: string[]; approved: Record<string, string[]> }>('mods_list')
@@ -59,7 +60,8 @@ listen<{ id: string; agent: string; tool: string; args: unknown }>('mods-tool', 
   if (!found || !caller) return reply(false, found ? 'Only agents started by Squadron can use mod tools.' : `The tool ${tool} is no longer available.`)
   try {
     if (!found.command) return reply(true, await invoke<string>('mods_wasm_tool', { id: found.mod, name: found.tool, input: JSON.stringify(args ?? {}), agent: info(caller) }))
-    const [ok, text] = await invoke<[boolean, string]>('mod_exec', { dir: workdir(caller), command: found.command })
+    const secrets = (mods.list.find((m) => m.id === found.mod)?.manifest?.contributes?.secrets ?? []).map((s) => s.id)
+    const [ok, text] = await invoke<[boolean, string]>('mod_exec', { dir: workdir(caller), command: found.command, id: found.mod, secrets })
     reply(ok, text || '(no output)')
   } catch (e) {
     reply(false, String(e))
@@ -116,7 +118,7 @@ $effect.root(() => {
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
-    const list = mods.list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: programsOf(m) }))
+    const list = mods.list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) }))
     invoke<Record<string, string>>('mods_wasm_sync', { list }).then((errors) => (mods.errors = errors))
   })
   $effect(() => {

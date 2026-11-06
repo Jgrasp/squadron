@@ -10,6 +10,8 @@ export type ModItem = { slot: Slot; id: string; label: Text; hint?: Text; icon?:
 
 export type ModTool = { name: string; description: string; command?: string; input?: Record<string, unknown> }
 
+export type ModSecret = { id: string; label: Text; hint?: Text }
+
 export type Manifest = {
   id: string
   version: string
@@ -17,8 +19,8 @@ export type Manifest = {
   name: Text
   description?: Text
   wasm?: string
-  permissions?: { exec?: string[] }
-  contributes?: { items?: ModItem[]; tools?: ModTool[]; theme?: Record<string, string> }
+  permissions?: { exec?: string[]; network?: string[] }
+  contributes?: { items?: ModItem[]; tools?: ModTool[]; secrets?: ModSecret[]; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -78,6 +80,8 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   const exec = isObject(raw.permissions) ? raw.permissions.exec : undefined
   if ((raw.permissions !== undefined && !isObject(raw.permissions)) || (exec !== undefined && (!Array.isArray(exec) || !exec.every((p) => typeof p === 'string' && /^[\w.+-]+$/.test(p)))))
     problems.push(['mods.badExec'])
+  const network = isObject(raw.permissions) ? raw.permissions.network : undefined
+  if (network !== undefined && (!Array.isArray(network) || !network.every((h) => typeof h === 'string' && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)))) problems.push(['mods.badNetwork'])
   const contributes = raw.contributes ?? {}
   if (!isObject(contributes)) problems.push(['mods.badContributes'])
   else {
@@ -114,6 +118,10 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
         if (tool.input !== undefined && !(isObject(tool.input) && tool.input.type === 'object')) problems.push(['mods.badToolInput', at])
       })
     }
+    const secrets = contributes.secrets ?? []
+    if (!Array.isArray(secrets) || !secrets.every((s) => isObject(s) && typeof s.id === 'string' && ID.test(s.id) && isText(s.label) && (s.hint === undefined || isText(s.hint))))
+      problems.push(['mods.badSecrets'])
+    else if (new Set(secrets.map((s) => s.id)).size < secrets.length) problems.push(['mods.badSecrets'])
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))
       problems.push(['mods.badTheme'])
@@ -123,15 +131,18 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
 
 export const EXEC = 'exec:'
 
+export const NET = 'net:'
+
 export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
     ...(manifest.contributes?.tools ?? []).flatMap((t) => (t.command ? [t.command] : [])),
     ...(manifest.permissions?.exec ?? []).map((p) => EXEC + p),
+    ...(manifest.permissions?.network ?? []).map((h) => NET + h),
   ]),
 ]
 
-export const programsOf = (mod: Mod) => mod.commands.filter((c) => c.startsWith(EXEC) && !mod.pending.includes(c)).map((c) => c.slice(EXEC.length))
+export const grantsOf = (mod: Mod) => mod.commands.filter((c) => (c.startsWith(EXEC) || c.startsWith(NET)) && !mod.pending.includes(c))
 
 export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}): Mod[] {
   const taken: string[] = []

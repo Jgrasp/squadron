@@ -12,12 +12,14 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 wasmtime::component::bindgen!({ path: "../mods/api/wit", world: "squadron-mod" });
 
-use squadron::api::types::Output;
+use squadron::api::types::{Output, Request, Response};
 
 const FUEL: u64 = 5_000_000_000;
 const MEMORY: usize = 64 << 20;
 const MAX_STATE: usize = 1 << 20;
 const ANSWER: Duration = Duration::from_secs(150);
+const FETCH: Duration = Duration::from_secs(30);
+const MAX_BODY: usize = 8 << 20;
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
 
@@ -154,7 +156,7 @@ impl squadron::api::host::Host for Host {
         args: Vec<String>,
         dir: Option<String>,
     ) -> Result<Output, String> {
-        if !self.allowed.contains(&program) {
+        if !self.allowed.contains(&format!("exec:{program}")) {
             return Err(format!(
                 "{program} is not allowed. List it in permissions.exec; the user then allows it."
             ));
@@ -174,6 +176,141 @@ impl squadron::api::host::Host for Host {
             stderr: out.stderr,
         })
     }
+
+    fn fetch(&mut self, request: Request) -> Result<Response, String> {
+        let id = self.id.clone();
+        fetch(&self.allowed, request, |name| {
+            crate::forge::read_secret(&secret_key(&id, name)?)
+        })
+    }
+}
+
+pub fn secret_key(id: &str, name: &str) -> Result<String, String> {
+    let fine = |s: &str| {
+        !s.is_empty()
+            && s.bytes()
+                .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
+    };
+    if fine(id) && fine(name) {
+        Ok(format!("mod.{id}.{name}"))
+    } else {
+        Err(format!("{name} is not a secret name."))
+    }
+}
+
+fn checked(raw: &str, allowed: &[String]) -> Result<reqwest::Url, String> {
+    let url = reqwest::Url::parse(raw).map_err(|e| format!("{raw}: {e}"))?;
+    if url.scheme() != "https" {
+        return Err("Only https:// addresses are allowed.".into());
+    }
+    let host = url.host_str().unwrap_or_default();
+    if !allowed.iter().any(|a| a.strip_prefix("net:") == Some(host)) {
+        return Err(format!(
+            "{host} is not allowed. List it in permissions.network; the user then allows it."
+        ));
+    }
+    Ok(url)
+}
+
+fn fill(
+    value: &str,
+    secret: &impl Fn(&str) -> Result<Option<String>, String>,
+    used: &mut Vec<String>,
+) -> Result<String, String> {
+    let (mut out, mut rest) = (String::new(), value);
+    while let Some(start) = rest.find("{{") {
+        let Some(len) = rest[start + 2..].find("}}") else {
+            break;
+        };
+        let name = &rest[start + 2..start + 2 + len];
+        let found = secret(name)?
+            .ok_or_else(|| format!("The secret {name} is not set. Set it in Settings › Mods."))?;
+        out.push_str(&rest[..start]);
+        out.push_str(&found);
+        used.push(found);
+        rest = &rest[start + 4 + len..];
+    }
+    out.push_str(rest);
+    Ok(out)
+}
+
+fn scrub(text: String, used: &[String]) -> String {
+    used.iter()
+        .filter(|u| !u.is_empty())
+        .fold(text, |text, u| text.replace(u.as_str(), "[secret]"))
+}
+
+fn why(e: reqwest::Error) -> String {
+    let e = e.without_url();
+    let mut text = e.to_string();
+    let mut source = std::error::Error::source(&e);
+    while let Some(cause) = source {
+        text = format!("{text}: {cause}");
+        source = cause.source();
+    }
+    text
+}
+
+fn fetch(
+    allowed: &[String],
+    request: Request,
+    secret: impl Fn(&str) -> Result<Option<String>, String>,
+) -> Result<Response, String> {
+    let url = checked(&request.url, allowed)?;
+    let method = reqwest::Method::from_bytes(request.method.to_uppercase().as_bytes())
+        .map_err(|_| format!("{} is not an HTTP method.", request.method))?;
+    let mut used = Vec::new();
+    let mut headers = reqwest::header::HeaderMap::new();
+    for (name, value) in &request.headers {
+        let value = fill(value, &secret, &mut used)?;
+        let bad = || format!("The header {name} is not valid.");
+        headers.append(
+            reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|_| bad())?,
+            reqwest::header::HeaderValue::from_str(&value).map_err(|_| bad())?,
+        );
+    }
+    let hosts = allowed.to_vec();
+    let _ = rustls::crypto::ring::default_provider().install_default();
+    let client = reqwest::Client::builder()
+        .timeout(FETCH)
+        .redirect(reqwest::redirect::Policy::custom(move |attempt| {
+            if attempt.previous().len() >= 5 {
+                attempt.error("Too many redirects.")
+            } else if checked(attempt.url().as_str(), &hosts).is_ok() {
+                attempt.follow()
+            } else {
+                attempt.stop()
+            }
+        }))
+        .build()
+        .map_err(why)?;
+    let mut send = client.request(method, url).headers(headers);
+    if let Some(body) = request.body {
+        send = send.body(body);
+    }
+    tauri::async_runtime::block_on(async {
+        let mut answer = send.send().await.map_err(why)?;
+        let headers = answer
+            .headers()
+            .iter()
+            .map(|(k, v)| {
+                let v = String::from_utf8_lossy(v.as_bytes()).into_owned();
+                (k.to_string(), scrub(v, &used))
+            })
+            .collect();
+        let mut body = Vec::new();
+        while let Some(chunk) = answer.chunk().await.map_err(why)? {
+            if body.len() + chunk.len() > MAX_BODY {
+                return Err("The response is larger than 8 MB.".into());
+            }
+            body.extend_from_slice(&chunk);
+        }
+        Ok(Response {
+            status: answer.status().as_u16(),
+            headers,
+            body: scrub(String::from_utf8_lossy(&body).into_owned(), &used),
+        })
+    })
 }
 
 fn instantiate(
@@ -465,7 +602,7 @@ mod tests {
                 .contains("git is not allowed")
         );
 
-        assert!(runtime.sync(vec![spec(vec!["git".into()])]).is_empty());
+        assert!(runtime.sync(vec![spec(vec!["exec:git".into()])]).is_empty());
         let changed = runtime.tool("hello", "changed_files", "{}", Some(agent.clone()));
         assert!(changed.is_ok(), "{changed:?}");
         runtime.event("agent.done", Some(agent), "{}");
@@ -500,6 +637,76 @@ mod tests {
             restarted.tool("hello", "clicks", "{}", None).unwrap(),
             "The Count button was clicked 3 times."
         );
+    }
+
+    #[test]
+    fn fetches_only_https_on_allowed_hosts() {
+        let allowed = ["net:api.example.com".to_string(), "exec:git".to_string()];
+        assert!(checked("https://api.example.com/v1?q=1", &allowed).is_ok());
+        assert!(checked("https://API.Example.com:8443/", &allowed).is_ok());
+        for refused in [
+            "http://api.example.com/",
+            "https://evil.com/",
+            "https://api.example.com@evil.com/",
+            "https://api.example.com.evil.com/",
+            "https://git/",
+            "file:///etc/passwd",
+        ] {
+            assert!(checked(refused, &allowed).is_err(), "{refused}");
+        }
+        let request = |url: &str| Request {
+            method: "GET".into(),
+            url: url.into(),
+            headers: vec![],
+            body: None,
+        };
+        let none = |_: &str| Ok(None);
+        assert!(
+            fetch(&allowed, request("https://evil.com/"), none)
+                .unwrap_err()
+                .contains("permissions.network")
+        );
+    }
+
+    #[test]
+    fn fills_secrets_in_headers_and_hides_them_in_answers() {
+        let secret = |name: &str| Ok((name == "token").then(|| "s3cr3t".to_string()));
+        let mut used = vec![];
+        assert_eq!(
+            fill("Bearer {{token}}", &secret, &mut used).unwrap(),
+            "Bearer s3cr3t"
+        );
+        assert_eq!(fill("plain {{", &secret, &mut used).unwrap(), "plain {{");
+        assert!(
+            fill("{{other}}", &secret, &mut used)
+                .unwrap_err()
+                .contains("Settings › Mods")
+        );
+        assert_eq!(
+            scrub("echo: Bearer s3cr3t".into(), &used),
+            "echo: Bearer [secret]"
+        );
+        assert_eq!(secret_key("hello", "token").unwrap(), "mod.hello.token");
+        assert!(secret_key("hello", "../x").is_err());
+        assert!(secret_key("hello", "").is_err());
+    }
+
+    #[test]
+    #[ignore = "needs the network"]
+    fn fetches_a_real_page() {
+        let answer = fetch(
+            &["net:api.github.com".into()],
+            Request {
+                method: "get".into(),
+                url: "https://api.github.com/zen".into(),
+                headers: vec![("User-Agent".into(), "squadron-test".into())],
+                body: None,
+            },
+            |_| Ok(None),
+        )
+        .unwrap();
+        assert_eq!(answer.status, 200, "{}", answer.body);
+        assert!(!answer.body.is_empty());
     }
 
     #[test]

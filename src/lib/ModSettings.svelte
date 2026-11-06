@@ -25,6 +25,24 @@
 
   const enable = (m: Mod, on: boolean) => attempt(() => invoke('mods_enable', { id: m.id, on }))
   const unlink = (m: Mod) => attempt(() => invoke('mods_unlink', { path: m.dir }))
+
+  let set = $state<Record<string, string[]>>({})
+  let typed = $state<Record<string, string>>({})
+
+  $effect(() => {
+    for (const m of mods.list) {
+      const names = (m.manifest?.contributes?.secrets ?? []).map((s) => s.id)
+      if (names.length) invoke<string[]>('mods_secrets', { id: m.id, names }).then((found) => (set[m.id] = found), (e) => (error = errorText(e)))
+    }
+  })
+
+  async function keep(m: Mod, name: string, value: string | null) {
+    await attempt(() => invoke('mods_secret_set', { id: m.id, name, value }))
+    if (!error) {
+      set[m.id] = value === null ? (set[m.id] ?? []).filter((n) => n !== name) : [...new Set([...(set[m.id] ?? []), name])]
+      typed[`${m.id}.${name}`] = ''
+    }
+  }
 </script>
 
 <p class="intro">{t('mods.intro')}</p>
@@ -57,6 +75,26 @@
         <button class="remove" onclick={() => unlink(m)}>{t('common.remove')}</button>
       {/if}
     </li>
+    {#if m.enabled && m.manifest?.contributes?.secrets?.length}
+      <li class="secrets">
+        <small>{t('mods.secretHint')}</small>
+        {#each m.manifest.contributes.secrets as s (s.id)}
+          {@const key = `${m.id}.${s.id}`}
+          {@const saved = set[m.id]?.includes(s.id)}
+          <form onsubmit={(e) => (e.preventDefault(), keep(m, s.id, typed[key]))}>
+            <span>
+              <strong>{text(s.label, locale())}</strong>
+              <small>{saved ? t('mods.secretSet') : t('mods.secretUnset')}{s.hint ? ` · ${text(s.hint, locale())}` : ''}</small>
+            </span>
+            <input class="field mono" type="password" autocomplete="off" spellcheck="false" aria-label={text(s.label, locale())} bind:value={typed[key]} />
+            <button class="btn btn-primary" disabled={!typed[key]?.trim()}>{t('common.save')}</button>
+            {#if saved}
+              <button type="button" class="remove" onclick={() => keep(m, s.id, null)}>{t('common.remove')}</button>
+            {/if}
+          </form>
+        {/each}
+      </li>
+    {/if}
     {#if m.manifest && m.pending.length}
       <li class="ask">
         <span class="who">
@@ -199,5 +237,35 @@
 
   .bad {
     color: var(--err-text);
+  }
+
+  .secrets {
+    margin-top: -4px;
+    flex-direction: column;
+    gap: 8px;
+  }
+
+  .secrets form {
+    width: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .secrets form > span {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .secrets .field {
+    width: 220px;
+    height: 30px;
+  }
+
+  .secrets .btn {
+    height: 30px;
+    padding: 0 12px;
   }
 </style>

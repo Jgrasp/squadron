@@ -272,9 +272,9 @@ fn tail(mut out: String) -> String {
     out
 }
 
-pub fn exec(dir: &Path, command: &str) -> Result<(bool, String), String> {
+pub fn exec(dir: &Path, command: &str, env: &[(String, String)]) -> Result<(bool, String), String> {
     let mut cmd = shell(command);
-    cmd.current_dir(dir);
+    cmd.current_dir(dir).envs(env.iter().map(|(k, v)| (k, v)));
     let Captured {
         status,
         stdout,
@@ -301,19 +301,19 @@ mod tests {
     #[test]
     fn runs_in_the_folder_and_reports_failures() {
         let dir = std::env::temp_dir();
-        let (ok, out) = exec(&dir, "pwd && echo oops >&2").unwrap();
+        let (ok, out) = exec(&dir, "pwd && echo oops >&2", &[]).unwrap();
         assert!(ok);
         assert!(
             out.starts_with(dir.canonicalize().unwrap().to_str().unwrap()) || out.contains("tmp")
         );
         assert!(out.contains("oops"));
-        let (ok, out) = exec(&dir, "echo half; exit 3").unwrap();
+        let (ok, out) = exec(&dir, "echo half; exit 3", &[]).unwrap();
         assert!(!ok && out.contains("half") && out.ends_with("Exit code 3."));
     }
 
     #[test]
     fn keeps_the_end_of_a_long_output() {
-        let (ok, out) = exec(&std::env::temp_dir(), "yes line | head -n 20000").unwrap();
+        let (ok, out) = exec(&std::env::temp_dir(), "yes line | head -n 20000", &[]).unwrap();
         assert!(ok);
         assert!(out.starts_with("[…]") && out.len() <= MAX_OUTPUT + 8);
     }

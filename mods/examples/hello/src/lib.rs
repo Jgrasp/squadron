@@ -1,4 +1,4 @@
-use squadron_mod_api::{Agent, Mod, host, squadron_mod};
+use squadron_mod_api::{Agent, Mod, Request, host, squadron_mod};
 
 struct Hello;
 
@@ -43,6 +43,21 @@ impl Mod for Hello {
                 Ok(if out.stdout.is_empty() { "No changed file.".into() } else { out.stdout })
             }
             "clicks" => Ok(format!("The Count button was clicked {} times.", count())),
+            "github_user" => {
+                let answer = host::fetch(&Request {
+                    method: "GET".into(),
+                    url: "https://api.github.com/user".into(),
+                    headers: vec![
+                        ("Authorization".into(), "Bearer {{token}}".into()),
+                        ("User-Agent".into(), "squadron-hello".into()),
+                    ],
+                    body: None,
+                })?;
+                if answer.status != 200 {
+                    return Err(format!("GitHub answered {}: {}", answer.status, answer.body));
+                }
+                Ok(answer.body)
+            }
             _ => Err(format!("Unknown tool {name}.")),
         }
     }

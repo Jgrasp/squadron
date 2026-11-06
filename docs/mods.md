@@ -118,8 +118,8 @@ Les identifiants des éléments sont préfixés par le mod (`lando.logs`). Ils n
 
 Elles sont déclarées dans le manifeste, montrées à l'installation et acceptées une par une. Une mise à jour qui les change redemande l'accord.
 
-- `process:exec` : une commande et ses arguments autorisés, comme dans Zed.
-- `network` : une liste de domaines.
+- `exec` : les programmes que le WASM peut lancer, avec n'importe quels arguments, sans shell.
+- `network` : les noms d'hôte que `host::fetch` peut joindre, en HTTPS.
 - `agents:read`, `agents:send`, `cards:write`, `project:read` : l'accès aux données et aux actions de Squadron.
 - `tools` : outils proposés aux agents.
 
@@ -127,9 +127,9 @@ Le sandbox ne protège que ce que le mod ne peut pas faire. Une commande autoris
 
 ### Services externes et jetons
 
-- Le mod déclare ses réglages. Les secrets vont dans le keyring.
-- Les requêtes HTTP partent de Rust, seulement vers les domaines déclarés, et Squadron y ajoute lui-même le jeton. Les commandes reçoivent le jeton en variable d'environnement.
-- Le WASM et le panneau ne lisent jamais un secret.
+- Le mod déclare ses secrets. Ils vont dans le keyring.
+- Les requêtes HTTP partent de Rust, seulement vers les domaines autorisés, et Squadron y ajoute lui-même le jeton. Les outils à `command` fixe reçoivent le jeton en variable d'environnement.
+- Le WASM et le panneau ne lisent jamais un secret. Détail en étape 6c.
 
 ### Exemple de manifeste
 
@@ -147,13 +147,12 @@ Le sandbox ne protège que ce que le mod ne peut pas faire. Une commande autoris
     ],
     "panels": [{ "id": "info", "title": { "en": "Lando", "fr": "Lando" }, "page": "panel/index.html" }],
     "keys": [{ "button": "logs", "key": "Ctrl+L" }],
-    "tools": [{ "name": "lando_logs", "description": "Last 200 lines of the Lando logs" }],
-    "settings": [{ "id": "token", "label": { "en": "API token", "fr": "Jeton d'API" }, "secret": true }]
+    "tools": [{ "name": "logs", "description": "Last 200 lines of the Lando logs", "command": "lando logs --tail 200" }],
+    "secrets": [{ "id": "token", "label": { "en": "API token", "fr": "Jeton d'API" } }]
   },
   "permissions": {
-    "process:exec": [{ "command": "lando", "args": ["logs", "**"] }],
-    "network": ["api.lando.dev"],
-    "tools": true
+    "exec": ["lando"],
+    "network": ["api.lando.dev"]
   }
 }
 ```
@@ -233,10 +232,24 @@ interface types {
     stdout: string,
     stderr: string,
   }
+
+  record request {
+    method: string,
+    url: string,
+    /// `{{name}}` in a value is replaced by the mod's secret `name`, which the mod never reads.
+    headers: list<tuple<string, string>>,
+    body: option<string>,
+  }
+
+  record response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: string,
+  }
 }
 
 interface host {
-  use types.{output};
+  use types.{output, request, response};
 
   /// Writes a line to Squadron's log.
   log: func(message: string);
@@ -253,6 +266,8 @@ interface host {
   state-set: func(key: string, value: option<string>);
   /// Runs a program the user allowed in `permissions.exec`, without a shell, for at most 120 s.
   exec: func(program: string, args: list<string>, dir: option<string>) -> result<output, string>;
+  /// Sends an HTTPS request to a host the user allowed in `permissions.network`, for at most 30 s and 8 MB.
+  fetch: func(request: request) -> result<response, string>;
 }
 
 world squadron-mod {
@@ -267,6 +282,23 @@ world squadron-mod {
   export call-tool: func(name: string, input: string, agent: option<agent>) -> result<string, string>;
 }
 ```
+
+### Jetons et requêtes HTTP (étape 6c)
+
+```json
+"contributes": { "secrets": [{ "id": "token", "label": { "en": "GitHub token", "fr": "Jeton GitHub" }, "hint": { "en": "…" } }] },
+"permissions": { "network": ["api.github.com"] }
+```
+
+- **Secrets** : chaque secret a son champ dans Settings › Mods, sous le mod. La valeur va dans le keyring du système (`mod.<id>.<secret>`). Squadron ne la renvoie jamais, ni à la fenêtre, ni au mod : il dit seulement si elle est renseignée.
+- **Domaines** : `permissions.network` liste des noms d'hôte exacts. Ils passent par la même popup d'accord que les commandes (« Requêtes HTTPS vers api.github.com »). Un domaine nouveau redemande l'accord.
+- **`host::fetch`** : HTTPS seulement, vers un hôte autorisé, 30 s et 8 Mo au plus. Une redirection vers un hôte non autorisé n'est pas suivie : le mod reçoit la réponse 3xx.
+- **Jeton dans une requête** : `{{token}}` dans la valeur d'un en-tête, par exemple `("Authorization", "Bearer {{token}}")`. Squadron le remplace par le secret, et le remplace par `[secret]` s'il revient dans la réponse. Seulement dans les en-têtes, pas dans l'URL ni le corps.
+- **Jeton dans une commande** : un outil avec `command` reçoit chaque secret renseigné en variable `SQUADRON_<SECRET>`, par exemple `SQUADRON_TOKEN`. La commande est fixe et l'utilisateur l'a lue dans la popup.
+- **Pas de jeton pour `host::exec`** : il autorise un programme avec n'importe quels arguments (`git -c alias.x='!env' x` lance un shell), donc le WASM pourrait relire la variable. Un mod en WASM passe par `host::fetch`.
+- **Pas de jeton pour `terminal.run`** : la commande est tapée dans le terminal de l'agent, déjà lancé.
+
+L'exemple `hello` le montre avec l'outil `github_user`, qui appelle `https://api.github.com/user` avec le jeton.
 
 ### Distribution
 
@@ -365,7 +397,7 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 3. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M. *Fait en partie, après qu'un agent a modifié le code de Squadron pour déplacer un bouton : outils `overview`, `read_agent`, `start_agent`, `create_card`, `move_card`, `get_layout`, `set_layout`. Restent les outils de mods et le journal Activity.*
 4. **Vérifications** : IPC depuis l'iframe, `tools/list_changed`, poids de Wasmtime. Taille S. *Fait.*
 5. **Mods sans logique** : `mod.json`, éléments dans les emplacements, thème, prompts, Settings › Mods, installation d'un dossier local, chargement à chaud. Taille M. *Fait. Les prompts sont des éléments avec l'action `prompt.insert`. Les raccourcis clavier des mods restent à faire.*
-6. **Logique WASM**, découpée en 6a (accord sur les commandes, commandes lancées, outils pour les agents : *fait*), 6b (Wasmtime, API, événements) et 6c (jetons et requêtes HTTP). *6b fait : Wasmtime 50, contrat WIT `squadron:api@1.0.0`, crate `squadron_mod_api`, mod d'exemple `hello`.* Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
+6. **Logique WASM**, découpée en 6a (accord sur les commandes, commandes lancées, outils pour les agents : *fait*), 6b (Wasmtime, API, événements) et 6c (jetons et requêtes HTTP). *6b fait : Wasmtime 50, contrat WIT `squadron:api@1.0.0`, crate `squadron_mod_api`, mod d'exemple `hello`. 6c fait : secrets dans le keyring, `host::fetch` vers les domaines autorisés, jeton en en-tête et en variable d'environnement des outils.* Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
 7. **Panneaux** : schéma `mod://`, iframe isolé, `mod-kit.css`, messages entre le panneau et le WASM. Taille M.
 8. **Marketplace** : dépôt `squadron-mods`, CI de build et de publication, catalogue et installation en un clic, notification des mises à jour. Taille M.
 
@@ -380,4 +412,4 @@ L'API passe avant la marketplace : la marketplace n'est qu'une couche de distrib
 5. **Personnalisation** : les deux, le mode Customize dans l'interface et l'onglet Settings › Layout.
 6. **Design** : aucune liberté dans les zones de Squadron, que Squadron dessine lui-même ; liberté totale dans les panneaux du mod, dans son rectangle ; thème possible par les variables de Cuivre.
 7. **Mises à jour des mods** : notifiées, installées sur un clic, avec un nouvel accord si les permissions changent.
-8. **Jetons** : gardés dans le keyring et ajoutés par Squadron aux requêtes et aux commandes. Le mod ne les lit jamais.
+8. **Jetons** : gardés dans le keyring et ajoutés par Squadron aux en-têtes des requêtes et aux outils à commande fixe. Le mod ne les lit jamais.

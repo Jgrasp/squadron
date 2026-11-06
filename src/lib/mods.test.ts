@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemsOf, load, programsOf, themeOf, toolsOf, validate } from './mods'
+import { grantsOf, itemsOf, load, themeOf, toolsOf, validate } from './mods'
 
 const lando = {
   id: 'lando',
@@ -100,8 +100,21 @@ describe('mods', () => {
     const found = [{ dir: '/m/hello', linked: false, manifest: hello, error: null }]
     const waiting = load(found, [], {})[0]
     expect(waiting.pending).toEqual(['exec:git'])
-    expect(programsOf(waiting)).toEqual([])
+    expect(grantsOf(waiting)).toEqual([])
     expect(toolsOf([waiting]).map((t) => [t.name, t.tool])).toEqual([['hello_changed_files', 'changed_files']])
-    expect(programsOf(load(found, [], { hello: ['exec:git'] })[0])).toEqual(['git'])
+    expect(grantsOf(load(found, [], { hello: ['exec:git'] })[0])).toEqual(['exec:git'])
+  })
+
+  it('asks for network hosts and checks secrets', () => {
+    const base = { id: 'gh', version: '1.0.0', api: 1, name: { en: 'GH' } }
+    const net = { ...base, permissions: { network: ['api.github.com'] }, contributes: { secrets: [{ id: 'token', label: { en: 'Token' } }] } }
+    expect(keys(net)).toEqual([])
+    for (const network of [['https://api.github.com'], ['api.github.com/x'], ['localhost'], 'api.github.com'])
+      expect(keys({ ...base, permissions: { network } })).toEqual(['mods.badNetwork'])
+    expect(keys({ ...base, contributes: { secrets: [{ id: 'Token', label: { en: 'T' } }] } })).toEqual(['mods.badSecrets'])
+    expect(keys({ ...base, contributes: { secrets: [{ id: 't', label: { en: 'T' } }, { id: 't', label: { en: 'U' } }] } })).toEqual(['mods.badSecrets'])
+    const found = [{ dir: '/m/gh', linked: false, manifest: net, error: null }]
+    expect(load(found, [], {})[0].pending).toEqual(['net:api.github.com'])
+    expect(grantsOf(load(found, [], { gh: ['net:api.github.com'] })[0])).toEqual(['net:api.github.com'])
   })
 })

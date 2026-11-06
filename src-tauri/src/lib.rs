@@ -1328,10 +1328,50 @@ fn mods_tool_reply(
 }
 
 #[tauri::command]
-async fn mod_exec(dir: PathBuf, command: String) -> Result<(bool, String), String> {
-    tauri::async_runtime::spawn_blocking(move || modtools::exec(&dir, &command))
-        .await
-        .map_err(|e| e.to_string())?
+async fn mod_exec(
+    dir: PathBuf,
+    command: String,
+    id: String,
+    secrets: Vec<String>,
+) -> Result<(bool, String), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut env = Vec::new();
+        for name in secrets {
+            if let Some(value) = forge::read_secret(&wasm::secret_key(&id, &name)?)? {
+                env.push((
+                    format!("SQUADRON_{}", name.to_uppercase().replace('-', "_")),
+                    value,
+                ));
+            }
+        }
+        modtools::exec(&dir, &command, &env)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn mods_secrets(id: String, names: Vec<String>) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut set = Vec::new();
+        for name in names {
+            if forge::read_secret(&wasm::secret_key(&id, &name)?)?.is_some() {
+                set.push(name);
+            }
+        }
+        Ok(set)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn mods_secret_set(id: String, name: String, value: Option<String>) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        forge::write_secret(&wasm::secret_key(&id, &name)?, value.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2113,6 +2153,8 @@ pub fn run() {
             mods_set_tools,
             mods_tool_reply,
             mod_exec,
+            mods_secrets,
+            mods_secret_set,
             mods_wasm_sync,
             mods_wasm_event,
             mods_wasm_run,
