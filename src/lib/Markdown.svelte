@@ -232,14 +232,8 @@
         mounted.push(mount(FileCard, { target: slot, props: { path: slot.dataset.projectFile!, project } }))
       }
       const below = new Map<Element, Element>()
-      for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
-        const path = within(link.dataset.projectFileInline!, project)
-        if (!path) continue
-        const code = document.createElement('code')
-        code.textContent = link.textContent
-        link.replaceWith(code)
-        undo.unshift(() => code.replaceWith(link))
-        if (files.has(path)) continue
+      const unfurl = (code: Element, path: string) => {
+        if (files.has(path)) return
         files.add(path)
         let top: Element = code
         while (top.parentElement && top.parentElement !== box) top = top.parentElement
@@ -249,6 +243,15 @@
         below.set(top, slot)
         added.push(slot)
         mounted.push(mount(FileCard, { target: slot, props: { path, project } }))
+      }
+      for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
+        const path = within(link.dataset.projectFileInline!, project)
+        if (!path) continue
+        const code = document.createElement('code')
+        code.textContent = link.textContent
+        link.replaceWith(code)
+        undo.unshift(() => code.replaceWith(link))
+        unfurl(code, path)
       }
       const refs = new Map<HTMLElement, string>()
       for (const code of box?.querySelectorAll<HTMLElement>('code') ?? []) {
@@ -266,6 +269,7 @@
               code.dataset.open = path
               code.title = path
               undo.unshift(() => (delete code.dataset.open, code.removeAttribute('title')))
+              unfurl(code, path)
             }
           })
           .catch(() => {})
