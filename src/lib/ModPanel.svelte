@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { locale } from './i18n/index.svelte'
+  import { locale, t } from './i18n/index.svelte'
   import { text, themeOf, type Panel } from './mods'
   import { mods, onPanelPost, panelMessage } from './mods.svelte'
   import SidePanel from './SidePanel.svelte'
@@ -10,6 +10,8 @@
   let frame = $state<HTMLIFrameElement>()
 
   const THEME = ['bg-main', 'surface-1', 'surface-2', 'surface-3', 'border', 'border-focus', 'text', 'text-strong', 'text-muted', 'text-dim', 'ink', 'accent', 'accent-link', 'ok-text', 'err-text', 'sans', 'mono']
+
+  const owner = $derived(mods.list.find((m) => m.id === panel.mod)?.manifest?.name)
 
   const base = navigator.userAgent.includes('Windows') ? 'http://mod.localhost' : 'mod://localhost'
 
@@ -33,6 +35,7 @@
 <svelte:window onmessage={message} />
 
 <SidePanel kind={panel.key} title={text(panel.title, locale())} {onclose}>
+  {#snippet sub()}{t('mods.panelOf', { name: owner ? text(owner, locale()) : panel.mod })}{/snippet}
   {#key panel.key}
     <iframe bind:this={frame} title={text(panel.title, locale())} src="{base}/{panel.mod}/{panel.page}" sandbox="allow-scripts" referrerpolicy="no-referrer" onload={theme}></iframe>
   {/key}

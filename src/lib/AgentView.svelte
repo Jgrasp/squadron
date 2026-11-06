@@ -890,7 +890,12 @@
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
             {#if modItem('agent.tools', id)}
               {@const mod = modItem('agent.tools', id)!}
-              <button class="btn btn-ghost" title={detailOf('agent.tools', id) || null} onclick={() => runItem(mod, { project, agent })}>
+              <button
+                class="btn btn-ghost"
+                title={detailOf('agent.tools', id) || null}
+                aria-pressed={'panel.open' in mod.action ? panel === `mod:${mod.mod}.${mod.action['panel.open']}` : undefined}
+                onclick={() => runItem(mod, { project, agent })}
+              >
                 {#if mod.icon}<Icon name={mod.icon} />{/if}
                 {labelOf('agent.tools', id)}
                 {#if badgeOf(id)}<span class="count">{badgeOf(id)}</span>{/if}

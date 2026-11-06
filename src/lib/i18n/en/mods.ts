@@ -50,6 +50,7 @@ export default {
   badNetwork: 'permissions.network must be a list of host names, like ["api.github.com"].',
   badSecrets: 'contributes.secrets must be a list of { "id": "token", "label": { "en": "…" } }, each id once.',
   badPanels: 'contributes.panels must be a list of { "id": "…", "title": { "en": "…" }, "page": "panel/index.html" }, each id once, with a page inside the mod folder.',
+  panelOf: 'Mod {name}',
   unknownPanel: 'Item {item}: the mod has no panel {panel}.',
   secretSet: 'Saved in the system keyring',
   secretUnset: 'Not set',
