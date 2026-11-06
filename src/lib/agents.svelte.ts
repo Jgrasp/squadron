@@ -13,6 +13,7 @@ import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
 import { deliver, take } from './shells.svelte'
 import { forget as unask } from './askpass.svelte'
+import { lookUpAgent } from './pulls.svelte'
 import { errorText, t, type Key } from './i18n/index.svelte'
 import {
   apply,
@@ -99,7 +100,12 @@ export function branchOf(agent: Agent) {
   const worktree = agent.worktree
   if (!worktree) return
   invoke<string | null>('git_branch', { path: worktree.path })
-    .then((branch) => (worktree.branch = branch ?? ''))
+    .then((branch) => {
+      if ((branch ?? '') === worktree.branch || agent.worktree !== worktree) return
+      worktree.branch = branch ?? ''
+      persist(agent)
+      lookUpAgent(agent, true)
+    })
     .catch(() => {})
 }
 
@@ -206,7 +212,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
     agent.entries.push({ kind: 'decision', at: Date.now(), tone: 'bad', title: t('shell.goalStopped'), detail: t('shell.goalStoppedDetail', { count: GOAL_RELAUNCHES, reason: agent.goal.reason }) })
     invoke('send_message', { id: agent.id, text: '/goal clear' })
   }
-  if (d.subtype === 'init' && agent.worktree && !agent.worktree.branch) branchOf(agent)
+  if ((d.subtype === 'init' && !agent.worktree?.branch) || d.type === 'result') branchOf(agent)
   if (d.type === 'result' || d.subtype === 'init' || d.subtype === 'compact_boundary') invoke('context_usage', { id: agent.id }).catch(() => {})
   if (d.type === 'result' || d.subtype === 'init' || d.response?.response?.maxTokens) persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
