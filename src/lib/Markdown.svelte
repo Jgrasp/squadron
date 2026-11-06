@@ -92,6 +92,11 @@
     const at = md.utils.escapeHtml(path)
     return `<button type="button" class="shot" data-shot="${at}" title="${at}"><img alt="${alt}"></button>`
   }
+  md.renderer.rules.td_open = (tokens, idx, options, env, self) => {
+    const text = tokens[idx + 1]?.content ?? ''
+    if (text.length > 30 && text.includes(' ')) tokens[idx].attrJoin('class', 'wide')
+    return self.renderToken(tokens, idx, options)
+  }
   const fence = md.renderer.rules.fence!
   const copyButton = () => `<button type="button" class="copy" data-copy><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>${t('common.copy')}</span></button>`
   const SHELLS = ['bash', 'sh', 'shell', 'zsh', 'console', 'terminal']
@@ -848,6 +853,14 @@
     text-align: left;
     vertical-align: top;
     overflow-wrap: break-word;
+  }
+
+  .prose :global(td.wide) {
+    min-width: 12em;
+  }
+
+  .prose :global(td code) {
+    white-space: nowrap;
   }
 
   .prose :global(tr:last-child td) {
