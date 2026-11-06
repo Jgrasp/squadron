@@ -1,7 +1,7 @@
 <script lang="ts">
   import { locale, t } from './i18n/index.svelte'
-  import { text, themeOf, type Panel } from './mods'
-  import { mods, onPanelPost, panelMessage } from './mods.svelte'
+  import { text, themeOf, type Panel } from './extensions'
+  import { extensions, onPanelPost, panelMessage } from './extensions.svelte'
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
 
@@ -12,9 +12,9 @@
 
   const THEME = ['bg-main', 'surface-1', 'surface-2', 'surface-3', 'border', 'border-focus', 'text', 'text-strong', 'text-muted', 'text-dim', 'ink', 'accent', 'accent-link', 'ok-text', 'err-text', 'sans', 'mono']
 
-  const owner = $derived(mods.list.find((m) => m.id === panel.mod)?.manifest?.name)
+  const owner = $derived(extensions.list.find((m) => m.id === panel.extension)?.manifest?.name)
 
-  const base = navigator.userAgent.includes('Windows') ? 'http://mod.localhost' : 'mod://localhost'
+  const base = navigator.userAgent.includes('Windows') ? 'http://extension.localhost' : 'extension://localhost'
 
   function theme() {
     const style = getComputedStyle(document.documentElement)
@@ -27,23 +27,23 @@
   })
 
   $effect(() => {
-    themeOf(mods.list)
+    themeOf(extensions.list)
     theme()
   })
 
-  $effect(() => onPanelPost(panel.mod, panel.id, (message) => frame?.contentWindow?.postMessage({ squadron: 'mod', message }, '*')))
+  $effect(() => onPanelPost(panel.extension, panel.id, (message) => frame?.contentWindow?.postMessage({ squadron: 'extension', message }, '*')))
 
   function message(e: MessageEvent) {
-    if (frame && e.source === frame.contentWindow && e.data?.squadron === 'mod') panelMessage(panel, agent, e.data.message)
+    if (frame && e.source === frame.contentWindow && e.data?.squadron === 'extension') panelMessage(panel, agent, e.data.message)
   }
 </script>
 
 <svelte:window onmessage={message} />
 
 <SidePanel kind={panel.key} title={text(panel.title, locale())} {onclose}>
-  {#snippet sub()}{t('mods.panelOf', { name: owner ? text(owner, locale()) : panel.mod })}{/snippet}
+  {#snippet sub()}{t('extensions.panelOf', { name: owner ? text(owner, locale()) : panel.extension })}{/snippet}
   {#key panel.key}
-    <iframe bind:this={frame} title={text(panel.title, locale())} src="{base}/{panel.mod}/{panel.page}" sandbox="allow-scripts" referrerpolicy="no-referrer" class:loaded onload={() => (theme(), (loaded = true))}></iframe>
+    <iframe bind:this={frame} title={text(panel.title, locale())} src="{base}/{panel.extension}/{panel.page}" sandbox="allow-scripts" referrerpolicy="no-referrer" class:loaded onload={() => (theme(), (loaded = true))}></iframe>
   {/key}
 </SidePanel>
 

@@ -33,8 +33,8 @@
   import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
-  import { badgeOf, modItem, modPanel, runItem } from './mods.svelte'
-  import ModPanel from './ModPanel.svelte'
+  import { badgeOf, extensionItem, extensionPanel, runItem } from './extensions.svelte'
+  import ExtensionPanel from './ExtensionPanel.svelte'
   import { run } from './shells.svelte'
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
@@ -888,15 +888,15 @@
     {/snippet}
       {#each ui.customizing ? all('agent.tools') : shown('agent.tools').filter((id) => id !== 'runs' || ran) as id (id)}
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
-            {#if modItem('agent.tools', id)}
-              {@const mod = modItem('agent.tools', id)!}
+            {#if extensionItem('agent.tools', id)}
+              {@const item = extensionItem('agent.tools', id)!}
               <button
                 class="btn btn-ghost"
                 title={detailOf('agent.tools', id) || null}
-                aria-pressed={'panel.open' in mod.action ? panel === `mod:${mod.mod}.${mod.action['panel.open']}` : undefined}
-                onclick={() => runItem(mod, { project, agent })}
+                aria-pressed={'panel.open' in item.action ? panel === `extension:${item.extension}.${item.action['panel.open']}` : undefined}
+                onclick={() => runItem(item, { project, agent })}
               >
-                {#if mod.icon}<Icon name={mod.icon} />{/if}
+                {#if item.icon}<Icon name={item.icon} />{/if}
                 {labelOf('agent.tools', id)}
                 {#if badgeOf(id)}<span class="count">{badgeOf(id)}</span>{/if}
               </button>
@@ -1318,7 +1318,7 @@
                       {#if i < shown('agent.menu').length - 1}<span class="rule" aria-hidden="true"></span>{/if}
                     {:else}
                     {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
-                    <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id] ? MENU[id]() : runItem(modItem('agent.menu', id)!, { project, agent }))}>
+                    <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id] ? MENU[id]() : runItem(extensionItem('agent.menu', id)!, { project, agent }))}>
                       <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}{#if badgeOf(id)}&nbsp;· {badgeOf(id)}{/if}</strong>
                       <span>{id === 'remote' && agent.remote ? t('agent.turnOffRemoteDetail') : detailOf('agent.menu', id)}</span>
                     </button>
@@ -1370,8 +1370,8 @@
       onquote={(quote) => ((text = text.trim() ? `${text.trimEnd()} ${quote} ` : `${quote} `), composer.focus())}
       onclose={() => setPanel(agent.project, null)}
     />
-  {:else if modPanel(panel)}
-    <ModPanel panel={modPanel(panel)!} {agent} onclose={() => setPanel(agent.project, null)} />
+  {:else if extensionPanel(panel)}
+    <ExtensionPanel panel={extensionPanel(panel)!} {agent} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'artifacts' && shared.length}
     <ArtifactsPanel
       {agent}

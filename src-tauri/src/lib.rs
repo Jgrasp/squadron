@@ -7,11 +7,11 @@ pub mod azure;
 pub mod claude;
 pub mod definitions;
 pub mod editors;
+pub mod extension_tools;
+pub mod extensions;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
-pub mod mods;
-pub mod modtools;
 pub mod permissions;
 pub mod pilot;
 pub mod process;
@@ -1284,42 +1284,53 @@ fn get_layout(file: State<LayoutFile>) -> serde_json::Value {
 }
 
 #[tauri::command]
-fn mods_list(mods: State<mods::Mods>) -> mods::Listing {
-    mods.list()
+fn extensions_list(extensions: State<extensions::Extensions>) -> extensions::Listing {
+    extensions.list()
 }
 
 #[tauri::command]
-fn mods_link(mods: State<mods::Mods>, path: String) -> Result<(), String> {
-    mods.link(&path)
+fn extensions_link(extensions: State<extensions::Extensions>, path: String) -> Result<(), String> {
+    extensions.link(&path)
 }
 
 #[tauri::command]
-fn mods_unlink(mods: State<mods::Mods>, path: String) -> Result<(), String> {
-    mods.unlink(&path)
+fn extensions_unlink(
+    extensions: State<extensions::Extensions>,
+    path: String,
+) -> Result<(), String> {
+    extensions.unlink(&path)
 }
 
 #[tauri::command]
-fn mods_enable(mods: State<mods::Mods>, id: String, on: bool) -> Result<(), String> {
-    mods.enable(&id, on)
+fn extensions_enable(
+    extensions: State<extensions::Extensions>,
+    id: String,
+    on: bool,
+) -> Result<(), String> {
+    extensions.enable(&id, on)
 }
 
 #[tauri::command]
-fn mods_approve(mods: State<mods::Mods>, id: String, commands: Vec<String>) -> Result<(), String> {
-    mods.approve(&id, commands)
+fn extensions_approve(
+    extensions: State<extensions::Extensions>,
+    id: String,
+    commands: Vec<String>,
+) -> Result<(), String> {
+    extensions.approve(&id, commands)
 }
 
 #[tauri::command]
-async fn mods_set_tools(
-    tools: State<'_, modtools::Tools>,
-    list: Vec<modtools::ModTool>,
+async fn extensions_set_tools(
+    tools: State<'_, extension_tools::Tools>,
+    list: Vec<extension_tools::ExtensionTool>,
 ) -> Result<(), String> {
     tools.set(list).await;
     Ok(())
 }
 
 #[tauri::command]
-fn mods_tool_reply(
-    tools: State<modtools::Tools>,
+fn extensions_tool_reply(
+    tools: State<extension_tools::Tools>,
     id: String,
     ok: bool,
     text: String,
@@ -1328,7 +1339,7 @@ fn mods_tool_reply(
 }
 
 #[tauri::command]
-async fn mod_exec(
+async fn extension_exec(
     dir: PathBuf,
     command: String,
     id: String,
@@ -1344,14 +1355,14 @@ async fn mod_exec(
                 ));
             }
         }
-        modtools::exec(&dir, &command, &env)
+        extension_tools::exec(&dir, &command, &env)
     })
     .await
     .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
-async fn mods_secrets(id: String, names: Vec<String>) -> Result<Vec<String>, String> {
+async fn extensions_secrets(id: String, names: Vec<String>) -> Result<Vec<String>, String> {
     tauri::async_runtime::spawn_blocking(move || {
         let mut set = Vec::new();
         for name in names {
@@ -1366,7 +1377,11 @@ async fn mods_secrets(id: String, names: Vec<String>) -> Result<Vec<String>, Str
 }
 
 #[tauri::command]
-async fn mods_secret_set(id: String, name: String, value: Option<String>) -> Result<(), String> {
+async fn extensions_secret_set(
+    id: String,
+    name: String,
+    value: Option<String>,
+) -> Result<(), String> {
     tauri::async_runtime::spawn_blocking(move || {
         forge::write_secret(&wasm::secret_key(&id, &name)?, value.as_deref())
     })
@@ -1375,7 +1390,7 @@ async fn mods_secret_set(id: String, name: String, value: Option<String>) -> Res
 }
 
 #[tauri::command]
-async fn mods_wasm_sync(
+async fn extensions_wasm_sync(
     app: AppHandle,
     list: Vec<wasm::Spec>,
 ) -> Result<HashMap<String, String>, String> {
@@ -1385,7 +1400,7 @@ async fn mods_wasm_sync(
 }
 
 #[tauri::command]
-fn mods_wasm_event(
+fn extensions_wasm_event(
     runtime: State<wasm::Runtime>,
     id: Option<String>,
     name: String,
@@ -1396,7 +1411,7 @@ fn mods_wasm_event(
 }
 
 #[tauri::command]
-async fn mods_wasm_run(
+async fn extensions_wasm_run(
     app: AppHandle,
     id: String,
     action: String,
@@ -1410,7 +1425,7 @@ async fn mods_wasm_run(
 }
 
 #[tauri::command]
-async fn mods_wasm_tool(
+async fn extensions_wasm_tool(
     app: AppHandle,
     id: String,
     name: String,
@@ -1425,8 +1440,8 @@ async fn mods_wasm_tool(
 }
 
 #[tauri::command]
-fn open_mods_folder(mods: State<mods::Mods>) -> Result<(), String> {
-    open_path(&mods.dir)
+fn open_extensions_folder(extensions: State<extensions::Extensions>) -> Result<(), String> {
+    open_path(&extensions.dir)
 }
 
 #[tauri::command]
@@ -2028,10 +2043,10 @@ pub fn run() {
                 ),
             });
         })
-        .register_asynchronous_uri_scheme_protocol("mod", |ctx, request, responder| {
+        .register_asynchronous_uri_scheme_protocol("extension", |ctx, request, responder| {
             let (app, path) = (ctx.app_handle().clone(), request.uri().path().to_string());
-            std::thread::spawn(move || match app.try_state::<mods::Mods>() {
-                Some(mods) => responder.respond(mods.serve(&path)),
+            std::thread::spawn(move || match app.try_state::<extensions::Extensions>() {
+                Some(extensions) => responder.respond(extensions.serve(&path)),
                 None => responder.respond(
                     http::Response::builder()
                         .status(503)
@@ -2158,21 +2173,21 @@ pub fn run() {
             agent_texts,
             get_layout,
             set_layout,
-            mods_list,
-            mods_link,
-            mods_unlink,
-            mods_enable,
-            mods_approve,
-            mods_set_tools,
-            mods_tool_reply,
-            mod_exec,
-            mods_secrets,
-            mods_secret_set,
-            mods_wasm_sync,
-            mods_wasm_event,
-            mods_wasm_run,
-            mods_wasm_tool,
-            open_mods_folder,
+            extensions_list,
+            extensions_link,
+            extensions_unlink,
+            extensions_enable,
+            extensions_approve,
+            extensions_set_tools,
+            extensions_tool_reply,
+            extension_exec,
+            extensions_secrets,
+            extensions_secret_set,
+            extensions_wasm_sync,
+            extensions_wasm_event,
+            extensions_wasm_run,
+            extensions_wasm_tool,
+            open_extensions_folder,
             send_message,
             save_attachment,
             attachment_preview,
@@ -2274,16 +2289,16 @@ pub fn run() {
                 )
             });
             app.manage(LayoutFile(config.join("layout.json")));
-            let mods_dir = config.join("mods");
-            std::fs::create_dir_all(&mods_dir)?;
+            let extensions_dir = config.join("extensions");
+            std::fs::create_dir_all(&extensions_dir)?;
             let handle = app.handle().clone();
-            mods::Mods { dir: mods_dir.clone(), file: config.join("mods.json") }.watch(move || {
-                let _ = handle.emit_to("main", "mods-changed", ());
+            extensions::Extensions { dir: extensions_dir.clone(), file: config.join("extensions.json") }.watch(move || {
+                let _ = handle.emit_to("main", "extensions-changed", ());
             });
-            app.manage(mods::Mods { dir: mods_dir, file: config.join("mods.json") });
+            app.manage(extensions::Extensions { dir: extensions_dir, file: config.join("extensions.json") });
             let handle = app.handle().clone();
-            app.manage(wasm::Runtime::new(config.join("mods-state"), move |message| {
-                let _ = handle.emit_to("main", "mods-host", message);
+            app.manage(wasm::Runtime::new(config.join("extensions-state"), move |message| {
+                let _ = handle.emit_to("main", "extensions-host", message);
             })?);
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
@@ -2295,8 +2310,8 @@ pub fn run() {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });
             let handle = app.handle().clone();
-            let mod_tools = modtools::Tools::new(token.clone(), move |call| {
-                let _ = handle.emit_to("main", "mods-tool", call);
+            let extension_tools = extension_tools::Tools::new(token.clone(), move |call| {
+                let _ = handle.emit_to("main", "extensions-tool", call);
             });
             let handle = app.handle().clone();
             let askpass = Askpass::new(token.clone(), move |question| {
@@ -2305,7 +2320,7 @@ pub fn run() {
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
                 gate.clone(),
                 pilot.clone(),
-                mod_tools.clone(),
+                extension_tools.clone(),
                 askpass.clone().router(),
             ))?;
             let helpers = app.path().app_data_dir()?.join("bin");
@@ -2321,7 +2336,7 @@ pub fn run() {
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);
-            app.manage(mod_tools);
+            app.manage(extension_tools);
             Ok(())
         })
         .on_window_event(|window, event| {

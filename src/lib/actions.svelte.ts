@@ -22,7 +22,7 @@ export type SettingsTab =
   | 'shortcuts'
   | 'layout'
   | 'panels'
-  | 'mods'
+  | 'extensions'
   | 'changelog'
   | 'about'
 

@@ -1,4 +1,4 @@
-use crate::modtools;
+use crate::extension_tools;
 use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
@@ -10,7 +10,7 @@ use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
-wasmtime::component::bindgen!({ path: "../mods/api/wit", world: "squadron-mod" });
+wasmtime::component::bindgen!({ path: "../extensions/api/wit", world: "squadron-extension" });
 
 use squadron::api::types::{Output, Request, Response};
 
@@ -90,7 +90,7 @@ impl WasiView for Host {
 
 impl Host {
     fn tell(&self, call: &str, args: Value) {
-        let mut message = json!({"mod": self.id, "call": call});
+        let mut message = json!({"extension": self.id, "call": call});
         if let (Some(m), Some(a)) = (message.as_object_mut(), args.as_object()) {
             m.extend(a.clone());
         }
@@ -102,7 +102,7 @@ impl squadron::api::types::Host for Host {}
 
 impl squadron::api::host::Host for Host {
     fn log(&mut self, message: String) {
-        log::info!("mod {}: {message}", self.id);
+        log::info!("extension {}: {message}", self.id);
     }
 
     fn notify(&mut self, title: String, body: String) {
@@ -136,7 +136,7 @@ impl squadron::api::host::Host for Host {
         };
         if bytes.len() > MAX_STATE {
             log::warn!(
-                "mod {}: its state would pass 1 MB, the change is dropped",
+                "extension {}: its state would pass 1 MB, the change is dropped",
                 self.id
             );
             return;
@@ -145,7 +145,7 @@ impl squadron::api::host::Host for Host {
             let _ = std::fs::create_dir_all(dir);
         }
         if let Err(e) = std::fs::write(&self.file, bytes) {
-            log::warn!("mod {}: state not saved: {e}", self.id);
+            log::warn!("extension {}: state not saved: {e}", self.id);
         }
         self.state = next;
     }
@@ -169,7 +169,7 @@ impl squadron::api::host::Host for Host {
         {
             cmd.current_dir(dir);
         }
-        let out = modtools::capture(cmd)?;
+        let out = extension_tools::capture(cmd)?;
         Ok(Output {
             code: out.status.and_then(|s| s.code()).unwrap_or(-1),
             stdout: out.stdout,
@@ -196,7 +196,7 @@ pub fn secret_key(id: &str, name: &str) -> Result<String, String> {
                 .all(|b| b.is_ascii_lowercase() || b.is_ascii_digit() || b == b'-' || b == b'_')
     };
     if fine(id) && fine(name) {
-        Ok(format!("mod.{id}.{name}"))
+        Ok(format!("extension.{id}.{name}"))
     } else {
         Err(format!("{name} is not a secret name."))
     }
@@ -227,8 +227,9 @@ fn fill(
             break;
         };
         let name = &rest[start + 2..start + 2 + len];
-        let found = secret(name)?
-            .ok_or_else(|| format!("The secret {name} is not set. Set it in Settings › Mods."))?;
+        let found = secret(name)?.ok_or_else(|| {
+            format!("The secret {name} is not set. Set it in Settings › Extensions.")
+        })?;
         out.push_str(&rest[..start]);
         out.push_str(&found);
         used.push(found);
@@ -321,14 +322,14 @@ fn instantiate(
     engine: &Engine,
     component: &Component,
     host: Host,
-) -> wasmtime::Result<(Store<Host>, SquadronMod)> {
+) -> wasmtime::Result<(Store<Host>, SquadronExtension)> {
     let mut linker = Linker::<Host>::new(engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
-    SquadronMod::add_to_linker::<_, HasSelf<_>>(&mut linker, |h| h)?;
+    SquadronExtension::add_to_linker::<_, HasSelf<_>>(&mut linker, |h| h)?;
     let mut store = Store::new(engine, host);
     store.limiter(|h| &mut h.limits);
     store.set_fuel(FUEL)?;
-    let bindings = SquadronMod::instantiate(&mut store, component, &linker)?;
+    let bindings = SquadronExtension::instantiate(&mut store, component, &linker)?;
     Ok((store, bindings))
 }
 
@@ -344,15 +345,15 @@ fn resolve(dir: &str, wasm: &str) -> Result<PathBuf, String> {
     let path = root
         .join(wasm)
         .canonicalize()
-        .map_err(|_| format!("{wasm} is missing. Build the mod first."))?;
+        .map_err(|_| format!("{wasm} is missing. Build the extension first."))?;
     if !path.starts_with(&root) {
-        return Err("The wasm file must stay inside the mod folder.".into());
+        return Err("The wasm file must stay inside the extension folder.".into());
     }
     Ok(path)
 }
 
 fn trapped(e: wasmtime::Error) -> String {
-    format!("The mod stopped: {e:#}")
+    format!("The extension stopped: {e:#}")
 }
 
 impl Runtime {
@@ -480,11 +481,13 @@ impl Runtime {
                     }
                 };
                 if let Some(error) = failure {
-                    report(json!({"mod": id, "call": "error", "error": error}));
+                    report(json!({"extension": id, "call": "error", "error": error}));
                     match instantiate(&engine, &component, host(&allowed)) {
                         Ok(fresh) => current = fresh,
                         Err(e) => {
-                            report(json!({"mod": id, "call": "error", "error": format!("{e:#}")}));
+                            report(
+                                json!({"extension": id, "call": "error", "error": format!("{e:#}")}),
+                            );
                             break;
                         }
                     }
@@ -493,7 +496,7 @@ impl Runtime {
         });
         ready_rx
             .recv()
-            .map_err(|_| "The mod did not start.".to_string())??;
+            .map_err(|_| "The extension did not start.".to_string())??;
         Ok(tx)
     }
 
@@ -519,17 +522,17 @@ impl Runtime {
             .unwrap()
             .get(id)
             .map(|l| l.tx.clone())
-            .ok_or_else(|| format!("The mod {id} is not running."))
+            .ok_or_else(|| format!("The extension {id} is not running."))
     }
 
     pub fn run(&self, id: &str, action: &str, agent: Option<AgentInfo>) -> Result<(), String> {
         let (reply, answer) = mpsc::channel();
         self.sender(id)?
             .send(Job::Run(action.into(), agent.map(Agent::from), reply))
-            .map_err(|_| "The mod stopped.".to_string())?;
+            .map_err(|_| "The extension stopped.".to_string())?;
         answer
             .recv_timeout(ANSWER)
-            .map_err(|_| "The mod did not answer.".to_string())?
+            .map_err(|_| "The extension did not answer.".to_string())?
     }
 
     pub fn tool(
@@ -547,10 +550,10 @@ impl Runtime {
                 agent.map(Agent::from),
                 reply,
             ))
-            .map_err(|_| "The mod stopped.".to_string())?;
+            .map_err(|_| "The extension stopped.".to_string())?;
         answer
             .recv_timeout(ANSWER)
-            .map_err(|_| "The mod did not answer.".to_string())?
+            .map_err(|_| "The extension did not answer.".to_string())?
     }
 }
 
@@ -560,7 +563,7 @@ mod tests {
     use std::process::Command;
 
     fn hello() -> Option<PathBuf> {
-        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../mods/examples/hello");
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../extensions/examples/hello");
         let built = Command::new("cargo")
             .args(["build", "--release", "--target", "wasm32-wasip2", "--quiet"])
             .current_dir(&dir)
@@ -570,9 +573,9 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "builds the example mod, needs the wasm32-wasip2 target"]
+    #[ignore = "builds the example extension, needs the wasm32-wasip2 target"]
     fn runs_the_example_mod() {
-        let dir = hello().expect("the example mod builds");
+        let dir = hello().expect("the example extension builds");
         let states = std::env::temp_dir().join(format!("squadron-wasm-{}", uuid::Uuid::new_v4()));
         let told = Arc::new(Mutex::new(Vec::<Value>::new()));
         let record = told.clone();
@@ -705,13 +708,16 @@ mod tests {
         assert!(
             fill("{{other}}", &secret, &mut used)
                 .unwrap_err()
-                .contains("Settings › Mods")
+                .contains("Settings › Extensions")
         );
         assert_eq!(
             scrub("echo: Bearer s3cr3t".into(), &used),
             "echo: Bearer [secret]"
         );
-        assert_eq!(secret_key("hello", "token").unwrap(), "mod.hello.token");
+        assert_eq!(
+            secret_key("hello", "token").unwrap(),
+            "extension.hello.token"
+        );
         assert!(secret_key("hello", "../x").is_err());
         assert!(secret_key("hello", "").is_err());
     }
@@ -735,26 +741,26 @@ mod tests {
     }
 
     #[test]
-    fn refuses_a_wasm_file_outside_the_mod_folder() {
+    fn refuses_a_wasm_file_outside_the_extension_folder() {
         let dir = std::env::temp_dir().join(format!("squadron-wasm-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(dir.join("mod")).unwrap();
+        std::fs::create_dir_all(dir.join("extension")).unwrap();
         std::fs::write(dir.join("outside.wasm"), b"").unwrap();
-        let mod_dir = dir.join("mod").to_string_lossy().to_string();
+        let extension_dir = dir.join("extension").to_string_lossy().to_string();
         assert!(
-            resolve(&mod_dir, "../outside.wasm")
+            resolve(&extension_dir, "../outside.wasm")
                 .unwrap_err()
                 .contains("inside")
         );
         assert!(
-            resolve(&mod_dir, "missing.wasm")
+            resolve(&extension_dir, "missing.wasm")
                 .unwrap_err()
-                .contains("Build the mod first")
+                .contains("Build the extension first")
         );
         let runtime = Runtime::new(dir.join("states"), |_| {}).unwrap();
-        std::fs::write(dir.join("mod/broken.wasm"), b"not wasm").unwrap();
+        std::fs::write(dir.join("extension/broken.wasm"), b"not wasm").unwrap();
         let errors = runtime.sync(vec![Spec {
             id: "broken".into(),
-            dir: mod_dir,
+            dir: extension_dir,
             wasm: "broken.wasm".into(),
             allowed: vec![],
         }]);

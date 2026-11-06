@@ -5,7 +5,7 @@ export const MIN_PANEL = 420
 
 import { projects } from './projects.svelte'
 
-export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls' | 'ticket' | `mod:${string}`
+export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls' | 'ticket' | `extension:${string}`
 export type PanelMode = 'slide' | 'side' | 'full' | 'bottom'
 export type PanelSize = 'small' | 'medium' | 'large'
 export type Display = { mode: PanelMode; width: number; height: number; size?: PanelSize }

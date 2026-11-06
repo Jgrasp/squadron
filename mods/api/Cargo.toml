@@ -1,8 +1,0 @@
-[package]
-name = "squadron_mod_api"
-version = "1.0.0"
-edition = "2024"
-description = "Write Squadron mods in Rust, compiled to WebAssembly"
-
-[dependencies]
-wit-bindgen = "0.63"

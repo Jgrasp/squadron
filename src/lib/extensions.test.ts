@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { grantsOf, itemsOf, load, panelsOf, themeOf, toolsOf, validate } from './mods'
+import { grantsOf, itemsOf, load, panelsOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -18,54 +18,54 @@ const lando = {
 
 const keys = (raw: unknown, taken?: string[]) => validate(raw, taken).problems.map(([key]) => key)
 
-describe('mods', () => {
+describe('extensions', () => {
   it('accepts a complete manifest', () => {
     expect(validate(lando)).toEqual({ manifest: lando, problems: [] })
   })
 
   it('names every problem of a broken manifest', () => {
-    expect(keys('x')).toEqual(['mods.notObject'])
-    expect(keys({ id: 'Bad Id', api: 2, name: 'Lando' })).toEqual(['mods.badId', 'mods.badApi', 'mods.noVersion', 'mods.noName'])
-    expect(keys(lando, ['lando'])).toEqual(['mods.takenId'])
+    expect(keys('x')).toEqual(['extensions.notObject'])
+    expect(keys({ id: 'Bad Id', api: 2, name: 'Lando' })).toEqual(['extensions.badId', 'extensions.badApi', 'extensions.noVersion', 'extensions.noName'])
+    expect(keys(lando, ['lando'])).toEqual(['extensions.takenId'])
   })
 
   it('checks each item against its slot', () => {
     const item = (extra: object) => keys({ ...lando, contributes: { items: [{ slot: 'agent.tools', id: 'a', label: { en: 'A' }, action: { squadron: 'kanban' }, ...extra }] } })
     expect(item({})).toEqual([])
-    expect(item({ slot: 'agent.info' })).toEqual(['mods.badSlot'])
-    expect(item({ icon: 'rocket' })).toEqual(['mods.badIcon'])
-    expect(item({ action: { squadron: 'explode' } })).toEqual(['mods.badSquadron'])
-    expect(item({ action: { 'terminal.run': 'ls\nrm -rf ~' } })).toEqual(['mods.badCommand'])
-    expect(item({ action: { 'url.open': 'javascript:alert(1)' } })).toEqual(['mods.badUrl'])
-    expect(item({ action: { 'url.open': 'https://a.b', squadron: 'kanban' } })).toEqual(['mods.badAction'])
-    expect(item({ slot: 'menu.squadron', action: { 'prompt.insert': 'Review' } })).toEqual(['mods.needsAgent'])
-    expect(keys({ ...lando, contributes: { items: [lando.contributes.items[0], lando.contributes.items[0]] } })).toEqual(['mods.twiceItem'])
+    expect(item({ slot: 'agent.info' })).toEqual(['extensions.badSlot'])
+    expect(item({ icon: 'rocket' })).toEqual(['extensions.badIcon'])
+    expect(item({ action: { squadron: 'explode' } })).toEqual(['extensions.badSquadron'])
+    expect(item({ action: { 'terminal.run': 'ls\nrm -rf ~' } })).toEqual(['extensions.badCommand'])
+    expect(item({ action: { 'url.open': 'javascript:alert(1)' } })).toEqual(['extensions.badUrl'])
+    expect(item({ action: { 'url.open': 'https://a.b', squadron: 'kanban' } })).toEqual(['extensions.badAction'])
+    expect(item({ slot: 'menu.squadron', action: { 'prompt.insert': 'Review' } })).toEqual(['extensions.needsAgent'])
+    expect(keys({ ...lando, contributes: { items: [lando.contributes.items[0], lando.contributes.items[0]] } })).toEqual(['extensions.twiceItem'])
   })
 
   it('only lets colors into the theme', () => {
-    expect(keys({ ...lando, contributes: { theme: { accent: 'red; } body { display: none' } } })).toEqual(['mods.badTheme'])
+    expect(keys({ ...lando, contributes: { theme: { accent: 'red; } body { display: none' } } })).toEqual(['extensions.badTheme'])
     expect(keys({ ...lando, contributes: { theme: { accent: 'rgb(10, 20, 30)' } } })).toEqual([])
   })
 
-  it('keeps the first mod that claims an id and contributes only enabled valid mods', () => {
+  it('keeps the first extension that claims an id and contributes only enabled valid extensions', () => {
     const found = (dir: string, manifest: unknown, error: string | null = null) => ({ dir, linked: false, manifest, error })
-    const mods = load([found('/m/lando', lando), found('/m/copy', lando), found('/m/broken', null, 'mod.json is missing.')], [])
-    expect(mods.map((m) => [m.id, m.problems.map(([k]) => k)])).toEqual([
+    const extensions = load([found('/m/lando', lando), found('/m/copy', lando), found('/m/broken', null, 'extension.json is missing.')], [])
+    expect(extensions.map((m) => [m.id, m.problems.map(([k]) => k)])).toEqual([
       ['lando', []],
-      ['lando', ['mods.takenId']],
-      ['broken', ['mods.unreadable']],
+      ['lando', ['extensions.takenId']],
+      ['broken', ['extensions.unreadable']],
     ])
-    expect(itemsOf(mods, 'agent.tools').map((i) => i.key)).toEqual(['lando.logs'])
-    expect(themeOf(mods)).toEqual({ accent: '#4fa3e0' })
+    expect(itemsOf(extensions, 'agent.tools').map((i) => i.key)).toEqual(['lando.logs'])
+    expect(themeOf(extensions)).toEqual({ accent: '#4fa3e0' })
     expect(itemsOf(load([found('/m/lando', lando)], ['lando']), 'agent.tools')).toEqual([])
   })
 
   it('checks the tools offered to agents', () => {
     const tool = (extra: object) => keys({ ...lando, contributes: { tools: [{ name: 'logs', description: 'Logs', command: 'lando logs', ...extra }] } })
     expect(tool({})).toEqual([])
-    expect(tool({ name: 'Logs!' })).toEqual(['mods.badToolName'])
-    expect(tool({ description: ' ' })).toEqual(['mods.noToolDescription'])
-    expect(tool({ command: 'a\nb' })).toEqual(['mods.badToolCommand'])
+    expect(tool({ name: 'Logs!' })).toEqual(['extensions.badToolName'])
+    expect(tool({ description: ' ' })).toEqual(['extensions.noToolDescription'])
+    expect(tool({ command: 'a\nb' })).toEqual(['extensions.badToolCommand'])
   })
 
   it('runs commands and offers tools only once the user allowed them', () => {
@@ -87,16 +87,16 @@ describe('mods', () => {
       name: { en: 'Hello' },
       wasm: 'target/wasm32-wasip2/release/hello.wasm',
       contributes: {
-        items: [{ slot: 'agent.tools', id: 'count', label: { en: 'Count' }, action: { mod: 'count' } }],
+        items: [{ slot: 'agent.tools', id: 'count', label: { en: 'Count' }, action: { run: 'count' } }],
         tools: [{ name: 'changed_files', description: 'Changed files', input: { type: 'object', properties: {} } }],
       },
       permissions: { exec: ['git'] },
     }
     expect(keys(hello)).toEqual([])
-    expect(keys({ ...hello, wasm: undefined })).toEqual(['mods.needsWasm', 'mods.toolNeedsWasm'])
-    expect(keys({ ...hello, wasm: '../other/x.wasm' })).toEqual(['mods.badWasm'])
-    expect(keys({ ...hello, permissions: { exec: ['/bin/rm'] } })).toEqual(['mods.badExec'])
-    expect(keys({ ...hello, contributes: { tools: [{ name: 'x', description: 'X', input: { type: 'string' } }] } })).toEqual(['mods.badToolInput'])
+    expect(keys({ ...hello, wasm: undefined })).toEqual(['extensions.needsWasm', 'extensions.toolNeedsWasm'])
+    expect(keys({ ...hello, wasm: '../other/x.wasm' })).toEqual(['extensions.badWasm'])
+    expect(keys({ ...hello, permissions: { exec: ['/bin/rm'] } })).toEqual(['extensions.badExec'])
+    expect(keys({ ...hello, contributes: { tools: [{ name: 'x', description: 'X', input: { type: 'string' } }] } })).toEqual(['extensions.badToolInput'])
     const found = [{ dir: '/m/hello', linked: false, manifest: hello, error: null }]
     const waiting = load(found, [], {})[0]
     expect(waiting.pending).toEqual(['exec:git'])
@@ -110,13 +110,13 @@ describe('mods', () => {
     const panel = { id: 'main', title: { en: 'Main' }, page: 'panel/index.html' }
     const open = (value: string, slot = 'agent.tools') => ({ items: [{ slot, id: 'open', label: { en: 'Open' }, action: { 'panel.open': value } }] })
     expect(keys({ ...base, contributes: { panels: [panel], ...open('main') } })).toEqual([])
-    expect(keys({ ...base, contributes: { panels: [panel], ...open('other') } })).toEqual(['mods.unknownPanel'])
-    expect(keys({ ...base, contributes: { panels: [panel], ...open('main', 'menu.squadron') } })).toEqual(['mods.needsAgent'])
+    expect(keys({ ...base, contributes: { panels: [panel], ...open('other') } })).toEqual(['extensions.unknownPanel'])
+    expect(keys({ ...base, contributes: { panels: [panel], ...open('main', 'menu.squadron') } })).toEqual(['extensions.needsAgent'])
     for (const page of ['/etc/x.html', '../x.html', 'panel/x.js', 'a//b.html'])
-      expect(keys({ ...base, contributes: { panels: [{ ...panel, page }] } })).toEqual(['mods.badPanels'])
-    expect(keys({ ...base, contributes: { panels: [panel, panel] } })).toEqual(['mods.badPanels'])
+      expect(keys({ ...base, contributes: { panels: [{ ...panel, page }] } })).toEqual(['extensions.badPanels'])
+    expect(keys({ ...base, contributes: { panels: [panel, panel] } })).toEqual(['extensions.badPanels'])
     const found = [{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels: [panel] } }, error: null }]
-    expect(panelsOf(load(found, [])).map((p) => p.key)).toEqual(['mod:p.main'])
+    expect(panelsOf(load(found, [])).map((p) => p.key)).toEqual(['extension:p.main'])
     expect(panelsOf(load(found, ['p']))).toEqual([])
   })
 
@@ -125,9 +125,9 @@ describe('mods', () => {
     const net = { ...base, permissions: { network: ['api.github.com'] }, contributes: { secrets: [{ id: 'token', label: { en: 'Token' } }] } }
     expect(keys(net)).toEqual([])
     for (const network of [['https://api.github.com'], ['api.github.com/x'], ['localhost'], 'api.github.com'])
-      expect(keys({ ...base, permissions: { network } })).toEqual(['mods.badNetwork'])
-    expect(keys({ ...base, contributes: { secrets: [{ id: 'Token', label: { en: 'T' } }] } })).toEqual(['mods.badSecrets'])
-    expect(keys({ ...base, contributes: { secrets: [{ id: 't', label: { en: 'T' } }, { id: 't', label: { en: 'U' } }] } })).toEqual(['mods.badSecrets'])
+      expect(keys({ ...base, permissions: { network } })).toEqual(['extensions.badNetwork'])
+    expect(keys({ ...base, contributes: { secrets: [{ id: 'Token', label: { en: 'T' } }] } })).toEqual(['extensions.badSecrets'])
+    expect(keys({ ...base, contributes: { secrets: [{ id: 't', label: { en: 'T' } }, { id: 't', label: { en: 'U' } }] } })).toEqual(['extensions.badSecrets'])
     const found = [{ dir: '/m/gh', linked: false, manifest: net, error: null }]
     expect(load(found, [], {})[0].pending).toEqual(['net:api.github.com'])
     expect(grantsOf(load(found, [], { gh: ['net:api.github.com'] })[0])).toEqual(['net:api.github.com'])

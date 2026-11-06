@@ -7,7 +7,7 @@ edition = "2024"
 crate-type = ["cdylib"]
 
 [dependencies]
-squadron_mod_api = { path = "../../api" }
+squadron_extension_api = { path = "../../api" }
 
 [profile.release]
 opt-level = "s"

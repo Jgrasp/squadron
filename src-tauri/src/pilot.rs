@@ -508,7 +508,7 @@ mod tests {
         let port = serve_with_pilot(
             gate.clone(),
             pilot.clone(),
-            crate::modtools::Tools::new("token".into(), |_| {}),
+            crate::extension_tools::Tools::new("token".into(), |_| {}),
             axum::Router::new(),
         )
         .await

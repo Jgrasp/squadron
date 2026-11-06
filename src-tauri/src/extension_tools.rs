@@ -21,7 +21,7 @@ const MAX_OUTPUT: usize = 30_000;
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<(bool, String)>>>>;
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
-pub struct ModTool {
+pub struct ExtensionTool {
     pub name: String,
     pub description: String,
     #[serde(default)]
@@ -31,7 +31,7 @@ pub struct ModTool {
 #[derive(Clone)]
 pub struct Tools {
     token: String,
-    list: Arc<Mutex<Vec<ModTool>>>,
+    list: Arc<Mutex<Vec<ExtensionTool>>>,
     peers: Arc<Mutex<Vec<Peer<RoleServer>>>>,
     sinks: Arc<Mutex<Vec<SubscriptionSink>>>,
     pending: Pending,
@@ -52,7 +52,7 @@ impl Tools {
         }
     }
 
-    pub async fn set(&self, tools: Vec<ModTool>) {
+    pub async fn set(&self, tools: Vec<ExtensionTool>) {
         {
             let mut list = self.list.lock().unwrap();
             if *list == tools {
@@ -352,7 +352,7 @@ mod tests {
                     .unwrap();
             }
         });
-        let dir = std::env::temp_dir().join("squadron-modtools-test");
+        let dir = std::env::temp_dir().join("squadron-extension-tools-test");
         let _ = std::fs::remove_dir_all(&dir);
         std::fs::create_dir_all(&dir).unwrap();
         let options = Options {
@@ -379,13 +379,13 @@ mod tests {
         session.send("Reply with the word ready.").unwrap();
         rx.recv_timeout(Duration::from_secs(240)).unwrap();
         tools
-            .set(vec![ModTool {
+            .set(vec![ExtensionTool {
                 name: "probe_secret".into(),
                 description: "Returns the secret word.".into(),
                 input: None,
             }])
             .await;
-        session.send("Call the tool mcp__squadron-mods__probe_secret (load it with ToolSearch first if it is deferred) and tell me the secret word.").unwrap();
+        session.send("Call the tool mcp__squadron-extensions__probe_secret (load it with ToolSearch first if it is deferred) and tell me the secret word.").unwrap();
         let result = rx.recv_timeout(Duration::from_secs(240)).unwrap();
         println!(
             "RESULT {}",

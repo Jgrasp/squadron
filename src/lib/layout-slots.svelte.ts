@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { english, locale, t } from './i18n/index.svelte'
-import { text } from './mods'
-import { modItem, modItems, shownLabel } from './mods.svelte'
+import { text } from './extensions'
+import { extensionItem, extensionItems, shownLabel } from './extensions.svelte'
 import { arrange, movedAmong, SLOTS, type Arrangement, type Slot } from './slots'
 
 export const arrangement = $state<Record<string, Arrangement>>({})
@@ -19,7 +19,7 @@ export async function loadLayout() {
 const known = (slot: Slot) => {
   const ids = SLOTS[slot].items.map(([id]) => id)
   const last = SLOTS[slot].last ?? []
-  return [...ids.filter((id) => !last.includes(id)), ...modItems(slot).map((i) => i.key), ...last]
+  return [...ids.filter((id) => !last.includes(id)), ...extensionItems(slot).map((i) => i.key), ...last]
 }
 
 export const all = (slot: Slot) => arrange(known(slot), arrangement[slot]?.order)
@@ -30,15 +30,15 @@ export const shown = (slot: Slot) => all(slot).filter((id) => !hidden(slot, id))
 
 const itemOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)
 
-const modText = (slot: Slot, id: string, tr: typeof t, field: 'label' | 'hint') => {
-  if (field === 'label' && modItem(slot, id) && shownLabel(id)) return shownLabel(id)!
-  const value = modItem(slot, id)?.[field]
+const extensionText = (slot: Slot, id: string, tr: typeof t, field: 'label' | 'hint') => {
+  if (field === 'label' && extensionItem(slot, id) && shownLabel(id)) return shownLabel(id)!
+  const value = extensionItem(slot, id)?.[field]
   return value && text(value, tr === english ? 'en' : locale())
 }
 
 export const labelOf = (slot: Slot, id: string, tr = t) => {
-  const mod = modText(slot, id, tr, 'label')
-  if (mod) return mod
+  const extension = extensionText(slot, id, tr, 'label')
+  if (extension) return extension
   const key = itemOf(slot, id)?.[1]
   return key ? tr(key) : id
 }
@@ -74,7 +74,7 @@ export function reset(slot?: Slot) {
 }
 
 export const detailOf = (slot: Slot, id: string, tr = t) => {
-  if (modItem(slot, id)) return modText(slot, id, tr, 'hint') ?? ''
+  if (extensionItem(slot, id)) return extensionText(slot, id, tr, 'hint') ?? ''
   const key = itemOf(slot, id)?.[2]
   return key ? tr(key) : ''
 }

@@ -4,7 +4,7 @@ use std::time::{Duration, SystemTime};
 
 const MAX_MANIFEST: u64 = 256 * 1024;
 
-pub struct Mods {
+pub struct Extensions {
     pub dir: PathBuf,
     pub file: PathBuf,
 }
@@ -29,12 +29,12 @@ pub struct Found {
 
 #[derive(Serialize, Debug)]
 pub struct Listing {
-    pub mods: Vec<Found>,
+    pub extensions: Vec<Found>,
     pub disabled: Vec<String>,
     pub approved: std::collections::BTreeMap<String, Vec<String>>,
 }
 
-impl Mods {
+impl Extensions {
     pub fn choices(&self) -> Choices {
         std::fs::read_to_string(&self.file)
             .ok()
@@ -76,7 +76,7 @@ impl Mods {
     pub fn list(&self) -> Listing {
         let choices = self.choices();
         Listing {
-            mods: self
+            extensions: self
                 .folders(&choices)
                 .into_iter()
                 .map(|(dir, linked)| read(&dir, linked))
@@ -87,8 +87,8 @@ impl Mods {
     }
 
     pub fn link(&self, path: &str) -> Result<(), String> {
-        if !Path::new(path).join("mod.json").is_file() {
-            return Err("This folder has no mod.json.".into());
+        if !Path::new(path).join("extension.json").is_file() {
+            return Err("This folder has no extension.json.".into());
         }
         let mut choices = self.choices();
         if !choices.folders.iter().any(|f| f == path) {
@@ -126,7 +126,7 @@ impl Mods {
         };
         let mut seen = vec![(self.file.clone(), modified(&self.file))];
         for (dir, _) in self.folders(&self.choices()) {
-            let file = dir.join("mod.json");
+            let file = dir.join("extension.json");
             seen.push((file.clone(), modified(&file)));
             let wasm = std::fs::read_to_string(&file)
                 .ok()
@@ -167,7 +167,7 @@ impl Mods {
             return None;
         }
         let found = listing
-            .mods
+            .extensions
             .into_iter()
             .find(|f| f.manifest.as_ref().and_then(|m| m["id"].as_str()) == Some(id))?;
         let root = Path::new(&found.dir).canonicalize().ok()?;
@@ -205,9 +205,9 @@ impl Mods {
     }
 }
 
-const KIT_JS: &str = include_str!("../../mods/kit/kit.js");
-const KIT_CSS: &str = include_str!("../../mods/kit/kit.css");
-const PANEL_CSP: &str = "default-src 'self' mod: http://mod.localhost data: blob: 'unsafe-inline'; connect-src 'none'; form-action 'none'";
+const KIT_JS: &str = include_str!("../../extensions/kit/kit.js");
+const KIT_CSS: &str = include_str!("../../extensions/kit/kit.css");
+const PANEL_CSP: &str = "default-src 'self' extension: http://extension.localhost data: blob: 'unsafe-inline'; connect-src 'none'; form-action 'none'";
 
 fn inject(html: &str) -> String {
     let tag = r#"<script src="/_squadron/kit.js"></script>"#;
@@ -223,14 +223,15 @@ fn inject(html: &str) -> String {
 }
 
 pub fn read(dir: &Path, linked: bool) -> Found {
-    let file = dir.join("mod.json");
+    let file = dir.join("extension.json");
     let manifest = match std::fs::metadata(&file) {
-        Err(_) => Err("mod.json is missing.".to_string()),
-        Ok(m) if m.len() > MAX_MANIFEST => Err("mod.json is larger than 256 KB.".to_string()),
+        Err(_) => Err("extension.json is missing.".to_string()),
+        Ok(m) if m.len() > MAX_MANIFEST => Err("extension.json is larger than 256 KB.".to_string()),
         Ok(_) => std::fs::read_to_string(&file)
             .map_err(|e| e.to_string())
             .and_then(|text| {
-                serde_json::from_str(&text).map_err(|e| format!("mod.json is not valid JSON: {e}"))
+                serde_json::from_str(&text)
+                    .map_err(|e| format!("extension.json is not valid JSON: {e}"))
             }),
     };
     let (manifest, error) = match manifest {
@@ -249,20 +250,21 @@ pub fn read(dir: &Path, linked: bool) -> Found {
 mod tests {
     use super::*;
 
-    fn mods() -> Mods {
-        let root = std::env::temp_dir().join(format!("squadron-mods-{}", uuid::Uuid::new_v4()));
-        std::fs::create_dir_all(root.join("mods")).unwrap();
-        Mods {
-            dir: root.join("mods"),
-            file: root.join("mods.json"),
+    fn extensions() -> Extensions {
+        let root =
+            std::env::temp_dir().join(format!("squadron-extensions-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(root.join("extensions")).unwrap();
+        Extensions {
+            dir: root.join("extensions"),
+            file: root.join("extensions.json"),
         }
     }
 
     #[test]
-    fn serves_the_pages_of_enabled_mods_only() {
-        let m = mods();
+    fn serves_the_pages_of_enabled_extensions_only() {
+        let m = extensions();
         std::fs::create_dir_all(m.dir.join("good/panel")).unwrap();
-        std::fs::write(m.dir.join("good/mod.json"), r#"{"id":"good"}"#).unwrap();
+        std::fs::write(m.dir.join("good/extension.json"), r#"{"id":"good"}"#).unwrap();
         std::fs::write(
             m.dir.join("good/panel/index.html"),
             "<!doctype html><html><head><title>x</title></head></html>",
@@ -307,20 +309,20 @@ mod tests {
 
     #[test]
     fn lists_installed_and_linked_folders_with_their_manifest_or_error() {
-        let m = mods();
+        let m = extensions();
         std::fs::create_dir_all(m.dir.join("good")).unwrap();
-        std::fs::write(m.dir.join("good/mod.json"), r#"{"id":"good"}"#).unwrap();
+        std::fs::write(m.dir.join("good/extension.json"), r#"{"id":"good"}"#).unwrap();
         std::fs::create_dir_all(m.dir.join("broken")).unwrap();
-        std::fs::write(m.dir.join("broken/mod.json"), "{").unwrap();
+        std::fs::write(m.dir.join("broken/extension.json"), "{").unwrap();
         std::fs::create_dir_all(m.dir.join(".hidden")).unwrap();
         let linked = m.dir.parent().unwrap().join("dev");
         std::fs::create_dir_all(&linked).unwrap();
         assert!(m.link(&linked.to_string_lossy()).is_err());
-        std::fs::write(linked.join("mod.json"), r#"{"id":"dev"}"#).unwrap();
+        std::fs::write(linked.join("extension.json"), r#"{"id":"dev"}"#).unwrap();
         m.link(&linked.to_string_lossy()).unwrap();
         m.link(&linked.to_string_lossy()).unwrap();
 
-        let list = m.list().mods;
+        let list = m.list().extensions;
         assert_eq!(list.len(), 3);
         assert!(
             list[0].dir.ends_with("broken")
@@ -328,18 +330,18 @@ mod tests {
                     .error
                     .as_deref()
                     .unwrap()
-                    .starts_with("mod.json is not valid JSON")
+                    .starts_with("extension.json is not valid JSON")
         );
         assert_eq!(list[1].manifest.as_ref().unwrap()["id"], "good");
         assert!(list[2].linked && list[2].manifest.as_ref().unwrap()["id"] == "dev");
 
         m.unlink(&linked.to_string_lossy()).unwrap();
-        assert_eq!(m.list().mods.len(), 2);
+        assert_eq!(m.list().extensions.len(), 2);
     }
 
     #[test]
-    fn remembers_disabled_mods_once() {
-        let m = mods();
+    fn remembers_disabled_extensions_once() {
+        let m = extensions();
         m.enable("lando", false).unwrap();
         m.enable("lando", false).unwrap();
         assert_eq!(m.list().disabled, vec!["lando"]);
@@ -349,7 +351,7 @@ mod tests {
 
     #[test]
     fn an_approval_replaces_the_previous_one() {
-        let m = mods();
+        let m = extensions();
         m.approve("lando", vec!["lando logs".into()]).unwrap();
         m.approve("lando", vec!["lando info".into()]).unwrap();
         assert_eq!(m.list().approved["lando"], vec!["lando info"]);
@@ -357,10 +359,10 @@ mod tests {
 
     #[test]
     fn a_change_to_a_manifest_changes_the_stamp() {
-        let m = mods();
+        let m = extensions();
         std::fs::create_dir_all(m.dir.join("a")).unwrap();
         let before = m.stamp();
-        std::fs::write(m.dir.join("a/mod.json"), "{}").unwrap();
+        std::fs::write(m.dir.join("a/extension.json"), "{}").unwrap();
         assert_ne!(before, m.stamp());
     }
 }

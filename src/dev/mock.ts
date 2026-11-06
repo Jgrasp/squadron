@@ -1051,13 +1051,13 @@ mockIPC(
       case 'set_layout':
         localStorage.setItem('layout', JSON.stringify((args as { layout: unknown }).layout))
         return
-      case 'mods_list':
+      case 'extensions_list':
         return {
-          disabled: JSON.parse(localStorage.getItem('mods-disabled') ?? '[]'),
-          approved: JSON.parse(localStorage.getItem('mods-approved') ?? '{}'),
-          mods: [
+          disabled: JSON.parse(localStorage.getItem('extensions-disabled') ?? '[]'),
+          approved: JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'),
+          extensions: [
             {
-              dir: '/home/demo/.config/dev.squadron.desktop/mods/lando',
+              dir: '/home/demo/.config/dev.squadron.desktop/extensions/lando',
               linked: false,
               error: null,
               manifest: {
@@ -1076,23 +1076,23 @@ mockIPC(
                 },
               },
             },
-            { dir: '/home/demo/code/sentry-mod', linked: true, error: null, manifest: { id: 'sentry', version: '0.1.0', api: 1, name: { en: 'Sentry' }, contributes: { items: [{ slot: 'agent.info', id: 'x', label: { en: 'X' }, action: { squadron: 'kanban' } }] } } },
+            { dir: '/home/demo/code/sentry-extension', linked: true, error: null, manifest: { id: 'sentry', version: '0.1.0', api: 1, name: { en: 'Sentry' }, contributes: { items: [{ slot: 'agent.info', id: 'x', label: { en: 'X' }, action: { squadron: 'kanban' } }] } } },
           ],
         }
-      case 'mods_approve': {
+      case 'extensions_approve': {
         const { id, commands } = args as { id: string; commands: string[] }
-        localStorage.setItem('mods-approved', JSON.stringify({ ...JSON.parse(localStorage.getItem('mods-approved') ?? '{}'), [id]: commands }))
+        localStorage.setItem('extensions-approved', JSON.stringify({ ...JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'), [id]: commands }))
         return
       }
-      case 'mods_set_tools':
-      case 'mods_wasm_event':
+      case 'extensions_set_tools':
+      case 'extensions_wasm_event':
         return
-      case 'mods_wasm_sync':
+      case 'extensions_wasm_sync':
         return {}
-      case 'mods_enable': {
+      case 'extensions_enable': {
         const { id, on } = args as { id: string; on: boolean }
-        const off = JSON.parse(localStorage.getItem('mods-disabled') ?? '[]').filter((d: string) => d !== id)
-        localStorage.setItem('mods-disabled', JSON.stringify(on ? off : [...off, id]))
+        const off = JSON.parse(localStorage.getItem('extensions-disabled') ?? '[]').filter((d: string) => d !== id)
+        localStorage.setItem('extensions-disabled', JSON.stringify(on ? off : [...off, id]))
         return
       }
       case 'detect_editors':

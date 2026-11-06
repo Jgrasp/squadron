@@ -1,4 +1,4 @@
-use squadron_mod_api::{Agent, Mod, Request, host, squadron_mod};
+use squadron_extension_api::{Agent, Extension, Request, host, squadron_extension};
 
 struct Hello;
 
@@ -17,7 +17,7 @@ fn add() {
     show(next);
 }
 
-impl Mod for Hello {
+impl Extension for Hello {
     fn on_event(name: String, agent: Option<Agent>, data: String) {
         match (name.as_str(), agent) {
             ("started", _) => host::set_badge("count", Some(&count().to_string())),
@@ -74,4 +74,4 @@ impl Mod for Hello {
     }
 }
 
-squadron_mod!(Hello);
+squadron_extension!(Hello);

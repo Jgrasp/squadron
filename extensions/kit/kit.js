@@ -1,7 +1,7 @@
 ;(() => {
   const listeners = []
   window.squadron = {
-    send: (message) => parent.postMessage({ squadron: 'mod', message }, '*'),
+    send: (message) => parent.postMessage({ squadron: 'extension', message }, '*'),
     on: (listener) => listeners.push(listener),
   }
   addEventListener('message', (e) => {

@@ -2,8 +2,8 @@
   import { invoke } from '@tauri-apps/api/core'
   import { open } from '@tauri-apps/plugin-dialog'
   import { errorText, locale, t } from './i18n/index.svelte'
-  import { text, type Mod } from './mods'
-  import { approve, commandLine, loadMods, mods } from './mods.svelte'
+  import { text, type Extension } from './extensions'
+  import { approve, commandLine, loadExtensions, extensions } from './extensions.svelte'
   import { home } from './projects.svelte'
 
   let error = $state('')
@@ -12,32 +12,32 @@
     error = ''
     try {
       await job()
-      await loadMods()
+      await loadExtensions()
     } catch (e) {
       error = errorText(e)
     }
   }
 
   async function add() {
-    const path = await open({ directory: true, title: t('mods.addTitle') })
-    if (typeof path === 'string') attempt(() => invoke('mods_link', { path }))
+    const path = await open({ directory: true, title: t('extensions.addTitle') })
+    if (typeof path === 'string') attempt(() => invoke('extensions_link', { path }))
   }
 
-  const enable = (m: Mod, on: boolean) => attempt(() => invoke('mods_enable', { id: m.id, on }))
-  const unlink = (m: Mod) => attempt(() => invoke('mods_unlink', { path: m.dir }))
+  const enable = (m: Extension, on: boolean) => attempt(() => invoke('extensions_enable', { id: m.id, on }))
+  const unlink = (m: Extension) => attempt(() => invoke('extensions_unlink', { path: m.dir }))
 
   let set = $state<Record<string, string[]>>({})
   let typed = $state<Record<string, string>>({})
 
   $effect(() => {
-    for (const m of mods.list) {
+    for (const m of extensions.list) {
       const names = (m.manifest?.contributes?.secrets ?? []).map((s) => s.id)
-      if (names.length) invoke<string[]>('mods_secrets', { id: m.id, names }).then((found) => (set[m.id] = found), (e) => (error = errorText(e)))
+      if (names.length) invoke<string[]>('extensions_secrets', { id: m.id, names }).then((found) => (set[m.id] = found), (e) => (error = errorText(e)))
     }
   })
 
-  async function keep(m: Mod, name: string, value: string | null) {
-    await attempt(() => invoke('mods_secret_set', { id: m.id, name, value }))
+  async function keep(m: Extension, name: string, value: string | null) {
+    await attempt(() => invoke('extensions_secret_set', { id: m.id, name, value }))
     if (!error) {
       set[m.id] = value === null ? (set[m.id] ?? []).filter((n) => n !== name) : [...new Set([...(set[m.id] ?? []), name])]
       typed[`${m.id}.${name}`] = ''
@@ -45,29 +45,29 @@
   }
 </script>
 
-<p class="intro">{t('mods.intro')}</p>
+<p class="intro">{t('extensions.intro')}</p>
 <div class="row">
-  <button class="btn btn-secondary" onclick={add}>{t('mods.add')}</button>
-  <button class="btn btn-secondary" onclick={() => attempt(() => invoke('open_mods_folder'))}>{t('mods.openFolder')}</button>
+  <button class="btn btn-secondary" onclick={add}>{t('extensions.add')}</button>
+  <button class="btn btn-secondary" onclick={() => attempt(() => invoke('open_extensions_folder'))}>{t('extensions.openFolder')}</button>
 </div>
-{#if !mods.list.length}
-  <p class="empty">{t('mods.none')}</p>
+{#if !extensions.list.length}
+  <p class="empty">{t('extensions.none')}</p>
 {/if}
 <ul>
-  {#each mods.list as m (m.dir)}
+  {#each extensions.list as m (m.dir)}
     <li class:off={!m.enabled || !m.manifest}>
       <label class="who">
         <input type="checkbox" checked={m.enabled && !!m.manifest} disabled={!m.manifest} onchange={(e) => enable(m, e.currentTarget.checked)} />
         <span>
           <strong>{m.manifest ? text(m.manifest.name, locale()) : m.id}{#if m.manifest}<span class="version">{m.manifest.version}</span>{/if}</strong>
           {#if m.manifest?.description}<small>{text(m.manifest.description, locale())}</small>{/if}
-          <small class="mono">{home(m.dir)}{m.linked ? ` · ${t('mods.linked')}` : ''}</small>
+          <small class="mono">{home(m.dir)}{m.linked ? ` · ${t('extensions.linked')}` : ''}</small>
           {#each m.problems as [key, values], i (i)}
             <small class="bad">{t(key, values)}</small>
           {/each}
-          {#if m.enabled && mods.errors[m.id]}<small class="bad">{mods.errors[m.id]}</small>{/if}
+          {#if m.enabled && extensions.errors[m.id]}<small class="bad">{extensions.errors[m.id]}</small>{/if}
           {#if m.manifest?.contributes?.tools?.length}
-            <small>{t('mods.tools', { tools: m.manifest.contributes.tools.map((tool) => `${m.id}_${tool.name}`).join(', ') })}</small>
+            <small>{t('extensions.tools', { tools: m.manifest.contributes.tools.map((tool) => `${m.id}_${tool.name}`).join(', ') })}</small>
           {/if}
         </span>
       </label>
@@ -77,14 +77,14 @@
     </li>
     {#if m.enabled && m.manifest?.contributes?.secrets?.length}
       <li class="secrets">
-        <small>{t('mods.secretHint')}</small>
+        <small>{t('extensions.secretHint')}</small>
         {#each m.manifest.contributes.secrets as s (s.id)}
           {@const key = `${m.id}.${s.id}`}
           {@const saved = set[m.id]?.includes(s.id)}
           <form onsubmit={(e) => (e.preventDefault(), keep(m, s.id, typed[key]))}>
             <span>
               <strong>{text(s.label, locale())}</strong>
-              <small>{saved ? t('mods.secretSet') : t('mods.secretUnset')}{s.hint ? ` · ${text(s.hint, locale())}` : ''}</small>
+              <small>{saved ? t('extensions.secretSet') : t('extensions.secretUnset')}{s.hint ? ` · ${text(s.hint, locale())}` : ''}</small>
             </span>
             <input class="field mono" type="password" autocomplete="off" spellcheck="false" aria-label={text(s.label, locale())} bind:value={typed[key]} />
             <button class="btn btn-primary" disabled={!typed[key]?.trim()}>{t('common.save')}</button>
@@ -98,13 +98,13 @@
     {#if m.manifest && m.pending.length}
       <li class="ask">
         <span class="who">
-          <strong>{t('mods.pending', { name: text(m.manifest.name, locale()) })}</strong>
-          <small>{t('mods.pendingHint')}</small>
+          <strong>{t('extensions.pending', { name: text(m.manifest.name, locale()) })}</strong>
+          <small>{t('extensions.pendingHint')}</small>
           {#each m.commands as command (command)}
             <code class:new={m.pending.includes(command)}>{commandLine(command)}</code>
           {/each}
         </span>
-        <button class="btn btn-primary" onclick={() => attempt(() => approve(m))}>{t('mods.allow')}</button>
+        <button class="btn btn-primary" onclick={() => attempt(() => approve(m))}>{t('extensions.allow')}</button>
       </li>
     {/if}
   {/each}
