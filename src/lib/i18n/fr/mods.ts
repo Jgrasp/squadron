@@ -37,7 +37,7 @@ export default {
   tools: 'Outils pour les agents : {tools}',
   pending: '{name} veut lancer ces commandes',
   pendingHint: 'Tant que vous ne les autorisez pas, ses boutons demandent d’abord et ses outils restent cachés aux agents. Une commande nouvelle ou modifiée redemande l’accord.',
-  askTitle: 'Autoriser les commandes de ce mod ?',
+  askTitle: 'Autoriser les commandes de {name} ?',
   askText: '{name} veut lancer ces commandes dans votre terminal et les proposer à vos agents. Elles tournent avec vos droits.',
   later: 'Plus tard',
   allow: 'Autoriser',

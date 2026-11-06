@@ -29,8 +29,9 @@ const asked = new Set<string>()
 
 export async function requestApproval(mod: Mod) {
   if (!mod.manifest) return false
-  const yes = await ask(t('mods.askText', { name: text(mod.manifest.name, locale()) }), {
-    title: t('mods.askTitle'),
+  const name = text(mod.manifest.name, locale())
+  const yes = await ask(t('mods.askText', { name }), {
+    title: t('mods.askTitle', { name }),
     kind: 'warning',
     okLabel: t('mods.allow'),
     cancelLabel: t('mods.later'),

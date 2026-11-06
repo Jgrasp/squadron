@@ -36,7 +36,7 @@ export default {
   tools: 'Tools for agents: {tools}',
   pending: '{name} wants to run these commands',
   pendingHint: 'Until you allow them, its buttons ask first and its tools stay hidden from agents. A new or changed command asks again.',
-  askTitle: 'Allow the commands of this mod?',
+  askTitle: 'Allow the commands of {name}?',
   askText: '{name} wants to run these commands in your terminal and offer them to your agents. They run with your rights.',
   later: 'Later',
   allow: 'Allow',
