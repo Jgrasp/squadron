@@ -8,22 +8,26 @@ export type ModAction = { 'terminal.run': string } | { 'prompt.insert': string }
 
 export type ModItem = { slot: Slot; id: string; label: Text; hint?: Text; icon?: string; action: ModAction }
 
+export type ModTool = { name: string; description: string; command: string }
+
 export type Manifest = {
   id: string
   version: string
   api: 1
   name: Text
   description?: Text
-  contributes?: { items?: ModItem[]; theme?: Record<string, string> }
+  contributes?: { items?: ModItem[]; tools?: ModTool[]; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
 
 export type Problem = [Key, Params?]
 
-export type Mod = { dir: string; linked: boolean; id: string; enabled: boolean; manifest?: Manifest; problems: Problem[] }
+export type Mod = { dir: string; linked: boolean; id: string; enabled: boolean; manifest?: Manifest; problems: Problem[]; commands: string[]; pending: string[] }
 
-export type Item = ModItem & { key: string; mod: string }
+export type Item = ModItem & { key: string; mod: string; allowed: boolean }
+
+export type Exposed = ModTool & { mod: string }
 
 export const MOD_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squadron']
 
@@ -32,6 +36,10 @@ export const ICONS = ['editor', 'pull', 'terminal', 'diff', 'kanban', 'remote', 
 const NEEDS_AGENT = ['terminal.run', 'prompt.insert']
 
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
+
+const TOOL = /^[a-z0-9_]{1,40}$/
+
+const oneLine = (v: unknown) => typeof v === 'string' && !!v.trim() && !/[\x00-\x1f\x7f]/.test(v)
 
 const COLOR = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d.,%\s/]+\))$/i
 
@@ -46,7 +54,7 @@ function actionProblem(action: unknown, slot: Slot): Problem | null {
   const [kind, value] = Object.entries(action)[0]
   if (typeof value !== 'string' || !value.trim()) return ['mods.badAction']
   if (NEEDS_AGENT.includes(kind) && slot === 'menu.squadron') return ['mods.needsAgent', { action: kind }]
-  if (kind === 'terminal.run') return /[\x00-\x1f\x7f]/.test(value) ? ['mods.badCommand'] : null
+  if (kind === 'terminal.run') return oneLine(value) ? null : ['mods.badCommand']
   if (kind === 'prompt.insert') return null
   if (kind === 'url.open') return /^https:\/\/\S+$/.test(value) ? null : ['mods.badUrl']
   if (kind === 'squadron') return ACTIONS.some(([id]) => id === value) ? null : ['mods.badSquadron', { action: value }]
@@ -83,6 +91,20 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
         if (wrong) problems.push([wrong[0], { ...at, ...wrong[1] }])
       })
     }
+    const tools = contributes.tools ?? []
+    if (!Array.isArray(tools)) problems.push(['mods.badTools'])
+    else {
+      const seen: string[] = []
+      tools.forEach((tool, index) => {
+        const at = { tool: isObject(tool) && typeof tool.name === 'string' ? tool.name : `#${index + 1}` }
+        if (!isObject(tool)) return problems.push(['mods.badTool', at])
+        if (typeof tool.name !== 'string' || !TOOL.test(tool.name)) problems.push(['mods.badToolName', at])
+        else if (seen.includes(tool.name)) problems.push(['mods.twiceTool', at])
+        else seen.push(tool.name)
+        if (typeof tool.description !== 'string' || !tool.description.trim()) problems.push(['mods.noToolDescription', at])
+        if (!oneLine(tool.command)) problems.push(['mods.badToolCommand', at])
+      })
+    }
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))
       problems.push(['mods.badTheme'])
@@ -90,19 +112,36 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   return problems.length ? { problems } : { manifest: raw as Manifest, problems }
 }
 
-export function load(found: Found[], disabled: string[]): Mod[] {
+export const commandsOf = (manifest: Manifest) => [
+  ...new Set([
+    ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
+    ...(manifest.contributes?.tools ?? []).map((t) => t.command),
+  ]),
+]
+
+export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}): Mod[] {
   const taken: string[] = []
   return found.map(({ dir, linked, manifest: raw, error }) => {
     const id = isObject(raw) && typeof raw.id === 'string' ? raw.id : (dir.split(/[\\/]/).pop() ?? dir)
     const { manifest, problems } = error ? { manifest: undefined, problems: [['mods.unreadable', { error }] as Problem] } : validate(raw, taken)
     if (manifest) taken.push(manifest.id)
-    return { dir, linked, id, enabled: !disabled.includes(id), manifest, problems }
+    const commands = manifest ? commandsOf(manifest) : []
+    return { dir, linked, id, enabled: !disabled.includes(id), manifest, problems, commands, pending: commands.filter((c) => !approved[id]?.includes(c)) }
   })
 }
 
 export const active = (mods: Mod[]) => mods.filter((m): m is Mod & { manifest: Manifest } => m.enabled && !!m.manifest)
 
 export const itemsOf = (mods: Mod[], slot: Slot): Item[] =>
-  active(mods).flatMap((m) => (m.manifest.contributes?.items ?? []).filter((i) => i.slot === slot).map((i) => ({ ...i, key: `${m.manifest.id}.${i.id}`, mod: m.manifest.id })))
+  active(mods).flatMap((m) =>
+    (m.manifest.contributes?.items ?? [])
+      .filter((i) => i.slot === slot)
+      .map((i) => ({ ...i, key: `${m.manifest.id}.${i.id}`, mod: m.manifest.id, allowed: !('terminal.run' in i.action) || !m.pending.includes(i.action['terminal.run']) })),
+  )
+
+export const toolsOf = (mods: Mod[]): Exposed[] =>
+  active(mods).flatMap((m) =>
+    (m.manifest.contributes?.tools ?? []).filter((t) => !m.pending.includes(t.command)).map((t) => ({ ...t, name: `${m.manifest.id}_${t.name}`, mod: m.manifest.id })),
+  )
 
 export const themeOf = (mods: Mod[]) => Object.assign({}, ...active(mods).map((m) => m.manifest.contributes?.theme ?? {})) as Record<string, string>

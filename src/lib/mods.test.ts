@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { itemsOf, load, themeOf, validate } from './mods'
+import { itemsOf, load, themeOf, toolsOf, validate } from './mods'
 
 const lando = {
   id: 'lando',
@@ -11,6 +11,7 @@ const lando = {
       { slot: 'agent.tools', id: 'logs', label: { en: 'Logs', fr: 'Journaux' }, icon: 'terminal', action: { 'terminal.run': 'lando logs -f' } },
       { slot: 'menu.squadron', id: 'docs', label: { en: 'Lando docs' }, action: { 'url.open': 'https://docs.lando.dev' } },
     ],
+    tools: [{ name: 'logs', description: 'Last lines of the Lando logs', command: 'lando logs --tail 200' }],
     theme: { accent: '#4fa3e0' },
   },
 }
@@ -57,5 +58,24 @@ describe('mods', () => {
     expect(itemsOf(mods, 'agent.tools').map((i) => i.key)).toEqual(['lando.logs'])
     expect(themeOf(mods)).toEqual({ accent: '#4fa3e0' })
     expect(itemsOf(load([found('/m/lando', lando)], ['lando']), 'agent.tools')).toEqual([])
+  })
+
+  it('checks the tools offered to agents', () => {
+    const tool = (extra: object) => keys({ ...lando, contributes: { tools: [{ name: 'logs', description: 'Logs', command: 'lando logs', ...extra }] } })
+    expect(tool({})).toEqual([])
+    expect(tool({ name: 'Logs!' })).toEqual(['mods.badToolName'])
+    expect(tool({ description: ' ' })).toEqual(['mods.noToolDescription'])
+    expect(tool({ command: 'a\nb' })).toEqual(['mods.badToolCommand'])
+  })
+
+  it('runs commands and offers tools only once the user allowed them', () => {
+    const found = [{ dir: '/m/lando', linked: false, manifest: lando, error: null }]
+    const waiting = load(found, [], { lando: ['lando logs -f'] })
+    expect(waiting[0].pending).toEqual(['lando logs --tail 200'])
+    expect(itemsOf(waiting, 'agent.tools')[0].allowed).toBe(true)
+    expect(toolsOf(waiting)).toEqual([])
+    const allowed = load(found, [], { lando: ['lando logs -f', 'lando logs --tail 200'] })
+    expect(toolsOf(allowed).map((t) => t.name)).toEqual(['lando_logs'])
+    expect(itemsOf(load(found, [], {}), 'agent.tools')[0].allowed).toBe(false)
   })
 })

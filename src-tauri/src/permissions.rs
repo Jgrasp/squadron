@@ -153,12 +153,14 @@ async fn listen(router: axum::Router) -> std::io::Result<u16> {
 pub async fn serve_with_pilot(
     gate: Gate,
     pilot: crate::pilot::Pilot,
+    mods: crate::modtools::Tools,
     askpass: axum::Router,
 ) -> std::io::Result<u16> {
     listen(
         axum::Router::new()
             .nest_service("/mcp", service(gate))
             .nest_service("/pilot", service(pilot))
+            .nest_service("/mods", service(mods))
             .nest_service("/askpass", askpass),
     )
     .await
@@ -177,7 +179,7 @@ pub fn mcp_config(port: u16, token: &str, agent: &str, pilot: bool) -> String {
             "timeout": i32::MAX,
         })
     };
-    let mut servers = json!({"squadron": server("mcp")});
+    let mut servers = json!({"squadron": server("mcp"), "squadron-mods": server("mods")});
     if pilot {
         servers["squadron-pilot"] = server("pilot");
     }

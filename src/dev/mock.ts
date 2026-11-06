@@ -1054,6 +1054,7 @@ mockIPC(
       case 'mods_list':
         return {
           disabled: JSON.parse(localStorage.getItem('mods-disabled') ?? '[]'),
+          approved: JSON.parse(localStorage.getItem('mods-approved') ?? '{}'),
           mods: [
             {
               dir: '/home/demo/.config/dev.squadron.desktop/mods/lando',
@@ -1071,12 +1072,20 @@ mockIPC(
                     { slot: 'agent.menu', id: 'review', label: { en: 'Review the diff', fr: 'Relire le diff' }, hint: { en: 'Inserts a review prompt', fr: 'Insère un prompt de relecture' }, action: { 'prompt.insert': 'Review the diff and list the risks.' } },
                     { slot: 'menu.squadron', id: 'docs', label: { en: 'Lando docs', fr: 'Doc Lando' }, hint: { en: 'docs.lando.dev' }, action: { 'url.open': 'https://docs.lando.dev' } },
                   ],
+                  tools: [{ name: 'logs', description: 'Last 200 lines of the Lando logs', command: 'lando logs --tail 200' }],
                 },
               },
             },
             { dir: '/home/demo/code/sentry-mod', linked: true, error: null, manifest: { id: 'sentry', version: '0.1.0', api: 1, name: { en: 'Sentry' }, contributes: { items: [{ slot: 'agent.info', id: 'x', label: { en: 'X' }, action: { squadron: 'kanban' } }] } } },
           ],
         }
+      case 'mods_approve': {
+        const { id, commands } = args as { id: string; commands: string[] }
+        localStorage.setItem('mods-approved', JSON.stringify({ ...JSON.parse(localStorage.getItem('mods-approved') ?? '{}'), [id]: commands }))
+        return
+      }
+      case 'mods_set_tools':
+        return
       case 'mods_enable': {
         const { id, on } = args as { id: string; on: boolean }
         const off = JSON.parse(localStorage.getItem('mods-disabled') ?? '[]').filter((d: string) => d !== id)

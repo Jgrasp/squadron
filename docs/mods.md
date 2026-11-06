@@ -171,6 +171,8 @@ Le sandbox ne protège que ce que le mod ne peut pas faire. Une commande autoris
 - **`contributes.theme`** : des variables de Cuivre et des couleurs, par exemple `{ "accent": "#4fa3e0" }`.
 - **Clés des éléments** : `<mod>.<élément>`, par exemple `lando.logs`. Les éléments se rangent, se masquent et se pilotent par MCP (`get_layout`, `set_layout`) comme les éléments intégrés. Dans le menu de l'agent, ils s'insèrent avant Archiver.
 - **Erreurs** : chaque problème du manifeste s'affiche, traduit, sous le mod dans Settings › Mods. Un mod en erreur n'ajoute rien.
+- **`contributes.tools`** (étape 6a) : `[{ "name": "logs", "description": "…", "command": "lando logs --tail 200" }]`. Les agents voient l'outil `<mod>_<nom>` sur le serveur MCP `squadron-mods`, présent chez chaque agent. La commande tourne dans le dossier de l'agent, avec 120 s au plus, et l'agent reçoit les 30 000 derniers caractères de sa sortie. Claude Code demande la permission à chaque appel, comme pour tout outil. Un outil ajouté, retiré ou autorisé apparaît chez les agents déjà lancés, sans redémarrage : notification `tools/list_changed`, envoyée par `subscriptions/listen` depuis le protocole MCP 2026-07-28, et par la session pour les clients plus anciens.
+- **Accord sur les commandes** (étape 6a) : les commandes d'un mod (`terminal.run` et outils) sont listées dans Settings › Mods jusqu'à ce que l'utilisateur les autorise. Avant l'accord, un bouton tape seulement sa commande et les outils restent cachés. Après, le bouton lance la commande dans le terminal visible et les outils sont proposés. Une commande nouvelle ou modifiée redemande l'accord (`approved` dans `mods.json`).
 
 ### Distribution
 
@@ -269,7 +271,7 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 3. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M. *Fait en partie, après qu'un agent a modifié le code de Squadron pour déplacer un bouton : outils `overview`, `read_agent`, `start_agent`, `create_card`, `move_card`, `get_layout`, `set_layout`. Restent les outils de mods et le journal Activity.*
 4. **Vérifications** : IPC depuis l'iframe, `tools/list_changed`, poids de Wasmtime. Taille S. *Fait.*
 5. **Mods sans logique** : `mod.json`, éléments dans les emplacements, thème, prompts, Settings › Mods, installation d'un dossier local, chargement à chaud. Taille M. *Fait. Les prompts sont des éléments avec l'action `prompt.insert`. Les raccourcis clavier des mods restent à faire.*
-6. **Logique WASM** : Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
+6. **Logique WASM**, découpée en 6a (accord sur les commandes, commandes lancées, outils pour les agents : *fait*), 6b (Wasmtime, API, événements) et 6c (jetons et requêtes HTTP). Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
 7. **Panneaux** : schéma `mod://`, iframe isolé, `mod-kit.css`, messages entre le panneau et le WASM. Taille M.
 8. **Marketplace** : dépôt `squadron-mods`, CI de build et de publication, catalogue et installation en un clic, notification des mises à jour. Taille M.
 

@@ -11,6 +11,7 @@ pub mod forge;
 pub mod git;
 pub mod gitlab;
 pub mod mods;
+pub mod modtools;
 pub mod permissions;
 pub mod pilot;
 pub mod process;
@@ -1302,6 +1303,37 @@ fn mods_enable(mods: State<mods::Mods>, id: String, on: bool) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn mods_approve(mods: State<mods::Mods>, id: String, commands: Vec<String>) -> Result<(), String> {
+    mods.approve(&id, commands)
+}
+
+#[tauri::command]
+async fn mods_set_tools(
+    tools: State<'_, modtools::Tools>,
+    list: Vec<modtools::ModTool>,
+) -> Result<(), String> {
+    tools.set(list).await;
+    Ok(())
+}
+
+#[tauri::command]
+fn mods_tool_reply(
+    tools: State<modtools::Tools>,
+    id: String,
+    ok: bool,
+    text: String,
+) -> Result<(), String> {
+    tools.reply(&id, ok, text)
+}
+
+#[tauri::command]
+async fn mod_exec(dir: PathBuf, command: String) -> Result<(bool, String), String> {
+    tauri::async_runtime::spawn_blocking(move || modtools::exec(&dir, &command))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 fn open_mods_folder(mods: State<mods::Mods>) -> Result<(), String> {
     open_path(&mods.dir)
 }
@@ -2010,6 +2042,10 @@ pub fn run() {
             mods_link,
             mods_unlink,
             mods_enable,
+            mods_approve,
+            mods_set_tools,
+            mods_tool_reply,
+            mod_exec,
             open_mods_folder,
             send_message,
             save_attachment,
@@ -2128,12 +2164,17 @@ pub fn run() {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });
             let handle = app.handle().clone();
+            let mod_tools = modtools::Tools::new(token.clone(), move |call| {
+                let _ = handle.emit_to("main", "mods-tool", call);
+            });
+            let handle = app.handle().clone();
             let askpass = Askpass::new(token.clone(), move |question| {
                 let _ = handle.emit("askpass-request", question);
             });
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
                 gate.clone(),
                 pilot.clone(),
+                mod_tools.clone(),
                 askpass.clone().router(),
             ))?;
             let helpers = app.path().app_data_dir()?.join("bin");
@@ -2149,6 +2190,7 @@ pub fn run() {
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);
+            app.manage(mod_tools);
             Ok(())
         })
         .on_window_event(|window, event| {

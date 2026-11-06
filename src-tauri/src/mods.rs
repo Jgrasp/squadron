@@ -15,6 +15,8 @@ pub struct Choices {
     pub folders: Vec<String>,
     #[serde(default)]
     pub disabled: Vec<String>,
+    #[serde(default)]
+    pub approved: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 #[derive(Serialize, Debug)]
@@ -29,6 +31,7 @@ pub struct Found {
 pub struct Listing {
     pub mods: Vec<Found>,
     pub disabled: Vec<String>,
+    pub approved: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 impl Mods {
@@ -79,6 +82,7 @@ impl Mods {
                 .map(|(dir, linked)| read(&dir, linked))
                 .collect(),
             disabled: choices.disabled,
+            approved: choices.approved,
         }
     }
 
@@ -105,6 +109,12 @@ impl Mods {
         if !on {
             choices.disabled.push(id.to_string());
         }
+        self.save(&choices)
+    }
+
+    pub fn approve(&self, id: &str, commands: Vec<String>) -> Result<(), String> {
+        let mut choices = self.choices();
+        choices.approved.insert(id.to_string(), commands);
         self.save(&choices)
     }
 
@@ -213,6 +223,14 @@ mod tests {
         assert_eq!(m.list().disabled, vec!["lando"]);
         m.enable("lando", true).unwrap();
         assert!(m.list().disabled.is_empty());
+    }
+
+    #[test]
+    fn an_approval_replaces_the_previous_one() {
+        let m = mods();
+        m.approve("lando", vec!["lando logs".into()]).unwrap();
+        m.approve("lando", vec!["lando info".into()]).unwrap();
+        assert_eq!(m.list().approved["lando"], vec!["lando info"]);
     }
 
     #[test]

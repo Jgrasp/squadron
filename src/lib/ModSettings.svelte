@@ -3,7 +3,7 @@
   import { open } from '@tauri-apps/plugin-dialog'
   import { errorText, locale, t } from './i18n/index.svelte'
   import { text, type Mod } from './mods'
-  import { loadMods, mods } from './mods.svelte'
+  import { approve, loadMods, mods } from './mods.svelte'
   import { home } from './projects.svelte'
 
   let error = $state('')
@@ -47,12 +47,27 @@
           {#each m.problems as [key, values], i (i)}
             <small class="bad">{t(key, values)}</small>
           {/each}
+          {#if m.manifest?.contributes?.tools?.length}
+            <small>{t('mods.tools', { tools: m.manifest.contributes.tools.map((tool) => `${m.id}_${tool.name}`).join(', ') })}</small>
+          {/if}
         </span>
       </label>
       {#if m.linked}
         <button class="remove" onclick={() => unlink(m)}>{t('common.remove')}</button>
       {/if}
     </li>
+    {#if m.manifest && m.pending.length}
+      <li class="ask">
+        <span class="who">
+          <strong>{t('mods.pending', { name: text(m.manifest.name, locale()) })}</strong>
+          <small>{t('mods.pendingHint')}</small>
+          {#each m.commands as command (command)}
+            <code class:new={m.pending.includes(command)}>{command}</code>
+          {/each}
+        </span>
+        <button class="btn btn-primary" onclick={() => attempt(() => approve(m))}>{t('mods.allow')}</button>
+      </li>
+    {/if}
   {/each}
 </ul>
 {#if error}<p class="bad" role="alert">{error}</p>{/if}
@@ -133,6 +148,41 @@
 
   .mono {
     font-family: var(--mono);
+  }
+
+  .ask {
+    margin-top: -4px;
+    background: var(--wait-bg);
+    border: 1px solid var(--wait-border);
+    color: var(--wait-text);
+  }
+
+  .ask small {
+    color: var(--wait-muted);
+  }
+
+  .ask .who {
+    flex-direction: column;
+    gap: 4px;
+    cursor: default;
+  }
+
+  code {
+    align-self: flex-start;
+    padding: 2px 6px;
+    border-radius: 3px;
+    font: 12px var(--mono);
+    background: var(--wait-note);
+    opacity: 0.7;
+  }
+
+  code.new {
+    opacity: 1;
+  }
+
+  .ask .btn {
+    height: 30px;
+    padding: 0 12px;
   }
 
   .remove {
