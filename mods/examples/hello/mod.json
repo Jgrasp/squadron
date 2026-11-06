@@ -15,7 +15,7 @@
       { "name": "clicks", "description": "Tells how many times the user clicked the Count button." },
       { "name": "github_user", "description": "The GitHub account of the user, from the token set in Settings › Mods." }
     ],
-    "secrets": [{ "id": "token", "label": { "en": "GitHub token", "fr": "Jeton GitHub" }, "hint": { "en": "A fine-grained token with no permission is enough.", "fr": "Un jeton fin sans aucune permission suffit." } }]
+    "secrets": [{ "id": "token", "label": { "en": "GitHub token", "fr": "Jeton GitHub" }, "hint": { "en": "A fine-grained token with no permission is enough.", "fr": "Un jeton GitHub de type « fine-grained », sans aucune permission, suffit." } }]
   },
   "permissions": { "exec": ["git"], "network": ["api.github.com"] }
 }
