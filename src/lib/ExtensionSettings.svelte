@@ -288,7 +288,7 @@
       <button class="way" onclick={() => ((filter = 'discover'), (query = ''), (adding = false))}>
         <span class="ico" aria-hidden="true">◎</span>
         <span class="text"><strong>{t('extensions.fromCatalog')}</strong><small>{t('extensions.fromCatalogHint')}</small></span>
-        <span class="go">{t('extensions.browse')}</span>
+        <span class="btn btn-secondary">{t('extensions.browse')}</span>
       </button>
       <div class="way">
         <span class="ico" aria-hidden="true">▣</span>
@@ -315,7 +315,7 @@
         </form>
       </div>
       {#if error}<p class="bad" role="alert">{error}</p>{/if}
-      <button class="folder" onclick={() => attempt(() => invoke('open_extensions_folder'))}>{t('extensions.openFolder')}</button>
+      <button class="btn btn-ghost folder" onclick={() => attempt(() => invoke('open_extensions_folder'))}>{t('extensions.openFolder')}</button>
     </div>
   </Dialog>
 {/if}
@@ -405,12 +405,61 @@
     padding: 0 12px;
   }
 
+  .btn-secondary {
+    background: var(--surface-4);
+  }
+
+  .btn-secondary:hover:not(:disabled) {
+    background: var(--surface-5);
+  }
+
   .btn.danger {
+    background: var(--err-bg);
+    box-shadow: inset 0 0 0 1px var(--err-border);
     color: var(--err-text);
   }
 
   .btn.danger:hover {
-    background: var(--err-bg);
+    background: var(--del-bg);
+  }
+
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface-5);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .switch::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s;
+  }
+
+  .switch:checked {
+    background: var(--accent);
+  }
+
+  .switch:checked::before {
+    transform: translateX(14px);
+    background: var(--ink);
+  }
+
+  .switch:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
   }
 
   .grid {
@@ -751,11 +800,6 @@
     line-height: 1.45;
   }
 
-  .go {
-    color: var(--accent-link);
-    white-space: nowrap;
-  }
-
   .sources {
     margin: 0;
     padding: 0 0 0 50px;
@@ -780,7 +824,5 @@
 
   .folder {
     align-self: flex-start;
-    color: var(--accent-link);
-    font-size: 12.5px;
   }
 </style>
