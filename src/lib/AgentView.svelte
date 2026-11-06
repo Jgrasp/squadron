@@ -32,6 +32,7 @@
   import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
+  import { modItem, runItem } from './mods.svelte'
   import { run } from './shells.svelte'
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
@@ -884,7 +885,15 @@
     {/snippet}
       {#each ui.customizing ? all('agent.tools') : shown('agent.tools').filter((id) => id !== 'runs' || ran) as id (id)}
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
-            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : kanbanTool)()}
+            {#if modItem('agent.tools', id)}
+              {@const mod = modItem('agent.tools', id)!}
+              <button class="btn btn-ghost" title={detailOf('agent.tools', id) || null} onclick={() => runItem(mod, { project, agent })}>
+                {#if mod.icon}<Icon name={mod.icon} />{/if}
+                {labelOf('agent.tools', id)}
+              </button>
+            {:else}
+              {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : kanbanTool)()}
+            {/if}
             {#if ui.customizing}
               <button class="eye" data-keep aria-label={t(hidden('agent.tools', id) ? 'agent.showItem' : 'agent.hideItem', { item: labelOf('agent.tools', id) })} onclick={() => toggleItem('agent.tools', id)}>
                 <Icon name={hidden('agent.tools', id) ? 'eye-off' : 'eye'} size={12} />
@@ -1301,7 +1310,7 @@
                       {#if i < shown('agent.menu').length - 1}<span class="rule" aria-hidden="true"></span>{/if}
                     {:else}
                     {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
-                    <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id]())}>
+                    <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id] ? MENU[id]() : runItem(modItem('agent.menu', id)!, { project, agent }))}>
                       <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}</strong>
                       <span>{id === 'remote' && agent.remote ? t('agent.turnOffRemoteDetail') : detailOf('agent.menu', id)}</span>
                     </button>

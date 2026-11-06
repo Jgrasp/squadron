@@ -17,6 +17,7 @@
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
+  import { loadMods } from './lib/mods.svelte'
   import { layout, setPanel } from './lib/layout.svelte'
   import { trackHistory } from './lib/history.svelte'
   import './lib/pilot.svelte'
@@ -102,6 +103,7 @@
 
   loadSettings().finally(() => (boot.settings = true))
   loadLayout()
+  loadMods()
   load()
     .then(() => ((boot.projects = true), restore()))
     .then(() => {

@@ -10,6 +10,7 @@ pub mod editors;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
+pub mod mods;
 pub mod permissions;
 pub mod pilot;
 pub mod process;
@@ -1281,6 +1282,31 @@ fn get_layout(file: State<LayoutFile>) -> serde_json::Value {
 }
 
 #[tauri::command]
+fn mods_list(mods: State<mods::Mods>) -> mods::Listing {
+    mods.list()
+}
+
+#[tauri::command]
+fn mods_link(mods: State<mods::Mods>, path: String) -> Result<(), String> {
+    mods.link(&path)
+}
+
+#[tauri::command]
+fn mods_unlink(mods: State<mods::Mods>, path: String) -> Result<(), String> {
+    mods.unlink(&path)
+}
+
+#[tauri::command]
+fn mods_enable(mods: State<mods::Mods>, id: String, on: bool) -> Result<(), String> {
+    mods.enable(&id, on)
+}
+
+#[tauri::command]
+fn open_mods_folder(mods: State<mods::Mods>) -> Result<(), String> {
+    open_path(&mods.dir)
+}
+
+#[tauri::command]
 fn set_layout(file: State<LayoutFile>, layout: serde_json::Value) -> Result<(), String> {
     if !layout.is_object() {
         return Err("The layout must be an object.".into());
@@ -1980,6 +2006,11 @@ pub fn run() {
             agent_texts,
             get_layout,
             set_layout,
+            mods_list,
+            mods_link,
+            mods_unlink,
+            mods_enable,
+            open_mods_folder,
             send_message,
             save_attachment,
             attachment_preview,
@@ -2080,6 +2111,13 @@ pub fn run() {
                 )
             });
             app.manage(LayoutFile(config.join("layout.json")));
+            let mods_dir = config.join("mods");
+            std::fs::create_dir_all(&mods_dir)?;
+            let handle = app.handle().clone();
+            mods::Mods { dir: mods_dir.clone(), file: config.join("mods.json") }.watch(move || {
+                let _ = handle.emit_to("main", "mods-changed", ());
+            });
+            app.manage(mods::Mods { dir: mods_dir, file: config.join("mods.json") });
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {

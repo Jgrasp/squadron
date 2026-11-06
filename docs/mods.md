@@ -158,6 +158,20 @@ Le sandbox ne protège que ce que le mod ne peut pas faire. Une commande autoris
 }
 ```
 
+### Ce que fait l'API 1 aujourd'hui (étape 5)
+
+- **Où** : `<config>/mods/<dossier>/mod.json`, ou un dossier ajouté depuis Settings › Mods (« Ajouter un dossier… »). Les dossiers ajoutés et les mods désactivés sont dans `<config>/mods.json`. Un changement de `mod.json` se recharge en moins d'une seconde.
+- **Manifeste** : `id` (minuscules, chiffres, tirets), `version`, `api: 1`, `name` et `description` en `{ "en": "…", "fr": "…" }`, l'anglais étant obligatoire.
+- **`contributes.items`** : `slot` parmi `agent.tools`, `agent.menu` et `menu.squadron`, `id`, `label`, `hint` facultatif, `icon` facultative, prise dans les icônes de Squadron, et une `action` parmi :
+  - `{ "terminal.run": "lando logs -f" }` : tape la commande dans le terminal de l'agent sans la lancer, l'utilisateur appuie sur Entrée. Une seule ligne ;
+  - `{ "prompt.insert": "…" }` : ajoute le texte à la zone de saisie de l'agent ;
+  - `{ "url.open": "https://…" }` : ouvre le lien dans le navigateur ;
+  - `{ "squadron": "kanban" }` : une action du registre (`newAgent`, `kanban`, `editor`, `terminal`, `diff`…).
+  `terminal.run` et `prompt.insert` demandent un agent, donc pas de `menu.squadron`.
+- **`contributes.theme`** : des variables de Cuivre et des couleurs, par exemple `{ "accent": "#4fa3e0" }`.
+- **Clés des éléments** : `<mod>.<élément>`, par exemple `lando.logs`. Les éléments se rangent, se masquent et se pilotent par MCP (`get_layout`, `set_layout`) comme les éléments intégrés. Dans le menu de l'agent, ils s'insèrent avant Archiver.
+- **Erreurs** : chaque problème du manifeste s'affiche, traduit, sous le mod dans Settings › Mods. Un mod en erreur n'ajoute rien.
+
 ### Distribution
 
 - **Dossier** : `~/.config/dev.squadron.desktop/mods/<id>/`, surveillé à chaud.
@@ -254,7 +268,7 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 2. **Sujet 1** : `layout.json`, mode Customize et Settings › Layout. Taille S à M. *Fait : outils de l'agent, menu ⋯ de l'agent, menu Squadron.*
 3. **Sujet 3** : serveur MCP de pilotage (lecture, préparation et lancement, outils de mods), garde-fous, Activity. Taille M. *Fait en partie, après qu'un agent a modifié le code de Squadron pour déplacer un bouton : outils `overview`, `read_agent`, `start_agent`, `create_card`, `move_card`, `get_layout`, `set_layout`. Restent les outils de mods et le journal Activity.*
 4. **Vérifications** : IPC depuis l'iframe, `tools/list_changed`, poids de Wasmtime. Taille S. *Fait.*
-5. **Mods sans logique** : `mod.json`, éléments dans les emplacements, thème, prompts, Settings › Mods, installation d'un dossier local, chargement à chaud. Taille M.
+5. **Mods sans logique** : `mod.json`, éléments dans les emplacements, thème, prompts, Settings › Mods, installation d'un dossier local, chargement à chaud. Taille M. *Fait. Les prompts sont des éléments avec l'action `prompt.insert`. Les raccourcis clavier des mods restent à faire.*
 6. **Logique WASM** : Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
 7. **Panneaux** : schéma `mod://`, iframe isolé, `mod-kit.css`, messages entre le panneau et le WASM. Taille M.
 8. **Marketplace** : dépôt `squadron-mods`, CI de build et de publication, catalogue et installation en un clic, notification des mises à jour. Taille M.

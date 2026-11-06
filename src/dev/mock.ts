@@ -1051,6 +1051,38 @@ mockIPC(
       case 'set_layout':
         localStorage.setItem('layout', JSON.stringify((args as { layout: unknown }).layout))
         return
+      case 'mods_list':
+        return {
+          disabled: JSON.parse(localStorage.getItem('mods-disabled') ?? '[]'),
+          mods: [
+            {
+              dir: '/home/demo/.config/dev.squadron.desktop/mods/lando',
+              linked: false,
+              error: null,
+              manifest: {
+                id: 'lando',
+                version: '1.0.0',
+                api: 1,
+                name: { en: 'Lando' },
+                description: { en: 'Logs and docs of the Lando stack', fr: 'Journaux et documentation de la pile Lando' },
+                contributes: {
+                  items: [
+                    { slot: 'agent.tools', id: 'logs', label: { en: 'Logs', fr: 'Journaux' }, icon: 'terminal', action: { 'terminal.run': 'lando logs -f' } },
+                    { slot: 'agent.menu', id: 'review', label: { en: 'Review the diff', fr: 'Relire le diff' }, hint: { en: 'Inserts a review prompt', fr: 'Insère un prompt de relecture' }, action: { 'prompt.insert': 'Review the diff and list the risks.' } },
+                    { slot: 'menu.squadron', id: 'docs', label: { en: 'Lando docs', fr: 'Doc Lando' }, hint: { en: 'docs.lando.dev' }, action: { 'url.open': 'https://docs.lando.dev' } },
+                  ],
+                },
+              },
+            },
+            { dir: '/home/demo/code/sentry-mod', linked: true, error: null, manifest: { id: 'sentry', version: '0.1.0', api: 1, name: { en: 'Sentry' }, contributes: { items: [{ slot: 'agent.info', id: 'x', label: { en: 'X' }, action: { squadron: 'kanban' } }] } } },
+          ],
+        }
+      case 'mods_enable': {
+        const { id, on } = args as { id: string; on: boolean }
+        const off = JSON.parse(localStorage.getItem('mods-disabled') ?? '[]').filter((d: string) => d !== id)
+        localStorage.setItem('mods-disabled', JSON.stringify(on ? off : [...off, id]))
+        return
+      }
       case 'detect_editors':
         return [
           { name: 'Zed', command: '/home/demo/.local/zed.app/bin/zed {project} {file}' },

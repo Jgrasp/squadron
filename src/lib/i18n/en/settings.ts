@@ -15,6 +15,7 @@ export default {
   tabShortcuts: 'Shortcuts',
   tabLayout: 'Layout',
   tabPanels: 'Panels',
+  tabMods: 'Mods',
   groupSquadron: 'Squadron',
   tabChangelog: 'What’s new',
   newsTitle: 'What’s new in {version}',
