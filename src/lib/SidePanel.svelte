@@ -57,7 +57,10 @@
     return { duration: 380, easing: quintOut, css: move(mode === 'bottom' ? 'Y' : 'X') }
   }
 
+  let gone = false
+
   function depart(_: Element) {
+    gone = true
     if (windowed) return { duration: 0 }
     const next = openPanel(projects.current)
     if (next && next !== kind && mode && !panel.parentElement?.closest('.panel') && covers(px(displayOf(next)), px(display))) return { duration: 380 }
@@ -90,6 +93,11 @@
     handle.addEventListener('pointerup', up)
   }
 
+  function away(event: PointerEvent) {
+    if (gone || mode !== 'slide' || event.button !== 0) return
+    if (!(event.target as Element).closest?.('.panel, dialog, [aria-pressed]')) onclose()
+  }
+
   function nudge(event: KeyboardEvent) {
     if (mode === 'bottom' && event.key === 'ArrowUp') resizeShare(kind, display.height + 2)
     else if (mode === 'bottom' && event.key === 'ArrowDown') resizeShare(kind, display.height - 2)
@@ -97,6 +105,8 @@
     else if (mode !== 'bottom' && event.key === 'ArrowRight') resizePanel(kind, panel.offsetWidth - 16, widest())
   }
 </script>
+
+<svelte:window onpointerdown={away} />
 
 <section
   class="panel"
