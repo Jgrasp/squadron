@@ -35,7 +35,10 @@ export default {
   badToolCommand: 'Tool {tool}: the command must hold a single line.',
   tools: 'Tools for agents: {tools}',
   pending: '{name} wants to run these commands',
-  pendingHint: 'Until you allow them, its buttons only type their command in the terminal and its tools stay hidden from agents. A new or changed command asks again.',
+  pendingHint: 'Until you allow them, its buttons ask first and its tools stay hidden from agents. A new or changed command asks again.',
+  askTitle: 'Allow the commands of this mod?',
+  askText: '{name} wants to run these commands in your terminal and offer them to your agents. They run with your rights.',
+  later: 'Later',
   allow: 'Allow',
   badTheme: 'The theme maps variable names to colors, like { "accent": "#4fa3e0" }.',
 }

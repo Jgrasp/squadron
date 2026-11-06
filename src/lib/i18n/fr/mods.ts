@@ -36,7 +36,10 @@ export default {
   badToolCommand: 'Outil {tool} : la commande doit tenir sur une ligne.',
   tools: 'Outils pour les agents : {tools}',
   pending: '{name} veut lancer ces commandes',
-  pendingHint: 'Tant que vous ne les autorisez pas, ses boutons se contentent de taper leur commande dans le terminal et ses outils restent cachés aux agents. Une commande nouvelle ou modifiée redemande l’accord.',
+  pendingHint: 'Tant que vous ne les autorisez pas, ses boutons demandent d’abord et ses outils restent cachés aux agents. Une commande nouvelle ou modifiée redemande l’accord.',
+  askTitle: 'Autoriser les commandes de ce mod ?',
+  askText: '{name} veut lancer ces commandes dans votre terminal et les proposer à vos agents. Elles tournent avec vos droits.',
+  later: 'Plus tard',
   allow: 'Autoriser',
   badTheme: 'Le thème associe des noms de variables à des couleurs, comme { "accent": "#4fa3e0" }.',
 } satisfies Catalog['mods']
