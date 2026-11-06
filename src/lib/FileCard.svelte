@@ -56,8 +56,8 @@
       {open ? t('conversation.hideContent') : t('conversation.showContent')}
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     </button>
-    <button type="button" class="btn btn-ghost float" onclick={float}>
-      {t('conversation.openInWindow')}
+    <button type="button" class="btn btn-ghost float" title={t('conversation.openInWindow')} aria-label={t('conversation.openInWindow')} onclick={float}>
+      <span class="label">{t('conversation.openInWindow')}</span>
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2" /><path d="M10 3h11v11" /></svg>
     </button>
   </div>
@@ -79,7 +79,7 @@
 <style>
   .card {
     position: relative;
-    max-width: 560px;
+    container-type: inline-size;
     border-radius: 8px;
     background: var(--bg-main);
     box-shadow: 0 0 0 1px var(--border-strong);
@@ -167,6 +167,12 @@
 
   .float {
     margin-left: auto;
+  }
+
+  @container (max-width: 440px) {
+    .float .label {
+      display: none;
+    }
   }
 
   .btn[aria-expanded='true'] {

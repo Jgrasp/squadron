@@ -244,6 +244,22 @@
         added.push(slot)
         mounted.push(mount(FileCard, { target: slot, props: { path, project } }))
       }
+      const rows = () => {
+        for (const slot of box?.querySelectorAll<HTMLElement>('.file-slot') ?? []) {
+          const prev = slot.previousElementSibling
+          if (slot.parentElement?.classList.contains('file-row') || !prev?.matches('.file-slot, .file-row')) continue
+          let row = prev
+          if (!row.classList.contains('file-row')) {
+            row = document.createElement('div')
+            row.className = 'file-row'
+            prev.before(row)
+            row.append(prev)
+            const made = row
+            undo.unshift(() => made.replaceWith(...made.childNodes))
+          }
+          row.append(slot)
+        }
+      }
       for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
         const path = within(link.dataset.projectFileInline!, project)
         if (!path) continue
@@ -253,6 +269,7 @@
         undo.unshift(() => code.replaceWith(link))
         unfurl(code, path)
       }
+      rows()
       const refs = new Map<HTMLElement, string>()
       for (const code of box?.querySelectorAll<HTMLElement>('code') ?? []) {
         if (code.closest('pre, a')) continue
@@ -271,6 +288,7 @@
               undo.unshift(() => (delete code.dataset.open, code.removeAttribute('title')))
               unfurl(code, path)
             }
+            rows()
           })
           .catch(() => {})
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
@@ -434,6 +452,17 @@
 
   .prose :global(.file-slot) {
     margin: 4px 0 10px;
+  }
+
+  .prose :global(.file-row) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px;
+    margin: 4px 0 10px;
+  }
+
+  .prose :global(.file-row > .file-slot) {
+    margin: 0;
   }
 
   .prose :global(li:has(> .file-slot)) {
