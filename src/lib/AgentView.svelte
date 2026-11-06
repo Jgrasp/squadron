@@ -38,6 +38,7 @@
   import Attachment from './Attachment.svelte'
   import { imagePaste } from './paste'
   import { Mention } from './mention.svelte'
+  import Composer from './Composer.svelte'
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
@@ -270,7 +271,7 @@
   let dismissed = $state('')
   let pick = $state(0)
   let chosen = $state('')
-  let composer: HTMLTextAreaElement
+  let composer: ReturnType<typeof Composer>
   const commandList = $derived(commandsOf(agent))
   const mentions = new Mention(() => text, () => workdir(agent))
   const mention = $derived(text === dismissed ? null : mentions.found)
@@ -676,13 +677,13 @@
     }
   }
 
-  function show(area: HTMLTextAreaElement, value: string) {
+  function show(value: string) {
     text = value
-    tick().then(() => area.setSelectionRange(value.length, value.length))
+    tick().then(() => composer.setSelectionRange(value.length, value.length))
   }
 
   function keys(event: KeyboardEvent) {
-    const area = event.currentTarget as HTMLTextAreaElement
+    const area = composer.selection()
     if (suggestions.length) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()
@@ -698,10 +699,10 @@
     }
     if (event.key === 'ArrowRight' && !text && agent.guess && placeholder === agent.guess) {
       event.preventDefault()
-      show(area, agent.guess!)
+      show(agent.guess!)
       return
     }
-    if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && area.selectionStart === text.length) {
+    if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && area.from === text.length) {
       event.preventDefault()
       text = chosen = text.replace(/[^\s/]+ $/, '')
       return
@@ -720,17 +721,17 @@
         if (!message) return
         attachments = message.files ?? []
         comments = message.comments ?? []
-        show(area, message.text)
+        show(message.text)
       })
-    } else if (event.key === 'ArrowUp' && !text.slice(0, area.selectionStart).includes('\n') && recall < sent.length - 1) {
+    } else if (event.key === 'ArrowUp' && !text.slice(0, area.from).includes('\n') && recall < sent.length - 1) {
       event.preventDefault()
       if (recall === -1) draft = text
       recall++
-      show(area, sent[sent.length - 1 - recall])
-    } else if (event.key === 'ArrowDown' && !text.slice(area.selectionEnd).includes('\n') && recall >= 0) {
+      show(sent[sent.length - 1 - recall])
+    } else if (event.key === 'ArrowDown' && !text.slice(area.to).includes('\n') && recall >= 0) {
       event.preventDefault()
       recall--
-      show(area, recall === -1 ? draft : sent[sent.length - 1 - recall])
+      show(recall === -1 ? draft : sent[sent.length - 1 - recall])
     }
   }
 
@@ -1257,8 +1258,7 @@
             </div>
           {/if}
           <div class="bar" class:bang>
-            <label for="composer" class="sr-only">{t('agent.messageToAgent')}</label>
-            <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={clip.paste} oninput={mentions.track} onkeyup={mentions.track} onmouseup={mentions.track}></textarea>
+            <Composer id="composer" label={t('agent.messageToAgent')} bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={(e) => clip.paste(e, composer)} oncaret={mentions.track} />
             <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
@@ -2790,17 +2790,14 @@
     background: var(--surface-2);
   }
 
-  textarea {
+  .bar :global(.composer-field) {
     flex: 1;
     min-height: 38px;
+  }
+
+  .bar :global(.cm-scroller) {
     max-height: 200px;
     padding: 9px 0;
-    border: none;
-    outline: none;
-    resize: none;
-    background: transparent;
-    line-height: 1.5;
-    field-sizing: content;
   }
 
   .btn-icon.open {

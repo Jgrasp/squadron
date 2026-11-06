@@ -16,6 +16,8 @@ export function copiedFiles(uris: string) {
   return lines.length && lines.every((line) => line.startsWith('file://')) ? lines.map((line) => decodeURIComponent(new URL(line).pathname)) : []
 }
 
+type Field = { content: () => string; selection: () => { from: number; to: number }; insert: (text: string) => void }
+
 export function imagePaste(attach: (paths: string[]) => void, fail: (error: string) => void) {
   let pasting = 0
   let raw = false
@@ -32,7 +34,7 @@ export function imagePaste(attach: (paths: string[]) => void, fail: (error: stri
     setTimeout(() => mine === pasting && system(), 120)
   }
 
-  async function paste(event: ClipboardEvent) {
+  async function paste(event: ClipboardEvent, field?: Field) {
     pasting++
     const plain = raw
     raw = false
@@ -50,7 +52,7 @@ export function imagePaste(attach: (paths: string[]) => void, fail: (error: stri
     if (!images.length) {
       const text = data?.getData('text/plain')
       if (!text) system()
-      else if (!plain && event.target instanceof HTMLTextAreaElement) asCode(event, event.target, text, data?.getData('vscode-editor-data') ?? '')
+      else if (!plain && field) asCode(event, field, text, data?.getData('vscode-editor-data') ?? '')
       return
     }
     if (!data?.getData('text/plain')) event.preventDefault()
@@ -65,15 +67,13 @@ export function imagePaste(attach: (paths: string[]) => void, fail: (error: stri
     }
   }
 
-  function asCode(event: ClipboardEvent, field: HTMLTextAreaElement, text: string, editor: string) {
+  function asCode(event: ClipboardEvent, field: Field, text: string, editor: string) {
     const lang = codeLanguage(text, editor)
-    const block = lang && fenceAt(field.value, field.selectionStart, field.selectionEnd, text, lang)
+    const { from, to } = field.selection()
+    const block = lang && fenceAt(field.content(), from, to, text, lang)
     if (!block) return
     event.preventDefault()
-    if (!document.execCommand('insertText', false, block)) {
-      field.setRangeText(block, field.selectionStart, field.selectionEnd, 'end')
-      field.dispatchEvent(new Event('input', { bubbles: true }))
-    }
+    field.insert(block)
   }
 
   return { key, paste }

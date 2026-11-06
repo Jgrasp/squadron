@@ -55,7 +55,7 @@ export class Mention {
   open = $derived(!!this.found)
   choices = $derived.by(() => (this.#files.dir === this.#dir() ? fileChoices(this.#files.list, this.#text(), this.caret) : []))
 
-  track = (event: Event) => {
-    this.caret = (event.currentTarget as HTMLTextAreaElement).selectionStart
+  track = (caret: number) => {
+    this.caret = caret
   }
 }
