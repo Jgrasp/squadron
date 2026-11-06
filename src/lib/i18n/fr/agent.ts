@@ -84,6 +84,7 @@ export default {
   coldDetail: 'Son cache a expiré : ce message la relit en entier, puis chaque étape la relit encore. La compacter d’abord rend la suite bien moins chère.',
   compactThenSend: 'Compacter puis envoyer',
   sendAnyway: 'Envoyer quand même',
+  compactFocus: 'Consigne de compactage (facultatif) · ex. garde les décisions sur l’API',
   tasksDone: '{done}/{total} tâches',
   previousTasks: { one: 'Liste précédente · {count} terminée', other: 'Liste précédente · {count} terminées' },
   agentOptions: 'Options de l’agent',

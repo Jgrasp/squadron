@@ -650,6 +650,13 @@
   })
 
   let chilly = $state('')
+  let focus = $state('')
+
+  async function compactThenSend() {
+    await send(agent.id, `/compact ${focus.trim()}`.trim())
+    focus = ''
+    submit(undefined, true)
+  }
 
   function submit(event?: Event, forced = false) {
     event?.preventDefault()
@@ -1198,8 +1205,9 @@
           {#if chilly === agent.id}
             <div class="chilly" role="alert">
               <p><strong>{t('agent.coldTitle', { tokens: tokens(agent.tokens), idle: ago(agent.since, Date.now()) })}</strong> {t('agent.coldDetail')}</p>
+              <input class="focus" bind:value={focus} placeholder={t('agent.compactFocus')} aria-label={t('agent.compactFocus')} onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), compactThenSend())} />
               <div class="actions">
-                <button type="button" class="btn btn-primary" onclick={async () => (await send(agent.id, '/compact'), submit(undefined, true))}>{t('agent.compactThenSend')}</button>
+                <button type="button" class="btn btn-primary" onclick={compactThenSend}>{t('agent.compactThenSend')}</button>
                 <button type="button" class="btn btn-secondary" onclick={() => submit(undefined, true)}>{t('agent.sendAnyway')}</button>
                 <button type="button" class="close" aria-label={t('common.cancel')} title={t('common.cancel')} onclick={() => (chilly = '')}>×</button>
               </div>
@@ -2688,6 +2696,28 @@
 
   .chilly strong {
     color: var(--wait-text);
+  }
+
+  .chilly .focus {
+    order: 3;
+    flex: 1 1 100%;
+    height: 32px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 4px;
+    outline: none;
+    background: var(--wait-btn);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--wait-text);
+    font: inherit;
+  }
+
+  .chilly .focus::placeholder {
+    color: var(--wait-muted);
+  }
+
+  .chilly .focus:focus {
+    box-shadow: inset 0 0 0 2px var(--border-focus);
   }
 
   .chilly .actions {
