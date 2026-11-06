@@ -1,5 +1,7 @@
 # Squadron — Extensions et pilotage par IA (étude)
 
+> Guide des auteurs d'extensions (en anglais, public) : https://github.com/Jgrasp/squadron-extensions/blob/main/docs/guide.md. Ce document-ci est l'étude et le journal des décisions.
+
 Trois sujets :
 
 1. remanier l'interface ;
@@ -133,29 +135,7 @@ Le sandbox ne protège que ce que l'extension ne peut pas faire. Une commande au
 
 ### Exemple de manifeste
 
-```json
-{
-  "id": "lando",
-  "version": "1.0.0",
-  "api": 1,
-  "name": { "en": "Lando", "fr": "Lando" },
-  "wasm": "lando.wasm",
-  "contributes": {
-    "buttons": [
-      { "slot": "agent.tools", "id": "logs", "label": { "en": "Logs", "fr": "Logs" }, "icon": "scroll", "action": { "terminal.run": "lando logs -f" } },
-      { "slot": "agent.tools", "id": "info", "label": { "en": "Lando", "fr": "Lando" }, "action": { "panel.open": "info" } }
-    ],
-    "panels": [{ "id": "info", "title": { "en": "Lando", "fr": "Lando" }, "page": "panel/index.html" }],
-    "keys": [{ "button": "logs", "key": "Ctrl+L" }],
-    "tools": [{ "name": "logs", "description": "Last 200 lines of the Lando logs", "command": "lando logs --tail 200" }],
-    "secrets": [{ "id": "token", "label": { "en": "API token", "fr": "Jeton d'API" } }]
-  },
-  "permissions": {
-    "exec": ["lando"],
-    "network": ["api.lando.dev"]
-  }
-}
-```
+Voir `extensions/examples/hello/extension.json`, et la référence complète dans le guide des auteurs.
 
 ### Ce que fait l'API 1 aujourd'hui (étape 5)
 
