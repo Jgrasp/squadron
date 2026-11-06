@@ -8,6 +8,7 @@
   let { panel, agent, onclose }: { panel: Panel; agent: Agent; onclose: () => void } = $props()
 
   let frame = $state<HTMLIFrameElement>()
+  let loaded = $state(false)
 
   const THEME = ['bg-main', 'surface-1', 'surface-2', 'surface-3', 'border', 'border-focus', 'text', 'text-strong', 'text-muted', 'text-dim', 'ink', 'accent', 'accent-link', 'ok-text', 'err-text', 'sans', 'mono']
 
@@ -19,6 +20,11 @@
     const style = getComputedStyle(document.documentElement)
     frame?.contentWindow?.postMessage({ squadron: 'theme', vars: Object.fromEntries(THEME.map((name) => [name, style.getPropertyValue(`--${name}`).trim()])) }, '*')
   }
+
+  $effect(() => {
+    void panel.key
+    loaded = false
+  })
 
   $effect(() => {
     themeOf(mods.list)
@@ -37,7 +43,7 @@
 <SidePanel kind={panel.key} title={text(panel.title, locale())} {onclose}>
   {#snippet sub()}{t('mods.panelOf', { name: owner ? text(owner, locale()) : panel.mod })}{/snippet}
   {#key panel.key}
-    <iframe bind:this={frame} title={text(panel.title, locale())} src="{base}/{panel.mod}/{panel.page}" sandbox="allow-scripts" referrerpolicy="no-referrer" onload={theme}></iframe>
+    <iframe bind:this={frame} title={text(panel.title, locale())} src="{base}/{panel.mod}/{panel.page}" sandbox="allow-scripts" referrerpolicy="no-referrer" class:loaded onload={() => (theme(), (loaded = true))}></iframe>
   {/key}
 </SidePanel>
 
@@ -47,5 +53,10 @@
     width: 100%;
     border: 0;
     background: var(--bg-main);
+    visibility: hidden;
+  }
+
+  iframe.loaded {
+    visibility: visible;
   }
 </style>
