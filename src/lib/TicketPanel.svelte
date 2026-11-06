@@ -132,14 +132,14 @@
     <div class="row">
       <span class="logo" aria-hidden="true">J</span>
       <span class="key">{ticketKey}</span>
-      {#if ticket}<span class="faint">· {ticket.kind}{ticket.sprint ? ` · ${ticket.sprint}` : ''}</span>{/if}
+      {#if ticket}<span class="faint meta">· {ticket.kind}{ticket.sprint ? ` · ${ticket.sprint}` : ''}</span>{/if}
       <span class="spacer"></span>
       {#if ticket}
-        <button class="open-jira" title={t('tickets.viewAllHint')} onclick={() => (whole = true)}>
-          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7" /></svg>{t('tickets.viewAll')}
+        <button class="open-jira" title={t('tickets.viewAllHint')} aria-label={t('tickets.viewAll')} onclick={() => (whole = true)}>
+          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7" /></svg><span class="label">{t('tickets.viewAll')}</span>
         </button>
-        <button class="open-jira" title={ticket.url} onclick={() => invoke('open_link', { url: ticket!.url })}>
-          <span class="logo" aria-hidden="true">J</span>{t('tickets.openInJira')}
+        <button class="open-jira" title={ticket.url} aria-label={t('tickets.openInJira')} onclick={() => invoke('open_link', { url: ticket!.url })}>
+          <span class="logo" aria-hidden="true">J</span><span class="label">{t('tickets.openInJira')}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
         </button>
       {/if}
@@ -319,6 +319,14 @@
     gap: 10px;
     padding: 18px 22px 14px;
     border-bottom: 1px solid var(--border);
+    container-type: inline-size;
+  }
+
+  .meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .row {
@@ -372,8 +380,20 @@
     border-radius: 6px;
     background: var(--ticket-bg);
     color: var(--ticket-text);
+    flex: none;
     font-size: 12.5px;
     font-weight: 600;
+    white-space: nowrap;
+  }
+
+  @container (max-width: 560px) {
+    .open-jira .label {
+      display: none;
+    }
+
+    .open-jira {
+      padding: 0 7px;
+    }
   }
 
   .open-jira:hover {
