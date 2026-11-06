@@ -3,6 +3,7 @@
   import { languages } from '@codemirror/language-data'
   import { classHighlighter, highlightCode } from '@lezer/highlight'
   import MarkdownIt from 'markdown-it'
+  import { copyText } from './clipboard'
   import { t } from './i18n/index.svelte'
   import { isImage, preview } from './Attachment.svelte'
   import { isPullLink } from './linked.svelte'
@@ -90,6 +91,11 @@
     if (!isImage(path)) return alt
     const at = md.utils.escapeHtml(path)
     return `<button type="button" class="shot" data-shot="${at}" title="${at}"><img alt="${alt}"></button>`
+  }
+  md.renderer.rules.td_open = (tokens, idx, options, env, self) => {
+    const text = tokens[idx + 1]?.content ?? ''
+    if (text.length > 30 && text.includes(' ')) tokens[idx].attrJoin('class', 'wide')
+    return self.renderToken(tokens, idx, options)
   }
   const fence = md.renderer.rules.fence!
   const copyButton = () => `<button type="button" class="copy" data-copy><svg width="13" height="13" viewBox="0 0 24 24" aria-hidden="true"><rect x="9" y="9" width="11" height="11" rx="2"/><path d="M5 15V5a2 2 0 0 1 2-2h8"/></svg><span>${t('common.copy')}</span></button>`
@@ -232,14 +238,8 @@
         mounted.push(mount(FileCard, { target: slot, props: { path: slot.dataset.projectFile!, project } }))
       }
       const below = new Map<Element, Element>()
-      for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
-        const path = within(link.dataset.projectFileInline!, project)
-        if (!path) continue
-        const code = document.createElement('code')
-        code.textContent = link.textContent
-        link.replaceWith(code)
-        undo.unshift(() => code.replaceWith(link))
-        if (files.has(path)) continue
+      const unfurl = (code: Element, path: string) => {
+        if (files.has(path)) return
         files.add(path)
         let top: Element = code
         while (top.parentElement && top.parentElement !== box) top = top.parentElement
@@ -250,6 +250,32 @@
         added.push(slot)
         mounted.push(mount(FileCard, { target: slot, props: { path, project } }))
       }
+      const rows = () => {
+        for (const slot of box?.querySelectorAll<HTMLElement>('.file-slot') ?? []) {
+          const prev = slot.previousElementSibling
+          if (slot.parentElement?.classList.contains('file-row') || !prev?.matches('.file-slot, .file-row')) continue
+          let row = prev
+          if (!row.classList.contains('file-row')) {
+            row = document.createElement('div')
+            row.className = 'file-row'
+            prev.before(row)
+            row.append(prev)
+            const made = row
+            undo.unshift(() => made.replaceWith(...made.childNodes))
+          }
+          row.append(slot)
+        }
+      }
+      for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
+        const path = within(link.dataset.projectFileInline!, project)
+        if (!path) continue
+        const code = document.createElement('code')
+        code.textContent = link.textContent
+        link.replaceWith(code)
+        undo.unshift(() => code.replaceWith(link))
+        unfurl(code, path)
+      }
+      rows()
       const refs = new Map<HTMLElement, string>()
       for (const code of box?.querySelectorAll<HTMLElement>('code') ?? []) {
         if (code.closest('pre, a')) continue
@@ -266,7 +292,9 @@
               code.dataset.open = path
               code.title = path
               undo.unshift(() => (delete code.dataset.open, code.removeAttribute('title')))
+              unfurl(code, path)
             }
+            rows()
           })
           .catch(() => {})
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-pr]') ?? [])
@@ -408,10 +436,11 @@
     if (target.closest('[data-run]') && code && onrun) return onrun(command(code))
     const button = target.closest<HTMLButtonElement>('[data-copy]')
     if (!button || code === undefined || code === null) return
-    navigator.clipboard.writeText(code.replace(/\n$/, ''))
     const label = button.querySelector('span')!
-    label.textContent = t('common.copied')
-    setTimeout(() => (label.textContent = t('common.copy')), 1500)
+    copyText(code.replace(/\n$/, '')).then(() => {
+      label.textContent = t('common.copied')
+      setTimeout(() => (label.textContent = t('common.copy')), 1500)
+    })
   }
 </script>
 
@@ -430,6 +459,17 @@
 
   .prose :global(.file-slot) {
     margin: 4px 0 10px;
+  }
+
+  .prose :global(.file-row) {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+    gap: 8px;
+    margin: 4px 0 10px;
+  }
+
+  .prose :global(.file-row > .file-slot) {
+    margin: 0;
   }
 
   .prose :global(li:has(> .file-slot)) {
@@ -796,20 +836,43 @@
   }
 
   .prose :global(table) {
+    display: block;
+    max-width: 100%;
+    width: fit-content;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
     border-collapse: collapse;
     font-size: 13px;
   }
 
   .prose :global(th),
   .prose :global(td) {
-    padding: 5px 10px;
-    border: 1px solid var(--border-strong);
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
     text-align: left;
+    vertical-align: top;
+    overflow-wrap: break-word;
+  }
+
+  .prose :global(td.wide) {
+    min-width: 12em;
+  }
+
+  .prose :global(td code) {
+    white-space: nowrap;
+  }
+
+  .prose :global(tr:last-child td) {
+    border-bottom: none;
   }
 
   .prose :global(th) {
     background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 12px;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .streaming :global(> :last-child::after) {

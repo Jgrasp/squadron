@@ -1,5 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
-import { t } from './i18n/index.svelte'
+import { english, locale, t } from './i18n/index.svelte'
+import { text } from './extensions'
+import { extensionItem, extensionItems, shownLabel } from './extensions.svelte'
 import { arrange, movedAmong, SLOTS, type Arrangement, type Slot } from './slots'
 
 export const arrangement = $state<Record<string, Arrangement>>({})
@@ -14,11 +16,13 @@ export async function loadLayout() {
   Object.assign(arrangement, await invoke<Record<string, Arrangement>>('get_layout'))
 }
 
-export const all = (slot: Slot) =>
-  arrange(
-    SLOTS[slot].items.map(([id]) => id),
-    arrangement[slot]?.order,
-  )
+const known = (slot: Slot) => {
+  const ids = SLOTS[slot].items.map(([id]) => id)
+  const last = SLOTS[slot].last ?? []
+  return [...ids.filter((id) => !last.includes(id)), ...extensionItems(slot).map((i) => i.key), ...last]
+}
+
+export const all = (slot: Slot) => arrange(known(slot), arrangement[slot]?.order)
 
 export const hidden = (slot: Slot, id: string) => (arrangement[slot]?.hidden ?? SLOTS[slot].hidden ?? []).includes(id)
 
@@ -26,7 +30,15 @@ export const shown = (slot: Slot) => all(slot).filter((id) => !hidden(slot, id))
 
 const itemOf = (slot: Slot, id: string) => SLOTS[slot].items.find(([i]) => i === id)
 
+const extensionText = (slot: Slot, id: string, tr: typeof t, field: 'label' | 'hint') => {
+  if (field === 'label' && extensionItem(slot, id) && shownLabel(id)) return shownLabel(id)!
+  const value = extensionItem(slot, id)?.[field]
+  return value && text(value, tr === english ? 'en' : locale())
+}
+
 export const labelOf = (slot: Slot, id: string, tr = t) => {
+  const extension = extensionText(slot, id, tr, 'label')
+  if (extension) return extension
   const key = itemOf(slot, id)?.[1]
   return key ? tr(key) : id
 }
@@ -44,13 +56,13 @@ export function toggle(slot: Slot, id: string) {
 }
 
 export function arrangeSlot(slot: Slot, order?: string[] | null, hide?: string[] | null) {
-  const known = SLOTS[slot].items.map(([id]) => id)
-  const unknown = [...(order ?? []), ...(hide ?? [])].filter((id) => !known.includes(id))
-  if (unknown.length) throw new Error(`Unknown items in ${slot}: ${unknown.join(', ')}. Items: ${known.join(', ')}.`)
+  const items = known(slot)
+  const unknown = [...(order ?? []), ...(hide ?? [])].filter((id) => !items.includes(id))
+  if (unknown.length) throw new Error(`Unknown items in ${slot}: ${unknown.join(', ')}. Items: ${items.join(', ')}.`)
   const locked = (hide ?? []).filter((id) => SLOTS[slot].locked?.includes(id))
   if (locked.length) throw new Error(`${locked.join(', ')} cannot be hidden.`)
   arrangement[slot] = {
-    order: order ? arrange(known, order) : arrangement[slot]?.order,
+    order: order ? arrange(items, order) : arrangement[slot]?.order,
     hidden: hide ?? arrangement[slot]?.hidden,
   }
   save()
@@ -62,6 +74,7 @@ export function reset(slot?: Slot) {
 }
 
 export const detailOf = (slot: Slot, id: string, tr = t) => {
+  if (extensionItem(slot, id)) return extensionText(slot, id, tr, 'hint') ?? ''
   const key = itemOf(slot, id)?.[2]
   return key ? tr(key) : ''
 }

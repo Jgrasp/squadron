@@ -10,11 +10,12 @@ export function pushedTo(agent: Agent): { url: string } | { branch: string } | n
       const url = call.result.text.match(LINK)?.at(-1)
       if (url) return { url }
     }
+    if (/\bgit\s+(switch|checkout)\b/.test(command)) return null
     const push = command.match(/\bgit\s+push\b([^|&;\n]*)/)
     if (!push) continue
     const [, ref] = push[1].split(/\s+/).filter((word) => word && !word.startsWith('-') && !/^\d*>/.test(word))
     const branch = ref?.split(':').at(-1)?.replace(/^\+/, '').replace(/^refs\/heads\//, '')
-    if (branch && branch !== 'HEAD') return { branch }
+    return branch && branch !== 'HEAD' ? { branch } : null
   }
   return null
 }

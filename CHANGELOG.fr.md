@@ -1,5 +1,38 @@
 # Nouveautés
 
+## 0.36.0 · 2026-11-06
+
+### Extensions
+
+- Squadron s’étend sans être recompilé. Les extensions ajoutent des boutons, des entrées de menu, des panneaux, des couleurs et des outils pour vos agents, avec un extension.json et, pour leur logique, du Rust compilé en WebAssembly.
+- Réglages › Extensions, aussi dans le menu Squadron, est un catalogue avec recherche : installation, mise à jour et désinstallation en un clic, depuis la source officielle ou les dépôts GitHub que vous ajoutez, ou chargement d’un dossier en cours d’écriture, rechargé à chaque build.
+- Une extension demande avant de lancer une commande ou de joindre un site. Ses jetons restent dans le trousseau du système et ses panneaux sont isolés.
+- Écrire la vôtre avec le guide : https://github.com/Jgrasp/squadron-extensions/blob/main/docs/guide.md
+
+### Zone de saisie
+
+- Les champs de message sont des éditeurs de code : un bloc de code délimité s’affiche en police mono et en couleurs pendant la frappe, dans la conversation et la fenêtre de nouvel agent.
+- Le code collé arrive dans un bloc délimité avec son langage, pris dans VS Code ou deviné. Ctrl+Maj+V colle le texte brut.
+- L’avertissement sur une ancienne conversation accepte des instructions de compaction, passées à /compact avant l’envoi du message.
+
+### Conversation
+
+- Un chemin de fichier écrit en code dans une réponse a sa carte de fichier. Les cartes de fichier prennent toute la largeur de la réponse, et plusieurs à la suite se rangent en colonnes.
+- Une carte à une seule question a son propre champ de réponse libre, qui ressemble désormais à un champ.
+- Les tableaux Markdown gardent des colonnes lisibles : plus de retour à la ligne lettre par lettre, et le code d’une cellule reste sur une ligne.
+- Chercher dans une longue conversation ne fige plus Squadron dès la première lettre, et la barre de recherche ne se rouvre plus dans la conversation suivante.
+
+### Panneaux
+
+- Un clic hors d’un panneau en superposition le ferme ; les panneaux à côté, en bas et en plein écran restent ouverts.
+- Les panneaux glissent sans à-coups, et un redimensionnement ne déplace que le panneau jusqu’au relâchement.
+- Le ticket Jira ouvert depuis le Kanban couvre le tableau sous son en-tête.
+
+### Correctifs
+
+- La branche et la pull request d’un agent suivent son worktree après un checkout ou un switch.
+- Sous Linux, une copie faite juste après être revenu dans la fenêtre remplace bien le contenu du presse-papiers.
+
 ## 0.35.3 · 2026-11-05
 
 ### Correctifs

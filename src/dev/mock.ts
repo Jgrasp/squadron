@@ -267,7 +267,7 @@ function replay(id: string, text: string) {
       .join('\n')
   }
   const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
-  const stream = text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('inlinepath') ? hello.replaceAll('"Bonjour"', JSON.stringify('J’ai mis à jour `config/services.yaml` et `src/Segmentation/SegmentRepository.php:12`, puis relu `config/services.yaml` et `absent.md`.')) : text.includes('filecard') ? hello.replaceAll('"Bonjour"', JSON.stringify('Voici l’archive :\n\n[squadron-claude-design.zip](</home/demo/Téléchargements/squadron-claude-design.zip>)\n\nEt la liste des URL :\n\n[neogeofanatic-urls.csv](</home/demo/Documents/neogeofanatic-urls.csv>)')) : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -928,6 +928,8 @@ mockIPC(
         return a.path.endsWith('Test.php')
           ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
           : `diff --git a/${a.path} b/${a.path}\nindex 3f2a91c..${a.now.slice(0, 7)} 100644\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
+      case 'existing_files':
+        return a.paths.filter((p: string) => ['config/services.yaml', 'src/Segmentation/SegmentRepository.php'].includes(p))
       case 'project_files':
         return ['composer.json', 'composer.lock', 'config/', 'config/services.yaml', 'resume.txt', 'src/', 'src/Segmentation/', 'src/Segmentation/ChannelSegmentResolver.php', 'src/Segmentation/SegmentRepository.php', 'tests/', 'tests/ResolverTest.php']
       case 'project_grep':
@@ -1049,6 +1051,50 @@ mockIPC(
       case 'set_layout':
         localStorage.setItem('layout', JSON.stringify((args as { layout: unknown }).layout))
         return
+      case 'extensions_list':
+        return {
+          disabled: JSON.parse(localStorage.getItem('extensions-disabled') ?? '[]'),
+          approved: JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'),
+          extensions: [
+            {
+              dir: '/home/demo/.config/dev.squadron.desktop/extensions/lando',
+              linked: false,
+              error: null,
+              manifest: {
+                id: 'lando',
+                version: '1.0.0',
+                api: 1,
+                name: { en: 'Lando' },
+                description: { en: 'Logs and docs of the Lando stack', fr: 'Journaux et documentation de la pile Lando' },
+                contributes: {
+                  items: [
+                    { slot: 'agent.tools', id: 'logs', label: { en: 'Logs', fr: 'Journaux' }, icon: 'terminal', action: { 'terminal.run': 'lando logs -f' } },
+                    { slot: 'agent.menu', id: 'review', label: { en: 'Review the diff', fr: 'Relire le diff' }, hint: { en: 'Inserts a review prompt', fr: 'Insère un prompt de relecture' }, action: { 'prompt.insert': 'Review the diff and list the risks.' } },
+                    { slot: 'menu.squadron', id: 'docs', label: { en: 'Lando docs', fr: 'Doc Lando' }, hint: { en: 'docs.lando.dev' }, action: { 'url.open': 'https://docs.lando.dev' } },
+                  ],
+                  tools: [{ name: 'logs', description: 'Last 200 lines of the Lando logs', command: 'lando logs --tail 200' }],
+                },
+              },
+            },
+            { dir: '/home/demo/code/sentry-extension', linked: true, error: null, manifest: { id: 'sentry', version: '0.1.0', api: 1, name: { en: 'Sentry' }, contributes: { items: [{ slot: 'agent.info', id: 'x', label: { en: 'X' }, action: { squadron: 'kanban' } }] } } },
+          ],
+        }
+      case 'extensions_approve': {
+        const { id, commands } = args as { id: string; commands: string[] }
+        localStorage.setItem('extensions-approved', JSON.stringify({ ...JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'), [id]: commands }))
+        return
+      }
+      case 'extensions_set_tools':
+      case 'extensions_wasm_event':
+        return
+      case 'extensions_wasm_sync':
+        return {}
+      case 'extensions_enable': {
+        const { id, on } = args as { id: string; on: boolean }
+        const off = JSON.parse(localStorage.getItem('extensions-disabled') ?? '[]').filter((d: string) => d !== id)
+        localStorage.setItem('extensions-disabled', JSON.stringify(on ? off : [...off, id]))
+        return
+      }
       case 'detect_editors':
         return [
           { name: 'Zed', command: '/home/demo/.local/zed.app/bin/zed {project} {file}' },

@@ -1,5 +1,38 @@
 # Changelog
 
+## 0.36.0 · 2026-11-06
+
+### Extensions
+
+- Squadron can be extended without rebuilding it. Extensions add buttons, menu entries, panels, colors and tools your agents can call, with an extension.json and, for their logic, Rust compiled to WebAssembly.
+- Settings › Extensions, also in the Squadron menu, is a searchable catalog: install, update and uninstall in one click, from the official source or GitHub repositories you add, or load a folder you are writing. It reloads at every build.
+- An extension asks before running a command or reaching a site. Its tokens stay in the system keyring and its panels run isolated.
+- Write your own with the guide: https://github.com/Jgrasp/squadron-extensions/blob/main/docs/guide.md
+
+### Message box
+
+- The message fields are code editors: a fenced code block shows in a mono, colored block while you type, in the conversation and the new agent dialog.
+- Pasted code goes into a fenced block with its language, taken from VS Code or guessed. Ctrl+Shift+V pastes raw.
+- The warning about an old conversation takes compaction instructions, passed to /compact before the message is sent.
+
+### Conversation
+
+- A file path written as inline code in a reply gets its file card. File cards take the full width of the reply, and several in a row sit in columns.
+- A single-question card has its own free answer field, and that field now reads as a field.
+- Markdown tables keep their columns readable: no more letter-by-letter wrapping, and inline code in a cell stays on one line.
+- Searching a long conversation no longer freezes Squadron at the first letter, and the find bar no longer reopens in the next conversation.
+
+### Panels
+
+- A click outside a panel in overlay mode closes it; side, bottom and full panels stay open.
+- Panels slide smoothly, and a resize drag moves only the panel until you let go.
+- The Jira ticket opened from the Kanban covers the board below its header.
+
+### Fixes
+
+- An agent's branch and pull request follow its worktree after a checkout or a switch.
+- On Linux, a copy made right after coming back to the window replaces what was in the clipboard.
+
 ## 0.35.3 · 2026-11-05
 
 ### Fixes

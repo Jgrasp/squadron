@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { ticketBlocks } from './tickets.svelte'
   import { SvelteSet } from 'svelte/reactivity'
   import { clock, forkPoint, VALUES } from './agents.svelte'
@@ -7,6 +8,7 @@
   import CommentChip from './CommentChip.svelte'
   import type { Proposal } from './diff'
   import { highlight } from './commands'
+import { fences } from './codepaste'
   import ErrorCard from './ErrorCard.svelte'
   import Icon from './Icon.svelte'
   import { duration, time, tokens } from './format'
@@ -67,7 +69,7 @@
 
   function copy() {
     const selected = window.getSelection()?.toString()
-    navigator.clipboard.writeText(selected || menu?.text || '')
+    copyText(selected || menu?.text || '')
     menu = null
   }
 
@@ -283,7 +285,12 @@
         {#if entry.comments}
           <div class="chips">{#each entry.comments as comment, c (c)}<CommentChip {comment} light />{/each}</div>
         {/if}
-        {#if said.text}<div class="said">{#each highlight(said.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+        {#if said.text}
+          {#each fences(said.text) as chunk, c (c)}
+            {#if chunk.code}<div class="snippet"><Markdown text={chunk.text} /></div>
+            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+          {/each}
+        {/if}
         {#if said.blocks.length}
           <div class="tickets">
             {#each said.blocks as block, b (b)}
@@ -723,6 +730,29 @@
 
   .said {
     white-space: pre-wrap;
+  }
+
+  .said + .snippet,
+  .snippet + .said,
+  .snippet + .snippet,
+  .snippet + .tickets {
+    margin-top: 10px;
+  }
+
+  .user .snippet :global(.code) {
+    margin: 0;
+    background: rgb(20 14 10 / 0.82);
+    box-shadow: none;
+  }
+
+  .user .snippet :global(.code-head) {
+    border-color: rgb(255 255 255 / 0.08);
+    color: rgb(255 255 255 / 0.5);
+  }
+
+  .user .snippet :global(pre) {
+    color: #e8ddd4;
+    overflow-wrap: normal;
   }
 
   .chips {

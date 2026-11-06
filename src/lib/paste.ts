@@ -1,5 +1,6 @@
 import { invoke } from '@tauri-apps/api/core'
 import { errorText } from './i18n/index.svelte'
+import { codeLanguage, fenceAt } from './codepaste'
 
 function base64(file: Blob) {
   return new Promise<string>((done, fail) => {
@@ -15,8 +16,11 @@ export function copiedFiles(uris: string) {
   return lines.length && lines.every((line) => line.startsWith('file://')) ? lines.map((line) => decodeURIComponent(new URL(line).pathname)) : []
 }
 
+type Field = { content: () => string; selection: () => { from: number; to: number }; insert: (text: string) => void }
+
 export function imagePaste(attach: (paths: string[]) => void, fail: (error: string) => void) {
   let pasting = 0
+  let raw = false
 
   async function system() {
     const path = await invoke<string | null>('paste_image').catch((e) => (fail(errorText(e)), null))
@@ -25,12 +29,15 @@ export function imagePaste(attach: (paths: string[]) => void, fail: (error: stri
 
   function key(event: KeyboardEvent) {
     if (!(event.ctrlKey || event.metaKey) || event.key.toLowerCase() !== 'v') return
+    raw = event.shiftKey
     const mine = ++pasting
     setTimeout(() => mine === pasting && system(), 120)
   }
 
-  async function paste(event: ClipboardEvent) {
+  async function paste(event: ClipboardEvent, field?: Field) {
     pasting++
+    const plain = raw
+    raw = false
     const data = event.clipboardData
     const files = copiedFiles(data?.getData('text/uri-list') ?? '')
     if (files.length) {
@@ -43,7 +50,9 @@ export function imagePaste(attach: (paths: string[]) => void, fail: (error: stri
       .map((item) => item.getAsFile())
       .filter((file): file is File => !!file)
     if (!images.length) {
-      if (!data?.getData('text/plain')) system()
+      const text = data?.getData('text/plain')
+      if (!text) system()
+      else if (!plain && field) asCode(event, field, text, data?.getData('vscode-editor-data') ?? '')
       return
     }
     if (!data?.getData('text/plain')) event.preventDefault()
@@ -56,6 +65,15 @@ export function imagePaste(attach: (paths: string[]) => void, fail: (error: stri
         fail(errorText(e))
       }
     }
+  }
+
+  function asCode(event: ClipboardEvent, field: Field, text: string, editor: string) {
+    const lang = codeLanguage(text, editor)
+    const { from, to } = field.selection()
+    const block = lang && fenceAt(field.content(), from, to, text, lang)
+    if (!block) return
+    event.preventDefault()
+    field.insert(block)
   }
 
   return { key, paste }

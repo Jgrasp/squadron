@@ -16,6 +16,7 @@
   import { tick, untrack } from 'svelte'
   import { Mention } from './mention.svelte'
   import { imagePaste } from './paste'
+  import Composer from './Composer.svelte'
   import type { Options } from './stream'
 
   let {
@@ -79,7 +80,7 @@
 
   type Choice = { value: string; label: string; text: string; at?: number; detail?: string; usage?: string }
 
-  let message: HTMLTextAreaElement
+  let message: ReturnType<typeof Composer>
   let dismissed = $state('')
   let chosen = $state('')
   let pick = $state(0)
@@ -139,7 +140,7 @@
     } else if (choices.length && (event.key === 'Tab' || (event.key === 'Enter' && !event.ctrlKey && !event.shiftKey))) {
       event.preventDefault()
       choose(choices[pick])
-    } else if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && message.selectionStart === text.length) {
+    } else if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && message.selection().from === text.length) {
       event.preventDefault()
       text = chosen = text.replace(/[^\s/]+ $/, '')
     } else if ((choices.length || usage) && event.key === 'Escape') {
@@ -172,21 +173,17 @@
     <div class="fields">
       <div class="write">
         <div class="box">
-          <!-- svelte-ignore a11y_autofocus -->
-          <textarea
+          <Composer
             id="first-message"
-            rows="5"
-            aria-label={t('board.firstMessage')}
+            label={t('board.firstMessage')}
             bind:value={text}
             bind:this={message}
             placeholder={t('board.firstMessagePlaceholder')}
             autofocus
             onkeydown={keys}
-            onpaste={clip.paste}
-            oninput={mentions.track}
-            onkeyup={mentions.track}
-            onmouseup={mentions.track}
-          ></textarea>
+            onpaste={(e) => clip.paste(e, message)}
+            oncaret={mentions.track}
+          />
           <div class="boxbar">
             <button type="button" class="btn-icon" aria-label={t('board.attach')} title={t('board.attachTitle')} onclick={browseFiles}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
@@ -459,12 +456,13 @@
     box-shadow: inset 0 0 0 1px var(--border-focus);
   }
 
-  .box textarea {
-    border: 0;
-    background: none;
+  .box :global(.composer-field) {
+    padding: 12px 14px;
     color: var(--text);
-    font: inherit;
-    outline: none;
+  }
+
+  .box :global(.cm-editor) {
+    height: 7.5em;
   }
 
   .boxbar {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
   import { archive, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, VALUES, type Server } from './agents.svelte'
@@ -32,11 +33,14 @@
   import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
+  import { badgeOf, extensionItem, extensionPanel, runItem } from './extensions.svelte'
+  import ExtensionPanel from './ExtensionPanel.svelte'
   import { run } from './shells.svelte'
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
   import { imagePaste } from './paste'
   import { Mention } from './mention.svelte'
+  import Composer from './Composer.svelte'
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
@@ -269,7 +273,7 @@
   let dismissed = $state('')
   let pick = $state(0)
   let chosen = $state('')
-  let composer: HTMLTextAreaElement
+  let composer: ReturnType<typeof Composer>
   const commandList = $derived(commandsOf(agent))
   const mentions = new Mention(() => text, () => workdir(agent))
   const mention = $derived(text === dismissed ? null : mentions.found)
@@ -546,10 +550,13 @@
   let totalMatches = $state(0)
   let matchIndex = $state(-1)
   let field = $state<HTMLInputElement>()
-  let matches: Range[] = []
+  let matches: StaticRange[] = []
+  const findAsked = ui.finding
+
+  $effect(() => closeFind)
 
   $effect(() => {
-    if (ui.finding) untrack(() => ((finding = true), tick().then(() => (field?.focus(), field?.select()))))
+    if (ui.finding !== findAsked) untrack(() => ((finding = true), tick().then(() => (field?.focus(), field?.select()))))
   })
 
   function paintMatches() {
@@ -576,10 +583,8 @@
       for (let node = walker.nextNode(); node; node = walker.nextNode()) {
         const text = (node as Text).data.toLowerCase()
         for (let at = text.indexOf(q); at !== -1; at = text.indexOf(q, at + q.length)) {
-          const range = document.createRange()
-          range.setStart(node, at)
-          range.setEnd(node, at + q.length)
-          matches.push(range)
+          // a live Range is updated on every DOM change: with 100k matches, each streamed token freezes the view
+          matches.push(new StaticRange({ startContainer: node, startOffset: at, endContainer: node, endOffset: at + q.length }))
         }
       }
     }
@@ -645,6 +650,13 @@
   })
 
   let chilly = $state('')
+  let focus = $state('')
+
+  async function compactThenSend() {
+    await send(agent.id, `/compact ${focus.trim()}`.trim())
+    focus = ''
+    submit(undefined, true)
+  }
 
   function submit(event?: Event, forced = false) {
     event?.preventDefault()
@@ -675,13 +687,13 @@
     }
   }
 
-  function show(area: HTMLTextAreaElement, value: string) {
+  function show(value: string) {
     text = value
-    tick().then(() => area.setSelectionRange(value.length, value.length))
+    tick().then(() => composer.setSelectionRange(value.length, value.length))
   }
 
   function keys(event: KeyboardEvent) {
-    const area = event.currentTarget as HTMLTextAreaElement
+    const area = composer.selection()
     if (suggestions.length) {
       if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
         event.preventDefault()
@@ -697,10 +709,10 @@
     }
     if (event.key === 'ArrowRight' && !text && agent.guess && placeholder === agent.guess) {
       event.preventDefault()
-      show(area, agent.guess!)
+      show(agent.guess!)
       return
     }
-    if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && area.selectionStart === text.length) {
+    if (event.key === 'Backspace' && text === chosen && text.endsWith(' ') && area.from === text.length) {
       event.preventDefault()
       text = chosen = text.replace(/[^\s/]+ $/, '')
       return
@@ -719,17 +731,17 @@
         if (!message) return
         attachments = message.files ?? []
         comments = message.comments ?? []
-        show(area, message.text)
+        show(message.text)
       })
-    } else if (event.key === 'ArrowUp' && !text.slice(0, area.selectionStart).includes('\n') && recall < sent.length - 1) {
+    } else if (event.key === 'ArrowUp' && !text.slice(0, area.from).includes('\n') && recall < sent.length - 1) {
       event.preventDefault()
       if (recall === -1) draft = text
       recall++
-      show(area, sent[sent.length - 1 - recall])
-    } else if (event.key === 'ArrowDown' && !text.slice(area.selectionEnd).includes('\n') && recall >= 0) {
+      show(sent[sent.length - 1 - recall])
+    } else if (event.key === 'ArrowDown' && !text.slice(area.to).includes('\n') && recall >= 0) {
       event.preventDefault()
       recall--
-      show(area, recall === -1 ? draft : sent[sent.length - 1 - recall])
+      show(recall === -1 ? draft : sent[sent.length - 1 - recall])
     }
   }
 
@@ -884,7 +896,21 @@
     {/snippet}
       {#each ui.customizing ? all('agent.tools') : shown('agent.tools').filter((id) => id !== 'runs' || ran) as id (id)}
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
-            {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : kanbanTool)()}
+            {#if extensionItem('agent.tools', id)}
+              {@const item = extensionItem('agent.tools', id)!}
+              <button
+                class="btn btn-ghost"
+                title={detailOf('agent.tools', id) || null}
+                aria-pressed={'panel.open' in item.action ? panel === `extension:${item.extension}.${item.action['panel.open']}` : undefined}
+                onclick={() => runItem(item, { project, agent })}
+              >
+                {#if item.icon}<Icon name={item.icon} />{/if}
+                {labelOf('agent.tools', id)}
+                {#if badgeOf(id)}<span class="count">{badgeOf(id)}</span>{/if}
+              </button>
+            {:else}
+              {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : kanbanTool)()}
+            {/if}
             {#if ui.customizing}
               <button class="eye" data-keep aria-label={t(hidden('agent.tools', id) ? 'agent.showItem' : 'agent.hideItem', { item: labelOf('agent.tools', id) })} onclick={() => toggleItem('agent.tools', id)}>
                 <Icon name={hidden('agent.tools', id) ? 'eye-off' : 'eye'} size={12} />
@@ -935,7 +961,7 @@
                     <button
                       role="menuitem"
                       disabled={!agent.remote.url}
-                      onclick={() => (agent.remote?.url && navigator.clipboard.writeText(agent.remote.url), (remoteOpen = false))}
+                      onclick={() => (agent.remote?.url && copyText(agent.remote.url), (remoteOpen = false))}
                     >
                       {t('agent.copySessionLink')}
                     </button>
@@ -1179,8 +1205,9 @@
           {#if chilly === agent.id}
             <div class="chilly" role="alert">
               <p><strong>{t('agent.coldTitle', { tokens: tokens(agent.tokens), idle: ago(agent.since, Date.now()) })}</strong> {t('agent.coldDetail')}</p>
+              <input class="focus" bind:value={focus} placeholder={t('agent.compactFocus')} aria-label={t('agent.compactFocus')} onkeydown={(e) => e.key === 'Enter' && (e.preventDefault(), compactThenSend())} />
               <div class="actions">
-                <button type="button" class="btn btn-primary" onclick={async () => (await send(agent.id, '/compact'), submit(undefined, true))}>{t('agent.compactThenSend')}</button>
+                <button type="button" class="btn btn-primary" onclick={compactThenSend}>{t('agent.compactThenSend')}</button>
                 <button type="button" class="btn btn-secondary" onclick={() => submit(undefined, true)}>{t('agent.sendAnyway')}</button>
                 <button type="button" class="close" aria-label={t('common.cancel')} title={t('common.cancel')} onclick={() => (chilly = '')}>×</button>
               </div>
@@ -1248,8 +1275,7 @@
             </div>
           {/if}
           <div class="bar" class:bang>
-            <label for="composer" class="sr-only">{t('agent.messageToAgent')}</label>
-            <textarea id="composer" rows="1" bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={clip.paste} oninput={mentions.track} onkeyup={mentions.track} onmouseup={mentions.track}></textarea>
+            <Composer id="composer" label={t('agent.messageToAgent')} bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={(e) => clip.paste(e, composer)} oncaret={mentions.track} />
             <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
@@ -1301,8 +1327,8 @@
                       {#if i < shown('agent.menu').length - 1}<span class="rule" aria-hidden="true"></span>{/if}
                     {:else}
                     {#if id === 'archive'}<span class="rule" aria-hidden="true"></span>{/if}
-                    <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id]())}>
-                      <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}</strong>
+                    <button type="button" role="menuitem" disabled={id === 'fork' && !agent.sessionId} onmouseenter={() => (sub = null)} onclick={() => ((menuOpen = false), MENU[id] ? MENU[id]() : runItem(extensionItem('agent.menu', id)!, { project, agent }))}>
+                      <strong>{id === 'remote' && agent.remote ? t('agent.turnOffRemote') : labelOf('agent.menu', id)}{#if badgeOf(id)}&nbsp;· {badgeOf(id)}{/if}</strong>
                       <span>{id === 'remote' && agent.remote ? t('agent.turnOffRemoteDetail') : detailOf('agent.menu', id)}</span>
                     </button>
                     {/if}
@@ -1353,6 +1379,8 @@
       onquote={(quote) => ((text = text.trim() ? `${text.trimEnd()} ${quote} ` : `${quote} `), composer.focus())}
       onclose={() => setPanel(agent.project, null)}
     />
+  {:else if extensionPanel(panel)}
+    <ExtensionPanel panel={extensionPanel(panel)!} {agent} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'artifacts' && shared.length}
     <ArtifactsPanel
       {agent}
@@ -1381,13 +1409,6 @@
     padding-right: var(--panel-side, 0px);
     display: flex;
     flex-direction: column;
-    transition:
-      height 0.38s cubic-bezier(0.22, 1, 0.36, 1),
-      padding-right 0.38s cubic-bezier(0.22, 1, 0.36, 1);
-  }
-
-  :global(.resizing > .conversation) {
-    transition: none;
   }
 
   .tools {
@@ -2677,6 +2698,28 @@
     color: var(--wait-text);
   }
 
+  .chilly .focus {
+    order: 3;
+    flex: 1 1 100%;
+    height: 32px;
+    padding: 0 10px;
+    border: none;
+    border-radius: 4px;
+    outline: none;
+    background: var(--wait-btn);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--wait-text);
+    font: inherit;
+  }
+
+  .chilly .focus::placeholder {
+    color: var(--wait-muted);
+  }
+
+  .chilly .focus:focus {
+    box-shadow: inset 0 0 0 2px var(--border-focus);
+  }
+
   .chilly .actions {
     display: flex;
     align-items: center;
@@ -2781,17 +2824,14 @@
     background: var(--surface-2);
   }
 
-  textarea {
+  .bar :global(.composer-field) {
     flex: 1;
     min-height: 38px;
+  }
+
+  .bar :global(.cm-scroller) {
     max-height: 200px;
     padding: 9px 0;
-    border: none;
-    outline: none;
-    resize: none;
-    background: transparent;
-    line-height: 1.5;
-    field-sizing: content;
   }
 
   .btn-icon.open {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { tick } from 'svelte'
   import { ABILITY_ORDER, abilities, groups, type Ability, type ToolGroup } from './agenttools'
   import { agents } from './agents.svelte'
@@ -90,7 +91,7 @@
       <div class="source">{source}{#if found}<span class="path">{found.path}</span>{/if}</div>
     </div>
     {#if found}
-      <button class="copy" type="button" onclick={() => navigator.clipboard.writeText(found!.path)}>{t('persona.copyPath')}</button>
+      <button class="copy" type="button" onclick={() => copyText(found!.path)}>{t('persona.copyPath')}</button>
     {/if}
   </div>
   <div class="body">

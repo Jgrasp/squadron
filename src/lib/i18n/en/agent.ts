@@ -82,6 +82,7 @@ export default {
   coldDetail: 'Its cache has expired: this message re-reads all of it, then every step re-reads it again. Compacting first makes the rest much cheaper.',
   compactThenSend: 'Compact, then send',
   sendAnyway: 'Send anyway',
+  compactFocus: 'Compaction instructions (optional) · e.g. keep the API decisions',
   tasksDone: '{done}/{total} tasks',
   previousTasks: { one: 'Previous list · {count} done', other: 'Previous list · {count} done' },
   agentOptions: 'Agent options',

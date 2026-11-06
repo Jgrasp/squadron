@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/_squadron/kit.css" />
+  </head>
+  <body>
+    <h2>Hello</h2>
+    <p class="muted">This page runs in its own frame. Its buttons talk to the extension’s WebAssembly through Squadron.</p>
+    <p>Count: <strong id="count">…</strong></p>
+    <button class="primary" id="add">Count</button>
+    <script>
+      squadron.on((message) => (document.getElementById('count').textContent = message.count))
+      document.getElementById('add').onclick = () => squadron.send({ type: 'count' })
+      squadron.send({ type: 'ready' })
+    </script>
+  </body>
+</html>

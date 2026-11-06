@@ -19,7 +19,7 @@
   const recommended = (label: string) => /\((recommended|recommandé)\)\s*$/i.test(label)
 
   function choose(q: Question, label: string) {
-    if (simple) return answer(agent, ask, { [q.question]: label })
+    if (simple) return answer(agent, ask, { [q.question]: [label, own[q.question]?.trim()].filter(Boolean).join(' — ') })
     const current = picked[q.question] ?? []
     picked[q.question] = current.includes(label)
       ? current.filter((l) => l !== label)
@@ -29,7 +29,8 @@
   }
 
   function send() {
-    if (done < questions.length) return
+    if (simple && own[questions[0].question]?.trim()) return answer(agent, ask, { [questions[0].question]: own[questions[0].question].trim() })
+    if (simple || done < questions.length) return
     answer(agent, ask, Object.fromEntries(questions.map((q) => [q.question, reply(q)])))
   }
 
@@ -48,6 +49,23 @@
     {#if option.description}<span>{option.description}</span>{/if}
   </span>
   {#if recommended(option.label)}<span class="badge">{t('common.recommended')}</span>{/if}
+{/snippet}
+
+{#snippet ownField(q: Question)}
+  <div class="own">
+    <svg class="pen" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
+    <input
+      class:on={own[q.question]?.trim()}
+      placeholder={t('agent.ownAnswer')}
+      aria-label={t('agent.ownAnswer')}
+      value={own[q.question] ?? ''}
+      oninput={(e) => (own[q.question] = e.currentTarget.value)}
+      onkeydown={(e) => e.key === 'Enter' && send()}
+    />
+    {#if own[q.question]}
+      <button class="clear" aria-label={t('agent.clearOwnAnswer')} title={t('agent.clearOwnAnswer')} onclick={() => (own[q.question] = '')}>×</button>
+    {/if}
+  </div>
 {/snippet}
 
 <section class="card" aria-label={t('agent.agentQuestion')}>
@@ -71,6 +89,7 @@
       {/each}
     </div>
     <span class="hint">{t('agent.oneClickHint')}</span>
+    {@render ownField(questions[0])}
   {:else}
     {#each questions as q, n (q.question)}
       <div class="question" role="group" aria-label={q.question}>
@@ -103,19 +122,7 @@
             {/if}
           {/each}
         </div>
-        <div class="own">
-          <input
-            class:on={own[q.question]?.trim()}
-            placeholder={t('agent.ownAnswer')}
-            aria-label={t('agent.ownAnswer')}
-            value={own[q.question] ?? ''}
-            oninput={(e) => (own[q.question] = e.currentTarget.value)}
-            onkeydown={(e) => e.key === 'Enter' && send()}
-          />
-          {#if own[q.question]}
-            <button class="clear" aria-label={t('agent.clearOwnAnswer')} title={t('agent.clearOwnAnswer')} onclick={() => (own[q.question] = '')}>×</button>
-          {/if}
-        </div>
+        {@render ownField(q)}
       </div>
     {/each}
     <div class="footer">
@@ -332,13 +339,26 @@
     display: flex;
   }
 
+  .pen {
+    position: absolute;
+    top: 50%;
+    left: 18px;
+    transform: translateY(-50%);
+    fill: none;
+    stroke: var(--wait-muted);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    pointer-events: none;
+  }
+
   .own input {
     flex: 1;
-    min-height: 34px;
-    padding: 0 36px 0 12px;
-    border: none;
+    min-height: 42px;
+    padding: 0 36px 0 48px;
+    border: 1px solid var(--wait-border);
     border-radius: 4px;
-    background: var(--option-off);
+    background: color-mix(in srgb, var(--wait-bg), black 30%);
     color: var(--wait-text);
     font: inherit;
     outline: none;
@@ -350,8 +370,12 @@
 
   .own input:focus,
   .own input.on {
-    background: var(--option-on);
-    box-shadow: inset 0 0 0 2px var(--accent-soft);
+    border-color: var(--accent);
+    box-shadow: 0 0 0 1px var(--accent);
+  }
+
+  .own:focus-within .pen {
+    stroke: var(--accent);
   }
 
   .clear {

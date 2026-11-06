@@ -7,6 +7,8 @@ pub mod azure;
 pub mod claude;
 pub mod definitions;
 pub mod editors;
+pub mod extension_tools;
+pub mod extensions;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
@@ -19,6 +21,7 @@ pub mod stored;
 pub mod system;
 pub mod terminal;
 pub mod tickets;
+pub mod wasm;
 
 use agents::Agents;
 use askpass::Askpass;
@@ -1281,6 +1284,222 @@ fn get_layout(file: State<LayoutFile>) -> serde_json::Value {
 }
 
 #[tauri::command]
+fn extensions_list(extensions: State<extensions::Extensions>) -> extensions::Listing {
+    extensions.list()
+}
+
+#[tauri::command]
+fn extensions_link(extensions: State<extensions::Extensions>, path: String) -> Result<(), String> {
+    extensions.link(&path)
+}
+
+#[tauri::command]
+fn extensions_unlink(
+    extensions: State<extensions::Extensions>,
+    path: String,
+) -> Result<(), String> {
+    extensions.unlink(&path)
+}
+
+#[tauri::command]
+fn extensions_enable(
+    extensions: State<extensions::Extensions>,
+    id: String,
+    on: bool,
+) -> Result<(), String> {
+    extensions.enable(&id, on)
+}
+
+#[tauri::command]
+fn extensions_approve(
+    extensions: State<extensions::Extensions>,
+    id: String,
+    commands: Vec<String>,
+) -> Result<(), String> {
+    extensions.approve(&id, commands)
+}
+
+#[tauri::command]
+async fn extensions_set_tools(
+    tools: State<'_, extension_tools::Tools>,
+    list: Vec<extension_tools::ExtensionTool>,
+) -> Result<(), String> {
+    tools.set(list).await;
+    Ok(())
+}
+
+#[tauri::command]
+fn extensions_tool_reply(
+    tools: State<extension_tools::Tools>,
+    id: String,
+    ok: bool,
+    text: String,
+) -> Result<(), String> {
+    tools.reply(&id, ok, text)
+}
+
+#[tauri::command]
+async fn extension_exec(
+    dir: PathBuf,
+    command: String,
+    id: String,
+    secrets: Vec<String>,
+) -> Result<(bool, String), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut env = Vec::new();
+        for name in secrets {
+            if let Some(value) = forge::read_secret(&wasm::secret_key(&id, &name)?)? {
+                env.push((
+                    format!("SQUADRON_{}", name.to_uppercase().replace('-', "_")),
+                    value,
+                ));
+            }
+        }
+        extension_tools::exec(&dir, &command, &env)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_secrets(id: String, names: Vec<String>) -> Result<Vec<String>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let mut set = Vec::new();
+        for name in names {
+            if forge::read_secret(&wasm::secret_key(&id, &name)?)?.is_some() {
+                set.push(name);
+            }
+        }
+        Ok(set)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_secret_set(
+    id: String,
+    name: String,
+    value: Option<String>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        forge::write_secret(&wasm::secret_key(&id, &name)?, value.as_deref())
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_wasm_sync(
+    app: AppHandle,
+    list: Vec<wasm::Spec>,
+) -> Result<HashMap<String, String>, String> {
+    tauri::async_runtime::spawn_blocking(move || app.state::<wasm::Runtime>().sync(list))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn extensions_wasm_event(
+    runtime: State<wasm::Runtime>,
+    id: Option<String>,
+    name: String,
+    agent: Option<wasm::AgentInfo>,
+    data: String,
+) {
+    runtime.event(id.as_deref(), &name, agent, &data);
+}
+
+#[tauri::command]
+async fn extensions_wasm_run(
+    app: AppHandle,
+    id: String,
+    action: String,
+    agent: Option<wasm::AgentInfo>,
+) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<wasm::Runtime>().run(&id, &action, agent)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_wasm_tool(
+    app: AppHandle,
+    id: String,
+    name: String,
+    input: String,
+    agent: Option<wasm::AgentInfo>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<wasm::Runtime>().tool(&id, &name, &input, agent)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_catalog(app: AppHandle) -> Result<Vec<serde_json::Value>, String> {
+    let sources = app.state::<extensions::Extensions>().choices().sources;
+    Ok(extensions::catalog(sources).await)
+}
+
+#[tauri::command]
+async fn extensions_source_add(app: AppHandle, source: String) -> Result<(), String> {
+    if !extensions::valid_source(&source) {
+        return Err(format!(
+            "{source} is not a GitHub repository like owner/repo."
+        ));
+    }
+    extensions::fetch_index(&source)
+        .await
+        .map_err(|e| format!("{source} has no extension catalog: {e}"))?;
+    app.state::<extensions::Extensions>().add_source(&source)
+}
+
+#[tauri::command]
+fn extensions_source_remove(
+    extensions: State<extensions::Extensions>,
+    source: String,
+) -> Result<(), String> {
+    extensions.remove_source(&source)
+}
+
+#[tauri::command]
+async fn extensions_install(
+    app: AppHandle,
+    source: String,
+    id: String,
+    archive: String,
+    sha256: String,
+) -> Result<(), String> {
+    if !app.state::<extensions::Extensions>().known_source(&source) {
+        return Err(format!("{source} is not one of your extension sources."));
+    }
+    let bytes = extensions::fetch_archive(&source, &archive).await?;
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<extensions::Extensions>()
+            .install(&source, &id, &bytes, &sha256)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn extensions_uninstall(
+    extensions: State<extensions::Extensions>,
+    id: String,
+) -> Result<(), String> {
+    extensions.uninstall(&id)
+}
+
+#[tauri::command]
+fn open_extensions_folder(extensions: State<extensions::Extensions>) -> Result<(), String> {
+    open_path(&extensions.dir)
+}
+
+#[tauri::command]
 fn set_layout(file: State<LayoutFile>, layout: serde_json::Value) -> Result<(), String> {
     if !layout.is_object() {
         return Err("The layout must be an object.".into());
@@ -1516,6 +1735,23 @@ async fn paste_image(
     {
         let _ = (window, folder);
         Ok(None)
+    }
+}
+
+#[tauri::command]
+fn copy_text(window: tauri::WebviewWindow, text: String) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        window
+            .run_on_main_thread(move || {
+                gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text)
+            })
+            .map_err(|e| e.to_string())
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, text);
+        Err("unsupported".into())
     }
 }
 
@@ -1830,6 +2066,8 @@ pub fn run() {
         unsafe { std::env::remove_var(leaked) };
     }
     #[cfg(target_os = "linux")]
+    if std::env::var_os("WEBKIT_DISABLE_DMABUF_RENDERER").is_none()
+        && std::path::Path::new("/sys/module/nvidia").exists()
     {
         // SAFETY: runs first, before Squadron starts any thread.
         unsafe { std::env::set_var("WEBKIT_DISABLE_DMABUF_RENDERER", "1") };
@@ -1854,6 +2092,18 @@ pub fn run() {
             let path = request.uri().path().to_string();
             std::thread::spawn(move || match artifacts::ROOT.get() {
                 Some(root) => responder.respond(artifacts::serve(root, &path)),
+                None => responder.respond(
+                    http::Response::builder()
+                        .status(503)
+                        .body(Vec::new())
+                        .unwrap(),
+                ),
+            });
+        })
+        .register_asynchronous_uri_scheme_protocol("extension", |ctx, request, responder| {
+            let (app, path) = (ctx.app_handle().clone(), request.uri().path().to_string());
+            std::thread::spawn(move || match app.try_state::<extensions::Extensions>() {
+                Some(extensions) => responder.respond(extensions.serve(&path)),
                 None => responder.respond(
                     http::Response::builder()
                         .status(503)
@@ -1980,6 +2230,26 @@ pub fn run() {
             agent_texts,
             get_layout,
             set_layout,
+            extensions_list,
+            extensions_link,
+            extensions_unlink,
+            extensions_enable,
+            extensions_approve,
+            extensions_set_tools,
+            extensions_tool_reply,
+            extension_exec,
+            extensions_secrets,
+            extensions_secret_set,
+            extensions_wasm_sync,
+            extensions_wasm_event,
+            extensions_wasm_run,
+            extensions_wasm_tool,
+            open_extensions_folder,
+            extensions_catalog,
+            extensions_source_add,
+            extensions_source_remove,
+            extensions_install,
+            extensions_uninstall,
             send_message,
             save_attachment,
             attachment_preview,
@@ -1987,6 +2257,7 @@ pub fn run() {
             save_capture,
             open_attachment,
             paste_image,
+            copy_text,
             project_sessions,
             read_session,
             interrupt_agent,
@@ -2080,6 +2351,17 @@ pub fn run() {
                 )
             });
             app.manage(LayoutFile(config.join("layout.json")));
+            let extensions_dir = config.join("extensions");
+            std::fs::create_dir_all(&extensions_dir)?;
+            let handle = app.handle().clone();
+            extensions::Extensions { dir: extensions_dir.clone(), file: config.join("extensions.json") }.watch(move || {
+                let _ = handle.emit_to("main", "extensions-changed", ());
+            });
+            app.manage(extensions::Extensions { dir: extensions_dir, file: config.join("extensions.json") });
+            let handle = app.handle().clone();
+            app.manage(wasm::Runtime::new(config.join("extensions-state"), move |message| {
+                let _ = handle.emit_to("main", "extensions-host", message);
+            })?);
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {
@@ -2090,12 +2372,17 @@ pub fn run() {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });
             let handle = app.handle().clone();
+            let extension_tools = extension_tools::Tools::new(token.clone(), move |call| {
+                let _ = handle.emit_to("main", "extensions-tool", call);
+            });
+            let handle = app.handle().clone();
             let askpass = Askpass::new(token.clone(), move |question| {
                 let _ = handle.emit("askpass-request", question);
             });
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
                 gate.clone(),
                 pilot.clone(),
+                extension_tools.clone(),
                 askpass.clone().router(),
             ))?;
             let helpers = app.path().app_data_dir()?.join("bin");
@@ -2111,6 +2398,7 @@ pub fn run() {
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);
+            app.manage(extension_tools);
             Ok(())
         })
         .on_window_event(|window, event| {

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { tick } from 'svelte'
   import { clock } from './agents.svelte'
@@ -114,7 +115,7 @@
       else lines.push(`${clockTime(i.at)} ${i.call.name} ${argument(agent, i.call)}\n${i.call.result?.text ?? ''}`)
     }
     if (sub.result) lines.push(t('conversation.copyResult', { result: sub.result }))
-    await navigator.clipboard.writeText(lines.join('\n'))
+    await copyText(lines.join('\n'))
     copied = true
     setTimeout(() => (copied = false), 1500)
   }

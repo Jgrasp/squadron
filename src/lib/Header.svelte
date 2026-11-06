@@ -9,6 +9,7 @@
   import { chime } from './chime'
   import { ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
+  import { badgeOf, extensionItem, runItem } from './extensions.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
   import { editProject, ordered, orderProjects, projects } from './projects.svelte'
   import { showPulls } from './linked.svelte'
@@ -155,9 +156,9 @@
             <button
               role="menuitem"
               class="item"
-              onclick={() => ((menuOpen = false), id === 'updates' ? checkNow() : (ui.settings = id === 'settings' ? 'projects' : (id as SettingsTab)))}
+              onclick={() => ((menuOpen = false), extensionItem('menu.squadron', id) ? runItem(extensionItem('menu.squadron', id)!, { project: projects.list.find((p) => p.path === projects.current) }) : id === 'updates' ? checkNow() : (ui.settings = id === 'settings' ? 'projects' : (id as SettingsTab)))}
             >
-              <span><strong>{labelOf('menu.squadron', id)}</strong><small>{detailOf('menu.squadron', id)}</small></span>
+              <span><strong>{labelOf('menu.squadron', id)}{#if badgeOf(id)}&nbsp;· {badgeOf(id)}{/if}</strong><small>{detailOf('menu.squadron', id)}</small></span>
             </button>
           {/each}
           <span class="rule" aria-hidden="true"></span>

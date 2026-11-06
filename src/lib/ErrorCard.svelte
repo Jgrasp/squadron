@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { open } from '@tauri-apps/plugin-dialog'
   import { reload, retry, send } from './agents.svelte'
@@ -13,7 +14,7 @@
   let copied = $state(false)
 
   async function copy(text: string) {
-    await navigator.clipboard.writeText(text)
+    await copyText(text)
     copied = true
     setTimeout(() => (copied = false), 1500)
   }

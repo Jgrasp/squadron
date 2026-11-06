@@ -35,4 +35,9 @@ describe('pushedTo', () => {
   it('ignores a push without a branch', () => {
     expect(pushedTo(ran(['git push', ''], ['git push origin HEAD', '']))).toBeNull()
   })
+
+  it('forgets the pushes of the branch it left', () => {
+    expect(pushedTo(ran(['git push -u origin ia/A', ''], ['git push origin HEAD', '']))).toBeNull()
+    expect(pushedTo(ran(['gh pr create', 'https://github.com/o/r/pull/1655'], ['git checkout -b ia/B origin/dev', '']))).toBeNull()
+  })
 })

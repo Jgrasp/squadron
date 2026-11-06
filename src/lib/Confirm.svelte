@@ -35,6 +35,11 @@
       <h1 id="confirm-title">{current.title ?? 'Squadron'}</h1>
     </div>
     <p id="confirm-text">{current.text}</p>
+    {#if current.lines?.length}
+      <div class="lines">
+        {#each current.lines as line, i (i)}<code>{line}</code>{/each}
+      </div>
+    {/if}
     <div class="actions">
       {#if current.choice}
         <button class="btn btn-secondary" onclick={() => answer(false)}>{current.cancelLabel ?? t('common.cancel')}</button>
@@ -113,6 +118,23 @@
     line-height: 1.55;
     color: var(--text-2);
     white-space: pre-line;
+  }
+
+  .lines {
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+    margin: -8px 0 20px 44px;
+  }
+
+  code {
+    padding: 3px 8px;
+    border-radius: 4px;
+    font: 12.5px var(--mono);
+    background: var(--surface-3);
+    color: var(--text);
+    overflow-wrap: anywhere;
   }
 
   .actions {

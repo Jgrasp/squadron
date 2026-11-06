@@ -4,7 +4,7 @@ export type Slot = 'agent.info' | 'agent.tools' | 'agent.menu' | 'menu.squadron'
 
 export type Arrangement = { order?: string[]; hidden?: string[] }
 
-export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, Key?][]; locked?: string[]; hidden?: string[] }> = {
+export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, Key?][]; locked?: string[]; hidden?: string[]; last?: string[] }> = {
   'agent.info': {
     title: 'settings.slotInfo',
     hint: 'settings.slotInfoHint',
@@ -44,12 +44,14 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
       ['remote', 'settings.itemRemote', 'settings.itemRemoteMenuHint'],
       ['archive', 'common.archive', 'settings.itemArchiveHint'],
     ],
+    last: ['archive'],
   },
   'menu.squadron': {
     title: 'settings.slotSquadron',
     hint: 'settings.slotSquadronHint',
     items: [
       ['settings', 'settings.title', 'settings.itemSettingsHint'],
+      ['extensions', 'settings.tabExtensions', 'settings.itemExtensionsHint'],
       ['updates', 'settings.itemUpdates', 'settings.itemUpdatesHint'],
       ['about', 'settings.itemAbout', 'settings.itemAboutHint'],
     ],

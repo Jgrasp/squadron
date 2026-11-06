@@ -1,0 +1,15 @@
+[package]
+name = "hello"
+version = "1.0.0"
+edition = "2024"
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+squadron_extension_api = { path = "../../api" }
+
+[profile.release]
+opt-level = "s"
+lto = true
+strip = true

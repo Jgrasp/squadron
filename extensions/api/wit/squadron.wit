@@ -1,0 +1,69 @@
+package squadron:api@1.0.0;
+
+interface types {
+  /// The agent a call is about.
+  record agent {
+    id: string,
+    name: string,
+    project: string,
+    /// The folder the agent works in: its worktree, or its project.
+    dir: string,
+  }
+
+  record output {
+    /// -1 when the program was stopped or could not report one.
+    code: s32,
+    stdout: string,
+    stderr: string,
+  }
+
+  record request {
+    method: string,
+    url: string,
+    /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads.
+    headers: list<tuple<string, string>>,
+    body: option<string>,
+  }
+
+  record response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: string,
+  }
+}
+
+interface host {
+  use types.{output, request, response};
+
+  /// Writes a line to Squadron's log.
+  log: func(message: string);
+  /// Shows a notification.
+  notify: func(title: string, body: string);
+  /// Adds text to the message the user is writing to an agent.
+  insert-prompt: func(agent: string, text: string);
+  /// Shows a short badge on one of the extension's items, or removes it.
+  set-badge: func(item: string, badge: option<string>);
+  /// Replaces the label of one of the extension's items, or restores the manifest's.
+  set-label: func(item: string, label: option<string>);
+  /// The extension's own storage, kept across restarts.
+  state-get: func(key: string) -> option<string>;
+  state-set: func(key: string, value: option<string>);
+  /// Runs a program the user allowed in `permissions.exec`, without a shell, for at most 120 s.
+  exec: func(program: string, args: list<string>, dir: option<string>) -> result<output, string>;
+  /// Sends an HTTPS request to a host the user allowed in `permissions.network`, for at most 30 s and 8 MB.
+  fetch: func(request: request) -> result<response, string>;
+  /// Sends a JSON message to one of the extension's open panels, which receives it in `squadron.on`.
+  panel-post: func(panel: string, message: string);
+}
+
+world squadron-extension {
+  use types.{agent};
+  import host;
+
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`. `data` is JSON.
+  export on-event: func(name: string, agent: option<agent>, data: string);
+  /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
+  export run: func(action: string, agent: option<agent>) -> result<_, string>;
+  /// An agent called one of the extension's tools that has no `command`. `input` is JSON.
+  export call-tool: func(name: string, input: string, agent: option<agent>) -> result<string, string>;
+}
