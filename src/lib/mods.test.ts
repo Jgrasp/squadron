@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { grantsOf, itemsOf, load, themeOf, toolsOf, validate } from './mods'
+import { grantsOf, itemsOf, load, panelsOf, themeOf, toolsOf, validate } from './mods'
 
 const lando = {
   id: 'lando',
@@ -103,6 +103,21 @@ describe('mods', () => {
     expect(grantsOf(waiting)).toEqual([])
     expect(toolsOf([waiting]).map((t) => [t.name, t.tool])).toEqual([['hello_changed_files', 'changed_files']])
     expect(grantsOf(load(found, [], { hello: ['exec:git'] })[0])).toEqual(['exec:git'])
+  })
+
+  it('checks panels and the items that open them', () => {
+    const base = { id: 'p', version: '1.0.0', api: 1, name: { en: 'P' } }
+    const panel = { id: 'main', title: { en: 'Main' }, page: 'panel/index.html' }
+    const open = (value: string, slot = 'agent.tools') => ({ items: [{ slot, id: 'open', label: { en: 'Open' }, action: { 'panel.open': value } }] })
+    expect(keys({ ...base, contributes: { panels: [panel], ...open('main') } })).toEqual([])
+    expect(keys({ ...base, contributes: { panels: [panel], ...open('other') } })).toEqual(['mods.unknownPanel'])
+    expect(keys({ ...base, contributes: { panels: [panel], ...open('main', 'menu.squadron') } })).toEqual(['mods.needsAgent'])
+    for (const page of ['/etc/x.html', '../x.html', 'panel/x.js', 'a//b.html'])
+      expect(keys({ ...base, contributes: { panels: [{ ...panel, page }] } })).toEqual(['mods.badPanels'])
+    expect(keys({ ...base, contributes: { panels: [panel, panel] } })).toEqual(['mods.badPanels'])
+    const found = [{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels: [panel] } }, error: null }]
+    expect(panelsOf(load(found, [])).map((p) => p.key)).toEqual(['mod:p.main'])
+    expect(panelsOf(load(found, ['p']))).toEqual([])
   })
 
   it('asks for network hosts and checks secrets', () => {

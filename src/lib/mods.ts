@@ -4,13 +4,17 @@ import type { Slot } from './slots'
 
 export type Text = { en: string } & Partial<Record<Locale, string>>
 
-export type ModAction = { 'terminal.run': string } | { 'prompt.insert': string } | { 'url.open': string } | { squadron: Action } | { mod: string }
+export type ModAction = { 'terminal.run': string } | { 'prompt.insert': string } | { 'url.open': string } | { squadron: Action } | { mod: string } | { 'panel.open': string }
 
 export type ModItem = { slot: Slot; id: string; label: Text; hint?: Text; icon?: string; action: ModAction }
 
 export type ModTool = { name: string; description: string; command?: string; input?: Record<string, unknown> }
 
 export type ModSecret = { id: string; label: Text; hint?: Text }
+
+export type ModPanel = { id: string; title: Text; page: string }
+
+export type Panel = ModPanel & { key: `mod:${string}`; mod: string }
 
 export type Manifest = {
   id: string
@@ -20,7 +24,7 @@ export type Manifest = {
   description?: Text
   wasm?: string
   permissions?: { exec?: string[]; network?: string[] }
-  contributes?: { items?: ModItem[]; tools?: ModTool[]; secrets?: ModSecret[]; theme?: Record<string, string> }
+  contributes?: { items?: ModItem[]; tools?: ModTool[]; secrets?: ModSecret[]; panels?: ModPanel[]; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -37,7 +41,7 @@ export const MOD_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squadron']
 
 export const ICONS = ['editor', 'pull', 'terminal', 'diff', 'kanban', 'remote', 'subagents', 'artifact', 'branch', 'options', 'context', 'turns', 'tasks', 'persona', 'plus', 'copy', 'folder', 'archive', 'stop', 'pin', 'grid', 'jump', 'update', 'mcp']
 
-const NEEDS_AGENT = ['terminal.run', 'prompt.insert']
+const NEEDS_AGENT = ['terminal.run', 'prompt.insert', 'panel.open']
 
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 
@@ -53,7 +57,10 @@ const isText = (v: unknown): v is Text => isObject(v) && typeof v.en === 'string
 
 export const text = (value: Text, locale: Locale) => value[locale] || value.en
 
-function actionProblem(action: unknown, slot: Slot, wasm: boolean): Problem | null {
+const inside = (path: unknown, extension: string) =>
+  typeof path === 'string' && path.endsWith(extension) && !path.startsWith('/') && !path.split(/[\\/]/).some((p) => !p || p === '..')
+
+function actionProblem(action: unknown, slot: Slot, wasm: boolean, panels: string[]): Problem | null {
   if (!isObject(action) || Object.keys(action).length !== 1) return ['mods.badAction']
   const [kind, value] = Object.entries(action)[0]
   if (typeof value !== 'string' || !value.trim()) return ['mods.badAction']
@@ -62,6 +69,7 @@ function actionProblem(action: unknown, slot: Slot, wasm: boolean): Problem | nu
   if (kind === 'prompt.insert') return null
   if (kind === 'url.open') return /^https:\/\/\S+$/.test(value) ? null : ['mods.badUrl']
   if (kind === 'mod') return wasm ? null : ['mods.needsWasm']
+  if (kind === 'panel.open') return panels.includes(value) ? null : ['mods.unknownPanel', { panel: value }]
   if (kind === 'squadron') return ACTIONS.some(([id]) => id === value) ? null : ['mods.badSquadron', { action: value }]
   return ['mods.badAction']
 }
@@ -76,7 +84,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   if (!isText(raw.name)) problems.push(['mods.noName'])
   if (raw.description !== undefined && !isText(raw.description)) problems.push(['mods.badDescription'])
   const wasm = raw.wasm !== undefined
-  if (wasm && (typeof raw.wasm !== 'string' || !raw.wasm.endsWith('.wasm') || raw.wasm.startsWith('/') || raw.wasm.split(/[\\/]/).includes('..'))) problems.push(['mods.badWasm'])
+  if (wasm && !inside(raw.wasm, '.wasm')) problems.push(['mods.badWasm'])
   const exec = isObject(raw.permissions) ? raw.permissions.exec : undefined
   if ((raw.permissions !== undefined && !isObject(raw.permissions)) || (exec !== undefined && (!Array.isArray(exec) || !exec.every((p) => typeof p === 'string' && /^[\w.+-]+$/.test(p)))))
     problems.push(['mods.badExec'])
@@ -85,6 +93,11 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   const contributes = raw.contributes ?? {}
   if (!isObject(contributes)) problems.push(['mods.badContributes'])
   else {
+    const panels = contributes.panels ?? []
+    if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html')))
+      problems.push(['mods.badPanels'])
+    else if (new Set(panels.map((p) => p.id)).size < panels.length) problems.push(['mods.badPanels'])
+    const panelIds = Array.isArray(panels) ? panels.flatMap((p) => (isObject(p) && typeof p.id === 'string' ? [p.id] : [])) : []
     const items = contributes.items ?? []
     if (!Array.isArray(items)) problems.push(['mods.badItems'])
     else {
@@ -99,7 +112,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
         if (!isText(item.label)) problems.push(['mods.noLabel', at])
         if (item.hint !== undefined && !isText(item.hint)) problems.push(['mods.badHint', at])
         if (item.icon !== undefined && !ICONS.includes(item.icon as string)) problems.push(['mods.badIcon', { ...at, icons: ICONS.join(', ') }])
-        const wrong = actionProblem(item.action, item.slot as Slot, wasm)
+        const wrong = actionProblem(item.action, item.slot as Slot, wasm, panelIds)
         if (wrong) problems.push([wrong[0], { ...at, ...wrong[1] }])
       })
     }
@@ -170,5 +183,8 @@ export const toolsOf = (mods: Mod[]): Exposed[] =>
       .filter((t) => !t.command || !m.pending.includes(t.command))
       .map((t) => ({ ...t, name: `${m.manifest.id}_${t.name}`, tool: t.name, mod: m.manifest.id })),
   )
+
+export const panelsOf = (mods: Mod[]): Panel[] =>
+  active(mods).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `mod:${m.manifest.id}.${p.id}` as const, mod: m.manifest.id })))
 
 export const themeOf = (mods: Mod[]) => Object.assign({}, ...active(mods).map((m) => m.manifest.contributes?.theme ?? {})) as Record<string, string>

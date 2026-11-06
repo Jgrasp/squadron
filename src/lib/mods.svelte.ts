@@ -7,8 +7,8 @@ import { pointed } from './artifacts.svelte'
 import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
-import { setPanel } from './layout.svelte'
-import { EXEC, grantsOf, itemsOf, load, NET, text, themeOf, toolsOf, type Found, type Item, type Mod } from './mods'
+import { layout, setPanel } from './layout.svelte'
+import { EXEC, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, type Found, type Item, type Mod, type Panel } from './mods'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -27,6 +27,7 @@ export const commandLine = (key: string) =>
 export async function loadMods() {
   const { mods: found, disabled, approved } = await invoke<{ mods: Found[]; disabled: string[]; approved: Record<string, string[]> }>('mods_list')
   mods.list = load(found, disabled, approved)
+  for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('mod:') && !panelsOf(mods.list).some((p) => p.key === kind)) setPanel(project, null)
   for (const mod of mods.list) {
     const key = `${mod.id}\n${mod.pending.join('\n')}`
     if (!mod.enabled || !mod.manifest || !mod.pending.length || asked.has(key)) continue
@@ -76,6 +77,11 @@ export async function runItem(item: Item, { project, agent }: Context) {
   const action = item.action
   if ('squadron' in action) return run(action.squadron, { project, agent })
   if ('url.open' in action) return invoke('open_link', { url: action['url.open'] })
+  if ('panel.open' in action) {
+    if (!agent) return
+    const kind = `mod:${item.mod}.${action['panel.open']}` as const
+    return setPanel(agent.project, layout.panels[agent.project] === kind ? null : kind)
+  }
   if ('mod' in action)
     return invoke('mods_wasm_run', { id: item.mod, action: action.mod, agent: agent && info(agent) }).catch((e) => message(errorText(e), { kind: 'error', title: item.mod }))
   if (!agent) return
@@ -88,10 +94,31 @@ export async function runItem(item: Item, { project, agent }: Context) {
   }
 }
 
+const posts = new Set<(p: { mod: string; panel: string; message: string }) => void>()
+
+export function onPanelPost(mod: string, panel: string, deliver: (message: unknown) => void) {
+  const listener = (p: { mod: string; panel: string; message: string }) => {
+    if (p.mod !== mod || p.panel !== panel) return
+    try {
+      deliver(JSON.parse(p.message))
+    } catch {
+      deliver(p.message)
+    }
+  }
+  posts.add(listener)
+  return () => posts.delete(listener)
+}
+
+export const panelMessage = (panel: Panel, agent: Agent, message: unknown) =>
+  invoke('mods_wasm_event', { id: panel.mod, name: 'panel.message', agent: info(agent), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
+
+export const modPanel = (kind: string | null) => panelsOf(mods.list).find((p) => p.key === kind)
+
 export const approve = (mod: Mod) => invoke('mods_approve', { id: mod.id, commands: mod.commands }).then(loadMods)
 
 listen<{ mod: string; call: string; [key: string]: unknown }>('mods-host', async ({ payload: p }) => {
   if (p.call === 'error') mods.errors[p.mod] = String(p.error)
+  if (p.call === 'panel-post') for (const post of posts) post({ mod: p.mod, panel: String(p.panel), message: String(p.message) })
   if (p.call === 'set-badge' || p.call === 'set-label') {
     const key = `${p.mod}.${p.item}`
     mods.shown[key] = { ...mods.shown[key], [p.call === 'set-badge' ? 'badge' : 'label']: (p.value as string | null) ?? null }
@@ -128,7 +155,7 @@ $effect.root(() => {
       seen.set(agent.id, agent.status)
       if (before === undefined || before === agent.status) continue
       if (agent.status === 'done' || agent.status === 'waiting')
-        invoke('mods_wasm_event', { name: `agent.${agent.status}`, agent: info(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action } : {}) })
+        invoke('mods_wasm_event', { id: null, name: `agent.${agent.status}`, agent: info(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action } : {}) })
     }
   })
 })

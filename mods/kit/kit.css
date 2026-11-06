@@ -1,0 +1,74 @@
+:root {
+  color-scheme: dark;
+}
+
+html,
+body {
+  margin: 0;
+  background: var(--bg-main);
+  color: var(--text);
+  font: 400 13.5px/1.5 var(--sans);
+}
+
+body {
+  padding: 16px 20px;
+}
+
+a {
+  color: var(--accent-link);
+}
+
+h1,
+h2,
+h3 {
+  color: var(--text-strong);
+  font-weight: 600;
+}
+
+code,
+pre {
+  font-family: var(--mono);
+}
+
+button {
+  height: 32px;
+  padding: 0 14px;
+  border: 0;
+  border-radius: 4px;
+  background: var(--surface-2);
+  color: var(--text);
+  font: 500 13px var(--sans);
+  cursor: pointer;
+}
+
+button:hover {
+  background: var(--surface-3);
+}
+
+button.primary {
+  background: var(--text);
+  color: var(--ink);
+  font-weight: 700;
+}
+
+input,
+select,
+textarea {
+  padding: 6px 10px;
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  background: var(--surface-1);
+  color: var(--text);
+  font: inherit;
+}
+
+input:focus,
+select:focus,
+textarea:focus {
+  outline: none;
+  border-color: var(--border-focus);
+}
+
+.muted {
+  color: var(--text-muted);
+}

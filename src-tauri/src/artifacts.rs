@@ -217,7 +217,7 @@ pub fn expire(root: &Path, archived: &Path, days: u32) {
     }
 }
 
-fn decode(path: &str) -> Option<String> {
+pub(crate) fn decode(path: &str) -> Option<String> {
     let bytes = path.as_bytes();
     let mut out = Vec::with_capacity(bytes.len());
     let mut i = 0;
@@ -252,7 +252,7 @@ pub fn resolve(root: &Path, path: &str) -> Option<PathBuf> {
     (inside && file.is_file()).then_some(file)
 }
 
-fn mime(path: &Path) -> &'static str {
+pub(crate) fn mime(path: &Path) -> &'static str {
     match path
         .extension()
         .and_then(|e| e.to_str())

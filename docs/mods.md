@@ -268,13 +268,15 @@ interface host {
   exec: func(program: string, args: list<string>, dir: option<string>) -> result<output, string>;
   /// Sends an HTTPS request to a host the user allowed in `permissions.network`, for at most 30 s and 8 MB.
   fetch: func(request: request) -> result<response, string>;
+  /// Sends a JSON message to one of the mod's open panels, which receives it in `squadron.on`.
+  panel-post: func(panel: string, message: string);
 }
 
 world squadron-mod {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the mod is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user. `data` is JSON.
+  /// Something happened: `started` once the mod is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the mod's items with the action `{ "mod": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;
@@ -299,6 +301,27 @@ world squadron-mod {
 - **Pas de jeton pour `terminal.run`** : la commande est tapée dans le terminal de l'agent, déjà lancé.
 
 L'exemple `hello` le montre avec l'outil `github_user`, qui appelle `https://api.github.com/user` avec le jeton.
+
+### Panneaux (étape 7)
+
+```json
+"contributes": {
+  "panels": [{ "id": "main", "title": { "en": "Hello", "fr": "Hello" }, "page": "panel/index.html" }],
+  "items": [{ "slot": "agent.tools", "id": "panel", "label": { "en": "Hello panel" }, "action": { "panel.open": "main" } }]
+}
+```
+
+- **Ouverture** : l'action `panel.open` ouvre ou ferme le panneau à côté de la conversation, comme le terminal ou le diff. Elle demande un agent, donc pas de `menu.squadron`. Le panneau garde les modes et tailles des autres panneaux.
+- **Page** : servie par le schéma `mod://localhost/<id>/<page>` (`http://mod.localhost/…` sous Windows), seulement pour un mod activé et seulement depuis son dossier. HTML, CSS, JS, images et polices au choix.
+- **Isolement** : iframe `sandbox="allow-scripts"`, d'origine opaque. Pas d'IPC Tauri, pas d'accès à la fenêtre de Squadron, pas de popup (`alert`, `confirm`), pas de `localStorage`. La CSP interdit tout accès réseau (`connect-src 'none'`) : les requêtes passent par le WASM et `host::fetch`.
+- **Pont** : Squadron ajoute `/_squadron/kit.js` en tête de chaque page HTML.
+  - `squadron.send(valeur)` : le WASM du mod reçoit l'événement `panel.message` avec `{ "panel": "<id>", "message": <valeur> }`.
+  - `squadron.on(fonction)` : reçoit ce que le WASM envoie par `host::panel_post("<id>", "<json>")`.
+  - Un message envoyé avant le chargement de la page se perd : la page envoie d'abord (`ready`), le WASM répond.
+- **Thème** : Squadron pousse dans la page les variables `--bg-main`, `--surface-1` à `--surface-3`, `--border`, `--border-focus`, `--text`, `--text-strong`, `--text-muted`, `--text-dim`, `--ink`, `--accent`, `--accent-link`, `--ok-text`, `--err-text`, `--sans` et `--mono`, au chargement et à chaque changement de thème. C'est la liste garantie par l'API. `/_squadron/kit.css`, facultative, s'en sert pour le fond, le texte, les boutons (`button`, `button.primary`) et les champs.
+- **Limite** : modifier la page ne recharge pas le panneau. Il faut le fermer et le rouvrir.
+
+L'exemple `hello` a un panneau qui affiche le compteur et l'augmente par un bouton, à travers son WASM.
 
 ### Distribution
 
@@ -398,7 +421,7 @@ Taille : M pour la lecture et l'action, S pour les outils de mods.
 4. **Vérifications** : IPC depuis l'iframe, `tools/list_changed`, poids de Wasmtime. Taille S. *Fait.*
 5. **Mods sans logique** : `mod.json`, éléments dans les emplacements, thème, prompts, Settings › Mods, installation d'un dossier local, chargement à chaud. Taille M. *Fait. Les prompts sont des éléments avec l'action `prompt.insert`. Les raccourcis clavier des mods restent à faire.*
 6. **Logique WASM**, découpée en 6a (accord sur les commandes, commandes lancées, outils pour les agents : *fait*), 6b (Wasmtime, API, événements) et 6c (jetons et requêtes HTTP). *6b fait : Wasmtime 50, contrat WIT `squadron:api@1.0.0`, crate `squadron_mod_api`, mod d'exemple `hello`. 6c fait : secrets dans le keyring, `host::fetch` vers les domaines autorisés, jeton en en-tête et en variable d'environnement des outils.* Wasmtime, API WIT et crate `squadron_mod_api`, événements, permissions, secrets, outils pour les agents. Taille L.
-7. **Panneaux** : schéma `mod://`, iframe isolé, `mod-kit.css`, messages entre le panneau et le WASM. Taille M.
+7. **Panneaux** : schéma `mod://`, iframe isolé, `mod-kit.css`, messages entre le panneau et le WASM. Taille M. *Fait : `contributes.panels`, action `panel.open`, `kit.js` et `kit.css`, événement `panel.message` et `host::panel_post`.*
 8. **Marketplace** : dépôt `squadron-mods`, CI de build et de publication, catalogue et installation en un clic, notification des mises à jour. Taille M.
 
 L'API passe avant la marketplace : la marketplace n'est qu'une couche de distribution, et elle figerait une API qui n'a jamais servi. Il faut d'abord éprouver l'API v1 sur 2 ou 3 vrais mods.

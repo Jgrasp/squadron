@@ -52,13 +52,15 @@ interface host {
   exec: func(program: string, args: list<string>, dir: option<string>) -> result<output, string>;
   /// Sends an HTTPS request to a host the user allowed in `permissions.network`, for at most 30 s and 8 MB.
   fetch: func(request: request) -> result<response, string>;
+  /// Sends a JSON message to one of the mod's open panels, which receives it in `squadron.on`.
+  panel-post: func(panel: string, message: string);
 }
 
 world squadron-mod {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the mod is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user. `data` is JSON.
+  /// Something happened: `started` once the mod is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the mod's items with the action `{ "mod": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;

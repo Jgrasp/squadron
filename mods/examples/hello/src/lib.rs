@@ -6,10 +6,23 @@ fn count() -> u32 {
     host::state_get("count").and_then(|c| c.parse().ok()).unwrap_or(0)
 }
 
+fn show(count: u32) {
+    host::set_badge("count", Some(&count.to_string()));
+    host::panel_post("main", &format!(r#"{{"count":{count}}}"#));
+}
+
+fn add() {
+    let next = count() + 1;
+    host::state_set("count", Some(&next.to_string()));
+    show(next);
+}
+
 impl Mod for Hello {
-    fn on_event(name: String, agent: Option<Agent>, _data: String) {
+    fn on_event(name: String, agent: Option<Agent>, data: String) {
         match (name.as_str(), agent) {
             ("started", _) => host::set_badge("count", Some(&count().to_string())),
+            ("panel.message", _) if data.contains(r#""type":"count""#) => add(),
+            ("panel.message", _) => show(count()),
             ("agent.done", Some(agent)) => host::notify("Hello", &format!("{} finished its turn.", agent.name)),
             _ => {}
         }
@@ -18,9 +31,7 @@ impl Mod for Hello {
     fn run(action: String, agent: Option<Agent>) -> Result<(), String> {
         match action.as_str() {
             "count" => {
-                let next = count() + 1;
-                host::state_set("count", Some(&next.to_string()));
-                host::set_badge("count", Some(&next.to_string()));
+                add();
                 Ok(())
             }
             "greet" => {

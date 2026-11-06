@@ -33,7 +33,8 @@
   import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
-  import { badgeOf, modItem, runItem } from './mods.svelte'
+  import { badgeOf, modItem, modPanel, runItem } from './mods.svelte'
+  import ModPanel from './ModPanel.svelte'
   import { run } from './shells.svelte'
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
@@ -1364,6 +1365,8 @@
       onquote={(quote) => ((text = text.trim() ? `${text.trimEnd()} ${quote} ` : `${quote} `), composer.focus())}
       onclose={() => setPanel(agent.project, null)}
     />
+  {:else if modPanel(panel)}
+    <ModPanel panel={modPanel(panel)!} {agent} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'artifacts' && shared.length}
     <ArtifactsPanel
       {agent}

@@ -177,6 +177,10 @@ impl squadron::api::host::Host for Host {
         })
     }
 
+    fn panel_post(&mut self, panel: String, message: String) {
+        self.tell("panel-post", json!({"panel": panel, "message": message}));
+    }
+
     fn fetch(&mut self, request: Request) -> Result<Response, String> {
         let id = self.id.clone();
         fetch(&self.allowed, request, |name| {
@@ -493,8 +497,14 @@ impl Runtime {
         Ok(tx)
     }
 
-    pub fn event(&self, name: &str, agent: Option<AgentInfo>, data: &str) {
-        for l in self.loaded.lock().unwrap().values() {
+    pub fn event(&self, only: Option<&str>, name: &str, agent: Option<AgentInfo>, data: &str) {
+        for (_, l) in self
+            .loaded
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, _)| only.is_none_or(|only| only == id.as_str()))
+        {
             let _ = l.tx.send(Job::Event(
                 name.into(),
                 agent.clone().map(Agent::from),
@@ -605,8 +615,16 @@ mod tests {
         assert!(runtime.sync(vec![spec(vec!["exec:git".into()])]).is_empty());
         let changed = runtime.tool("hello", "changed_files", "{}", Some(agent.clone()));
         assert!(changed.is_ok(), "{changed:?}");
-        runtime.event("agent.done", Some(agent), "{}");
+        runtime.event(Some("other"), "agent.done", Some(agent.clone()), "{}");
+        runtime.event(None, "agent.done", Some(agent), "{}");
         runtime.run("hello", "count", None).unwrap();
+        runtime.event(
+            Some("hello"),
+            "panel.message",
+            None,
+            r#"{"panel":"main","message":{"type":"count"}}"#,
+        );
+        runtime.run("hello", "nope", None).unwrap_err();
 
         let told = told.lock().unwrap().clone();
         let calls: Vec<_> = told
@@ -618,24 +636,31 @@ mod tests {
             [
                 "set-badge",
                 "set-badge",
+                "panel-post",
                 "set-badge",
+                "panel-post",
                 "insert-prompt",
                 "notify",
-                "set-badge"
+                "set-badge",
+                "panel-post",
+                "set-badge",
+                "panel-post"
             ]
         );
         assert_eq!(told[0]["value"], "0");
-        assert_eq!(told[3]["text"], "Hello Ada, what are you working on?");
+        assert_eq!(told[5]["text"], "Hello Ada, what are you working on?");
+        assert_eq!(told[10]["panel"], "main");
+        assert_eq!(told[10]["message"], r#"{"count":4}"#);
         assert_eq!(
             std::fs::read_to_string(states.join("hello.json")).unwrap(),
-            r#"{"count":"3"}"#
+            r#"{"count":"4"}"#
         );
 
         let restarted = Runtime::new(states, |_| {}).unwrap();
         assert!(restarted.sync(vec![spec(vec![])]).is_empty());
         assert_eq!(
             restarted.tool("hello", "clicks", "{}", None).unwrap(),
-            "The Count button was clicked 3 times."
+            "The Count button was clicked 4 times."
         );
     }
 

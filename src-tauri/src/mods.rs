@@ -152,6 +152,74 @@ impl Mods {
             }
         });
     }
+
+    fn page(&self, path: &str) -> Option<PathBuf> {
+        let path = crate::artifacts::decode(path)?;
+        let (id, rest) = path.trim_start_matches('/').split_once('/')?;
+        if rest
+            .split('/')
+            .any(|p| p.is_empty() || p.starts_with('.') || p.contains(['\\', '\0']))
+        {
+            return None;
+        }
+        let listing = self.list();
+        if listing.disabled.iter().any(|d| d == id) {
+            return None;
+        }
+        let found = listing
+            .mods
+            .into_iter()
+            .find(|f| f.manifest.as_ref().and_then(|m| m["id"].as_str()) == Some(id))?;
+        let root = Path::new(&found.dir).canonicalize().ok()?;
+        let file = root.join(rest).canonicalize().ok()?;
+        (file.starts_with(&root) && file.is_file()).then_some(file)
+    }
+
+    pub fn serve(&self, path: &str) -> http::Response<Vec<u8>> {
+        let (status, kind, body) = match path {
+            "/_squadron/kit.js" => (200, "text/javascript; charset=utf-8", KIT_JS.into()),
+            "/_squadron/kit.css" => (200, "text/css; charset=utf-8", KIT_CSS.into()),
+            _ => match self
+                .page(path)
+                .and_then(|f| Some((std::fs::read(&f).ok()?, f)))
+            {
+                None => (404, "text/plain", b"Not found".to_vec()),
+                Some((bytes, file)) => {
+                    let kind = crate::artifacts::mime(&file);
+                    let body = if kind.starts_with("text/html") {
+                        inject(&String::from_utf8_lossy(&bytes)).into()
+                    } else {
+                        bytes
+                    };
+                    (200, kind, body)
+                }
+            },
+        };
+        http::Response::builder()
+            .status(status)
+            .header("Content-Type", kind)
+            .header("Cache-Control", "no-store")
+            .header("Content-Security-Policy", PANEL_CSP)
+            .body(body)
+            .unwrap()
+    }
+}
+
+const KIT_JS: &str = include_str!("../../mods/kit/kit.js");
+const KIT_CSS: &str = include_str!("../../mods/kit/kit.css");
+const PANEL_CSP: &str = "default-src 'self' mod: http://mod.localhost data: blob: 'unsafe-inline'; connect-src 'none'; form-action 'none'";
+
+fn inject(html: &str) -> String {
+    let tag = r#"<script src="/_squadron/kit.js"></script>"#;
+    let lower = html.to_ascii_lowercase();
+    let after = |open: &str| {
+        let at = lower.find(open)?;
+        Some(at + lower[at..].find('>')? + 1)
+    };
+    match after("<head").or_else(|| after("<!doctype")) {
+        Some(at) => format!("{}{tag}{}", &html[..at], &html[at..]),
+        None => format!("{tag}{html}"),
+    }
 }
 
 pub fn read(dir: &Path, linked: bool) -> Found {
@@ -188,6 +256,53 @@ mod tests {
             dir: root.join("mods"),
             file: root.join("mods.json"),
         }
+    }
+
+    #[test]
+    fn serves_the_pages_of_enabled_mods_only() {
+        let m = mods();
+        std::fs::create_dir_all(m.dir.join("good/panel")).unwrap();
+        std::fs::write(m.dir.join("good/mod.json"), r#"{"id":"good"}"#).unwrap();
+        std::fs::write(
+            m.dir.join("good/panel/index.html"),
+            "<!doctype html><html><head><title>x</title></head></html>",
+        )
+        .unwrap();
+        std::fs::write(m.dir.join("secret.txt"), "no").unwrap();
+        let body = |path: &str| {
+            let r = m.serve(path);
+            (
+                r.status().as_u16(),
+                String::from_utf8_lossy(r.body()).to_string(),
+            )
+        };
+        let (status, html) = body("/good/panel/index.html");
+        assert_eq!(status, 200);
+        assert!(html.starts_with(
+            r#"<!doctype html><html><head><script src="/_squadron/kit.js"></script><title>"#
+        ));
+        assert!(
+            m.serve("/good/panel/index.html").headers()["Content-Security-Policy"]
+                .to_str()
+                .unwrap()
+                .contains("connect-src 'none'")
+        );
+        assert!(body("/_squadron/kit.js").1.contains("window.squadron"));
+        for refused in [
+            "/good/../secret.txt",
+            "/good/%2e%2e/secret.txt",
+            "/good//etc/passwd",
+            "/other/panel/index.html",
+            "/good/panel",
+        ] {
+            assert_eq!(body(refused).0, 404, "{refused}");
+        }
+        m.enable("good", false).unwrap();
+        assert_eq!(body("/good/panel/index.html").0, 404);
+        assert_eq!(
+            inject("<p>"),
+            r#"<script src="/_squadron/kit.js"></script><p>"#
+        );
     }
 
     #[test]

@@ -1387,11 +1387,12 @@ async fn mods_wasm_sync(
 #[tauri::command]
 fn mods_wasm_event(
     runtime: State<wasm::Runtime>,
+    id: Option<String>,
     name: String,
     agent: Option<wasm::AgentInfo>,
     data: String,
 ) {
-    runtime.event(&name, agent, &data);
+    runtime.event(id.as_deref(), &name, agent, &data);
 }
 
 #[tauri::command]
@@ -2019,6 +2020,18 @@ pub fn run() {
             let path = request.uri().path().to_string();
             std::thread::spawn(move || match artifacts::ROOT.get() {
                 Some(root) => responder.respond(artifacts::serve(root, &path)),
+                None => responder.respond(
+                    http::Response::builder()
+                        .status(503)
+                        .body(Vec::new())
+                        .unwrap(),
+                ),
+            });
+        })
+        .register_asynchronous_uri_scheme_protocol("mod", |ctx, request, responder| {
+            let (app, path) = (ctx.app_handle().clone(), request.uri().path().to_string());
+            std::thread::spawn(move || match app.try_state::<mods::Mods>() {
+                Some(mods) => responder.respond(mods.serve(&path)),
                 None => responder.respond(
                     http::Response::builder()
                         .status(503)
