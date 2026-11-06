@@ -345,7 +345,12 @@ impl Extensions {
             ));
         }
         let mut choices = self.choices();
-        if source != OFFICIAL && !choices.sources.iter().any(|s| s == source) {
+        if !source.eq_ignore_ascii_case(OFFICIAL)
+            && !choices
+                .sources
+                .iter()
+                .any(|s| s.eq_ignore_ascii_case(source))
+        {
             choices.sources.push(source.into());
         }
         self.save(&choices)
@@ -562,6 +567,8 @@ mod tests {
         m.add_source("me/ext").unwrap();
         m.add_source("me/ext").unwrap();
         m.add_source(OFFICIAL).unwrap();
+        m.add_source("jgrasp/Squadron-Extensions").unwrap();
+        m.add_source("ME/EXT").unwrap();
         assert_eq!(m.list().sources, ["me/ext"]);
         assert!(m.known_source("me/ext"));
         for bad in [
