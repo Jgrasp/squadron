@@ -831,20 +831,35 @@
   }
 
   .prose :global(table) {
+    display: block;
+    max-width: 100%;
+    width: fit-content;
+    overflow-x: auto;
+    border: 1px solid var(--border);
+    border-radius: 6px;
     border-collapse: collapse;
     font-size: 13px;
   }
 
   .prose :global(th),
   .prose :global(td) {
-    padding: 5px 10px;
-    border: 1px solid var(--border-strong);
+    padding: 7px 12px;
+    border-bottom: 1px solid var(--border);
     text-align: left;
+    vertical-align: top;
+    overflow-wrap: break-word;
+  }
+
+  .prose :global(tr:last-child td) {
+    border-bottom: none;
   }
 
   .prose :global(th) {
     background: var(--surface-2);
+    color: var(--text-muted);
+    font-size: 12px;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .streaming :global(> :last-child::after) {
