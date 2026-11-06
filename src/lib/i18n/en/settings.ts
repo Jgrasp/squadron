@@ -192,6 +192,7 @@ export default {
   itemArchiveHint: 'Stops the agent and removes it from the list',
   slotSquadron: 'Squadron menu',
   slotSquadronHint: 'The menu under the Squadron logo',
+  itemExtensionsHint: 'Install, update and set up extensions',
   itemSettingsHint: 'Projects, agents, tools and interface',
   itemUpdates: 'Check for updates',
   itemUpdatesHint: 'Looks for a new version of Squadron',

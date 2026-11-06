@@ -194,6 +194,7 @@ export default {
   itemArchiveHint: 'Arrête l’agent et le retire de la liste',
   slotSquadron: 'Menu Squadron',
   slotSquadronHint: 'Le menu sous le logo Squadron',
+  itemExtensionsHint: 'Installer, mettre à jour et régler les extensions',
   itemSettingsHint: 'Projets, agents, outils et interface',
   itemUpdates: 'Rechercher des mises à jour',
   itemUpdatesHint: 'Cherche une nouvelle version de Squadron',
