@@ -991,6 +991,11 @@ async fn linked_pull(url: String, projects: Vec<PathBuf>) -> Result<forge::Linke
 }
 
 #[tauri::command]
+async fn numbered_pull(dir: PathBuf, number: u64) -> Result<forge::Pull, String> {
+    forge::numbered(&dir, number).await
+}
+
+#[tauri::command]
 async fn pipeline_runs(dir: PathBuf, repository: String) -> Result<Vec<forge::Run>, String> {
     forge::runs(&dir, &repository).await
 }
@@ -2271,6 +2276,7 @@ pub fn run() {
             pull_lists,
             pipeline_runs,
             linked_pull,
+            numbered_pull,
             review_checkout,
             changed_files,
             review_lines,

@@ -608,6 +608,14 @@ pub async fn linked(url: &str, projects: Vec<PathBuf>) -> Result<Linked, String>
     let project = projects
         .into_iter()
         .find(|dir| repo_of(dir).is_ok_and(|r| r == repo));
+    by_number(repo, number, project).await
+}
+
+pub async fn numbered(dir: &Path, number: u64) -> Result<Pull, String> {
+    Ok(by_number(repo_of(dir)?, number, None).await?.pull)
+}
+
+async fn by_number(repo: Repo, number: u64, project: Option<PathBuf>) -> Result<Linked, String> {
     match repo.host {
         Host::GitLab | Host::Azure => {
             let found = if repo.host == Host::GitLab {

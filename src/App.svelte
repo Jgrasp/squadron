@@ -29,7 +29,7 @@
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
-  import { lists, lookUpAll, lookUpLists, reviewWithAgent } from './lib/pulls.svelte'
+  import { lists, lookUpAll, lookUpLists, lookUpNumbered, numbered, reviewWithAgent } from './lib/pulls.svelte'
   import { showPulls } from './lib/linked.svelte'
   import { watchRuns } from './lib/pipelines.svelte'
   import PullsView from './lib/PullsView.svelte'
@@ -43,13 +43,15 @@
 
   const project = $derived(current())
   const reviewed = $derived.by(() => {
-    const found = layout.review && lists[layout.review.project]
-    return found ? [...found.review, ...found.mine].find((p) => p.number === layout.review?.number) : undefined
+    const open = layout.review
+    const found = open && lists[open.project]
+    return found ? ([...found.review, ...found.mine].find((p) => p.number === open.number) ?? numbered[`${open.project}#${open.number}`] ?? undefined) : undefined
   })
   $effect(() => {
     const open = layout.review
     if (!open || reviewed) return
     if (!lists[open.project]) return void lookUpLists(open.project)
+    if (!(`${open.project}#${open.number}` in numbered)) return void lookUpNumbered(open.project, open.number)
     layout.review = null
     showPulls(open.project)
   })

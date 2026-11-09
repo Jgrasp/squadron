@@ -96,6 +96,15 @@ export function openReview(project: string, number: number) {
   requestPanel('diff')
   layout.review = { project, number }
 }
+export const numbered = $state<Record<string, Pull | null>>({})
+const asked = new Set<string>()
+
+export async function lookUpNumbered(project: string, number: number) {
+  const key = `${project}#${number}`
+  if (asked.has(key)) return
+  asked.add(key)
+  numbered[key] = await invoke<Pull>('numbered_pull', { dir: project, number }).catch(() => null)
+}
 export const lists = $state<Record<string, Lists>>({})
 const listed: Record<string, number> = {}
 
