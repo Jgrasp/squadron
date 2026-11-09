@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, send, waitingFor, type Elsewhere } from './agents.svelte'
+import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
@@ -178,6 +178,16 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     pin(target.id, args.pinned)
     const who = target === caller ? 'You are' : `${target.name} is`
     return args.pinned ? `${who} pinned at the top of the agent list.` : `${who} no longer pinned.`
+  },
+
+  set_title: (caller, args) => {
+    const target = args.agent ? find(String(args.agent)) : caller
+    if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    if (target.project !== caller.project) throw new Error(`${target.name} belongs to another project. You can only rename the agents of your own project.`)
+    const title = String(args.title ?? '').trim()
+    if (!title) throw new Error('The title is empty.')
+    rename(target.id, title)
+    return target === caller ? `You are now named ${title}.` : `The agent is now named ${title}.`
   },
 
   set_progress: (caller, args) => {

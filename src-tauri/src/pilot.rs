@@ -97,6 +97,15 @@ struct SetPinned {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct SetTitle {
+    /// The new name of the agent, short, as shown in the agent list and the conversation header.
+    title: String,
+    /// The agent id, as listed by overview, to rename another agent of the same project. Yourself when left empty.
+    agent: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct MessageAgent {
     /// The agent id, as listed by overview.
     agent: String,
@@ -355,6 +364,16 @@ impl Pilot {
         Parameters(args): Parameters<SetPinned>,
     ) -> String {
         self.forward(&parts, "set_pinned", json!(args)).await
+    }
+
+    /// Renames an agent, yourself by default, as the user does by hand: the new name shows in the agent list and the conversation header. Use it when the task turns out to be something else than the current name says.
+    #[tool]
+    async fn set_title(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<SetTitle>,
+    ) -> String {
+        self.forward(&parts, "set_title", json!(args)).await
     }
 
     /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps.
