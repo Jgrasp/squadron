@@ -29,7 +29,7 @@ export async function loadPlugins() {
       invoke<Marketplace[]>('plugins_marketplaces').catch(() => []),
       invoke<Flags>('plugin_flags', { projects: paths() }),
     ])
-    plugins.installed = installed
+    plugins.installed = installed.filter((p, i) => installed.findIndex((q) => q.id === p.id) === i)
     plugins.marketplaces = marketplaces
     plugins.flags = flags
   } catch (e) {
