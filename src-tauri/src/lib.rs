@@ -2235,6 +2235,7 @@ pub fn run() {
             set_agent_options,
             remote_control,
             context_usage,
+            claude::squadron_prompt_size,
             stop_task,
             mcp_request,
             claude_config,

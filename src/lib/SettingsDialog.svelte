@@ -21,7 +21,7 @@
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { hint as keyOf, saveSettings, settings, type App, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
+  import { COMPACT_WINDOWS, hint as keyOf, saveSettings, settings, type App, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
   import { untrack } from 'svelte'
   import { chime } from './chime'
   import { tokens } from './format'
@@ -107,7 +107,6 @@
   let archiveAfter = $state(settings.archive_after_days)
   let artifactsAfter = $state(settings.artifacts_after_days)
   let compactWindow = $state(settings.compact_window)
-  const WINDOWS = [0, 600_000, 400_000, 200_000]
   let steps = $state(settings.steps)
   let thinking = $state(settings.thinking)
   let language = $state(settings.language)
@@ -410,7 +409,7 @@
       <p class="intro">{t('settings.artifactsExpireHint')}</p>
       <label for="compact-window">{t('settings.compactWindow')}</label>
       <select id="compact-window" class="field" bind:value={compactWindow}>
-        {#each WINDOWS as size (size)}<option value={size}>{size ? t('settings.compactAround', { tokens: tokens(size) }) : t('settings.compactDefault')}</option>{/each}
+        {#each COMPACT_WINDOWS as size (size)}<option value={size}>{size ? t('settings.compactAround', { tokens: tokens(size) }) : t('settings.compactDefault')}</option>{/each}
       </select>
       <p class="intro">{t('settings.compactWindowHint')}</p>
       <label class="check">

@@ -4,7 +4,7 @@
   import Dialog from './Dialog.svelte'
   import { t } from './i18n/index.svelte'
   import PluginProjects from './PluginProjects.svelte'
-  import { ALL, OFFICIAL, marketplaceOf, nameOf, pluginColor, type Entry, type Installed } from './plugins'
+  import { ALL, OFFICIAL, SHOWS, marketplaceOf, nameOf, pluginColor, type Entry, type Installed } from './plugins'
   import { addMarketplace, choose, detailsOf, fetchDetails, install, loadCatalog, loadPlugins, plugins, remembered, removeMarketplace, toggle, uninstall, update, where } from './plugins.svelte'
   import { projects } from './projects.svelte'
   import { saveSettings, settings, type Config } from './settings.svelte'
@@ -20,12 +20,6 @@
     ['official', 'plugins.filterOfficial'],
     ['imported', 'plugins.filterImported'],
     ['local', 'plugins.filterLocal'],
-  ] as const
-  const SHOWS = [
-    ['off', 'plugins.showOff', 'plugins.showOffHint'],
-    ['tag', 'plugins.showTag', 'plugins.showTagHint'],
-    ['card', 'plugins.showCard', 'plugins.showCardHint'],
-    ['gutter', 'plugins.showGutter', 'plugins.showGutterHint'],
   ] as const
   const SHOWN = 60
 

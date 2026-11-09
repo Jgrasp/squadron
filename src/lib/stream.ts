@@ -1,3 +1,4 @@
+import { trimUsage, type ContextUsage } from './breakdown'
 import { t } from './i18n/index.svelte'
 
 export type Options = {
@@ -165,6 +166,8 @@ export type Agent = {
   unread?: boolean
   errorSeen?: boolean
   context?: { max: number; threshold: number | null }
+  usage?: ContextUsage & { at: number }
+  hooks?: { text: string; tokens: number }[]
   review?: { project: string; number: number; base?: string; title?: string; head?: string }
   imported?: string
   unsent?: unknown[]
@@ -484,6 +487,7 @@ export function apply(agent: Agent, d: Json) {
         known.skills = agent.skills
         known.terminal = d.terminal_slash_commands ?? []
       }
+      if (d.subtype === 'hook_response' && d.hook_event === 'SessionStart') sessionHook(agent, d)
       if (d.subtype === 'bridge_state') agent.remote = { ...agent.remote, state: String(d.state), url: agent.remote?.url ?? '', since: agent.remote?.since ?? Date.now() }
       if (d.subtype === 'status' && d.status === 'compacting') agent.action = t('conversation.compacting')
       if (d.subtype === 'compact_boundary') {
@@ -511,6 +515,7 @@ export function apply(agent: Agent, d: Json) {
         const r = d.response.response
         agent.context = { max: r.maxTokens, threshold: r.isAutoCompactEnabled && r.autoCompactThreshold ? r.autoCompactThreshold : null }
         agent.tokens = r.totalTokens ?? agent.tokens
+        if (Array.isArray(r.categories)) agent.usage = { ...trimUsage(r), at: Date.now() }
       }
       if (d.response?.response?.session_url)
         agent.remote = { ...agent.remote, state: agent.remote?.state ?? 'ready', url: d.response.response.session_url, since: agent.remote?.since ?? Date.now() }
@@ -670,6 +675,18 @@ function goalNotice(agent: Agent, text: string) {
     agent.status = 'working'
   }
   else if (text.startsWith('Goal cleared') && agent.goal && agent.goal.state !== 'partial') agent.goal.state = 'cleared'
+}
+
+function sessionHook(agent: Agent, d: Json) {
+  const raw = String(d.output ?? d.stdout ?? '').trim()
+  let text = raw
+  try {
+    const out = JSON.parse(raw)
+    text = String(out?.hookSpecificOutput?.additionalContext ?? out?.systemMessage ?? '').trim()
+  } catch {}
+  if (!text) return
+  const label = text.split('\n')[0].slice(0, 80)
+  agent.hooks = [...(agent.hooks ?? []).filter((h) => h.text !== label), { text: label, tokens: Math.ceil(text.length / 4) }]
 }
 
 function skillBody(agent: Agent, text: string) {

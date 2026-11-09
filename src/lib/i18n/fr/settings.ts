@@ -172,8 +172,6 @@ export default {
   itemArtifactsHint: 'Affichés dès que l’agent a publié un artifact',
   itemCost: 'Coût',
   itemContext: 'Tokens de contexte',
-  itemPlugins: 'Plugins',
-  itemPluginsHint: 'Les plugins chargés par cet agent et ce qu’ils consomment.',
   itemBranch: 'Branche de travail',
   itemBranchHint: 'En vert avec un worktree, natif ou déclaré par l’agent',
   itemPull: 'Pull request',
