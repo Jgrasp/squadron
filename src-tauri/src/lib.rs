@@ -565,8 +565,14 @@ fn remote_control(
 }
 
 #[tauri::command]
-fn context_usage(agents: State<Agents>, id: String) -> Result<(), String> {
-    agents.context_usage(&id)
+fn context_usage(
+    app: AppHandle,
+    agents: State<Agents>,
+    settings: State<Settings>,
+    id: String,
+    start: Option<bool>,
+) -> Result<(), String> {
+    agents.context_usage(&app, &settings.claude(), &id, start.unwrap_or(false))
 }
 
 #[tauri::command]

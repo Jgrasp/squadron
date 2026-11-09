@@ -91,7 +91,7 @@
 
   function toggle() {
     open = !open
-    if (open) invoke('context_usage', { id: agent.id }).catch(() => {})
+    if (open) invoke('context_usage', { id: agent.id, start: true }).catch(() => {})
   }
 
 </script>

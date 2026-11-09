@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.38.1 · 2026-11-09
+
+### Fixes
+
+- The context breakdown shows as soon as the gauge opens, even when the agent has not received a message since Squadron started.
+
 ## 0.38.0 · 2026-11-09
 
 ### Context

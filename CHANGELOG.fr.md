@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.38.1 · 2026-11-09
+
+### Correctifs
+
+- Le détail du contexte s’affiche dès l’ouverture de la jauge, même quand l’agent n’a reçu aucun message depuis le démarrage de Squadron.
+
 ## 0.38.0 · 2026-11-09
 
 ### Contexte
