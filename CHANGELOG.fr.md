@@ -1,5 +1,30 @@
 # Nouveautés
 
+## 0.38.0 · 2026-11-09
+
+### Contexte
+
+- La jauge de contexte ouvre le détail de tout ce qu’il contient, au démarrage comme depuis la conversation : la part de chaque plugin comptée par Claude Code, les instructions d’un skill de plugin à part de vos propres messages, et les instructions de compaction. Les réglages ont un onglet pour cela, et la pastille des plugins disparaît.
+- Un skill de plugin lancé vous-même avec sa commande slash compte dans l’usage des plugins de l’agent, au coût que le plugin déclare pour lui.
+
+### Extensions
+
+- Une extension peut lancer Claude Code avec ses propres options, comme --chrome, une fois que vous les autorisez.
+
+### Pull requests
+
+- Une pull request fusionnée se rouvre depuis la pastille de relecture, avec ses changements et vos remarques en brouillon à publier.
+
+### Conversation
+
+- Déplier le contenu d’une carte de fichier fait défiler la conversation jusqu’à placer la carte juste sous l’en-tête de l’agent.
+
+### Correctifs
+
+- Un agent ne s’arrête plus avec « mcp__squadron__permission not found » après une seconde ouverture de Squadron.
+- Les coûts des plugins se chargent sans passer d’abord par les réglages Plugins.
+- Le champ de message ne garde plus une bande vide sous son texte indicatif après l’apparition d’une suggestion, et reprend sa hauteur quand la suggestion change alors qu’il n’a pas le focus.
+
 ## 0.37.0 · 2026-11-09
 
 ### Plugins

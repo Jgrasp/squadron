@@ -14,5 +14,6 @@ import settings from './settings'
 import shell from './shell'
 import spotlight from './spotlight'
 import tickets from './tickets'
+import usage from './usage'
 
-export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets, claudeKeys, extensions, plugins } satisfies Catalog
+export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets, claudeKeys, extensions, plugins, usage } satisfies Catalog

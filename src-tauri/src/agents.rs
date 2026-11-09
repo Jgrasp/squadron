@@ -17,7 +17,6 @@ struct Agent {
     session: Option<Session>,
     session_id: Arc<Mutex<Option<String>>>,
     run: Arc<AtomicU32>,
-    mcp: Option<String>,
     fork: bool,
     at: Option<String>,
     worktree: Option<String>,
@@ -100,7 +99,6 @@ impl Agents {
         }) {
             return Err("Invalid session id.".into());
         }
-        let mcp = self.mcp(id);
         self.list
             .lock()
             .unwrap()
@@ -111,7 +109,6 @@ impl Agents {
                 session: None,
                 session_id: Arc::new(Mutex::new(session_id)),
                 run: Default::default(),
-                mcp,
                 fork,
                 at: None,
                 worktree: None,
@@ -187,7 +184,7 @@ impl Agents {
     ) -> Result<(), String> {
         let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Unknown agent.")?;
-        send(app, program, id, agent, content)
+        send(self, app, program, id, agent, content)
     }
 
     pub fn set_options(&self, id: &str, options: Options) -> Result<(), String> {
@@ -227,7 +224,7 @@ impl Agents {
             if !enabled {
                 return Ok(());
             }
-            spawn(app, program, id, agent)?;
+            spawn(self, app, program, id, agent)?;
         }
         agent
             .session
@@ -299,14 +296,12 @@ impl Agents {
     }
 
     pub fn reload(&self, app: &AppHandle, program: &str, id: &str) -> Result<(), String> {
-        let mcp = self.mcp(id);
         let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Unknown agent.")?;
-        agent.mcp = mcp;
         if let Some(session) = agent.session.take() {
             let _ = session.stop();
         }
-        spawn(app, program, id, agent)
+        spawn(self, app, program, id, agent)
     }
 
     pub fn archive(&self, id: &str) {
@@ -376,6 +371,7 @@ fn stop(agent: Agent) {
 }
 
 fn send(
+    agents: &Agents,
     app: &AppHandle,
     program: &str,
     id: &str,
@@ -389,7 +385,7 @@ fn send(
         agent.stale = false;
     }
     if !agent.session.as_ref().is_some_and(Session::alive) {
-        spawn(app, program, id, agent)?;
+        spawn(agents, app, program, id, agent)?;
     }
     let sent = agent.session.as_mut().unwrap().send_content(content);
     if sent.is_err() {
@@ -398,7 +394,13 @@ fn send(
     sent.map_err(|e| format!("Message not delivered to Claude Code: {e}"))
 }
 
-fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<(), String> {
+fn spawn(
+    agents: &Agents,
+    app: &AppHandle,
+    program: &str,
+    id: &str,
+    agent: &mut Agent,
+) -> Result<(), String> {
     if !agent.project.is_dir() {
         return Err("The project folder cannot be found.".into());
     }
@@ -416,7 +418,7 @@ fn spawn(app: &AppHandle, program: &str, id: &str, agent: &mut Agent) -> Result<
         resume.as_deref(),
         agent.fork,
         agent.at.as_deref(),
-        agent.mcp.as_deref(),
+        agents.mcp(id).as_deref(),
     );
     crate::askpass::env(&mut cmd, id);
     if let Some(dir) = crate::artifacts::ROOT

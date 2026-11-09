@@ -4,6 +4,8 @@ import { setLanguage, type Language } from './i18n/index.svelte'
 import { label, pressed, binding, type Action } from './shortcuts'
 import type { Options } from './stream'
 
+export const COMPACT_WINDOWS = [0, 600_000, 400_000, 200_000]
+
 export type TabEffect = 'pulse' | 'snake'
 
 export type ProjectsEffect = 'snake' | 'bar' | 'pulse'

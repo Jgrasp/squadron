@@ -258,11 +258,19 @@ fn commit(dir: &Path, rev: &str) -> Option<String> {
 }
 
 fn fetch(dir: &Path, branches: &[&str]) {
-    let _ = run(git(dir)
-        .env("GIT_TERMINAL_PROMPT", "0")
-        .env("SSH_ASKPASS_REQUIRE", "never")
-        .args(["fetch", "--quiet", "--no-tags", "origin"])
-        .args(branches));
+    let go = |names: &[&str]| {
+        run(git(dir)
+            .env("GIT_TERMINAL_PROMPT", "0")
+            .env("SSH_ASKPASS_REQUIRE", "never")
+            .args(["fetch", "--quiet", "--no-tags", "origin"])
+            .args(names))
+        .is_ok()
+    };
+    if !go(branches) && branches.len() > 1 {
+        branches.iter().for_each(|b| {
+            go(&[b]);
+        });
+    }
 }
 
 #[derive(Serialize)]
@@ -284,9 +292,26 @@ pub fn pull_changes(
         return Err("Unknown branch.".into());
     }
     fetch(dir, &[base, branch]);
-    let head = commit(dir, head).ok_or("The pull request commit is not on this computer.")?;
-    let target = commit(dir, &format!("origin/{base}"))
+    let head = commit(dir, head)
+        .or_else(|| {
+            fetch(dir, &[head]);
+            commit(dir, head)
+        })
+        .ok_or("The pull request commit is not on this computer.")?;
+    let mut target = commit(dir, &format!("origin/{base}"))
         .ok_or_else(|| format!("origin/{base} is not on this computer."))?;
+    if head != target && run(git(dir).args(["merge-base", "--is-ancestor", &head, &target])).is_ok()
+    {
+        let into = run(git(dir).args([
+            "rev-list",
+            "--first-parent",
+            "--ancestry-path",
+            &format!("{head}..{target}"),
+        ]))?;
+        if let Some(merge) = into.lines().last() {
+            target = format!("{merge}^");
+        }
+    }
     let mut from = run(git(dir).args(["merge-base", &target, &head]))?
         .trim()
         .to_string();
@@ -551,6 +576,65 @@ mod tests {
         assert_eq!((found.base.as_str(), found.commits), ("main", 2));
         assert_eq!(paths, ["draft.txt", "one.txt", "two.txt"]);
         let _ = fs::remove_dir_all(&dir);
+    }
+
+    #[test]
+    fn a_merged_pull_request_still_shows_its_changes_once_its_branch_is_gone() {
+        let root = std::env::temp_dir().join(format!("squadron-merged-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let (remote, local) = (root.join("remote"), root.join("local"));
+        fs::create_dir_all(&remote).unwrap();
+        let sh = |dir: &Path, args: &[&str]| run(git(dir).args(args)).unwrap();
+        sh(&remote, &["init", "-q", "-b", "main"]);
+        sh(&remote, &["config", "user.email", "t@t"]);
+        sh(&remote, &["config", "user.name", "t"]);
+        let commit = |file: &str| {
+            fs::write(remote.join(file), "x\n").unwrap();
+            sh(&remote, &["add", "-A"]);
+            sh(
+                &remote,
+                &["-c", "commit.gpgsign=false", "commit", "-qnm", file],
+            );
+        };
+        commit("base.txt");
+        sh(&remote, &["checkout", "-qb", "feat"]);
+        commit("one.txt");
+        let head = sh(&remote, &["rev-parse", "HEAD"]).trim().to_string();
+        sh(&remote, &["checkout", "-q", "main"]);
+        commit("other.txt");
+        sh(
+            &remote,
+            &[
+                "-c",
+                "commit.gpgsign=false",
+                "merge",
+                "-q",
+                "--no-ff",
+                "-m",
+                "merge",
+                "feat",
+            ],
+        );
+        sh(&remote, &["branch", "-qD", "feat"]);
+        commit("after.txt");
+        sh(
+            &root,
+            &[
+                "clone",
+                "-q",
+                remote.to_str().unwrap(),
+                local.to_str().unwrap(),
+            ],
+        );
+        let found = pull_changes(&local, "main", "feat", &head, None).unwrap();
+        let paths: Vec<&str> = found
+            .changes
+            .files
+            .iter()
+            .map(|f| f.path.as_str())
+            .collect();
+        assert_eq!(paths, ["one.txt"]);
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

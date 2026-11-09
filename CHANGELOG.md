@@ -1,5 +1,30 @@
 # Changelog
 
+## 0.38.0 · 2026-11-09
+
+### Context
+
+- The context gauge opens a breakdown of everything in the context, at startup and from the conversation: each plugin's share counted by Claude Code, a plugin skill's instructions apart from your own messages, and the compaction instructions. Settings have a tab for it, and the plugins pill is gone.
+- A plugin skill you launch yourself with its slash command counts in the agent's plugin usage, at the cost the plugin declares for it.
+
+### Extensions
+
+- An extension can start Claude Code with options of its own, like --chrome, once you allow them.
+
+### Pull requests
+
+- A merged pull request opens again from the review pill, with its changes and your draft remarks to post.
+
+### Conversation
+
+- Opening a file card's content glides the conversation until the card sits just under the agent header.
+
+### Fixes
+
+- An agent no longer stops with "mcp__squadron__permission not found" after Squadron was opened a second time.
+- Plugin costs load without opening the Plugins settings first.
+- The message field no longer keeps a blank band under its placeholder after a suggestion appears, and drops back to its height when the suggestion changes while it is not focused.
+
 ## 0.37.0 · 2026-11-09
 
 ### Plugins

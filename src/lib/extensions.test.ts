@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { catalogOf, grantsOf, itemsOf, load, newer, OFFICIAL, panelsOf, shownOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { argsOf, catalogOf, grantsOf, itemsOf, load, newer, OFFICIAL, panelsOf, shownOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -103,6 +103,20 @@ describe('extensions', () => {
     expect(grantsOf(waiting)).toEqual([])
     expect(toolsOf([waiting]).map((t) => [t.name, t.tool])).toEqual([['hello_changed_files', 'changed_files']])
     expect(grantsOf(load(found, [], { hello: ['exec:git'] })[0])).toEqual(['exec:git'])
+  })
+
+  it('passes the Claude Code options the user allowed', () => {
+    const base = { id: 'c', version: '1.0.0', api: 1, name: { en: 'C' } }
+    const chrome = { ...base, contributes: { args: ['--add-dir', '/tmp/x'] } }
+    expect(keys(chrome)).toEqual([])
+    for (const args of [['chrome'], '--chrome', [''], ['--a\nb']]) expect(keys({ ...base, contributes: { args } })).toEqual(['extensions.badArgs'])
+    expect(keys({ ...base, contributes: { args: ['--chrome', '--permission-mode=bypassPermissions'] } })).toEqual(['extensions.reservedArg'])
+    const found = [{ dir: '/m/c', linked: false, manifest: chrome, error: null }]
+    const key = 'args:["--add-dir","/tmp/x"]'
+    expect(load(found, [], {})[0].pending).toEqual([key])
+    expect(argsOf(load(found, [], {}))).toEqual([])
+    expect(argsOf(load(found, [], { c: [key] }))).toEqual(['--add-dir', '/tmp/x'])
+    expect(argsOf(load(found, ['c'], { c: [key] }))).toEqual([])
   })
 
   it('checks panels and the items that open them', () => {

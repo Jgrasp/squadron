@@ -303,6 +303,73 @@ function replay(id: string, text: string) {
 
 const PLUGIN_DIR = '/home/demo/.claude/plugins/cache'
 
+const CONTEXT_DEMO = {
+  totalTokens: 40_480,
+  categories: [
+    { id: 'system_prompt', tokens: 3_150 },
+    { id: 'system_tools', tokens: 6_210 },
+    { id: 'mcp_tools', tokens: 2_740 },
+    { id: 'mcp_instructions', tokens: 1_620 },
+    { id: 'mcp_tools_deferred', tokens: 110_000 },
+    { id: 'custom_agents', tokens: 380 },
+    { id: 'memory_files', tokens: 2_620 },
+    { id: 'skills', tokens: 1_830 },
+    { id: 'messages', tokens: 21_930 },
+  ],
+  skills: {
+    skillFrontmatter: [
+      { name: 'loop', source: 'built-in', tokens: 100 },
+      { name: 'code-review', source: 'built-in', tokens: 110 },
+      { name: 'pdf', source: 'syncedSkills', tokens: 110 },
+      { name: 'chiffrage', source: 'userSettings', tokens: 100 },
+      { name: 'impeccable:impeccable', source: 'plugin', pluginName: 'impeccable', tokens: 110 },
+      { name: 'shopify-plugin:shopify', source: 'plugin', pluginName: 'shopify-plugin', tokens: 110 },
+      { name: 'shopify-plugin:ucp', source: 'plugin', pluginName: 'shopify-plugin', tokens: 110 },
+      { name: 'ponytail:ponytail', source: 'plugin', pluginName: 'ponytail', tokens: 110 },
+      { name: 'ponytail:ponytail-review', source: 'plugin', pluginName: 'ponytail', tokens: 110 },
+      { name: 'codegraph:explorer', source: 'plugin', pluginName: 'codegraph', tokens: 70 },
+      { name: 'other', source: 'built-in', tokens: 790 },
+    ],
+  },
+  agents: [
+    { agentType: 'impeccable:impeccable-documenter', source: 'plugin', pluginId: 'impeccable@impeccable', tokens: 70 },
+    { agentType: 'impeccable:impeccable-finish-reviewer', source: 'plugin', pluginId: 'impeccable@impeccable', tokens: 80 },
+    { agentType: 'visual-review', source: 'userSettings', tokens: 230 },
+  ],
+  memoryFiles: [
+    { path: '/home/demo/.claude/CLAUDE.md', type: 'User', tokens: 900 },
+    { path: '/home/demo/project/CLAUDE.md', type: 'Project', tokens: 840 },
+    { path: '/home/demo/.claude/projects/project/memory/MEMORY.md', type: 'AutoMem', tokens: 880 },
+  ],
+  mcpTools: [
+    { name: 'mcp__plugin_codegraph_codegraph__codegraph_explore', serverName: 'plugin_codegraph_codegraph', tokens: 630, isLoaded: true },
+    { name: 'mcp__squadron__permission', serverName: 'squadron', tokens: 410, isLoaded: true },
+    { name: 'mcp__squadron-pilot__overview', serverName: 'squadron-pilot', tokens: 1_700, isLoaded: true },
+  ],
+  mcpInstructions: [
+    { serverName: 'plugin:codegraph:codegraph', tokens: 510 },
+    { serverName: 'squadron-pilot', tokens: 680 },
+    { serverName: 'sentry-selfhosted', tokens: 280 },
+    { serverName: 'agent-browser', tokens: 150 },
+  ],
+  messageBreakdown: {
+    toolCallsByType: [
+      { name: 'Read', callTokens: 60, resultTokens: 2_400 },
+      { name: 'Bash', callTokens: 180, resultTokens: 3_100 },
+      { name: 'mcp__plugin_codegraph_codegraph__codegraph_explore', callTokens: 40, resultTokens: 2_150 },
+      { name: 'Skill', callTokens: 30, resultTokens: 20 },
+    ],
+    assistantMessageTokens: 3_200,
+    userMessageTokens: 900,
+    attachmentsByType: [
+      { name: 'hook_success', tokens: 2_900 },
+      { name: 'skill_listing', tokens: 4_200 },
+      { name: 'agent_listing_delta', tokens: 1_700 },
+      { name: 'deferred_tools_delta', tokens: 8_000 },
+    ],
+  },
+}
+
 function pluginRun() {
   const [init, ...rest] = hello.trim().split('\n')
   const head = JSON.parse(init)
@@ -319,6 +386,7 @@ function pluginRun() {
   const result = (id: string, text: string) => JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } })
   const body = (dir: string, size: number) => JSON.stringify({ type: 'user', isSynthetic: true, message: { content: [{ type: 'text', text: `Base directory for this skill: ${dir}\n${'Instructions. '.repeat(size)}` }] } })
   return [
+    JSON.stringify({ type: 'system', subtype: 'hook_response', hook_event: 'SessionStart', output: `PONYTAIL MODE ACTIVE — level: full\n${'Rules. '.repeat(700)}` }),
     JSON.stringify(head),
     say('p0', 'Je regarde d’abord la page produit, puis je lance une passe de polish.'),
     tool('p1', 'Read', { file_path: '/project/src/sections/product-main.liquid' }),
@@ -1121,9 +1189,11 @@ mockIPC(
       }
       case 'set_agent_options':
         return
+      case 'squadron_prompt_size':
+        return 3300
       case 'context_usage':
         setTimeout(() => {
-          const response = { totalTokens: Number(localStorage.getItem('context-demo') ?? 65_000), maxTokens: 1_000_000, autoCompactThreshold: 967_000, isAutoCompactEnabled: true }
+          const response = { ...CONTEXT_DEMO, maxTokens: 1_000_000, autoCompactThreshold: 967_000, isAutoCompactEnabled: true }
           emit('agent-line', { id: a.id, line: JSON.stringify({ type: 'control_response', response: { subtype: 'success', response } }) })
         }, 50)
         return

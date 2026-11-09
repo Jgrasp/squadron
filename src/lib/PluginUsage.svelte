@@ -3,7 +3,7 @@
   import { time, tokens } from './format'
   import { t, type Key } from './i18n/index.svelte'
   import { pluginColor } from './plugins'
-  import { closeUsage, detailsOf, openUsage, reveal, usage, type View } from './plugins.svelte'
+  import { closeUsage, detailsOf, openUsage, reveal, skillCost, usage, type View } from './plugins.svelte'
   import { KINDS, shares, uses, type Kind, type Use } from './pluginuse'
   import type { Agent } from './stream'
 
@@ -21,7 +21,7 @@
   const ORDER = ['start', ...KINDS] as const
 
   const refs = $derived(agent.plugins ?? [])
-  const list = $derived(uses(agent))
+  const list = $derived(uses(agent, skillCost(refs)))
   const all = $derived(shares(refs, list, (ref) => detailsOf(ref.id)?.always ?? 0))
   const sum = $derived(all.reduce((s, x) => s + x.total, 0))
   const view = $derived(usage.stack.at(-1) as View)
@@ -95,7 +95,7 @@
       <div class="foot">
         <span class="note">{t('plugins.estimate')}</span>
         <button class="btn btn-secondary" onclick={closeUsage}>{t('common.close')}</button>
-        <button class="btn btn-primary" onclick={() => show(use.id)}>{t('plugins.seeInConversation')}</button>
+        {#if !use.id.startsWith('command-')}<button class="btn btn-primary" onclick={() => show(use.id)}>{t('plugins.seeInConversation')}</button>{/if}
       </div>
     {:else if 'kind' in resolved && resolved.kind === 'start'}
       {@const names = resolved.plugin ? [resolved.plugin] : all.map((x) => x.ref.name)}

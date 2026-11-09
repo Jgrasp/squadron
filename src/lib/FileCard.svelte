@@ -63,9 +63,8 @@
     const shown = scroller
     shown.addEventListener('scrollend', () => shown.style.removeProperty('overflow-anchor'), { once: true })
     const view = scroller.getBoundingClientRect()
-    const box = card.getBoundingClientRect()
-    const by = Math.min(box.bottom + 12 - view.bottom, box.top - view.top - 12)
-    if (by > 0) scroller.scrollBy({ top: by, behavior: still ? 'instant' : 'smooth' })
+    const by = card.getBoundingClientRect().top - view.top - 12
+    if (Math.abs(by) > 1) scroller.scrollBy({ top: by, behavior: still ? 'instant' : 'smooth' })
   }
 </script>
 

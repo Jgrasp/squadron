@@ -2,23 +2,24 @@
   import { invoke } from '@tauri-apps/api/core'
   import { cubicOut } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
-  import { send } from './agents.svelte'
+  import ContextPanel from './ContextPanel.svelte'
+  import { fetchDetails } from './plugins.svelte'
   import { tokens } from './format'
   import { t } from './i18n/index.svelte'
-  import { layout, setContextShown } from './layout.svelte'
+  import { layout } from './layout.svelte'
   import type { Agent } from './stream'
 
   let { agent }: { agent: Agent } = $props()
 
   let open = $state(false)
 
+  $effect(() => {
+    fetchDetails((agent.plugins ?? []).filter((r) => !r.id.endsWith('@inline')).map((r) => r.id))
+  })
+
   const max = $derived(agent.context?.max ?? 0)
-  const share = $derived(max ? Math.min(1, agent.tokens / max) : 0)
-  const percent = $derived(Math.round(share * 100))
   const threshold = $derived(agent.context?.threshold ?? null)
   const left = $derived(threshold === null ? null : Math.max(0, threshold - agent.tokens))
-  const near = $derived(left !== null && threshold !== null && left < threshold * 0.1)
-  const busy = $derived(agent.status === 'working' || agent.status === 'waiting')
   type Bite = { id: number; x: number; to: number; amount: number }
 
   let eaten = $state(0)
@@ -93,10 +94,6 @@
     if (open) invoke('context_usage', { id: agent.id }).catch(() => {})
   }
 
-  function compact() {
-    open = false
-    send(agent.id, '/compact')
-  }
 </script>
 
 <svelte:window onclick={(e) => open && !(e.target as HTMLElement).closest('[data-context]') && (open = false)} onkeydown={(e) => e.key === 'Escape' && (open = false)} />
@@ -115,29 +112,7 @@
   </button>
   {#if open}
     <div class="panel" role="dialog" aria-label={t('agent.context')}>
-      <strong>{t('agent.context')}</strong>
-      {#if max}
-        <div class="track" aria-hidden="true">
-          <span class="fill" class:near style:width="{share * 100}%"></span>
-          {#if threshold}<span class="mark" style:left="{(threshold / max) * 100}%"></span>{/if}
-        </div>
-        <p>{t('agent.contextOf', { used: tokens(agent.tokens), max: tokens(max), percent })}</p>
-      {:else}
-        <p>{t('agent.contextTokens', { tokens: tokens(agent.tokens) })}</p>
-      {/if}
-      <p class="when" class:near>{when}</p>
-      <div class="shown">
-        <span id="context-shown-{agent.id}">{t('agent.contextShown')}</span>
-        <div class="segments" role="group" aria-labelledby="context-shown-{agent.id}">
-          {#each [['percent', 'agent.contextShownPercent'], ['tokens', 'agent.contextShownTokens'], ['both', 'agent.contextShownBoth']] as const as [shown, label] (shown)}
-            <button aria-pressed={layout.contextShown === shown} onclick={() => setContextShown(shown)}>{t(label)}</button>
-          {/each}
-        </div>
-      </div>
-      <div class="row">
-        <button class="btn btn-secondary" disabled={busy || !agent.tokens} onclick={compact}>{t('agent.compactNow')}</button>
-        {#if busy}<span class="hint">{t('agent.compactWhenIdle')}</span>{/if}
-      </div>
+      <ContextPanel {agent} onclose={() => (open = false)} />
     </div>
   {/if}
 </span>
@@ -212,7 +187,7 @@
     top: 34px;
     left: 0;
     z-index: 30;
-    width: 340px;
+    width: 460px;
     display: flex;
     flex-direction: column;
     gap: 10px;
@@ -227,97 +202,4 @@
     white-space: normal;
   }
 
-  .panel strong {
-    font-weight: 600;
-    color: var(--text-strong);
-  }
-
-  .panel p {
-    margin: 0;
-  }
-
-  .track {
-    position: relative;
-    height: 8px;
-    border-radius: 4px;
-    background: var(--border-strong);
-  }
-
-  .fill {
-    position: absolute;
-    inset: 0 auto 0 0;
-    border-radius: 4px;
-    background: var(--text-muted);
-  }
-
-  .fill.near {
-    background: var(--accent);
-  }
-
-  .mark {
-    position: absolute;
-    top: -3px;
-    bottom: -3px;
-    width: 2px;
-    margin-left: -1px;
-    border-radius: 1px;
-    background: var(--accent);
-  }
-
-  .when {
-    font-size: 12.5px;
-    color: var(--text-dim);
-  }
-
-  .when.near {
-    color: var(--accent-link);
-  }
-
-  .shown {
-    display: flex;
-    flex-wrap: wrap;
-    align-items: center;
-    justify-content: space-between;
-    gap: 6px 10px;
-    color: var(--text-dim);
-    font-size: 12.5px;
-  }
-
-  .segments {
-    display: flex;
-    gap: 2px;
-    padding: 3px;
-    border-radius: 4px;
-    background: var(--surface-2);
-  }
-
-  .segments button {
-    height: 26px;
-    padding: 0 10px;
-    border-radius: 3px;
-    color: var(--text-2);
-    font-size: 12.5px;
-  }
-
-  .segments button[aria-pressed='true'] {
-    background: var(--text);
-    color: var(--ink);
-    font-weight: 700;
-  }
-
-  .row {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .row .btn {
-    height: 30px;
-    padding: 0 12px;
-  }
-
-  .hint {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
 </style>

@@ -991,6 +991,11 @@ async fn linked_pull(url: String, projects: Vec<PathBuf>) -> Result<forge::Linke
 }
 
 #[tauri::command]
+async fn numbered_pull(dir: PathBuf, number: u64) -> Result<forge::Pull, String> {
+    forge::numbered(&dir, number).await
+}
+
+#[tauri::command]
 async fn pipeline_runs(dir: PathBuf, repository: String) -> Result<Vec<forge::Run>, String> {
     forge::runs(&dir, &repository).await
 }
@@ -1389,6 +1394,11 @@ fn extensions_approve(
     commands: Vec<String>,
 ) -> Result<(), String> {
     extensions.approve(&id, commands)
+}
+
+#[tauri::command]
+fn extensions_set_args(args: Vec<String>) {
+    *claude::EXTENSION_ARGS.lock().unwrap() = args;
 }
 
 #[tauri::command]
@@ -2230,6 +2240,7 @@ pub fn run() {
             set_agent_options,
             remote_control,
             context_usage,
+            claude::squadron_prompt_size,
             stop_task,
             mcp_request,
             claude_config,
@@ -2265,6 +2276,7 @@ pub fn run() {
             pull_lists,
             pipeline_runs,
             linked_pull,
+            numbered_pull,
             review_checkout,
             changed_files,
             review_lines,
@@ -2321,6 +2333,7 @@ pub fn run() {
             extensions_secret_set,
             extensions_wasm_sync,
             extensions_wasm_event,
+            extensions_set_args,
             extensions_wasm_run,
             extensions_wasm_tool,
             open_extensions_folder,

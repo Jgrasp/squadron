@@ -178,7 +178,11 @@
   })
 
   $effect(() => {
-    view?.dispatch({ effects: hinting.reconfigure(hint(placeholder)) })
+    if (!view) return
+    view.dispatch({ effects: hinting.reconfigure(hint(placeholder)) })
+    const scroller = view.scrollDOM
+    // WebKitGTK keeps a stale field height after the placeholder changes until a size change forces a new layout
+    requestAnimationFrame(() => ((scroller.style.minHeight = '0'), scroller.offsetHeight, (scroller.style.minHeight = '')))
   })
 
   $effect(() => {
@@ -210,7 +214,6 @@
   }
 
   .composer-field :global(.cm-editor) {
-    height: 100%;
     background: none;
     color: inherit;
     font: inherit;

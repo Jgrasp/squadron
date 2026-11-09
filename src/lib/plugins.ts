@@ -31,6 +31,13 @@ export const pluginColor = (id: string) => COLORS[[...id].reduce((sum, c) => sum
 
 export const ALL = '*'
 
+export const SHOWS = [
+  ['off', 'plugins.showOff', 'plugins.showOffHint'],
+  ['tag', 'plugins.showTag', 'plugins.showTagHint'],
+  ['card', 'plugins.showCard', 'plugins.showCardHint'],
+  ['gutter', 'plugins.showGutter', 'plugins.showGutterHint'],
+] as const
+
 export const marketplaceOf = (id: string) => id.slice(id.lastIndexOf('@') + 1)
 
 export const nameOf = (id: string) => id.slice(0, id.lastIndexOf('@'))

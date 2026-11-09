@@ -170,8 +170,6 @@ export default {
   itemArtifactsHint: 'Shown once the agent has published an artifact',
   itemCost: 'Cost',
   itemContext: 'Context tokens',
-  itemPlugins: 'Plugins',
-  itemPluginsHint: 'Plugins this agent loaded and what they cost.',
   itemBranch: 'Working branch',
   itemBranchHint: 'Green with a worktree, native or declared by the agent',
   itemPull: 'Pull request',
