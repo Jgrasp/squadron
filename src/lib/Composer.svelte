@@ -96,7 +96,7 @@
         ],
       }),
     })
-    if (autofocus) view.focus()
+    if (autofocus) requestAnimationFrame(() => view?.focus())
     return () => view?.destroy()
   })
 
@@ -160,6 +160,7 @@
   }
 
   .composer-field :global(.cm-cursor) {
+    margin-left: 0;
     border-left-color: var(--text);
   }
 

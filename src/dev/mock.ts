@@ -110,7 +110,10 @@ const fullTicket = (key: string) => {
     description: 'En tant que superviseur, je veux exporter la liste des appels manqués de la période affichée pour la transmettre au service client.\n\n## Critères d’acceptation\n\n- Bouton « Exporter » au-dessus du tableau\n- Colonnes : date, numéro, ligne, durée d’attente\n- Respecte les filtres actifs et le fuseau du compte\n- Au-delà de 50 000 lignes, export asynchrone par e-mail',
     subtasks: [{ relation: '', key: 'RING-483', title: 'Bouton front', status: 'À faire' }],
     links: [{ relation: 'relates to', key: 'RING-301', title: 'Fuseau horaire du compte', status: 'Terminé' }],
-    attachments: ['maquette-export.png', 'exemple.csv'],
+    attachments: [
+      { id: '10001', name: 'maquette-export.png', size: 284_000, mime: 'image/png', author: 'Julien Durand', created: '2025-10-20T09:00:00Z' },
+      { id: '10002', name: 'exemple.csv', size: 3_200, mime: 'text/csv', author: 'Marie Laurent', created: '2025-10-24T10:00:00Z' },
+    ],
     comments: [
       { id: '1', parent: null, author: person('Julien Durand'), created: '2025-10-20T09:00:00Z', body: 'Le client est en Guyane, donc fuseau UTC−3 à tester.' },
       { id: '2', parent: null, author: person('Marie Laurent'), created: '2025-10-24T10:00:00Z', body: 'Attention, le fuseau doit être celui du compte, pas du navigateur. Cf. RING-301.' },
@@ -681,6 +684,8 @@ mockIPC(
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
       case 'claude_version':
         return '2.1.304 (Claude Code)'
+      case 'plugin:app|version':
+        return '0.36.0'
       case 'remove_rule': {
         const project = projects.find((p) => p.path === a.path)
         if (project) project.rules = project.rules.filter((r) => r !== a.rule)
@@ -834,6 +839,9 @@ mockIPC(
         )
       case 'ticket_get':
         return new Promise((resolve) => setTimeout(() => resolve(fullTicket(a.key)), 300))
+      case 'ticket_attachment':
+        if (a.id === '10001') files.set(`/jira/${a.id}`, `data:image/svg+xml,${encodeURIComponent('<svg xmlns="http://www.w3.org/2000/svg" width="320" height="200"><rect width="320" height="200" fill="#2a2420"/><rect x="24" y="24" width="272" height="36" rx="6" fill="#e08a5b"/></svg>')}`)
+        return `/jira/${a.id}`
       case 'ticket_context':
         return `<ticket source="jira" key="${a.key}">\n# ${a.key} ${fullTicket(a.key).title}\n</ticket>`
       case 'ticket_brief':

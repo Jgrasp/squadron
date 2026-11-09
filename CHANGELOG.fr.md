@@ -1,5 +1,14 @@
 # Nouveautés
 
+## 0.36.1 · 2026-11-09
+
+### Correctifs
+
+- Les cartes de fichier d’une réponse s’empilent une par ligne au lieu de se ranger côte à côte.
+- Le premier champ de message d’un nouvel agent a le focus à l’ouverture de la fenêtre, et le curseur reste visible en début de ligne.
+- La barre d’état affiche la version de Squadron à gauche.
+- L’en-tête du panneau de ticket Jira tient sur une ligne : type et sprint se raccourcissent, Tout voir et Ouvrir dans Jira ne gardent que leur icône quand le panneau est étroit.
+
 ## 0.36.0 · 2026-11-06
 
 ### Extensions

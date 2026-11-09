@@ -1,10 +1,11 @@
-use crate::forge;
+use crate::{attach, forge};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
+use std::fs;
 use std::io::Write;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use std::process::Stdio;
 
 #[derive(Clone, Serialize, Deserialize)]
@@ -90,6 +91,16 @@ pub struct Field {
 }
 
 #[derive(Serialize)]
+pub struct File {
+    pub id: String,
+    pub name: String,
+    pub size: u64,
+    pub mime: String,
+    pub author: String,
+    pub created: String,
+}
+
+#[derive(Serialize)]
 pub struct Ticket {
     pub connection: String,
     pub key: String,
@@ -111,7 +122,7 @@ pub struct Ticket {
     pub description: String,
     pub subtasks: Vec<Link>,
     pub links: Vec<Link>,
-    pub attachments: Vec<String>,
+    pub attachments: Vec<File>,
     pub comments: Vec<Comment>,
     pub custom: Vec<Field>,
 }
@@ -568,10 +579,63 @@ pub async fn ticket(connection: &str, key: &str) -> Result<Ticket, String> {
             .map(|s| link(s, String::new()))
             .collect(),
         links,
-        attachments: names(&f["attachment"], "filename"),
+        attachments: f["attachment"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .map(|a| File {
+                id: custom_value(&a["id"]),
+                name: text(&a["filename"]),
+                size: a["size"].as_u64().unwrap_or(0),
+                mime: text(&a["mimeType"]),
+                author: text(&a["author"]["displayName"]),
+                created: text(&a["created"]),
+            })
+            .collect(),
         comments,
         custom,
     })
+}
+
+pub async fn attachment(connection: &str, id: &str, cache: &Path) -> Result<PathBuf, String> {
+    if id.is_empty() || !id.chars().all(|c| c.is_ascii_digit()) {
+        return Err("Invalid attachment.".into());
+    }
+    let secret = secret(connection)?;
+    let meta = request(
+        &secret,
+        Method::GET,
+        &format!("/rest/api/3/attachment/{id}"),
+        &[],
+        None,
+    )
+    .await?;
+    if meta["size"].as_u64().unwrap_or(0) > 200 * 1024 * 1024 {
+        return Err("This file is too large to open from here.".into());
+    }
+    let folder = cache.join("jira").join(&secret.id).join(id);
+    let file = folder.join(attach::safe_name(&text(&meta["filename"])));
+    if file.is_file() {
+        return Ok(file);
+    }
+    let response = client()
+        .get(format!(
+            "https://{}/rest/api/3/attachment/content/{id}",
+            secret.site
+        ))
+        .basic_auth(&secret.email, Some(&secret.token))
+        .send()
+        .await
+        .map_err(|e| e.to_string())?;
+    if !response.status().is_success() {
+        return Err(format!("Jira: {}", response.status()));
+    }
+    let bytes = response.bytes().await.map_err(|e| e.to_string())?;
+    fs::create_dir_all(&folder).map_err(|e| e.to_string())?;
+    let part = folder.join(".part");
+    fs::write(&part, &bytes).map_err(|e| e.to_string())?;
+    fs::rename(&part, &file).map_err(|e| e.to_string())?;
+    Ok(file)
 }
 
 async fn all_comments(secret: &Secret, key: &str) -> Result<Vec<Comment>, String> {
@@ -883,7 +947,12 @@ pub fn context(ticket: &Ticket, fields: &[String]) -> String {
     if on("attachments") && !ticket.attachments.is_empty() {
         out.push_str(&format!(
             "\n## Attachments\n{}\n",
-            ticket.attachments.join(", ")
+            ticket
+                .attachments
+                .iter()
+                .map(|a| a.name.as_str())
+                .collect::<Vec<_>>()
+                .join(", ")
         ));
     }
     if on("comments") && !ticket.comments.is_empty() {

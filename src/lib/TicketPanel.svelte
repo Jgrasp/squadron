@@ -1,13 +1,14 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import Avatar from './Avatar.svelte'
-  import { date, errorText, t } from './i18n/index.svelte'
+  import Dialog from './Dialog.svelte'
+  import { date, errorText, number, t } from './i18n/index.svelte'
   import { URGENCY } from './jira'
   import { requestPanel } from './layout.svelte'
   import PanelButtons from './PanelButtons.svelte'
   import SidePanel from './SidePanel.svelte'
   import Markdown from './Markdown.svelte'
-  import { getTicket, type Comment, type Ticket } from './tickets.svelte'
+  import { getTicket, type Comment, type Ticket, type TicketFile } from './tickets.svelte'
 
   let {
     connection,
@@ -23,6 +24,10 @@
   let query = $state('')
   let newest = $state(localStorage.getItem('squadron.ticket-sort') !== 'oldest')
   let thread = $state<HTMLElement>()
+  let whole = $state(false)
+  let previews = $state<Record<string, string>>({})
+  let fileError = $state('')
+  let asked = new Set<string>()
 
   requestPanel('ticket')
 
@@ -30,10 +35,40 @@
     const [c, k] = [connection, ticketKey]
     ticket = null
     error = ''
+    previews = {}
+    asked = new Set()
     getTicket(c, k)
       .then((found) => (ticket = found))
       .catch((e) => (error = errorText(e)))
   })
+
+  const fetchFile = (file: TicketFile) => invoke<string>('ticket_attachment', { connection, id: file.id })
+
+  async function openFile(file: TicketFile) {
+    fileError = ''
+    try {
+      await invoke('open_attachment', { path: await fetchFile(file) })
+    } catch (e) {
+      fileError = errorText(e)
+    }
+  }
+
+  $effect(() => {
+    if (!whole || !ticket) return
+    for (const file of ticket.attachments) {
+      if (!file.mime.startsWith('image/') || file.size > 20 * 1024 ** 2 || asked.has(file.id)) continue
+      asked.add(file.id)
+      fetchFile(file)
+        .then((path) => invoke<string>('attachment_preview', { path }))
+        .then((url) => (previews[file.id] = url))
+        .catch(() => {})
+    }
+  })
+
+  const size = (bytes: number) =>
+    bytes < 1024 ** 2
+      ? number(Math.max(1, Math.round(bytes / 1024)), { style: 'unit', unit: 'kilobyte', unitDisplay: 'short' })
+      : number(bytes / 1024 ** 2, { style: 'unit', unit: 'megabyte', unitDisplay: 'short', maximumFractionDigits: 1 })
 
   const day = (iso: string) => (iso ? date(new Date(iso).getTime(), { day: 'numeric', month: 'short', year: 'numeric' }) : '')
 
@@ -97,11 +132,14 @@
     <div class="row">
       <span class="logo" aria-hidden="true">J</span>
       <span class="key">{ticketKey}</span>
-      {#if ticket}<span class="faint">· {ticket.kind}{ticket.sprint ? ` · ${ticket.sprint}` : ''}</span>{/if}
+      {#if ticket}<span class="faint meta">· {ticket.kind}{ticket.sprint ? ` · ${ticket.sprint}` : ''}</span>{/if}
       <span class="spacer"></span>
       {#if ticket}
-        <button class="open-jira" title={ticket.url} onclick={() => invoke('open_link', { url: ticket!.url })}>
-          <span class="logo" aria-hidden="true">J</span>{t('tickets.openInJira')}
+        <button class="open-jira" title={t('tickets.viewAllHint')} aria-label={t('tickets.viewAll')} onclick={() => (whole = true)}>
+          <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 14v6h6M20 10V4h-6M4 20l7-7M20 4l-7 7" /></svg><span class="label">{t('tickets.viewAll')}</span>
+        </button>
+        <button class="open-jira" title={ticket.url} aria-label={t('tickets.openInJira')} onclick={() => invoke('open_link', { url: ticket!.url })}>
+          <span class="logo" aria-hidden="true">J</span><span class="label">{t('tickets.openInJira')}</span>
           <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M14 4h6v6M20 4l-9 9M18 14v5a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V7a1 1 0 0 1 1-1h5" /></svg>
         </button>
       {/if}
@@ -109,20 +147,7 @@
     </div>
     {#if ticket}
       <h2>{ticket.title}</h2>
-      <dl>
-        <dt>{t('tickets.status')}</dt>
-        <dd><span class="jira-status {ticket.category}">{ticket.status}</span></dd>
-        <dt>{t('tickets.assignee')}</dt>
-        <dd>
-          {#if ticket.assignee}<Avatar name={ticket.assignee.name} src={ticket.assignee.avatar} size={20} />{ticket.assignee.name}{:else}<span class="nobody" aria-hidden="true">?</span><span class="faint">{t('tickets.unassigned')}</span>{/if}
-        </dd>
-        {#if ticket.priority}<dt>{t('tickets.priority')}</dt><dd>{#if ticket.urgency}<span class="jira-urgency u{ticket.urgency}" aria-hidden="true">{URGENCY[ticket.urgency]}</span>{/if}{ticket.priority}</dd>{/if}
-        {#if ticket.epic}<dt>{t('tickets.epic')}</dt><dd><span class="epic" title={ticket.epic.key}>{ticket.epic.title}</span></dd>{/if}
-        {#if ticket.labels.length}<dt>{t('tickets.labels')}</dt><dd>{#each ticket.labels as label (label)}<span class="chip">{label}</span>{/each}</dd>{/if}
-        {#each ticket.custom.filter((f) => f.value.length < 40) as field (field.name)}<dt>{field.name}</dt><dd>{field.value}</dd>{/each}
-        <dt>{t('tickets.updated')}</dt>
-        <dd>{day(ticket.updated)}</dd>
-      </dl>
+      <dl>{@render fields(false)}</dl>
     {/if}
   </header>
 
@@ -150,7 +175,8 @@
         {#if ticket.description}<Markdown text={ticket.description} />{:else}<p class="faint">{t('tickets.noDescription')}</p>{/if}
         {#if ticket.attachments.length}
           <h4>{t('tickets.attachments')}</h4>
-          <p class="files">{#each ticket.attachments as file (file)}<span class="chip">{file}</span>{/each}</p>
+          <p class="files">{#each ticket.attachments as file (file.id)}<button class="chip" title={size(file.size)} onclick={() => openFile(file)}>{file.name}</button>{/each}</p>
+          {#if fileError}<p class="bad" role="alert">{fileError}</p>{/if}
         {/if}
       {:else if tab === 'comments'}
         {#if !ticket.comments.length}
@@ -165,19 +191,7 @@
           {/each}
         {/if}
       {:else}
-        {#if ticket.epic}
-          <h4>{t('tickets.parent')}</h4>
-          {@render item(ticket.epic.key, ticket.epic.title, ticket.epic.status, ticket.epic.relation)}
-        {/if}
-        {#if ticket.subtasks.length}
-          <h4>{t('tickets.subtasks')}</h4>
-          {#each ticket.subtasks as s (s.key)}{@render item(s.key, s.title, s.status, '')}{/each}
-        {/if}
-        {#if ticket.links.length}
-          <h4>{t('tickets.linked')}</h4>
-          {#each ticket.links as l, i (i)}{@render item(l.key, l.title, l.status, l.relation)}{/each}
-        {/if}
-        {#if !links}<p class="faint">{t('tickets.noLink')}</p>{/if}
+        {@render related()}
       {/if}
     </div>
     <footer>
@@ -187,6 +201,97 @@
     </footer>
   {/if}
 </SidePanel>
+
+{#if whole && ticket}
+  {@const all = ticket}
+  <Dialog title="{ticketKey} · {all.title}" full onclose={() => (whole = false)}>
+    <div class="whole">
+      <div class="main">
+        <section>
+          <h4>{t('tickets.tabDescription')}</h4>
+          {#if all.description}<Markdown text={all.description} />{:else}<p class="faint">{t('tickets.noDescription')}</p>{/if}
+        </section>
+        {#if all.attachments.length}
+          <section>
+            <h4>{t('tickets.attachments')} · {all.attachments.length}</h4>
+            {#if fileError}<p class="bad" role="alert">{fileError}</p>{/if}
+            <div class="grid">
+              {#each all.attachments as file (file.id)}
+                <button class="file" title={file.name} onclick={() => openFile(file)}>
+                  <span class="thumb">
+                    {#if previews[file.id]}<img src={previews[file.id]} alt="" />{:else}<span class="ext">{file.name.split('.').pop()}</span>{/if}
+                  </span>
+                  <span class="name">{file.name}</span>
+                  <span class="faint small">{size(file.size)}{file.author ? ` · ${file.author}` : ''} · {day(file.created)}</span>
+                </button>
+              {/each}
+            </div>
+          </section>
+        {/if}
+        <section>
+          <h4>{t('tickets.tabComments', { count: all.comments.length })}</h4>
+          {#if !all.comments.length}<p class="faint">{t('tickets.noComment')}</p>{/if}
+          {#each threads as { root, replies } (root.id)}
+            {@render comment(root)}
+            {#if replies.length}
+              <div class="replies">{#each replies as reply (reply.id)}{@render comment(reply)}{/each}</div>
+            {/if}
+          {/each}
+        </section>
+      </div>
+      <aside>
+        <dl>{@render fields(true)}</dl>
+        <section>
+          <h4>{t('tickets.tabLinks', { count: links })}</h4>
+          {@render related()}
+        </section>
+        <button class="open-jira" title={all.url} onclick={() => invoke('open_link', { url: all.url })}>
+          <span class="logo" aria-hidden="true">J</span>{t('tickets.openInJira')}
+        </button>
+      </aside>
+    </div>
+  </Dialog>
+{/if}
+
+{#snippet fields(every: boolean)}
+  {#if ticket}
+    <dt>{t('tickets.status')}</dt>
+    <dd><span class="jira-status {ticket.category}">{ticket.status}</span></dd>
+    <dt>{t('tickets.assignee')}</dt>
+    <dd>
+      {#if ticket.assignee}<Avatar name={ticket.assignee.name} src={ticket.assignee.avatar} size={20} />{ticket.assignee.name}{:else}<span class="nobody" aria-hidden="true">?</span><span class="faint">{t('tickets.unassigned')}</span>{/if}
+    </dd>
+    {#if ticket.priority}<dt>{t('tickets.priority')}</dt><dd>{#if ticket.urgency}<span class="jira-urgency u{ticket.urgency}" aria-hidden="true">{URGENCY[ticket.urgency]}</span>{/if}{ticket.priority}</dd>{/if}
+    {#if ticket.epic}<dt>{t('tickets.epic')}</dt><dd><span class="epic" title={ticket.epic.key}>{ticket.epic.title}</span></dd>{/if}
+    {#if ticket.labels.length}<dt>{t('tickets.labels')}</dt><dd>{#each ticket.labels as label (label)}<span class="chip">{label}</span>{/each}</dd>{/if}
+    {#if every}<dt>{t('tickets.kind')}</dt><dd>{ticket.kind}</dd>{/if}
+    {#if every && ticket.sprint}<dt>{t('tickets.sprint')}</dt><dd>{ticket.sprint}</dd>{/if}
+    {#if every && ticket.reporter}<dt>{t('tickets.reporter')}</dt><dd><Avatar name={ticket.reporter.name} src={ticket.reporter.avatar} size={20} />{ticket.reporter.name}</dd>{/if}
+    {#if every && ticket.components.length}<dt>{t('tickets.fieldComponents')}</dt><dd>{#each ticket.components as c (c)}<span class="chip">{c}</span>{/each}</dd>{/if}
+    {#if every && ticket.versions.length}<dt>{t('tickets.fieldVersions')}</dt><dd>{#each ticket.versions as v (v)}<span class="chip">{v}</span>{/each}</dd>{/if}
+    {#each ticket.custom.filter((f) => every || f.value.length < 40) as field (field.name)}<dt>{field.name}</dt><dd>{field.value}</dd>{/each}
+    <dt>{t('tickets.updated')}</dt>
+    <dd>{day(ticket.updated)}</dd>
+  {/if}
+{/snippet}
+
+{#snippet related()}
+  {#if ticket}
+    {#if ticket.epic}
+      <h4>{t('tickets.parent')}</h4>
+      {@render item(ticket.epic.key, ticket.epic.title, ticket.epic.status, ticket.epic.relation)}
+    {/if}
+    {#if ticket.subtasks.length}
+      <h4>{t('tickets.subtasks')}</h4>
+      {#each ticket.subtasks as s (s.key)}{@render item(s.key, s.title, s.status, '')}{/each}
+    {/if}
+    {#if ticket.links.length}
+      <h4>{t('tickets.linked')}</h4>
+      {#each ticket.links as l, i (i)}{@render item(l.key, l.title, l.status, l.relation)}{/each}
+    {/if}
+    {#if !links}<p class="faint">{t('tickets.noLink')}</p>{/if}
+  {/if}
+{/snippet}
 
 {#snippet comment(c: Comment)}
   <div class="comment">
@@ -214,6 +319,14 @@
     gap: 10px;
     padding: 18px 22px 14px;
     border-bottom: 1px solid var(--border);
+    container-type: inline-size;
+  }
+
+  .meta {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 
   .row {
@@ -267,8 +380,20 @@
     border-radius: 6px;
     background: var(--ticket-bg);
     color: var(--ticket-text);
+    flex: none;
     font-size: 12.5px;
     font-weight: 600;
+    white-space: nowrap;
+  }
+
+  @container (max-width: 560px) {
+    .open-jira .label {
+      display: none;
+    }
+
+    .open-jira {
+      padding: 0 7px;
+    }
   }
 
   .open-jira:hover {
@@ -369,6 +494,10 @@
     color: var(--text-muted);
     font: 500 11px var(--mono);
     white-space: nowrap;
+  }
+
+  button.chip:hover {
+    color: var(--text);
   }
 
   .tabs {
@@ -511,6 +640,104 @@
   .bad {
     margin: 16px 22px;
     color: var(--err-text);
+  }
+
+  .body .bad,
+  .whole .bad {
+    margin: 0;
+  }
+
+  .whole {
+    flex: 1;
+    min-height: 0;
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 340px;
+    border-top: 1px solid var(--border);
+  }
+
+  .whole .main,
+  .whole aside {
+    min-height: 0;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+    gap: 22px;
+    padding: 20px 24px 28px;
+    line-height: 1.55;
+  }
+
+  .whole aside {
+    align-items: flex-start;
+    border-left: 1px solid var(--border);
+    background: var(--bg-sidebar);
+  }
+
+  .whole section {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+    align-self: stretch;
+  }
+
+  .whole dl {
+    grid-template-columns: auto 1fr;
+    align-self: stretch;
+  }
+
+  .whole dd {
+    overflow-wrap: anywhere;
+  }
+
+  .grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+    gap: 12px;
+  }
+
+  .file {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    min-width: 0;
+    padding: 8px;
+    border: 1px solid var(--border);
+    border-radius: 6px;
+    background: var(--surface-1);
+    text-align: left;
+  }
+
+  .file:hover {
+    border-color: var(--border-strong);
+  }
+
+  .thumb {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    height: 110px;
+    margin-bottom: 4px;
+    overflow: hidden;
+    border-radius: 4px;
+    background: var(--bg-main);
+  }
+
+  .thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+  }
+
+  .ext {
+    color: var(--text-dim);
+    font: 600 12px var(--mono);
+    text-transform: uppercase;
+  }
+
+  .file .name {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 13px;
   }
 
   :global(::highlight(ticket-search)) {
