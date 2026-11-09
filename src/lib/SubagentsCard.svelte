@@ -33,7 +33,7 @@
   const doing = (s: Subagent) => (s.status === 'done' ? (s.result?.split('\n').find((l) => l.trim()) ?? t('conversation.resultHandedBack')) : s.last)
 </script>
 
-<section class="subagents" aria-label={t('conversation.subagentsLaunched')}>
+<section class="subagents" data-call={ids.join(' ')} aria-label={t('conversation.subagentsLaunched')}>
   <div class="head">
     <span class="icon" aria-hidden="true">
       <svg width="16" height="16" viewBox="0 0 24 24"><circle cx="6" cy="5" r="2" /><circle cx="6" cy="19" r="2" /><circle cx="18" cy="12" r="2" /><path d="M6 7v10M6 12h10" /></svg>

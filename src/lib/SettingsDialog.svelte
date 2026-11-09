@@ -17,6 +17,7 @@
   import { reset } from './layout-slots.svelte'
   import PanelSettings from './PanelSettings.svelte'
   import ExtensionSettings from './ExtensionSettings.svelte'
+  import PluginSettings from './PluginSettings.svelte'
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
@@ -53,6 +54,7 @@
       'settings.groupTools',
       [
         ['claude', 'settings.tabClaude'],
+        ['plugins', 'settings.tabPlugins'],
         ['editors', 'settings.tabEditors'],
         ['hosting', 'settings.tabHosting'],
         ['tickets', 'tickets.tab'],
@@ -297,6 +299,8 @@
       <PanelSettings />
     {:else if tab === 'extensions'}
       <ExtensionSettings />
+    {:else if tab === 'plugins'}
+      <PluginSettings />
     {:else if tab === 'shortcuts'}
       <p class="intro">{t('settings.shortcutsIntro')}</p>
       <ul class="keys">

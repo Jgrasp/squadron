@@ -11,6 +11,9 @@
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
   import ContextGauge from './ContextGauge.svelte'
+  import PluginGauge from './PluginGauge.svelte'
+  import PluginUsage from './PluginUsage.svelte'
+  import { usage } from './plugins.svelte'
   import { bottomShare, layout, openPanel, setPanel, sideSpan, type PanelKind } from './layout.svelte'
   import { home, projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
@@ -249,6 +252,7 @@
         (id !== 'ticket' || ticket) &&
         (id !== 'pull' || pull || agent.review) &&
         (id !== 'mcp' || mcpGroups.length) &&
+        (id !== 'plugins' || agent.plugins?.length) &&
         (id !== 'tasks' || agent.tasks.length),
     ),
   )
@@ -843,6 +847,8 @@
                 </button>
               {:else if id === 'context'}
                 <ContextGauge {agent} />
+              {:else if id === 'plugins'}
+                <PluginGauge {agent} />
               {/if}
             </span>
           {/each}
@@ -1391,6 +1397,7 @@
     />
   {/if}
   {@render overlay?.()}
+  {#if usage.agent === agent.id && usage.stack.length}<PluginUsage {agent} />{/if}
 </main>
 
 <style>

@@ -40,6 +40,9 @@ export type Config = {
   ticket_fields_off: string[]
   conversation_width: number
   sidebar: 'pinned' | 'peek'
+  plugin_lines: 'off' | 'tag' | 'card' | 'gutter'
+  plugin_card: 'normal' | 'minimal'
+  plugin_projects: Record<string, string[]>
 }
 
 export const settings = $state<Config>({
@@ -68,6 +71,9 @@ export const settings = $state<Config>({
   ticket_fields_off: [],
   conversation_width: 740,
   sidebar: 'pinned',
+  plugin_lines: 'tag',
+  plugin_card: 'normal',
+  plugin_projects: {},
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

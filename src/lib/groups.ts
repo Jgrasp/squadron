@@ -1,5 +1,9 @@
 import type { Group, Project } from './projects.svelte'
 
+export type Row =
+  | { kind: 'group'; id: string; name: string; depth: number; folded: boolean; parent: string }
+  | { kind: 'project'; project: Project; depth: number; group: string }
+
 export type ProjectSort = 'activity' | 'attention' | 'name' | 'agents' | 'manual'
 
 export type Tally = { working: number; waiting: number; failed: number; done: number; agents: number; last: number }
@@ -39,6 +43,40 @@ export function descendants(groups: Group[], id: string) {
     }
   }
   walk(id, [])
+  return out
+}
+
+export function contained(groups: Group[], list: Project[], id: string) {
+  return list.filter((p) => groupOf(groups, p) && within(groups, groupOf(groups, p), id))
+}
+
+const matches = (text: string, query: string) => text.toLowerCase().includes(query)
+
+export function rows(groups: Group[], list: Project[], folded: Record<string, boolean>, search: string): Row[] {
+  const query = search.trim().toLowerCase()
+  const keeps = (id: string, parentMatched: boolean): boolean => {
+    if (!query || parentMatched) return true
+    const group = groups.find((g) => g.id === id)
+    if (group && matches(group.name, query)) return true
+    return (
+      list.some((p) => groupOf(groups, p) === id && matches(p.name, query)) ||
+      groups.some((g) => parentOf(groups, g) === id && keeps(g.id, false))
+    )
+  }
+  const out: Row[] = []
+  const walk = (parent: string, depth: number, parentMatched: boolean) => {
+    for (const group of groups.filter((g) => parentOf(groups, g) === parent)) {
+      if (!keeps(group.id, parentMatched)) continue
+      const own = !!query && matches(group.name, query)
+      const open = !!query || !folded[group.id]
+      out.push({ kind: 'group', id: group.id, name: group.name, depth, folded: !open, parent })
+      if (open) walk(group.id, depth + 1, parentMatched || own)
+    }
+    for (const project of list.filter((p) => groupOf(groups, p) === parent)) {
+      if (!query || parentMatched || matches(project.name, query)) out.push({ kind: 'project', project, depth, group: parent })
+    }
+  }
+  walk('', 0, false)
   return out
 }
 
