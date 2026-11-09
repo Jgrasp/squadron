@@ -210,7 +210,6 @@
   }
 
   .composer-field :global(.cm-editor) {
-    height: 100%;
     background: none;
     color: inherit;
     font: inherit;
