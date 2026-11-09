@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { errorText } from './i18n/index.svelte'
 import { ALL, activeIn, after, everywhere, plan, type Details, type Entry, type Flags, type Installed, type Marketplace, type Target } from './plugins'
-import type { Kind } from './pluginuse'
+import type { Kind, PluginRef } from './pluginuse'
 import { projects } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 
@@ -62,6 +62,9 @@ export function fetchDetails(ids: string[]) {
 }
 
 export const detailsOf = (id: string) => plugins.details[id] ?? null
+
+export const skillCost = (refs: PluginRef[]) => (plugin: string, skill: string) =>
+  detailsOf(refs.find((r) => r.name === plugin)?.id ?? '')?.components.find((c) => c.kind === 'skill' && c.name === skill)?.invoke ?? 0
 
 export const where = (id: string) => {
   const all = paths()

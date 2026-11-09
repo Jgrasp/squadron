@@ -40,6 +40,14 @@ describe('plugin use', () => {
     expect(use.tokens).toBeGreaterThan(1000)
   })
 
+  it('charges a plugin skill typed as a slash command with its on-invoke cost', () => {
+    const agent = session()
+    userMessage(agent, '/humanizer:humanizer fais le\nsur ce texte')
+    userMessage(agent, '/compact')
+    const list = uses(agent, (plugin, skill) => (plugin === 'humanizer' && skill === 'humanizer' ? 3700 : 0))
+    expect(list.map((u) => [u.plugin, u.kind, u.label, u.tokens])).toEqual([['humanizer', 'skill', 'humanizer fais le', 3700]])
+  })
+
   it('finds plugin MCP tools, plugin agents and files read in a plugin', () => {
     const agent = session()
     apply(agent, tool('t1', 'mcp__plugin_codegraph_codegraph__codegraph_explore', { query: 'ProductForm' }))

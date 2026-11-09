@@ -70,11 +70,21 @@ export function useOf(refs: PluginRef[], call: ToolCall): Use | null {
   return { id: call.id, ...who, tokens: parts.reduce((s, p) => s + p.tokens, 0), at: call.at, parts, excerpt }
 }
 
-export function uses(agent: Agent): Use[] {
+function commandUse(refs: PluginRef[], entry: { text: string; at: number }, invoked: (plugin: string, skill: string) => number): Use | null {
+  const typed = /^\/(\S+)[ \t]*(.*)/.exec(entry.text.trim())
+  const hit = typed && prefixed(refs, typed[1])
+  if (!hit) return null
+  const tokens = invoked(hit.plugin, hit.label)
+  return { id: `command-${entry.at}`, ...hit, kind: 'skill', label: typed[2] ? `${hit.label} ${typed[2]}` : hit.label, tokens, at: entry.at, parts: [{ key: 'skillBody', tokens }] }
+}
+
+export function uses(agent: Agent, invoked: (plugin: string, skill: string) => number = () => 0): Use[] {
   const refs = agent.plugins ?? []
   if (!refs.length) return []
   const out: Use[] = []
   for (const entry of agent.entries) {
+    const typed = entry.kind === 'user' && commandUse(refs, entry, invoked)
+    if (typed) out.push(typed)
     if (entry.kind !== 'agent') continue
     for (const block of entry.blocks) {
       if (block.type !== 'tools') continue

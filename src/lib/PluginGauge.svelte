@@ -3,7 +3,7 @@
   import { tokens } from './format'
   import { t } from './i18n/index.svelte'
   import { pluginColor } from './plugins'
-  import { detailsOf, fetchDetails, openUsage } from './plugins.svelte'
+  import { detailsOf, fetchDetails, openUsage, skillCost } from './plugins.svelte'
   import { KINDS, shares, uses } from './pluginuse'
   import type { Agent } from './stream'
 
@@ -12,7 +12,7 @@
   let open = $state(false)
 
   const refs = $derived(agent.plugins ?? [])
-  const list = $derived(shares(refs, uses(agent), (ref) => detailsOf(ref.id)?.always ?? 0))
+  const list = $derived(shares(refs, uses(agent, skillCost(refs)), (ref) => detailsOf(ref.id)?.always ?? 0))
   const total = $derived(list.reduce((s, x) => s + x.total, 0))
   const max = $derived(Math.max(1, ...list.map((x) => x.total)))
   const LEGEND = ['start', ...KINDS] as const
