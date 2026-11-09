@@ -6,7 +6,7 @@
   import { Decoration, EditorView, ViewPlugin, WidgetType, placeholder as hint, type DecorationSet, type ViewUpdate } from '@codemirror/view'
   import { classHighlighter } from '@lezer/highlight'
   import { minimalSetup } from 'codemirror'
-  import { kindOf } from './Attachment.svelte'
+  import { KIND_ICONS, kindOf } from './Attachment.svelte'
   import { citedFiles } from './mention.svelte'
 
   function fenceLines(view: EditorView) {
@@ -43,15 +43,6 @@
     { decorations: (plugin) => plugin.decorations },
   )
 
-  const ICONS = {
-    sheet: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M10 4v16"/>',
-    doc: '<path d="M5 6h14M5 12h14M5 18h9"/>',
-    code: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/>',
-    pdf: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/>',
-    archive: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v2M12 8v2M12 13v2"/>',
-    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>',
-  }
-
   const FOLDER = '<path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><path d="M3 10h18" fill="none"/>'
 
   const span = (className: string, text: string) => Object.assign(document.createElement('span'), { className, textContent: text })
@@ -82,7 +73,7 @@
       } else {
         const kind = kindOf(this.path)
         chip.className = `cm-file-chip ${kind}`
-        chip.innerHTML = `<i><svg viewBox="0 0 24 24" aria-hidden="true">${ICONS[kind]}</svg></i>`
+        chip.innerHTML = `<i><svg viewBox="0 0 24 24" aria-hidden="true">${KIND_ICONS[kind]}</svg></i>`
         chip.append(name)
       }
       return chip

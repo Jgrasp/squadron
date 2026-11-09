@@ -2,7 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import { slide } from 'svelte/transition'
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
-  import { kindOf } from './Attachment.svelte'
+  import { KIND_ICONS, kindOf } from './Attachment.svelte'
   import { languageOf } from './CodeEditor.svelte'
   import { revealFile } from './editor.svelte'
   import { fenced, windowLabel } from './filelink'
@@ -15,7 +15,6 @@
 
   const name = $derived(path.split('/').pop() ?? path)
   const folder = $derived(path.slice(0, -name.length))
-  const ext = $derived(name.includes('.') ? name.split('.').pop()!.toUpperCase().slice(0, 4) : '')
   const kind = $derived(kindOf(path))
   const label = $derived(t(`agent.kind${kind[0].toUpperCase()}${kind.slice(1)}` as Key))
 
@@ -59,7 +58,7 @@
 
 <div class="card" class:open bind:this={card} style:--kind={TONES[kind]}>
   <div class="head" title={path}>
-    <span class="tile" aria-hidden="true">{ext || '·'}</span>
+    <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24">{@html KIND_ICONS[kind]}</svg></span>
     <span class="text">
       <span class="name">{name}</span>
       <span class="meta">{folder ? `${folder} · ` : ''}{label}</span>
@@ -129,8 +128,16 @@
     background: color-mix(in srgb, var(--kind) 16%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kind) 35%, transparent);
     color: var(--kind);
-    font: 700 9.5px/1 var(--sans);
-    letter-spacing: 0.04em;
+  }
+
+  .tile svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .text {
