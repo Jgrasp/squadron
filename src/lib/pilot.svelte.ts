@@ -259,9 +259,11 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     }
     const text = !path || removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
     const key = `${caller.review.project}#${caller.review.number}`
-    reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
+    const before = reviews[key] ?? []
+    const kept = before.filter((c) => !path || c.path !== path || c.line !== line || c.removed !== removed)
+    reviews[key] = [...kept, { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
     const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
-    return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
+    return `${kept.length < before.length ? 'Replaced the comment already on that line in' : 'Added to'} the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
   },
 
   read_pull_comments: async (caller, args) => {

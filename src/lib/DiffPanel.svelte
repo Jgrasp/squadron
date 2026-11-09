@@ -292,7 +292,7 @@
         text: th.root.body,
       }))
     for (const c of [...review, ...comments.filter(here)])
-      if (c.path && order.has(c.path))
+      if (c.path && order.has(c.path) && !list.some((s) => s.key === draftKey(c)))
         list.push({ key: draftKey(c), path: c.path, line: c.line, removed: c.removed, mine: true, author: { name: '', avatar: '' }, others: [], text: c.note })
     return list.sort((a, b) => order.get(a.path)! - order.get(b.path)! || a.line - b.line || Number(b.mine) - Number(a.mine))
   })

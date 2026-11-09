@@ -386,7 +386,7 @@ impl Pilot {
         self.forward(&parts, "set_progress", json!(args)).await
     }
 
-    /// Adds a comment to the user's draft review of the pull request you were asked to review, on a line the diff shows or, without path and line, on the whole pull request. The user reads, edits and posts the review: nothing reaches Bitbucket, GitHub, GitLab or Azure DevOps without them.
+    /// Adds a comment to the user's draft review of the pull request you were asked to review, on a line the diff shows or, without path and line, on the whole pull request. A comment on a line that already has one replaces it. The user reads, edits and posts the review: nothing reaches Bitbucket, GitHub, GitLab or Azure DevOps without them.
     #[tool]
     async fn add_review_comment(
         &self,
