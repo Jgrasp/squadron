@@ -1392,6 +1392,11 @@ fn extensions_approve(
 }
 
 #[tauri::command]
+fn extensions_set_args(args: Vec<String>) {
+    *claude::EXTENSION_ARGS.lock().unwrap() = args;
+}
+
+#[tauri::command]
 async fn extensions_set_tools(
     tools: State<'_, extension_tools::Tools>,
     list: Vec<extension_tools::ExtensionTool>,
@@ -2321,6 +2326,7 @@ pub fn run() {
             extensions_secret_set,
             extensions_wasm_sync,
             extensions_wasm_event,
+            extensions_set_args,
             extensions_wasm_run,
             extensions_wasm_tool,
             open_extensions_folder,

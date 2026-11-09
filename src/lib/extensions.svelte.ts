@@ -8,7 +8,7 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { catalogOf, EXEC, type Source, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
+import { argsOf, ARGS, catalogOf, EXEC, type Source, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -22,7 +22,13 @@ export const badgeOf = (key: string) => extensions.shown[key]?.badge
 const info = (agent: Agent) => ({ id: agent.id, name: agent.name, project: agent.project, dir: workdir(agent) })
 
 export const commandLine = (key: string) =>
-  key.startsWith(EXEC) ? t('extensions.anyArgs', { program: key.slice(EXEC.length) }) : key.startsWith(NET) ? t('extensions.network', { host: key.slice(NET.length) }) : key
+  key.startsWith(EXEC)
+    ? t('extensions.anyArgs', { program: key.slice(EXEC.length) })
+    : key.startsWith(NET)
+      ? t('extensions.network', { host: key.slice(NET.length) })
+      : key.startsWith(ARGS)
+        ? t('extensions.claudeArgs', { args: (JSON.parse(key.slice(ARGS.length)) as string[]).join(' ') })
+        : key
 
 export async function loadExtensions() {
   const listing = await invoke<{ extensions: Found[]; disabled: string[]; approved: Record<string, string[]>; sources: string[]; origins: Record<string, string> }>('extensions_list')
@@ -182,6 +188,10 @@ $effect.root(() => {
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
     invoke('extensions_set_tools', { list: toolsOf(extensions.list).map(({ name, description, input }) => ({ name, description, input })) })
+  })
+  $effect(() => {
+    if (getCurrentWindow().label !== 'main') return
+    invoke('extensions_set_args', { args: argsOf(extensions.list) })
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return

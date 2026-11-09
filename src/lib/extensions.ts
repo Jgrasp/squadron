@@ -24,7 +24,7 @@ export type Manifest = {
   description?: Text
   wasm?: string
   permissions?: { exec?: string[]; network?: string[] }
-  contributes?: { items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
+  contributes?: { args?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -48,6 +48,8 @@ const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 const TOOL = /^[a-z0-9_]{1,40}$/
 
 const oneLine = (v: unknown) => typeof v === 'string' && !!v.trim() && !/[\x00-\x1f\x7f]/.test(v)
+
+const RESERVED = ['-p', '--print', '--input-format', '--output-format', '--replay-user-messages', '--model', '--effort', '--permission-mode', '--append-system-prompt', '--agent', '--advisor', '-r', '--resume', '-c', '--continue', '--fork-session', '--resume-session-at', '--session-id', '--mcp-config', '--strict-mcp-config', '--permission-prompt-tool', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '-w', '--worktree']
 
 const COLOR = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d.,%\s/]+\))$/i
 
@@ -93,6 +95,9 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   const contributes = raw.contributes ?? {}
   if (!isObject(contributes)) problems.push(['extensions.badContributes'])
   else {
+    const args = contributes.args ?? []
+    if (!Array.isArray(args) || !args.every(oneLine) || (args.length && !args[0].startsWith('-'))) problems.push(['extensions.badArgs'])
+    else for (const arg of args) if (RESERVED.includes(arg.split('=')[0])) problems.push(['extensions.reservedArg', { arg }])
     const panels = contributes.panels ?? []
     if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html')))
       problems.push(['extensions.badPanels'])
@@ -146,12 +151,15 @@ export const EXEC = 'exec:'
 
 export const NET = 'net:'
 
+export const ARGS = 'args:'
+
 export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
     ...(manifest.contributes?.tools ?? []).flatMap((t) => (t.command ? [t.command] : [])),
     ...(manifest.permissions?.exec ?? []).map((p) => EXEC + p),
     ...(manifest.permissions?.network ?? []).map((h) => NET + h),
+    ...(manifest.contributes?.args?.length ? [ARGS + JSON.stringify(manifest.contributes.args)] : []),
   ]),
 ]
 
@@ -183,6 +191,8 @@ export const toolsOf = (extensions: Extension[]): Exposed[] =>
       .filter((t) => !t.command || !m.pending.includes(t.command))
       .map((t) => ({ ...t, name: `${m.manifest.id}_${t.name}`, tool: t.name, extension: m.manifest.id })),
   )
+
+export const argsOf = (extensions: Extension[]) => active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(ARGS) && !m.pending.includes(c)) ? (m.manifest.contributes?.args ?? []) : []))
 
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))

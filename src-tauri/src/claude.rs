@@ -9,6 +9,7 @@ use std::thread;
 
 pub static COMPACT_WINDOW: AtomicU32 = AtomicU32::new(0);
 pub static CAPTURES: OnceLock<PathBuf> = OnceLock::new();
+pub static EXTENSION_ARGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
 
 pub const TESTED_VERSION: &str = "2.1.304";
 
@@ -158,6 +159,7 @@ pub fn command(
             "--mcp-config",
             config,
             "--permission-prompt-tool",
+    cmd.args(EXTENSION_ARGS.lock().unwrap().iter());
             crate::permissions::TOOL,
         ]);
     }
