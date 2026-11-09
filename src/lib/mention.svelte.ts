@@ -19,6 +19,39 @@ export function mentionAt(text: string, caret: number) {
   return m ? { start: m.index + m[1].length, query: m[2].toLowerCase() } : null
 }
 
+const MENTION = /(^|\s)@(?:"([^"\n]+)"|([^\s@"]+))/g
+
+export function citedFiles(text: string, files: Set<string>) {
+  const found: { from: number; to: number; path: string }[] = []
+  for (const m of text.matchAll(MENTION)) {
+    const from = m.index + m[1].length
+    let raw = m[2] ?? m[3]
+    let to = from + 1 + (m[2] ? raw.length + 2 : raw.length)
+    if (!m[2] && !files.has(raw) && !files.has(`${raw}/`)) {
+      const bare = raw.replace(/[.,;:!?)]+$/, '')
+      to -= raw.length - bare.length
+      raw = bare
+    }
+    const path = files.has(raw) ? raw : files.has(`${raw}/`) ? `${raw}/` : ''
+    if (path) found.push({ from, to, path })
+  }
+  return found
+}
+
+export const filesIn = (list: string[], dir: string) => list.filter((f) => f.startsWith(dir) && !f.endsWith('/')).length
+
+export function splitCited(text: string, files: Set<string>) {
+  const parts: { text: string; path?: string }[] = []
+  let last = 0
+  for (const cited of citedFiles(text, files)) {
+    if (cited.from > last) parts.push({ text: text.slice(last, cited.from) })
+    parts.push({ text: text.slice(cited.from, cited.to), path: cited.path })
+    last = cited.to
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) })
+  return parts
+}
+
 export function fileChoices(paths: string[], text: string, caret: number): FileChoice[] {
   const found = mentionAt(text, caret)
   if (!found) return []
@@ -43,7 +76,7 @@ export class Mention {
     this.#text = text
     this.#dir = dir
     $effect(() => {
-      if (!this.open) return
+      if (!this.open && !this.#cited) return
       const dir = this.#dir()
       invoke<string[]>('project_files', { dir })
         .then((list) => (this.#files = { dir, list }))
@@ -53,6 +86,8 @@ export class Mention {
 
   found = $derived.by(() => mentionAt(this.#text(), this.caret))
   open = $derived(!!this.found)
+  #cited = $derived.by(() => this.#text().includes('@'))
+  paths = $derived.by(() => (this.#files.dir === this.#dir() ? this.#files.list : []))
   choices = $derived.by(() => (this.#files.dir === this.#dir() ? fileChoices(this.#files.list, this.#text(), this.caret) : []))
 
   track = (caret: number) => {

@@ -25,7 +25,7 @@
 </script>
 
 {#if edit}
-  <button class="row action" title={t('conversation.openInDiff')} onclick={() => ondiff(call)} disabled={!call.result}>
+  <button class="row action" data-call={call.id} title={t('conversation.openInDiff')} onclick={() => ondiff(call)} disabled={!call.result}>
     <span class="name">{toolLabel(call.name)}</span>
     <span class="arg" title={arg}>{arg}</span>
     {#if call.result}
@@ -34,7 +34,7 @@
     {/if}
   </button>
 {:else if call.name === 'Bash' || (output && failed)}
-  <details class="row-box" class:failed open={failed}>
+  <details class="row-box" class:failed open={failed} data-call={call.id}>
     <summary class="row">
       {#if failed}
         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 5l14 14M19 5L5 19" /></svg>
@@ -49,7 +49,7 @@
     {#if output}<pre>{output}</pre>{/if}
   </details>
 {:else}
-  <div class="row">
+  <div class="row" data-call={call.id}>
     <span class="name">{toolLabel(call.name)}</span>
     <span class="arg" title={arg}>{arg}</span>
     {#if !call.result}<span class="go">…</span>{/if}

@@ -11,6 +11,9 @@
   import EditorPanel from './EditorPanel.svelte'
   import InfoPanel from './InfoPanel.svelte'
   import ContextGauge from './ContextGauge.svelte'
+  import PluginGauge from './PluginGauge.svelte'
+  import PluginUsage from './PluginUsage.svelte'
+  import { usage } from './plugins.svelte'
   import { bottomShare, layout, openPanel, setPanel, sideSpan, type PanelKind } from './layout.svelte'
   import { home, projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
@@ -28,7 +31,7 @@
   import ArtifactsPanel from './ArtifactsPanel.svelte'
   import { docsOf } from './artifacts'
   import { pointed, refresh as refreshArtifacts, shelf } from './artifacts.svelte'
-  import TicketPanel from './TicketPanel.svelte'
+  import TicketDialog from './TicketDialog.svelte'
   import { loadConnections, tickets } from './tickets.svelte'
   import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
@@ -249,6 +252,7 @@
         (id !== 'ticket' || ticket) &&
         (id !== 'pull' || pull || agent.review) &&
         (id !== 'mcp' || mcpGroups.length) &&
+        (id !== 'plugins' || agent.plugins?.length) &&
         (id !== 'tasks' || agent.tasks.length),
     ),
   )
@@ -513,7 +517,9 @@
       measure()
     })
     observer.observe(column)
-    return () => observer.disconnect()
+    const unstick = () => (stuck = false)
+    scroller.addEventListener('unfold', unstick)
+    return () => (observer.disconnect(), scroller.removeEventListener('unfold', unstick))
   })
 
   async function jump(i: number) {
@@ -784,12 +790,12 @@
 
 <main
   style:--panel-top="{headerHeight}px"
-  style:--panel-share={Math.max(bottomShare(openPanel(agent.project)), bottomShare(reading && 'ticket'))}
-  style:--panel-side="max({sideSpan(openPanel(agent.project))}, {sideSpan(reading && 'ticket')})"
+  style:--panel-share={bottomShare(openPanel(agent.project))}
+  style:--panel-side={sideSpan(openPanel(agent.project))}
 >
   <section class="conversation" aria-label={t('agent.conversation')}>
     {#if reading}
-      <TicketPanel connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />
+      <TicketDialog connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />
     {/if}
     <div class="top" bind:offsetHeight={headerHeight}>
       <div class="title">
@@ -841,6 +847,8 @@
                 </button>
               {:else if id === 'context'}
                 <ContextGauge {agent} />
+              {:else if id === 'plugins'}
+                <PluginGauge {agent} />
               {/if}
             </span>
           {/each}
@@ -1275,7 +1283,7 @@
             </div>
           {/if}
           <div class="bar" class:bang>
-            <Composer id="composer" label={t('agent.messageToAgent')} bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={(e) => clip.paste(e, composer)} oncaret={mentions.track} />
+            <Composer id="composer" label={t('agent.messageToAgent')} bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={(e) => clip.paste(e, composer)} oncaret={mentions.track} files={mentions.paths} />
             <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
@@ -1389,6 +1397,7 @@
     />
   {/if}
   {@render overlay?.()}
+  {#if usage.agent === agent.id && usage.stack.length}<PluginUsage {agent} />{/if}
 </main>
 
 <style>
@@ -1851,8 +1860,8 @@
   }
 
   .chip.pull .state.merged {
-    background: rgba(185, 163, 240, 0.16);
-    color: #cdbcf7;
+    background: color-mix(in srgb, var(--merged) 16%, transparent);
+    color: var(--merged-text);
   }
 
   .chip.pull :is(.state.declined, .state.closed) {

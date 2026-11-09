@@ -17,10 +17,11 @@
   import { reset } from './layout-slots.svelte'
   import PanelSettings from './PanelSettings.svelte'
   import ExtensionSettings from './ExtensionSettings.svelte'
+  import PluginSettings from './PluginSettings.svelte'
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { hint as keyOf, saveSettings, settings, type App, type TabEffect, type TabRing } from './settings.svelte'
+  import { hint as keyOf, saveSettings, settings, type App, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
   import { untrack } from 'svelte'
   import { chime } from './chime'
   import { tokens } from './format'
@@ -53,6 +54,7 @@
       'settings.groupTools',
       [
         ['claude', 'settings.tabClaude'],
+        ['plugins', 'settings.tabPlugins'],
         ['editors', 'settings.tabEditors'],
         ['hosting', 'settings.tabHosting'],
         ['tickets', 'tickets.tab'],
@@ -88,6 +90,12 @@
   let defaults = $state({ ...settings.defaults })
   let claude = $state(settings.claude)
   let effect = $state<TabEffect>(settings.tab_effect)
+  let projectsEffect = $state<ProjectsEffect>(settings.projects_effect)
+  const PROJECT_EFFECTS: [ProjectsEffect, Key, Key, number][] = [
+    ['snake', 'settings.effectSnake', 'settings.projectsSnakeHint', 2.4],
+    ['bar', 'settings.effectBar', 'settings.projectsBarHint', 1.6],
+    ['pulse', 'settings.effectPulse', 'settings.projectsPulseHint', 2],
+  ]
   let ring = $state<TabRing>(settings.tab_ring)
   const RINGS: [TabRing, Key, Key][] = [
     ['off', 'settings.ringOff', 'settings.ringOffHint'],
@@ -173,7 +181,7 @@
 
   const withRules = $derived(projects.list.filter((p) => p.rules.length))
 
-  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language, conversation_width: width, sidebar })
+  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language, conversation_width: width, sidebar })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
@@ -291,6 +299,8 @@
       <PanelSettings />
     {:else if tab === 'extensions'}
       <ExtensionSettings />
+    {:else if tab === 'plugins'}
+      <PluginSettings />
     {:else if tab === 'shortcuts'}
       <p class="intro">{t('settings.shortcutsIntro')}</p>
       <ul class="keys">
@@ -334,6 +344,16 @@
             </span>
             <strong>{t(title)}</strong>
             <span class="hint">{t(hint, { seconds: 2.4 })}</span>
+          </button>
+        {/each}
+      </div>
+      <span class="label">{t('settings.projectsEffect')}</span>
+      <div class="effects three" role="group" aria-label={t('settings.projectsEffect')}>
+        {#each PROJECT_EFFECTS as [id, title, hint, seconds] (id)}
+          <button aria-pressed={projectsEffect === id} onclick={() => (projectsEffect = id)}>
+            <span class="sample card stripe effect-{id}">Orbit</span>
+            <strong>{t(title)}</strong>
+            <span class="hint">{t(hint, { seconds })}</span>
           </button>
         {/each}
       </div>
@@ -847,6 +867,19 @@
     background: var(--bg-tabs);
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .sample.card {
+    align-self: stretch;
+    height: 36px;
+    padding-left: 16px;
+    border-radius: 6px;
+    background-color: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .sample.card::after {
+    border-radius: inherit;
   }
 
   .sample .dot {

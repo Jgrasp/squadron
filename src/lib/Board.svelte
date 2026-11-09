@@ -13,7 +13,7 @@
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { GOAL_RELAUNCHES, type Goal, type Options } from './stream'
-  import TicketPanel from './TicketPanel.svelte'
+  import TicketDialog from './TicketDialog.svelte'
   import { defaultFields, FIELDS, loadSprint, sameTicket, ticketBrief, ticketContext, tickets, type TicketLink } from './tickets.svelte'
 
   let {
@@ -328,7 +328,7 @@
     {/if}
     {#if viewing}
       {@const open = viewing}
-      <TicketPanel
+      <TicketDialog
         connection={open.connection}
         ticketKey={open.key}
         linked={!!linkedCard(open)}
@@ -700,7 +700,6 @@
   }
 
   .stage {
-    --panel-top: 0px;
     position: relative;
     flex: 1;
     min-height: 0;

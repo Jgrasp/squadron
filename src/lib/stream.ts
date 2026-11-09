@@ -16,6 +16,8 @@ export type ToolCall = {
   input: Record<string, unknown>
   result?: { text: string; error: boolean; data?: Record<string, unknown> }
   shots?: string[]
+  loaded?: number
+  at?: number
 }
 
 export type Block =
@@ -74,7 +76,7 @@ export type BackgroundTask = { id: string; toolUseId: string; name: string; star
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
@@ -153,6 +155,7 @@ export type Agent = {
   commands: string[]
   skills: string[]
   tools?: string[]
+  plugins?: { name: string; id: string; path: string }[]
   remote: { state: string; url: string; since?: number; last?: number } | null
   subagents: Subagent[]
   goal: Goal | null
@@ -473,6 +476,10 @@ export function apply(agent: Agent, d: Json) {
         agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))
         agent.skills = d.skills ?? []
         if (Array.isArray(d.tools)) agent.tools = d.tools
+        if (Array.isArray(d.plugins))
+          agent.plugins = d.plugins
+            .filter((p: Json) => p.path !== 'builtin')
+            .map((p: Json) => ({ name: String(p.name), id: String(p.source ?? p.name), path: String(p.path ?? '') }))
         known.commands = agent.commands
         known.skills = agent.skills
         known.terminal = d.terminal_slash_commands ?? []
@@ -524,6 +531,7 @@ export function apply(agent: Agent, d: Json) {
       return assistant(agent, d)
     case 'user':
       if (d.isSynthetic && textOf(d.message?.content).startsWith('Stop hook feedback')) return relaunched(agent, textOf(d.message.content))
+      if (d.isSynthetic && !d.parent_tool_use_id && textOf(d.message?.content).startsWith('Base directory for this skill:')) return skillBody(agent, textOf(d.message.content))
       return d.isReplay && !d.parent_tool_use_id ? remoteMessage(agent, d) : toolResults(agent, d)
     case 'result':
       return result(agent, d)
@@ -556,7 +564,7 @@ function stream(agent: Agent, d: Json) {
       entry.blocks.push({ type: 'thinking' })
       act(agent, t('conversation.thinking'))
     } else if (block.type === 'tool_use') {
-      const call: ToolCall = { id: block.id, name: block.name, input: {} }
+      const call: ToolCall = { id: block.id, name: block.name, input: {}, at: Date.now() }
       const last = entry.blocks.at(-1)
       if (last?.type === 'tools') last.calls.push(call)
       else entry.blocks.push({ type: 'tools', calls: [call] })
@@ -595,7 +603,7 @@ function assistant(agent: Agent, d: Json) {
       if (call) call.input = c.input
       else {
         const last = blocks().at(-1)
-        const added: ToolCall = { id: c.id, name: c.name, input: c.input }
+        const added: ToolCall = { id: c.id, name: c.name, input: c.input, at: d.timestamp ? Date.parse(d.timestamp) : Date.now() }
         if (last?.type === 'tools' && !sub) last.calls.push(added)
         else blocks().push({ type: 'tools', calls: [added], ...at })
       }
@@ -662,6 +670,11 @@ function goalNotice(agent: Agent, text: string) {
     agent.status = 'working'
   }
   else if (text.startsWith('Goal cleared') && agent.goal && agent.goal.state !== 'partial') agent.goal.state = 'cleared'
+}
+
+function skillBody(agent: Agent, text: string) {
+  const call = calls(agent).findLast((c) => c.name === 'Skill' && c.loaded === undefined)
+  if (call) call.loaded = text.length
 }
 
 function relaunched(agent: Agent, text: string) {

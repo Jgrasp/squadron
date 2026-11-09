@@ -1,6 +1,27 @@
 # Squadron — Design
 
-Interface en anglais. Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions » (écrans C1 à C25). Thème sombre unique, brun chaud et cuivre. Les valeurs ci-dessous sont relevées dans la maquette ; elles vivent en variables CSS dans `src/app.css`.
+Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions » (écrans C1 à C25), puis ce que l'app a livré depuis. Thème sombre unique, brun chaud et cuivre. Les valeurs vivent en variables CSS dans `src/app.css` : ce fichier fait foi, ce document dit à quoi elles servent. Interface traduisible (`src/lib/i18n`, `en` de base + `fr`) : toute nouvelle chaîne a ses deux clés.
+
+## Règles
+
+À relire avant toute maquette, artifact, bloc html ou retouche de style.
+
+- Uniquement des tokens de `app.css`. Une couleur en dur n'est admise que si elle figure dans « Exceptions en dur » plus bas ; `scripts/design.test.ts` le vérifie.
+- Le cuivre (`--accent`, `--wait-*`, `--option*`) signale ce qui attend l'utilisateur : permission, question, plan, badge. Jamais pour une action ordinaire.
+- Bouton principal : clair, `--text` sur `--ink`, 700 (`.btn-primary`). Pas cuivre.
+- `--background*` est le bleu des tâches de fond, pas un fond de surface. L'encre sur cuivre est `--accent-ink`.
+- Rayons : 6px les cartes, 8px les dialogues et les cartes de conversation à barre de ton (PullCard, FileCard), 4px boutons et champs.
+- Contours en `box-shadow: inset 0 0 0 1px …`, pas en `border`, sauf séparateurs de zones.
+- Partir du CSS du composant existant le plus proche (fichier cité dans « Composants ») au lieu d'inventer. Réutiliser `StatusIcon`, `ModeIcon`, `Icon`, `Avatar`, `SidePanel`, `Dialog`, `Confirm`, `Select` plutôt que les redessiner.
+- Utiliser les classes de `app.css` (`.btn*`, `.field`, `.option-*`, `.effect-*`, `.sr-only`) sans les redéfinir.
+
+## Maquettes et artifacts
+
+- **Bloc ```html dans la conversation** : rendu dans une iframe qui reçoit le `:root` et les `@font-face` de l'app (`Markdown.svelte`, `themeCss`). Les tokens et DM Sans / DM Mono sont là ; les classes (`.btn`, `.field`…) non : recopier leurs règles depuis `app.css`. Fond `--bg-main`, 13,5px/1,5.
+- **Artifact** (`$SQUADRON_ARTIFACTS`, iframe `artifact://`) : `<link rel="stylesheet" href="/__squadron/theme.css">` dans le `<head>` donne tout `app.css` (tokens, classes, keyframes) et DM Sans / DM Mono, servis par `artifacts.rs`. Ne pas recopier les tokens à la main. Fond de page `--bg-app` par défaut, poser `--bg-main` sur la zone maquettée.
+- Maquetter à la taille réelle : largeurs de « Disposition », conversation à 740px.
+- Plusieurs variantes : les poser côte à côte sur la même page, chacune titrée, mêmes données.
+- Chaînes de la maquette en anglais (langue de base de l'interface).
 
 ## Couleurs
 
@@ -8,17 +29,17 @@ Interface en anglais. Source : page « Cuivre » du canvas Claude Design « Squa
 
 | Token | Valeur | Usage |
 |---|---|---|
-| `--bg-app` | `#141110` | Fenêtre, en-tête |
-| `--bg-sidebar` | `#171311` | Liste des agents, panneau Diff |
-| `--bg-main` | `#1C1816` | Zone de conversation, dialogues |
+| `--bg-app` | `#141110` | Fenêtre, en-tête, corps de l'éditeur |
+| `--bg-sidebar` | `#171311` | Liste des agents, panneaux de droite, colonnes du Kanban, barre d'état |
+| `--bg-main` | `#1C1816` | Conversation, dialogues, Kanban, PullCard, FileCard |
 | `--bg-rail` | `#191513` | Colonne de repères |
 | `--bg-tabs` | `#1E1A18` | Conteneur des onglets de projet |
-| `--surface-1` | `#221D1A` | Bloc de réponse de l'agent, encart d'infos |
-| `--surface-2` | `#26211E` | Champs, barre de saisie, boutons secondaires |
-| `--surface-3` | `#2E2724` | Code en ligne, puces, pastilles |
-| `--surface-4` | `#332C28` | Boutons icône |
+| `--surface-1` | `#221D1A` | Bloc de réponse, carte Kanban, ligne de PR, agent sélectionné |
+| `--surface-2` | `#26211E` | Champs, barre de saisie, boutons secondaires, segments |
+| `--surface-3` | `#2E2724` | Code en ligne, puces, pastilles, boutons de carte |
+| `--surface-4` | `#332C28` | Boutons icône, onglet ou segment actif |
 | `--surface-5` | `#433A35` | Bouton actif ou ouvert |
-| `--menu` | `#2A2421` | Menus, info-bulles |
+| `--menu` | `#2A2421` | Menus, info-bulles, puces de contexte |
 | `--menu-hover` | `#36302C` | Élément de menu survolé |
 | `--overlay` | `rgba(12,9,8,0.74)` | Voile sous un dialogue |
 
@@ -27,38 +48,37 @@ Interface en anglais. Source : page « Cuivre » du canvas Claude Design « Squa
 | Token | Valeur |
 |---|---|
 | `--border` | `#2B2522` (séparateurs de zones) |
-| `--border-strong` | `#3D3531` (boutons fantômes, menus) |
-| `--border-dashed` | `#4A3F39` (« + Agent », dépôt de dossier) |
+| `--border-strong` | `#3D3531` (boutons fantômes, menus, cartes) |
+| `--border-dashed` | `#4A3F39` (« + Agent », « + Tâche », dépôt) |
 | `--border-focus` | `#8E7A6E` (champ actif, 2px intérieur) |
 
 ### Texte
 
 | Token | Valeur | Usage |
 |---|---|---|
-| `--text` | `#EDE6E1` | Texte courant |
-| `--text-strong` | `#FFFFFF` | Onglet actif, titres sur fond coloré |
+| `--text` | `#EDE6E1` | Texte courant, fond du bouton principal et de la bulle |
+| `--text-strong` | `#FFFFFF` | Titres de carte, onglet actif |
 | `--text-2` | `#D8CDC6` | Texte des boutons fantômes |
 | `--text-3` | `#CFC5BE` | Chemins, texte secondaire lisible |
 | `--text-muted` | `#B3A79F` | Résumés repliés, onglets inactifs |
 | `--text-dim` | `#A89C94` | Métadonnées, légendes |
 | `--text-faint` | `#6E625B` | Repères inactifs, icônes éteintes |
+| `--ink` | `#1A1513` | Texte sur fond clair (bouton principal, bulle) |
 
 ### Projets
 
-Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette, gardée dans `projects.json` : `#A78BFA`, `#2DD4BF`, `#F472B6`, `#60A5FA`, `#A3E635`, `#FACC15`. Elle colore le carré du projet (onglets, liste des agents, Overview, Kanban, dialogue New agent), le fond et le contour de l'onglet actif, et l'effet de l'onglet qui travaille (C14).
+Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette, gardée dans `projects.json` : `#A78BFA`, `#2DD4BF`, `#F472B6`, `#60A5FA`, `#A3E635`, `#FACC15`. Exposée en `--project` sur l'élément. Elle colore le carré du projet (onglets, liste, Overview, Kanban, New agent), l'onglet actif (fond 16 %, contour intérieur 75 %, halo 18px 28 %), le contour des onglets inactifs (55 %), le liseré de l'onglet actif de l'éditeur et l'effet de l'onglet qui travaille.
 
 ### Accent cuivre et « t'attend »
 
-Le cuivre signale ce qui attend l'utilisateur : permission, question, plan, badge.
-
 | Token | Valeur | Usage |
 |---|---|---|
-| `--accent` | `#E08A5B` | Bouton principal d'une carte, pastille d'attente, badge, repère actif |
+| `--accent` | `#E08A5B` | Bouton principal d'une carte d'attente, pastille d'attente, badge, repère actif, « Répondre » |
 | `--accent-ink` | `#24120A` | Texte sur `--accent` |
-| `--accent-soft` | `#F7C7AA` | Texte d'état « Attend… », anneau de sélection |
-| `--accent-link` | `#F0A57A` | Liens (`#F7C7AA` au survol) |
-| `--wait-bg` | `#3B2216` | Carte en attente, agent en attente dans la liste |
-| `--wait-border` | `#8E4E2E` | Contour 1px de ces cartes |
+| `--accent-soft` | `#F7C7AA` | Texte « Attend… », anneau de focus et de sélection |
+| `--accent-link` | `#F0A57A` | Liens (`--accent-soft` au survol) |
+| `--wait-bg` | `#3B2216` | Carte en attente, agent ou tâche en attente |
+| `--wait-border` | `#8E4E2E` | Contour 1px de ces cartes, bouton Pull requests |
 | `--wait-text` | `#FFF3EC` | Titre dans une carte en attente |
 | `--wait-text-2` | `#F7DCCB` | Détail (commande, chemin) |
 | `--wait-muted` | `#E7C3AE` | Aide, descriptions d'options |
@@ -67,111 +87,198 @@ Le cuivre signale ce qui attend l'utilisateur : permission, question, plan, badg
 | `--wait-note` | `#2E1B12` | Encart « Toujours », groupe de question |
 | `--option` | `#4A2B1C` | Option de question |
 | `--option-on` | `#6B3A24` | Option choisie (+ anneau 2px `--accent-soft`) |
-| `--option-off` | `#3A2318` | Option non choisie après réponse |
+| `--option-off` | `#3A2318` | Option non choisie, champ de ValuesCard |
 
 ### États
 
 | Token | Valeur | Usage |
 |---|---|---|
-| `--ok` | `#9AD6CB` | Agent qui travaille (anneau tournant), lignes ajoutées |
-| `--ok-text` | `#BFE7DF` | Texte ajouté, « Toujours autorisé » |
+| `--ok` | `#9AD6CB` | Agent qui travaille, lignes ajoutées, PR ouverte, progression |
+| `--ok-text` | `#BFE7DF` | Texte ajouté, « Toujours autorisé », PullTag |
 | `--ok-line` | `#6E9E95` | Numéros des lignes ajoutées |
-| `--ok-bg` | `rgba(154,214,203,0.10)` | Fond d'une ligne ajoutée (`0.07` dans le panneau Diff) |
-| `--done` | `#B8D98C` | Coche d'un agent fini, `code 0` (`#C9E3A8`) |
-| `--err` | `#F59E8C` | Croix d'erreur, lignes supprimées |
+| `--ok-bg` | `rgba(154,214,203,0.10)` | Fond d'une ligne ajoutée, puce worktree |
+| `--done` | `#B8D98C` | Coche d'un agent fini, colonne « Fini » |
+| `--done-text` | `#C9E3A8` | `code 0`, « Dépôt Git détecté » |
+| `--err` | `#F59E8C` | Croix d'erreur, lignes supprimées, PR en échec |
 | `--err-text` | `#F8BDB1` | Texte d'erreur |
 | `--err-muted` | `#E7C3BA` | Explication d'une erreur |
-| `--err-bg` | `#2B1A17` | Carte d'erreur, appel d'outil en échec |
-| `--err-border` | `#8A4A40` | Contour d'erreur (`#6B3A33` pour un outil) |
+| `--err-bg` | `#2B1A17` | Carte d'erreur, outil en échec, agent en erreur |
+| `--err-border` | `#8A4A40` | Contour d'erreur |
 | `--err-ink` | `#2A0D08` | Texte sur `--err` |
 | `--err-pre` | `#1A1210` | Sortie d'erreur |
 | `--del-bg` | `rgba(245,158,140,0.10)` | Fond d'une ligne supprimée |
 | `--del-line` | `#A7756C` | Numéros des lignes supprimées |
 
+### Familles annexes
+
+| Token | Valeur | Usage |
+|---|---|---|
+| `--background` | `#8FB3D9` | Anneau pointillé d'une tâche de fond (StatusIcon, BackgroundCard) |
+| `--background-line` / `--background-bg` | `#5F7F9F` / `rgba(143,179,217,0.12)` | Contour et fond d'icône de BackgroundCard |
+| `--sub-running` / `--sub-waiting` / `--sub-error` / `--sub-done` / `--sub-done-cell` / `--sub-stopped` | `#9AD6CB` / `#E08A5B` / `#F59E8C` / `#8BA36B` / `#5F7049` / `#4A3F39` | Cases et lignes des sous-agents |
+| `--persona` / `--persona-bg` / `--persona-line` | `#E3D3B4` / 9 % / 30 % | PersonaChip (définition d'agent) |
+| `--advisor` / `--advisor-text` / `--advisor-bg` / `--advisor-line` | `#C3B4F0` / `#DDD3FB` / 8 % / 32 % | Conseiller (AdvisorCard, option) |
+| `--mode-default` / `--mode-accept` / `--mode-plan` / `--mode-auto` | `#999999` / `#AF87FF` / `#48968C` / `#FFC107` | Pilule du mode de permission |
+| `--remote-dot` / `--remote-text` | `#7DB8FA` / `#B9D6F7` | PR en revue, session distante, verdict « revérifier » |
+| `--merged` / `--merged-text` | `#C4A7F0` / `#CDBCF7` | PR fusionnée : ton de PullCard, texte de la puce PR (fond `--merged` 16 %) |
+| `--jira` | `#2684FF` | Marque Jira |
+| `--ticket-bg` / `--ticket-card` / `--ticket-card-hover` / `--ticket-border` / `--ticket-border-hover` / `--ticket-text` / `--ticket-muted` / `--ticket-button` | bleus nuit | Tiroir et popup de ticket Jira, seulement là |
+
+### Exceptions en dur
+
+| Valeur | Usage |
+|---|---|
+| `#3A2420` / `#F8D5CC` | Bouton danger (ErrorCard, Kanban, Diff, Settings) |
+| `#E3D7CF` | Texte de `.btn-secondary` et `.btn-icon` |
+| `#110E0D` | Fond du terminal et de la sortie de ShellCard |
+| `#E8DDD4` | Code dans la saisie et dans la bulle utilisateur |
+| `#918579` | Numéros de ligne (éditeur, DiffView, QuickOpen) |
+| `#F0C987` | Fichier modifié (FileTree, QuickOpen) |
+| `#4A2E29` | Contour des encarts rouge-brun (« Refusé », PermissionCard, PlanCard) |
+| `#4E443E` | Contour neutre (« Interrompu », session de terminal active) |
+| `#5A3322` | Brun d'attente (progression d'un agent en attente) |
+| `#D9B6A3` | Texte d'un bouton désactivé sur `--wait-btn` |
+| `#4CBF85`, `#E5655A`, `#6EA8F0`, `#E0B65B`, `#B79CF0` | Tons de fichier : tableur, PDF, doc, archive, code |
+| `#C7BCB4` | Texte des boutons de fenêtre |
+| `#5DB5E7` / `#0D1B24` | Marque du build de dev |
+| `#221A16` | Halo du splash |
+| `#2A1F14` | Bandeau d'avertissement de l'éditeur |
+| `#DDBBA8` | Détail d'un agent en attente |
+| `#C99A90` | Repères dans la sortie d'erreur (ErrorCard) |
+| `#CDB8FF`, `#0E1A27`, `#1A2633` | Épopée Jira, fonds du tiroir Jira |
+| `#1F8BFF`, `#FC6D26` | Logos Azure DevOps, GitLab |
+| `#4FA3E0`, `#7CC47C`, `#E3B341`, `#6FA0D0`, `#3CC39A`, `#E07A9B`, `#A8A29E` | Couleurs au choix (extensions, palette de projet) |
+| `#7FD1D9`, `#8DB4E8`, `#A8E3E8`, `#B3CDF0`, `#C9A6FF`, `#DCC5FF` | Palette ANSI du terminal |
+| `#4ADE80`, `#FB923C`, `#F87171` | Niveaux de ContextGauge |
+
+Les thèmes CodeMirror et xterm recopient des tokens en hexadécimal (objets JS) : garder les mêmes valeurs.
+
 ### Bulle utilisateur et bouton principal
 
-Fond clair `--text` (`#EDE6E1`), texte `#1A1513`. La bulle a le coin bas droit pincé : `border-radius: 6px 6px 2px 6px`.
+Fond `--text`, texte `--ink`. La bulle a le coin bas droit pincé : `border-radius: 6px 6px 2px 6px`.
 
 ## Typographie
 
-- **DM Sans** pour le texte, **DM Mono** pour le code, les chemins, les commandes, les coûts et les compteurs. Polices embarquées, pas de Google Fonts.
+- **DM Sans** (`--sans`) pour le texte, **DM Mono** (`--mono`) pour le code, les chemins, les commandes, les coûts et les compteurs. Polices embarquées (`@fontsource`), pas de Google Fonts.
 - Taille de base 13,5px.
-- Échelle : 11 (légendes de menu, compteurs), 11,5 (métadonnées en mono, badges), 12 (sous-titres, infos), 12,5 (états, résumés, aides), 13 (texte d'erreur, code en carte), 13,5 (base), 15 (titre d'agent, question), 15,5 (titres Markdown), 18 (titre de dialogue), 22–24 (états vides).
-- Graisses : 500 (boutons secondaires), 600 (titres, noms), 700 (boutons principaux, en-têtes de dialogue).
-- Interlignage : 1,5 (bulles, aides), 1,6 (prose), 1,65 (Markdown de l'agent), 20px fixe pour les lignes de diff.
+- Échelle : 11 (légendes, en-têtes de colonne en capitales), 11,5 (métadonnées mono, badges), 12 (sous-titres, infos), 12,5 (états, résumés, aides, la plus courante), 13 (texte d'erreur, menus), 13,5 (base), 14 (titre de panneau), 15 (titre d'agent, titre de carte), 16 (titre de Confirm et de Settings), 18 (titre de dialogue), 22 (titre de page Kanban / Overview / PRs), 24 (états vides).
+- Graisses : 500 (boutons secondaires), 600 (titres, noms), 700 (boutons principaux, titres de dialogue et de page, capitales).
+- Capitales : 11px 700, `letter-spacing: 0.08em`, `--text-muted` ou `--text-dim`.
+- Interlignage : 1,5 (bulles, aides), 1,6 (prose), 1,65 (Markdown de l'agent), 20px fixe pour les lignes de code et de diff.
 - Marque « SQUADRON » : 12px, 700, capitales, `letter-spacing: 0.12em`, précédée d'un triangle cuivre de 14px.
 
 ## Formes et espacements
 
-- Rayons : 2px (barres, petites pastilles), 3px (code en ligne, badges), 4px (boutons, champs, lignes), 6px (cartes, blocs, conteneur d'onglets), 8px (dialogues).
-- Contours en `box-shadow` (intérieur 1px), pas en `border`, sauf séparateurs de zones.
-- Espacements : 4, 6, 8, 10, 12, 14, 16, 18, 20, 24px.
-- Ombres : menus `0 14px 36px rgba(0,0,0,0.5)`, dialogues `0 30px 80px rgba(0,0,0,0.6)`, agent sélectionné `0 8px 24px rgba(201,105,58,0.18)`.
+- Rayons : 2px (barres, petites pastilles), 3px (code en ligne, badges, puces), 4px (boutons, champs, lignes), 6px (cartes, blocs, menus), 8px (dialogues, colonnes Kanban, PullCard, FileCard), 50 % (points), 999px (pilules d'état).
+- Espacements : 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 32px.
+- Ombres : menus `0 14px 36px rgba(0,0,0,0.5)` + contour `0 0 0 1px --border-strong`, dialogues `0 30px 80px rgba(0,0,0,0.6)`, panneau glissant `-18px 0 40px rgba(0,0,0,0.45)`, agent en attente sélectionné `0 8px 24px rgba(201,105,58,0.18)`.
+- Barre de ton : 3px à gauche d'une carte, couleur d'état ou de type (PullCard, FileCard, agent fini non lu). Liseré 2px pour AdvisorCard et le fil de commentaire à soi.
 
 ## Disposition
 
 - Fenêtre sans décoration système, largeur minimale 1000px.
-- **En-tête** (54px, `--bg-app`, grille `1fr auto 1fr`) : menu Squadron à gauche, onglets de projet au centre, boutons de fenêtre (24px) à droite. L'en-tête sert de poignée de déplacement.
-- **Liste des agents** (304px, `--bg-sidebar`, padding 12px).
-- **Zone principale** (`--bg-main`) : en-tête d'agent 60px, conversation, barre de saisie.
-- **Conversation** : colonne centrée de 740px max, padding 20px, espacement 14px entre blocs.
-- **Colonne de repères** : 40px à gauche de la conversation, `--bg-rail`.
-- **Panneau Diff** : 680px à droite, la conversation garde 360px minimum.
+- **En-tête** 54px, `--bg-app`, grille `1fr auto 1fr`, trait bas `--border`.
+- **Liste des agents** 304px par défaut, réglable de 240 à 560px.
+- **Zone principale** `--bg-main` : en-tête d'agent (60px min), panneau d'infos optionnel, conversation, saisie, barre d'état 26px.
+- **Conversation** : colonne centrée `--conversation-width` (740px, réglable), padding 20px, 14px entre blocs. Colonne de repères 40px `--bg-rail`.
+- **Panneaux de droite** (`SidePanel`) : 420px min. Largeurs par défaut : diff 680 (côte à côte 1120), éditeur 780, terminal, sous-agents, artefacts 680. Modes glissant, côte à côte, en bas, plein écran, fenêtre.
+- **Pages** (Kanban, Overview, PRs) : en-tête padding 24px 32px 16px, titre 22px 700 avec carré projet.
+
+## Classes partagées (`app.css`)
+
+- `.btn` 38px, padding 0 18px, rayon 4px, 500. `.btn-primary` `--text`/`--ink` 700. `.btn-secondary` `--surface-2`. `.btn-ghost` 32px, contour `--border-strong`, `--text-2`. `.btn-icon` 38px `--surface-4`. Désactivé : opacité 0,5.
+- `.field` 42px `--surface-2`, contour 1px `--border-strong`, 2px `--border-focus` au focus, 2px `--err` si `aria-invalid`.
+- `.option-row` / `.option-trigger` / `.option-menu` : ligne réglage 36px et son menu 280px qui s'ouvre vers le haut.
+- `.effect-pulse`, `.effect-snake`, `.ring` : onglet ou carte qui travaille / qui attend, teintés par `--project`.
+- Keyframes : `spin`, `snake`, `ping`, `pulse`, `ring`, `trace`, `blink`.
+- `.jira-kind`, `.jira-urgency`, `.jira-status` : marques Jira. `.sr-only`, `.mono`.
 
 ## Composants
 
-### Onglets de projet
-Conteneur `--bg-tabs`, padding 4px, rayon 6px, espacement 4px. Onglet 30px de haut, rayon 4px, texte `--text-muted`. Onglet actif : texte blanc 600, fond et halo cuivre (`rgba(224,138,91,0.16)`, contour intérieur 0.75, halo 18px 0.28). Badge du nombre d'agents qui attendent : 20px, `--accent` sur `--accent-ink`, 11,5px 700. Au-delà de la place disponible, un bouton « +N » ouvre un menu avec recherche. Bouton « + » pour ajouter un projet. Projet dont le dossier a disparu : icône d'alerte dans l'onglet.
+### Icônes et briques (à réutiliser)
+- **StatusIcon** (10px) : travaille = anneau `--ok` qui tourne (1,4s), fond = anneau pointillé `--background` (6s), attend = point 8px `--accent` + halo 4px, fini = coche `--done`, interrompu = carré `--text-2`, erreur = croix `--err`.
+- **Icon** : SVG 24 en contour 2px `currentColor`, 14px par défaut, noms dans `Icon.svelte`. À préférer à un SVG en ligne.
+- **ModeIcon** : schéma du placement d'un panneau (slide, side, bottom, full).
+- **Avatar** : rond 24px `--surface-4`, initiales 700 `--text-2`.
+- **PersonaChip** : 22px, rayon 3px, `--persona-bg` + contour `--persona-line`, mono 500 12px `--persona`.
+- **Select** : déclencheur 36px `--surface-2` + contour `--border-strong`, liste `--menu`, options 34px, choisie `--accent-soft` 600.
+
+### En-tête
+Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Onglets au centre : « Overview », séparateur 1px `--border-strong`, puis les projets. Conteneur `--bg-tabs`, padding 4px, rayon 6px, espacement 4px. Onglet 30px, rayon 4px, `--text-muted`, pastille projet 9px rayon 2px. Onglet actif : blanc 600, teinté par la couleur du projet. Onglet qui travaille : `.effect-pulse` ou `.effect-snake` (réglage). Onglet avec un agent qui attend : `.ring`. Badges 20px : attente `--accent`/`--accent-ink` 11,5px 700, finis non lus contour `--ok`, erreur `--err`/`--err-ink`. « +N » `--surface-5`. À droite : bouton « Pull requests » 30px (contour `--wait-border`, `--accent-soft` 13px 600), boutons de fenêtre 24px `--surface-2`. Build de dev : triangle et étiquette « dev » en `#5DB5E7`.
 
 ### Liste des agents
-- En-tête : nom du projet (700) et « N agents · N t'attend » (12px `--text-dim`), bouton « + Agent » (32px, contour pointillé).
-- Agent : padding 12px 14px, rayon 6px, espacement 6px. Ligne 1 : icône d'état, nom (600), coût (mono 12px). Ligne 2 : état ou dernière action (mono 11,5px, une ligne, ellipse).
-- Icônes d'état : anneau `--ok` qui tourne (travaille), point `--accent` avec halo 4px (attend), coche `--done` (fini), croix `--err` (erreur).
-- Agent qui attend : fond `--wait-bg`, contour `--wait-border`, état en `--accent-soft` 600. Agent sélectionné : anneau 2px `--accent-soft` et ombre cuivrée. Agent en erreur sélectionné : fond `--err-bg`, anneau `--err`.
-- Pied : encart `--surface-1` avec le chemin (mono), « Git · branche » ou « Pas de dépôt Git détecté », coût du projet.
+- En-tête : nom du projet (700), « N agents · N t'attend » (12px `--text-dim`), « + Agent » 32px pointillé.
+- Agent : padding 12px 14px, rayon 6px, espacement 6px. Ligne 1 : StatusIcon (ou n° de PR en revue), point non lu 7px `--ok`, nom 600, épingle, verdict. Ligne 2 : état 12px, ticket Jira et PersonaChip à droite ; détail en mono 11,5px. Puis PullTag, compteurs de sous-agents, progression 4px.
+- Sélectionné : `--surface-1` + contour `--border-strong`. En attente : `--wait-bg` + `--wait-border`, état `--accent-soft` 600 ; sélectionné : anneau 2px `--accent-soft` + ombre cuivrée. En erreur sélectionné : `--err-bg`, anneau `--err`. Fini non lu : fond `--ok` 9 % + barre de ton `--ok`. Sélection multiple : anneau intérieur 2px `--accent-soft` + barre d'actions.
 
 ### En-tête d'agent
-Nom 15px 600, puis « modèle · effort · mode · coût · tokens » en 12px `--text-dim` (coût et tokens en mono). À droite, le bouton Diff (32px, contour `--border-strong`, compteur `+N` en `--ok`, `−N` en `--err`).
+60px min, padding 10px 20px, sur plusieurs lignes. Nom 15px 600 (bouton qui renomme). Bouton réglages 34px `--menu` + contour `--border-strong` : modèle 600, effort en marches, conseiller `--advisor-text`, pilule de mode 22px `--mode-*`. Outils en `.btn-ghost` (Éditeur, Terminal, Diff `+N` `--ok` `−N` `--err`, PRs, Kanban…), actif `--surface-5` + contour `--text-faint`, compteur 18px `--accent`. Puces de contexte 34px `--menu` (remote, MCP, tâches, ticket, branche, PR, artefacts, sous-agents) et ContextGauge (anneau 22px, `#4ADE80` / `#FB923C` / `#F87171`).
 
 ### Conversation
-- **Message utilisateur** : bulle claire alignée à droite, 540px max, padding 12px 16px.
-- **Réponse de l'agent** : bloc `--surface-1`, padding 16px 18px, rayon 6px, espacement 12px. Markdown en interlignage 1,65 ; code en ligne `--surface-3`, mono 12,5px, padding 1px 6px.
-- **Résumé replié** (réflexion, groupe d'actions) : 12,5px `--text-muted`, chevron dans un carré 18px `--surface-3`. « A réfléchi N s ». « N actions · 2 lectures, 1 modification, 1 commande ».
-- **Appel d'outil** : ligne 30px, nom de l'outil sur 40px en `--text-dim`, argument principal en mono, statut à droite. Edit et Write ne se déplient pas : un clic ouvre le panneau Diff sur le fichier (« Diff → », `+N −N`). Bash se déplie sur sa sortie. Outil en échec : fond `--err-bg`, contour `--err-border`, sortie `--err-text` sur `--err-pre`.
-- **Fin de tour** : ligne mono 11,5px `--text-dim`, « Tour N terminé · $x · N k entrée · N k sortie · durée ». Pendant le tour : « Tour en cours · … ».
-- **Repères d'historique** (permission répondue) : ligne 12,5px, padding 9px 14px. Autorisé : fond `#1F2321`, contour `#33403B`, libellé `--ok-text`. Refusé : fond `#241917`, contour `#4A2E29`, libellé `--err-text`. Détail en dessous (règle ajoutée, consigne de refus) en 12px `--text-dim`.
-- **Interruption** : encart `--surface-2`, contour `#4E443E`, « Interrompu par toi · heure », puis « Tour interrompu ». **Rechargement** : séparateur horizontal « Session rechargée · heure · conversation conservée ».
-- **Bouton « Dernier message »** : pilule claire flottante en bas de la conversation, rayon 18px, quand on a remonté.
-- **Colonne de repères** : un trait par message de l'utilisateur, les traits groupés et centrés verticalement dans la colonne (ils se resserrent quand il y en a beaucoup). Inactif : 10×2px `--text-faint` ; actif (message affiché) : 18×3px `--accent` avec halo. Au survol, info-bulle `--menu` de 300px à hauteur du trait : « Message N · heure » puis le texte. Au clic, défilement jusqu'au message.
+- **Message utilisateur** : bulle claire à droite, 540px max, padding 12px 16px.
+- **Réponse de l'agent** : bloc `--surface-1`, padding 16px 18px, rayon 6px, espacement 12px. Markdown 1,65 ; code en ligne `--surface-3`, mono 12,5px, padding 1px 6px.
+- **Résumé replié** (réflexion, groupe d'actions) : 12,5px `--text-muted`, chevron dans un carré 18px `--surface-3`.
+- **Appel d'outil** (`ToolRow`) : ligne 30px, nom sur 40px `--text-dim`, argument en mono, statut à droite. Edit et Write ouvrent le Diff ; Bash se déplie. En échec : `--err-bg`, contour `#6B3A33`, sortie `--err-text` sur `--err-pre`.
+- **Fin de tour** : mono 11,5px `--text-dim`, « Turn N done · N in · N out · durée ».
+- **Repères d'historique** (permission répondue) : 12,5px, padding 9px 14px. Autorisé `#1F2321` / contour `#33403B` / `--ok-text`. Refusé `#241917` / contour `#4A2E29` / `--err-text`.
+- **Interruption** : encart `--surface-2`, contour `#4E443E`. **Rechargement** : séparateur horizontal.
+- **Bouton « Dernier message »** : pilule claire flottante, rayon 18px.
+- **Colonne de repères** : un trait par message de l'utilisateur, groupés et centrés. Inactif 10×2px `--text-faint`, actif 18×3px `--accent` avec halo. Info-bulle `--menu` 300px.
+
+### Cartes de conversation
+- **FileCard** (`FileCard.svelte`) : `--bg-main`, rayon 8px, contour `--border-strong`, barre de ton 3px (tons de fichier). Vignette 30×36 rayon 5px, extension 700 9,5px. Nom 600 blanc, méta mono 11,5px. Actions sur `--surface-1`, boutons 28px.
+- **PullCard** : même coque que FileCard, tons `--ok` ouverte, `--err` échec, `--text-faint` brouillon/fermée, `--merged` fusionnée. Titre 15px 600, état en pilule (ton 14 %, rayon 10px, 11,5px 600). En ligne : pilule 21px `--surface-3`, aperçu 460px au survol.
+- **ShellCard** (commande `!`) : `--surface-1`, contour `--border`, rayon 9px ; contour `--ok` 55 % réussie, `--err` 60 % échouée, `--accent` 55 % en cours. `!` en `--accent`. Sortie `#110E0D`, mono 12px/1,5, 320px max.
+- **AdvisorCard** : liseré 2px `--advisor`, fond `--advisor-bg`, rayon `0 6px 6px 0`, padding 10px 14px, origine 11px 600 capitales.
+- **SubagentsCard** : `--surface-1` + contour `--border-strong`, padding 16px 18px, icône 30px `--surface-3`, cases 14px rayon 2px `--sub-*`.
+- **BackgroundCard** : `--surface-1` + contour `--background-line`, icône 30px `--background-bg`.
+- **NoticeCard** : encart contour `--border`, 12,5px `--text-muted`, 640px max ; variante réglages 680px, rayon 8px, lignes 40px.
+- **CommentChip** : 26px `--surface-3` + contour `--border-strong`, icône `--accent-soft`, mono 12px.
+- **TaskRef** : carte de tâche (padding 10px 14px, rayon 8px, contour `--border`) ou puce `--surface-3` avec point 6px de la colonne.
 
 ### Cartes qui attendent l'utilisateur
 Fond `--wait-bg`, contour `--wait-border`, padding 16–18px, rayon 6px, espacement 12px. Icône 30px `--accent` sur `--accent-ink`. Titre `--wait-text` 600, détail en mono `--wait-text-2`.
-- **Permission** : « Exécuter une commande ? », « Modifier un fichier ? » (avec le diff, 200px max), « Utiliser un outil ? » (paramètres en liste clé/valeur). Boutons 36–38px : Autoriser (`--accent`), Toujours (`--wait-btn`), Refuser (`--surface-3`). Encart `--wait-note` qui dit ce que « Toujours » autorise.
-- **Question** : options en boutons pleine largeur (fond `--option`, touche numérotée 22px, titre 600, description `--wait-muted`, badge « Recommandé »). Plusieurs questions : un groupe `--wait-note` par question, le groupe en cours en `--option` avec contour `#A55E37` ; choix multiples en cases à cocher sur deux colonnes ; « Envoyer les réponses » actif quand tout est répondu.
-- **Plan** : plan en Markdown dans un encart `--bg-main`, boutons « Lancer · accepter les modifications », « Lancer · demander à chaque modification », « Continuer à planifier ».
+- **Permission** : « Run a command? », « Edit a file? » (diff 200px max), « Use a tool? » (clé/valeur). Boutons 36–38px : Allow (`--accent`), Always (`--wait-btn`), Deny (`--surface-3`). Encart `--wait-note` qui dit ce que « Always » autorise.
+- **Question** : options pleine largeur (`--option`, touche numérotée 22px, titre 600, description `--wait-muted`, badge « Recommended »). Plusieurs questions : un groupe `--wait-note` par question, celui en cours `--option` + contour `#A55E37`.
+- **Plan** : Markdown dans un encart `--bg-main`, contour `#4A2E29`, trois boutons de lancement.
+- **ValuesCard** : champs 36px mono 13px sur `--option-off`, anneau 2px `--accent-soft` au focus. Enregistrer `--accent` ; désactivé `--wait-btn` / `#D9B6A3`.
 
 ### Carte d'erreur
-Fond `--err-bg`, contour `--err-border`, icône `--err`. Titre blanc, contexte `--err-muted`, message brut en `pre` mono 12px `--err-text` sur `--err-pre`. Actions : Recharger (bouton clair), Copier l'erreur.
+Fond `--err-bg`, contour `--err-border`, icône `--err`. Titre blanc, contexte `--err-muted`, message brut en `pre` mono 12px `--err-text` sur `--err-pre`. Actions : Recharger (bouton clair), Copier l'erreur, bouton danger `#3A2420` / `#F8D5CC`.
 
 ### Barre de saisie
-Conteneur `--surface-2`, rayon 6px, padding 8px 8px 8px 18px, colonne de 740px. Champ sans bordure, boutons icône 38px (Interrompre, menu ⋯), bouton Envoyer clair. Le menu ⋯ (270px, `--menu`) contient Recharger et Archiver, chacun avec une ligne d'explication en 12px.
+Zone padding 12px 20px 18px, trait haut `--border`. Conteneur `--surface-2`, rayon 6px, largeur `--conversation-width`. Champ CodeMirror 38–200px, blocs de code sur `--bg-main` mono 12,5px `#E8DDD4`. Boutons icône 38px (Joindre, Interrompre, ⋯), Envoyer `.btn-primary`. Mode `!` : contour 1px `--accent` + anneau 3px `--accent-soft`. Menus `/` et `@` en `--menu`. Puces de commentaires et pièces jointes au-dessus.
 
-### Panneau Diff
-680px, `--bg-sidebar`, en-tête 60px (« Diff », « Modifications de X · N fichiers », fermer). Un onglet par fichier modifié par l'agent (28px, mono 12px, `+N`). Fichier : en-tête `--surface-1` avec badge NOUVEAU/MODIFIÉ, chemin, « créé par Write · N lignes ». Lignes en grille (numéro 40px, signe 16px, texte), mono 12px, interligne 20px. Pied : « Ouvrir dans l'éditeur ».
+### Barre d'état
+26px `--bg-sidebar`, trait haut, 11,5px `--text-dim`, espacement 18px. Jauges 44×4 (`--ok-line`, puis `--accent`, puis `--err`).
+
+### Panneaux de droite (`SidePanel`)
+Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` : titre 14px 700, sous-titre 12px `--text-dim` en ellipse, actions en `.btn-ghost`, bouton de placement et fermer 32px `--surface-2`. Poignée 6px, `--border-strong` au survol. Onglets internes : 12,5px `--text-2`, padding 5px 10px, rayon 4px, actif `--surface-4` blanc.
+- **Diff** : segments (`--surface-2`, padding 2px, boutons 26px 12,5px, actif `--surface-4` 600) Unified / Split, Uncommitted / Branch / PR. Arbre 230px. Onglets de fichier 112px max, actif `--surface-4` + contour `--text-faint`. Badges NEW `#1F3330` / `--ok-text`, supprimé `--err-bg`. Lignes en grille `56px 40px 16px 1fr`, mono 12px, interligne 20px. Mon fil de revue : liseré 3px `--accent`.
+- **Éditeur** : arbre 220px 12,5px, corps `--bg-app`, onglets 36px, actif `--bg-app` + liseré haut 2px couleur du projet. Barre d'état 30px.
+- **Terminal** : sessions en onglets 30px mono 12px, active `--menu` + contour `#4E443E`. Écran `#110E0D`.
+- **Sous-agents** : filtres 28px, lignes 36px en grille, mono 11,5px, couleurs `--sub-*`.
+- **Artefacts** : onglets d'artefacts, vue `--bg-main`, iframe fond blanc, contour 2px `--accent` en mode « Point ».
+
+### Pages
+- **Kanban** (`Board.svelte`) : colonnes `repeat(N, minmax(220px,1fr))`, espacement 12px, fond `--bg-sidebar`, rayon 8px. En-tête de colonne en capitales 11px, pastille 8px (`--sub-running`, `--accent`, `--done`), compteur mono. Carte `--surface-1` (`--surface-2` au survol), padding 12px 14px, rayon 6px ; en attente `--wait-*`, en erreur `--err-*`. Glisser : origine à 0,4, fantôme `--surface-4` + contour `--border-focus` incliné −2°, repère 2px `--accent`. « + Task » 34px pointillé.
+- **Overview** : tableau, en-têtes collants 11px 700 capitales, cellules padding 10px 12px, trait `--border`, agent en attente `rgba(59,34,22,0.55)`.
+- **Pull requests** (`PullsView.svelte`) : sections titrées en capitales 13px, lignes `--surface-1` + contour `--border`, padding 12px 14px, rayon 6px. Verdict 12px 600 rayon 4px : relire `--accent`, corriger `--err`, fusionner `--ok`, revérifier `--remote-dot`.
 
 ### Dialogues
-Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. Titre 18px 700, aide 13px `--text-dim`. Champs 42px `--surface-2`, contour 1px `--border-strong`, 2px `--border-focus` au focus ; chemins en mono. Boutons en bas à droite (Annuler `--surface-2`, action principale claire), séparés par un trait `--border`. Erreur de champ : texte `--err-text` avec icône, bouton principal désactivé.
-- **Ajouter un projet** : dossier (lecture seule + « Parcourir… »), « Dépôt Git détecté · branche X » en `#C9E3A8`, nom prérempli.
-- **Nouvel agent** : nom, modèle (Opus/Sonnet/Haiku) et effort (low, medium, high, xhigh, max) en segments, mode de permission en 4 cartes (Demander tout, Accepter les modifications, Plan, Auto), premier message. « Ctrl ↵ pour lancer ».
+Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-tête padding 20px 22px 6px, titre 18px 700, aide 13px `--text-dim`, fermer 32px `--surface-2`. Champs `.field`, chemins en mono. Boutons en bas à droite (Cancel `--surface-2`, action principale claire), séparés par un trait `--border`. Erreur de champ : `--err-text` avec icône, bouton principal désactivé.
+- **Ticket Jira** (`TicketDialog.svelte`) : Dialog plein écran, colonne principale (description, pièces jointes en grille `minmax(180px,1fr)` vignette 110px `--surface-1`, commentaires) + colonne 340px `--bg-sidebar` (champs, liens, « Open in Jira » `--ticket-*`), pied « Read only » + « Create a task ».
+- **Confirm** : 440px, icône 32px rayon 6px (`--surface-3`, avertissement `--wait-btn` / `--accent-soft`, erreur `--err-bg` / `--err`), titre 16px 700.
+- **Settings** : Dialog plein écran. Navigation 230px `--bg-sidebar`, groupes en capitales, entrées 34px, active `--surface-4` blanc 600. Contenu 860px max. Cartes de choix `--surface-1` + contour `--border-strong`, choisie `--surface-3` + anneau 2px `--text`.
+- **Add project** : dossier en lecture seule + « Browse… », « Git repository · branch X » en `--done-text`.
+- **New agent** : nom, modèle et effort en segments, mode de permission en 4 cartes, premier message, « Ctrl ↵ ».
+- **Spotlight** : 680px à 14vh, rayon 10px, champ 52px 16px, sections en capitales, résultat choisi `--surface-2` + contour `--border-strong`, `↵` en `--accent`. **QuickOpen** : 620px `--menu`, rayon 9px, champ 44px, lignes 34px.
 
 ### États vides
-Centrés, 440–460px. Aucun projet : triangle cuivre, titre 24px, texte `--text-muted`, bouton « Ajouter un projet », zone de dépôt en pointillé. Projet sans agent : « Lance le premier agent de X », bouton « Nouvel agent » et raccourci `Ctrl N`. Dossier introuvable : carte d'alerte avec « Choisir le nouvel emplacement… », « Réessayer », « Retirer le projet ».
+Centrés, 440–460px. Aucun projet : triangle cuivre, titre 24px, texte `--text-muted`, bouton « Add project », zone de dépôt en pointillé. Projet sans agent : bouton « New agent » et `Ctrl N`. Dossier introuvable : carte d'alerte avec trois actions.
 
 ## Mouvement
-Anneau de l'agent qui travaille : rotation 1,4s linéaire. Curseur de streaming : clignotement 1s. Tout s'arrête sous `prefers-reduced-motion`.
+Anneau qui travaille : rotation 1,4s linéaire. Tâche de fond : 6s. Curseur de streaming : clignotement 1s. Onglet : `pulse` 2s ou `snake` 2,4s, `ring` 2,4s. Dépliage d'une carte ou d'un formulaire : glisse vers le bas, la conversation défile juste assez pour le montrer. Tout s'arrête sous `prefers-reduced-motion`.
 
 ## Accessibilité
-Vrais `button`, `a`, `input` et `label`. `aria-label` sur chaque bouton icône. Focus clavier visible : anneau 2px `--accent-soft`. Les cartes d'attente sont des `section` étiquetées, les erreurs des `role="alert"`.
-
-## Hors V1
-Présents dans la maquette, non implémentés : Overview, Forker, progression « N/M tâches », menu Squadron au-delà de « Claude Code » et « Quitter », « Dossier proche » (C24), « Réordonner les onglets » (C25).
+Vrais `button`, `a`, `input` et `label`. `aria-label` sur chaque bouton icône. Focus clavier visible : anneau 2px `--accent-soft`, décalé de 2px. Les cartes d'attente sont des `section` étiquetées, les erreurs des `role="alert"`, les onglets des `role="tab"` avec `aria-selected`.

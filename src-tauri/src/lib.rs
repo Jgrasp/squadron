@@ -14,6 +14,7 @@ pub mod git;
 pub mod gitlab;
 pub mod permissions;
 pub mod pilot;
+pub mod plugins;
 pub mod process;
 pub mod projects;
 pub mod sessions;
@@ -396,6 +397,7 @@ struct Config {
     claude: String,
     defaults: claude::Options,
     tab_effect: String,
+    projects_effect: String,
     tab_ring: String,
     tab_order: String,
     tab_hours: u32,
@@ -417,6 +419,9 @@ struct Config {
     ticket_fields_off: Vec<String>,
     conversation_width: u32,
     sidebar: String,
+    plugin_lines: String,
+    plugin_card: String,
+    plugin_projects: std::collections::BTreeMap<String, Vec<String>>,
 }
 
 impl Default for Config {
@@ -431,6 +436,7 @@ impl Default for Config {
                 advisor: None,
             },
             tab_effect: "pulse".into(),
+            projects_effect: "snake".into(),
             tab_ring: "shake".into(),
             tab_order: "manual".into(),
             tab_hours: 4,
@@ -452,6 +458,9 @@ impl Default for Config {
             ticket_fields_off: Vec::new(),
             conversation_width: 740,
             sidebar: "pinned".into(),
+            plugin_lines: "tag".into(),
+            plugin_card: "normal".into(),
+            plugin_projects: Default::default(),
         }
     }
 }
@@ -477,6 +486,9 @@ impl Settings {
         config.defaults.check()?;
         if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
+        }
+        if !["snake", "bar", "pulse"].contains(&config.projects_effect.as_str()) {
+            return Err(format!("Unknown projects effect: {}", config.projects_effect));
         }
         if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));
@@ -608,6 +620,56 @@ async fn claude_config(settings: State<'_, Settings>, setting: String) -> Result
         return Err(text);
     }
     Ok(text)
+}
+
+async fn blocking<T: Send + 'static>(
+    work: impl FnOnce() -> Result<T, String> + Send + 'static,
+) -> Result<T, String> {
+    tauri::async_runtime::spawn_blocking(work)
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn plugins_installed(settings: State<'_, Settings>) -> Result<serde_json::Value, String> {
+    let program = settings.claude();
+    blocking(move || plugins::installed(&program)).await
+}
+
+#[tauri::command]
+async fn plugins_catalog(settings: State<'_, Settings>) -> Result<serde_json::Value, String> {
+    let program = settings.claude();
+    blocking(move || plugins::catalog(&program)).await
+}
+
+#[tauri::command]
+async fn plugins_marketplaces(settings: State<'_, Settings>) -> Result<serde_json::Value, String> {
+    let program = settings.claude();
+    blocking(move || plugins::marketplaces(&program)).await
+}
+
+#[tauri::command]
+async fn plugin_details(
+    settings: State<'_, Settings>,
+    id: String,
+) -> Result<plugins::Details, String> {
+    let program = settings.claude();
+    blocking(move || plugins::details(&program, &id)).await
+}
+
+#[tauri::command]
+fn plugin_flags(projects: Vec<PathBuf>) -> plugins::Flags {
+    plugins::read_flags(sessions::claude_dir(), &projects)
+}
+
+#[tauri::command]
+async fn plugin_run(
+    settings: State<'_, Settings>,
+    args: Vec<String>,
+    dir: Option<PathBuf>,
+) -> Result<String, String> {
+    let program = settings.claude();
+    blocking(move || plugins::run(&program, &args, dir.as_deref())).await
 }
 
 #[tauri::command]
@@ -2132,6 +2194,12 @@ pub fn run() {
         .manage(system::Cpu::default())
         .invoke_handler(tauri::generate_handler![
             agent_definition,
+            plugins_installed,
+            plugins_catalog,
+            plugins_marketplaces,
+            plugin_details,
+            plugin_flags,
+            plugin_run,
             system_load,
             stop_turn,
             open_link,

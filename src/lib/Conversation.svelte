@@ -19,11 +19,16 @@ import { fences } from './codepaste'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
   import ValuesCard from './ValuesCard.svelte'
-  import { doing, INTERNAL, type Advice, type Agent, type Block, type Subagent, type ToolCall } from './stream'
+  import { doing, INTERNAL, type Advice, type Agent, type Block, type Subagent, type ToolCall, workdir } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
   import BackgroundCard from './BackgroundCard.svelte'
   import ToolRow from './ToolRow.svelte'
+  import FileChip from './FileChip.svelte'
+  import { filesIn, splitCited } from './mention.svelte'
+  import { invoke } from '@tauri-apps/api/core'
+  import PluginLine from './PluginLine.svelte'
+  import { useOf, type Use } from './pluginuse'
   import Shots from './Shots.svelte'
   import ShellCard from './ShellCard.svelte'
   import AdvisorCard from './AdvisorCard.svelte'
@@ -77,6 +82,17 @@ import { fences } from './codepaste'
 
   const names = $derived(namesOf(agent))
 
+  let projectFiles = $state<string[]>([])
+  const known = $derived(new Set(projectFiles))
+  const citing = $derived(agent.entries.filter((entry) => entry.kind === 'user' && entry.text.includes('@')).length)
+
+  $effect(() => {
+    if (!citing) return
+    invoke<string[]>('project_files', { dir: workdir(agent) })
+      .then((list) => (projectFiles = list))
+      .catch(() => (projectFiles = []))
+  })
+
   const kinds: [string[], Key][] = [
     [['Read', 'Grep', 'Glob', 'LS'], 'conversation.reads'],
     [['Edit', 'MultiEdit', 'Write', 'NotebookEdit'], 'conversation.edits'],
@@ -101,6 +117,7 @@ import { fences } from './codepaste'
   type Segment =
     | { type: 'work'; ms: number | undefined; thinking: boolean; thought: string; calls: ToolCall[] }
     | { type: 'spawn'; calls: ToolCall[] }
+    | { type: 'plugin'; call: ToolCall; use: Use }
     | { type: 'advisor'; advice: Advice }
     | { type: 'ask' }
     | Extract<Block, { type: 'text' }>
@@ -126,7 +143,9 @@ import { fences } from './codepaste'
         continue
       }
       for (const call of block.calls.filter((c) => !INTERNAL.includes(c.name))) {
+        const use = settings.plugin_lines === 'off' ? null : useOf(agent.plugins ?? [], call)
         if (ASKING.includes(call.name)) out.push({ type: 'ask' })
+        else if (use && !(SPAWN.includes(call.name) && agent.subagents.some((s) => s.id === call.id))) out.push({ type: 'plugin', call, use })
         else if (!SPAWN.includes(call.name) || !agent.subagents.some((s) => s.id === call.id)) workOf(out).calls.push(call)
         else {
           const last = out.at(-1)
@@ -139,12 +158,12 @@ import { fences } from './codepaste'
   }
 
   function groups(blocks: Block[]) {
-    const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' | 'advisor' }>)[] = []
+    const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' | 'advisor' | 'plugin' }>)[] = []
     let asked = false
     for (const segment of segments(blocks)) {
       const last = out.at(-1)
       if (segment.type === 'ask') asked = true
-      else if (segment.type === 'spawn' || segment.type === 'advisor') out.push(segment)
+      else if (segment.type === 'spawn' || segment.type === 'advisor' || segment.type === 'plugin') out.push(segment)
       else if (last?.type === 'box' && !asked) last.segments.push(segment)
       else out.push({ type: 'box', segments: [segment] })
       if (segment.type !== 'ask') asked = false
@@ -288,7 +307,7 @@ import { fences } from './codepaste'
         {#if said.text}
           {#each fences(said.text) as chunk, c (c)}
             {#if chunk.code}<div class="snippet"><Markdown text={chunk.text} /></div>
-            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{#each splitCited(part.text, known) as bit, b (b)}{#if bit.path}<FileChip path={bit.path} count={filesIn(projectFiles, bit.path)} light />{:else}{bit.text}{/if}{/each}{/if}{/each}</div>{/if}
           {/each}
         {/if}
         {#if said.blocks.length}
@@ -313,6 +332,10 @@ import { fences } from './codepaste'
         <SubagentsCard {agent} ids={group.calls.map((c) => c.id)} onopen={onsubagent} onpanel={onsubagents} />
       {:else if group.type === 'advisor'}
         <AdvisorCard advice={group.advice} model={agent.options.advisor} />
+      {:else if group.type === 'plugin'}
+        {@const before = reply[g - 1]}
+        {@const after = reply[g + 1]}
+        <PluginLine {agent} call={group.call} use={group.use} first={before?.type !== 'plugin' || before.use.plugin !== group.use.plugin} last={after?.type !== 'plugin' || after.use.plugin !== group.use.plugin} />
       {:else if settings.steps === 'detailed'}
         <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(group.segments))} role="presentation">{@render detail(group.segments, i, tail, false)}</div>
       {:else}

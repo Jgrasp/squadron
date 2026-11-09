@@ -3,9 +3,10 @@ export const MAX_SIDEBAR = 560
 
 export const MIN_PANEL = 420
 
+import type { ProjectSort } from './groups'
 import { projects } from './projects.svelte'
 
-export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls' | 'ticket' | `extension:${string}`
+export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls' | `extension:${string}`
 export type PanelMode = 'slide' | 'side' | 'full' | 'bottom'
 export type PanelSize = 'small' | 'medium' | 'large'
 export type Display = { mode: PanelMode; width: number; height: number; size?: PanelSize }
@@ -28,8 +29,9 @@ let display: Record<string, Partial<Display>> = {}
 export type AgentSort = { by: 'none' | 'updated' | 'created' | 'name'; desc: boolean }
 let sort: AgentSort = { by: 'none', desc: false }
 let sorts: Record<string, AgentSort> = {}
-let projectsWidth = 360
-let foldedGroups0: Record<string, boolean> = {}
+let projectsWidth = 380
+export type ProjectsView = { tab: string; sub: string; sort: ProjectSort; desc: boolean; pinnedFirst: boolean }
+let projectsView: ProjectsView = { tab: '', sub: '', sort: 'activity', desc: false, pinnedFirst: true }
 let orders: Record<string, string[]> = {}
 let contextShown = 'percent'
 try {
@@ -43,8 +45,8 @@ try {
   full = { diff: localStorage.getItem('squadron.diff-full') === '1', ...read('squadron.full') }
   panels = read('squadron.panels')
   display = read('squadron.display')
-  projectsWidth = Number(localStorage.getItem('squadron.projects-width')) || 360
-  foldedGroups0 = read('squadron.groups-folded')
+  projectsWidth = Number(localStorage.getItem('squadron.projects-width')) || 380
+  projectsView = { ...projectsView, ...read('squadron.projects-view') }
   contextShown = localStorage.getItem('squadron.context-shown') ?? 'percent'
 } catch {}
 
@@ -60,7 +62,7 @@ export const layout = $state({
   sorts,
   orders,
   projectsWidth,
-  foldedGroups: foldedGroups0,
+  projectsView,
   contextShown,
   review: null as { project: string; number: number } | null,
 })
@@ -169,15 +171,16 @@ export function resizeSidebar(width: number) {
   keep('squadron.sidebar', String(layout.sidebar))
 }
 
-export const MIN_PROJECTS = 280
+export const MIN_PROJECTS = 340
 
 export function resizeProjects(width: number) {
   layout.projectsWidth = Math.round(Math.min(window.innerWidth, Math.max(MIN_PROJECTS, width)))
   keep('squadron.projects-width', String(layout.projectsWidth))
 }
 
-export function foldGroup(id: string, folded: boolean) {
-  if (folded) layout.foldedGroups[id] = true
-  else delete layout.foldedGroups[id]
-  keep('squadron.groups-folded', JSON.stringify(layout.foldedGroups))
+export const WIDE_PROJECTS = 640
+
+export function viewProjects(next: Partial<ProjectsView>) {
+  layout.projectsView = { ...layout.projectsView, ...next }
+  keep('squadron.projects-view', JSON.stringify(layout.projectsView))
 }

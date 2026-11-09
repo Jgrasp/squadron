@@ -174,6 +174,7 @@ export default {
   hideContent: 'Hide',
   openInWindow: 'Open in a window',
   fileMissing: 'File not found.',
+  previewLines: 'First {shown} of {total} lines.',
 
   statusWorking: 'Working',
   statusBackground: 'Waiting on a background task',

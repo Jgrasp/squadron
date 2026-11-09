@@ -32,7 +32,6 @@ export const PANELS: [PanelKind, Key][] = [
   ['artifacts', 'agent.artifactsTitle'],
   ['kanban', 'shell.kanban'],
   ['pulls', 'shell.pullRequests'],
-  ['ticket', 'tickets.panel'],
 ]
 
 export const covers = (next: Display, prev: Display) =>

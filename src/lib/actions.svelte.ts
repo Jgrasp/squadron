@@ -15,6 +15,7 @@ export type SettingsTab =
   | 'defaults'
   | 'rules'
   | 'claude'
+  | 'plugins'
   | 'editors'
   | 'hosting'
   | 'tickets'
@@ -26,7 +27,7 @@ export type SettingsTab =
   | 'changelog'
   | 'about'
 
-export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', adding: null as string | null, drops: 0, finding: 0, drawer: false })
+export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', settingsAnchor: '', adding: null as string | null, drops: 0, finding: 0, drawer: false })
 
 export type Context = { project?: Project; agent?: Agent }
 

@@ -8,6 +8,67 @@ pub static ROOT: OnceLock<PathBuf> = OnceLock::new();
 
 const PICKER: &str = include_str!("artifact-pick.js");
 const PICKER_PATH: &str = "/__squadron/pick.js";
+const THEME_PATH: &str = "/__squadron/theme.css";
+const FONTS_PATH: &str = "/__squadron/fonts/";
+const APP_CSS: &str = include_str!("../../src/app.css");
+const FONTS: [(&str, &str, u16, &[u8]); 7] = [
+    (
+        "dm-sans-latin-400-normal.woff2",
+        "DM Sans",
+        400,
+        include_bytes!(
+            "../../node_modules/@fontsource/dm-sans/files/dm-sans-latin-400-normal.woff2"
+        ),
+    ),
+    (
+        "dm-sans-latin-500-normal.woff2",
+        "DM Sans",
+        500,
+        include_bytes!(
+            "../../node_modules/@fontsource/dm-sans/files/dm-sans-latin-500-normal.woff2"
+        ),
+    ),
+    (
+        "dm-sans-latin-600-normal.woff2",
+        "DM Sans",
+        600,
+        include_bytes!(
+            "../../node_modules/@fontsource/dm-sans/files/dm-sans-latin-600-normal.woff2"
+        ),
+    ),
+    (
+        "dm-sans-latin-700-normal.woff2",
+        "DM Sans",
+        700,
+        include_bytes!(
+            "../../node_modules/@fontsource/dm-sans/files/dm-sans-latin-700-normal.woff2"
+        ),
+    ),
+    (
+        "dm-sans-latin-400-italic.woff2",
+        "DM Sans",
+        400,
+        include_bytes!(
+            "../../node_modules/@fontsource/dm-sans/files/dm-sans-latin-400-italic.woff2"
+        ),
+    ),
+    (
+        "dm-mono-latin-400-normal.woff2",
+        "DM Mono",
+        400,
+        include_bytes!(
+            "../../node_modules/@fontsource/dm-mono/files/dm-mono-latin-400-normal.woff2"
+        ),
+    ),
+    (
+        "dm-mono-latin-500-normal.woff2",
+        "DM Mono",
+        500,
+        include_bytes!(
+            "../../node_modules/@fontsource/dm-mono/files/dm-mono-latin-500-normal.woff2"
+        ),
+    ),
+];
 const META: &str = ".squadron.json";
 const ENTRIES: [(&str, &str); 3] = [
     ("index.html", "html"),
@@ -293,6 +354,22 @@ fn inject(html: &str) -> String {
     }
 }
 
+fn theme() -> String {
+    let faces: String = FONTS
+        .iter()
+        .map(|(file, family, weight, _)| {
+            let style = if file.ends_with("italic.woff2") { "italic" } else { "normal" };
+            format!("@font-face{{font-family:'{family}';font-style:{style};font-weight:{weight};font-display:swap;src:url({FONTS_PATH}{file}) format('woff2')}}\n")
+        })
+        .collect();
+    let app: String = APP_CSS
+        .lines()
+        .filter(|line| !line.starts_with("@import"))
+        .collect::<Vec<_>>()
+        .join("\n");
+    format!("{faces}{app}\nhtml,body{{height:auto;overflow:auto}}\n")
+}
+
 fn respond(status: u16, mime: &str, body: Vec<u8>) -> http::Response<Vec<u8>> {
     http::Response::builder()
         .status(status)
@@ -307,6 +384,15 @@ fn respond(status: u16, mime: &str, body: Vec<u8>) -> http::Response<Vec<u8>> {
 pub fn serve(root: &Path, path: &str) -> http::Response<Vec<u8>> {
     if path == PICKER_PATH {
         return respond(200, mime(Path::new("pick.js")), PICKER.into());
+    }
+    if path == THEME_PATH {
+        return respond(200, mime(Path::new("theme.css")), theme().into());
+    }
+    if let Some((_, _, _, bytes)) = path
+        .strip_prefix(FONTS_PATH)
+        .and_then(|name| FONTS.iter().find(|(file, ..)| *file == name))
+    {
+        return respond(200, mime(Path::new("font.woff2")), bytes.to_vec());
     }
     let Some(file) = resolve(root, path) else {
         return respond(404, "text/plain", b"Not found".to_vec());
@@ -440,6 +526,17 @@ mod tests {
             body.ends_with("<p>Hi</p><script src=\"/__squadron/pick.js\"></script></body></html>")
         );
         assert_eq!(serve(&root, "/__squadron/pick.js").status(), 200);
+        let theme =
+            String::from_utf8(serve(&root, "/__squadron/theme.css").body().clone()).unwrap();
+        assert!(theme.contains("--accent: #e08a5b") && !theme.contains("@import"));
+        for (file, ..) in FONTS {
+            assert!(theme.contains(file));
+            assert_eq!(
+                serve(&root, &format!("/__squadron/fonts/{file}")).status(),
+                200
+            );
+        }
+        assert_eq!(serve(&root, "/__squadron/fonts/../pick.js").status(), 404);
         for bad in [
             "/a1/page/../../secret.txt",
             "/a1/page/%2e%2e/%2e%2e/x",

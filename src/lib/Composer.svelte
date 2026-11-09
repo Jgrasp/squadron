@@ -3,9 +3,12 @@
   import { syntaxHighlighting, syntaxTree } from '@codemirror/language'
   import { languages } from '@codemirror/language-data'
   import { Compartment, EditorState, Prec, Transaction, type Range } from '@codemirror/state'
-  import { Decoration, EditorView, ViewPlugin, placeholder as hint, type DecorationSet, type ViewUpdate } from '@codemirror/view'
+  import { Decoration, EditorView, ViewPlugin, WidgetType, placeholder as hint, type DecorationSet, type ViewUpdate } from '@codemirror/view'
   import { classHighlighter } from '@lezer/highlight'
   import { minimalSetup } from 'codemirror'
+  import { mount, unmount } from 'svelte'
+  import FileChip from './FileChip.svelte'
+  import { citedFiles, filesIn } from './mention.svelte'
 
   function fenceLines(view: EditorView) {
     const doc = view.state.doc
@@ -40,6 +43,70 @@
     },
     { decorations: (plugin) => plugin.decorations },
   )
+
+  const chips = new WeakMap<HTMLElement, ReturnType<typeof mount>>()
+
+  class FileWidget extends WidgetType {
+    path: string
+    count: number
+
+    constructor(path: string, count: number) {
+      super()
+      this.path = path
+      this.count = count
+    }
+
+    eq(other: FileWidget) {
+      return other.path === this.path && other.count === this.count
+    }
+
+    toDOM() {
+      const host = document.createElement('span')
+      chips.set(host, mount(FileChip, { target: host, props: { path: this.path, count: this.count } }))
+      return host
+    }
+
+    destroy(dom: HTMLElement) {
+      const chip = chips.get(dom)
+      if (chip) unmount(chip)
+    }
+  }
+
+  function fileChips(list: string[]) {
+    const files = new Set(list)
+    const counts = new Map<string, number>()
+    const count = (dir: string) => counts.get(dir) ?? counts.set(dir, filesIn(list, dir)).get(dir)!
+    const build = (view: EditorView, typing = false) => {
+      if (!files.size) return Decoration.none
+      const doc = view.state.doc
+      const head = view.state.selection.main.head
+      const marks: Range<Decoration>[] = []
+      for (const { from, to } of view.visibleRanges)
+        for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
+          const line = doc.line(n)
+          for (const cited of citedFiles(line.text, files)) {
+            const start = line.from + cited.from
+            const end = line.from + cited.to
+            if (head > start && (head < end || (typing && head === end))) continue
+            marks.push(Decoration.replace({ widget: new FileWidget(cited.path, cited.path.endsWith('/') ? count(cited.path) : 0) }).range(start, end))
+          }
+        }
+      return Decoration.set(marks, true)
+    }
+    const plugin = ViewPlugin.fromClass(
+      class {
+        decorations: DecorationSet
+        constructor(view: EditorView) {
+          this.decorations = build(view)
+        }
+        update(update: ViewUpdate) {
+          if (update.docChanged || update.viewportChanged || update.selectionSet) this.decorations = build(update.view, update.transactions.some((tr) => tr.isUserEvent('input.type')))
+        }
+      },
+      { decorations: (plugin) => plugin.decorations },
+    )
+    return [plugin, EditorView.atomicRanges.of((view) => view.plugin(plugin)?.decorations ?? Decoration.none)]
+  }
 </script>
 
 <script lang="ts">
@@ -54,6 +121,7 @@
     onkeydown,
     onpaste,
     oncaret,
+    files = [],
   }: {
     value?: string
     placeholder?: string
@@ -63,11 +131,13 @@
     onkeydown?: (event: KeyboardEvent) => void
     onpaste?: (event: ClipboardEvent) => void
     oncaret?: (caret: number) => void
+    files?: string[]
   } = $props()
 
   let host: HTMLDivElement
   let view = $state<EditorView>()
   const hinting = new Compartment()
+  const chipping = new Compartment()
 
   onMount(() => {
     view = new EditorView({
@@ -85,6 +155,7 @@
           markdown({ codeLanguages: languages, addKeymap: false }),
           syntaxHighlighting(classHighlighter),
           fences,
+          chipping.of(fileChips(files)),
           EditorView.lineWrapping,
           EditorView.theme({}, { dark: true }),
           hinting.of(hint(placeholder)),
@@ -108,6 +179,10 @@
 
   $effect(() => {
     view?.dispatch({ effects: hinting.reconfigure(hint(placeholder)) })
+  })
+
+  $effect(() => {
+    view?.dispatch({ effects: chipping.reconfigure(fileChips(files)) })
   })
 
   export const focus = () => view?.focus()

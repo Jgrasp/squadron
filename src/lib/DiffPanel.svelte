@@ -7,6 +7,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
+  import { slide } from 'svelte/transition'
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, rows, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
@@ -86,9 +87,13 @@
     pullError = ''
     const { base, branch, head } = pull
     const from = onlyNew ? since : null
+    const stale = () => !pull || keyOf(pull) !== key
     invoke<{ changes: Changes; ahead: number; added: number }>('pull_changes', { dir: folder, base, branch, head, since: from })
-      .then((result) => (pulled = { key, ...result }))
+      .then((result) => {
+        if (!stale()) pulled = { key, ...result }
+      })
       .catch((e) => {
+        if (stale()) return
         if (!from) return (pullError = String(e))
         sinceError = String(e)
         onlyNew = false
@@ -287,7 +292,7 @@
         text: th.root.body,
       }))
     for (const c of [...review, ...comments.filter(here)])
-      if (c.path && order.has(c.path))
+      if (c.path && order.has(c.path) && !list.some((s) => s.key === draftKey(c)))
         list.push({ key: draftKey(c), path: c.path, line: c.line, removed: c.removed, mine: true, author: { name: '', avatar: '' }, others: [], text: c.note })
     return list.sort((a, b) => order.get(a.path)! - order.get(b.path)! || a.line - b.line || Number(b.mine) - Number(a.mine))
   })
@@ -465,9 +470,25 @@
     target = null
   })
 
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+
   function reveal(el: HTMLElement) {
-    within(el, 'center')
     el.querySelector('textarea')?.focus({ preventScroll: true })
+    const box = el.closest('.body')
+    if (!box) return
+    const top = el.getBoundingClientRect().top
+    const view = box.getBoundingClientRect()
+    if (top < view.top || top > view.bottom) within(el, 'center')
+  }
+
+  function glide(event: Event) {
+    const el = event.currentTarget as HTMLElement
+    const box = el.closest('.body')
+    if (!box) return
+    const r = el.getBoundingClientRect()
+    const view = box.getBoundingClientRect()
+    const by = Math.min(r.bottom + 12 - view.bottom, r.top - view.top - 48)
+    if (by > 0) box.scrollBy({ top: by, behavior: still ? 'instant' : 'smooth' })
   }
 
   function draft(): Comment {
@@ -620,9 +641,12 @@
     merging = false
   }
 
+  const handing = $derived(reviewing ? [...review, ...comments.filter(here)] : [])
+
   function handOver() {
-    const list = $state.snapshot(review)
+    const list = $state.snapshot(handing)
     reviews[reviewKey] = []
+    comments = comments.filter((c) => !here(c))
     finishing = false
     onreview(summary.trim(), list)
     summary = ''
@@ -785,9 +809,9 @@
         <div class="actions">
           {#if (agent && !agent.review) || (own && handTo)}
             {@const to = agent?.name ?? handTo ?? ''}
-            <span class="hint">{t('review.sendOrPost', { count: review.length, agent: to, host: hostName(pull) })}</span>
+            <span class="hint">{t('review.sendOrPost', { count: handing.length, agent: to, host: hostName(pull) })}</span>
             <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
-            <button class="btn btn-primary" disabled={posting || !ready} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
+            <button class="btn btn-primary" disabled={posting || !(ready || handing.length)} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
               {#each own ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
@@ -1105,7 +1129,7 @@
       </div>
     {/each}
     {#if replying === th.root.id}
-      <form class="reply-form" onsubmit={(e) => reply(th, e)} use:reveal>
+      <form class="reply-form" onsubmit={(e) => reply(th, e)} use:reveal in:slide={{ duration: still ? 0 : 260 }} onintroend={glide}>
         <label for="reply-{th.root.id}" class="sr-only">{t('review.replyTo', { author: th.root.author })}</label>
         <textarea
           id="reply-{th.root.id}"
@@ -1140,7 +1164,7 @@
 {/snippet}
 
 {#snippet editor()}
-  <form class="inline" onsubmit={comment} use:reveal>
+  <form class="inline" onsubmit={comment} use:reveal in:slide={{ duration: still ? 0 : 260 }} onintroend={glide}>
     <label for="line-comment" class="sr-only">{t('review.commentOnLine', { line: String(commenting?.number ?? '') })}</label>
     <textarea
       id="line-comment"

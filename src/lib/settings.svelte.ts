@@ -6,6 +6,8 @@ import type { Options } from './stream'
 
 export type TabEffect = 'pulse' | 'snake'
 
+export type ProjectsEffect = 'snake' | 'bar' | 'pulse'
+
 export type TabRing = 'off' | 'shake' | 'sound'
 
 export type TabOrder = 'manual' | 'name' | 'activity'
@@ -16,6 +18,7 @@ export type Config = {
   claude: string
   defaults: Options
   tab_effect: TabEffect
+  projects_effect: ProjectsEffect
   tab_ring: TabRing
   tab_order: TabOrder
   tab_hours: number
@@ -37,12 +40,16 @@ export type Config = {
   ticket_fields_off: string[]
   conversation_width: number
   sidebar: 'pinned' | 'peek'
+  plugin_lines: 'off' | 'tag' | 'card' | 'gutter'
+  plugin_card: 'normal' | 'minimal'
+  plugin_projects: Record<string, string[]>
 }
 
 export const settings = $state<Config>({
   claude: 'claude',
   defaults: { model: 'opus', effort: 'high', mode: 'default' },
   tab_effect: 'pulse',
+  projects_effect: 'snake',
   tab_ring: 'shake',
   tab_order: 'manual',
   tab_hours: 4,
@@ -64,6 +71,9 @@ export const settings = $state<Config>({
   ticket_fields_off: [],
   conversation_width: 740,
   sidebar: 'pinned',
+  plugin_lines: 'tag',
+  plugin_card: 'normal',
+  plugin_projects: {},
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

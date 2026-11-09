@@ -20,6 +20,15 @@
     return KINDS.find(([re]) => re.test(ext))?.[1] ?? 'file'
   }
 
+  export const KIND_ICONS: Record<Kind, string> = {
+    sheet: '<rect x="3" y="4" width="18" height="16" rx="2"/><path d="M3 10h18M3 15h18M10 4v16"/>',
+    doc: '<path d="M5 6h14M5 12h14M5 18h9"/>',
+    code: '<path d="M8 7l-5 5 5 5M16 7l5 5-5 5"/>',
+    pdf: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8zM14 3v5h5"/>',
+    archive: '<rect x="4" y="3" width="16" height="18" rx="2"/><path d="M12 3v2M12 8v2M12 13v2"/>',
+    file: '<path d="M14 3H7a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z"/>',
+  }
+
   const sizes = new Map<string, Promise<number>>()
 
   function sizeOf(path: string) {
@@ -45,7 +54,6 @@
   }: { path: string; onremove?: () => void; large?: boolean; look?: 'chip' | 'card' } = $props()
 
   const name = $derived(path.split('/').pop() ?? path)
-  const ext = $derived(name.includes('.') ? name.split('.').pop()!.toUpperCase().slice(0, 4) : '')
   const kind = $derived(kindOf(path))
   const label = $derived(t(`agent.kind${kind[0].toUpperCase()}${kind.slice(1)}` as Key))
   let src = $state('')
@@ -84,7 +92,7 @@
     {#if src}
       <img {src} alt={name} />
     {:else if look !== 'chip'}
-      <span class="tile" aria-hidden="true">{ext || '·'}</span>
+      <span class="tile" aria-hidden="true"><svg viewBox="0 0 24 24">{@html KIND_ICONS[kind]}</svg></span>
       <span class="text">
         <span class="name">{name}</span>
         <span class="meta">{label}{size ? ` · ${size}` : ''}</span>
@@ -212,8 +220,16 @@
     background: color-mix(in srgb, var(--kind) 16%, transparent);
     box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--kind) 35%, transparent);
     color: var(--kind);
-    font: 700 9.5px/1 var(--sans);
-    letter-spacing: 0.04em;
+  }
+
+  .tile svg {
+    width: 16px;
+    height: 16px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .text {

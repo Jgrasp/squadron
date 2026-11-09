@@ -26,6 +26,21 @@ fn size(cols: u16, rows: u16) -> PtySize {
     }
 }
 
+fn wsl(dir: &Path) -> Option<(String, String)> {
+    let path = dir.to_str()?.replace('/', "\\");
+    let path = path
+        .strip_prefix(r"\\?\UNC\")
+        .map_or(path.clone(), |p| format!(r"\\{p}"));
+    let host = path.to_ascii_lowercase();
+    let start = [r"\\wsl$\", r"\\wsl.localhost\"]
+        .iter()
+        .find(|p| host.starts_with(*p))?
+        .len();
+    let mut parts = path[start..].split('\\').filter(|p| !p.is_empty());
+    let distro = parts.next()?.to_string();
+    Some((distro, format!("/{}", parts.collect::<Vec<_>>().join("/"))))
+}
+
 fn decode(pending: &mut Vec<u8>) -> String {
     let complete = match std::str::from_utf8(pending) {
         Err(e) if e.error_len().is_none() => e.valid_up_to(),
@@ -51,17 +66,34 @@ impl Terminals {
         let pair = native_pty_system()
             .openpty(size(cols, rows))
             .map_err(|e| e.to_string())?;
-        let mut cmd = match shell {
-            Some(program) => CommandBuilder::new(program),
-            None if command.is_some() && cfg!(windows) => CommandBuilder::new("cmd"),
-            None if command.is_some() => CommandBuilder::new("/bin/sh"),
-            None => CommandBuilder::new_default_prog(),
+        let linux = shell
+            .is_none()
+            .then(|| wsl(dir))
+            .flatten()
+            .filter(|_| cfg!(windows));
+        let mut cmd = match (shell, &linux) {
+            (Some(program), _) => CommandBuilder::new(program),
+            (None, Some((distro, path))) => {
+                let mut cmd = CommandBuilder::new("wsl.exe");
+                cmd.args(["-d", distro, "--cd", path]);
+                cmd
+            }
+            (None, None) if command.is_some() && cfg!(windows) => CommandBuilder::new("cmd"),
+            (None, None) if command.is_some() => CommandBuilder::new("/bin/sh"),
+            (None, None) => CommandBuilder::new_default_prog(),
         };
         if let Some(line) = command {
-            let windows = shell.is_none() && cfg!(windows);
-            cmd.args([if windows { "/C" } else { "-ic" }, line]);
+            if linux.is_some() {
+                let login = r#"exec "$(getent passwd "$(id -un)" | cut -d: -f7)" -ic "$1""#;
+                cmd.args(["-e", "sh", "-c", login, "sh", line]);
+            } else {
+                let windows = shell.is_none() && cfg!(windows);
+                cmd.args([if windows { "/C" } else { "-ic" }, line]);
+            }
         }
-        cmd.cwd(dir);
+        if linux.is_none() {
+            cmd.cwd(dir);
+        }
         cmd.env("TERM", "xterm-256color");
         cmd.env("COLORTERM", "truecolor");
         cmd.env_remove("LD_LIBRARY_PATH");
@@ -135,6 +167,22 @@ mod tests {
     use super::*;
     use std::sync::mpsc;
     use std::time::Duration;
+
+    #[test]
+    fn maps_a_wsl_share_to_its_distro_and_linux_path() {
+        let linux = |d: &str, p: &str| Some((d.to_string(), p.to_string()));
+        assert_eq!(
+            wsl(Path::new(r"\\wsl$\Ubuntu\home\me\app")),
+            linux("Ubuntu", "/home/me/app")
+        );
+        assert_eq!(
+            wsl(Path::new(r"\\?\UNC\wsl.localhost\Debian\srv\")),
+            linux("Debian", "/srv")
+        );
+        assert_eq!(wsl(Path::new("//WSL$/Ubuntu")), linux("Ubuntu", "/"));
+        assert_eq!(wsl(Path::new(r"\\server\share\app")), None);
+        assert_eq!(wsl(Path::new("/home/me/app")), None);
+    }
 
     #[test]
     fn keeps_split_utf8_for_the_next_read() {

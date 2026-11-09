@@ -1,5 +1,49 @@
 # Nouveautés
 
+## 0.37.0 · 2026-11-09
+
+### Plugins
+
+- Les réglages ont un onglet Plugins : installez des plugins Claude Code et activez chacun pour tous les projets ou seulement ceux que vous cochez.
+- Chaque agent montre les plugins qu’il a chargés et ce qu’ils coûtent, et la conversation marque l’endroit où un plugin est intervenu.
+
+### Projets
+
+- Le panneau Projets affiche les groupes en onglets, les sous-groupes en pastilles et les projets en cartes avec leurs agents ouverts, questions, erreurs et agents terminés.
+- Il se trie par activité, attention, nom, agents ouverts ou à la main, s’élargit sur plusieurs colonnes en tirant ou double-cliquant son bord, et l’effet d’une carte de projet au travail (serpent, bande animée ou pulsation) se choisit dans les Préférences.
+
+### Zone de saisie
+
+- Un fichier ou un dossier cité avec @ s’affiche en pastille, avec une icône colorée selon le type de fichier, ou pour un dossier son chemin parent et son nombre de fichiers. Les messages envoyés montrent les mêmes pastilles.
+
+### Conversation
+
+- Un gros fichier s’ouvre vite dans sa carte : l’aperçu montre ses 300 premières lignes et charge la suite quand vous défilez.
+- Les cartes de fichier et les pièces jointes affichent une icône du type de fichier au lieu du texte de l’extension.
+- Le contenu d’une carte de fichier se déplie vers le bas en glissant, et la conversation défile juste assez pour le montrer.
+
+### Tickets
+
+- Un ticket Jira s’ouvre dans une fenêtre entière : description, pièces jointes et commentaires à gauche, champs et liens à droite, depuis le Kanban comme depuis une conversation.
+
+### Pull requests
+
+- Un formulaire de commentaire ou de réponse s’ouvre en glissant sous sa ligne, et le diff défile juste assez pour le montrer.
+- Terminer la relecture envoie à l’agent les commentaires ajoutés pour lui en plus du brouillon de relecture, et les compte.
+
+### Agents
+
+- Un agent peut se renommer, ou renommer un autre agent de son projet, avec l’outil set_title.
+- Chaque agent lit le DESIGN.md du projet avant un artifact, un bloc html ou une retouche de style, et un artifact html peut lier /__squadron/theme.css pour avoir les couleurs, classes et polices de Squadron.
+
+### Correctifs
+
+- Cliquer sur Mettre à jour recherche à nouveau la dernière version, si bien qu’une version publiée depuis la dernière vérification est celle qui s’installe.
+- Sous Windows, un terminal ou une commande ! sur un projet sous \\wsl$ s’ouvre dans sa distribution WSL et son dossier.
+- Une pull request ne reste plus bloquée sur le chargement quand son commit relu change pendant qu’elle charge, ou quand deux brouillons de commentaire partagent une ligne.
+- Le second commentaire d’un agent de relecture sur une ligne remplace le premier au lieu de le dupliquer.
+- L’onglet Plugins ne reste plus sur Chargement quand un plugin est installé dans deux portées du même projet.
+
 ## 0.36.1 · 2026-11-09
 
 ### Correctifs

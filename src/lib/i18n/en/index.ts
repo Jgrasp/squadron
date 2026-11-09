@@ -7,10 +7,11 @@ import persona from './persona'
 import format from './format'
 import review from './review'
 import extensions from './extensions'
+import plugins from './plugins'
 import runs from './runs'
 import settings from './settings'
 import shell from './shell'
 import spotlight from './spotlight'
 import tickets from './tickets'
 
-export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets, claudeKeys, extensions }
+export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets, claudeKeys, extensions, plugins }

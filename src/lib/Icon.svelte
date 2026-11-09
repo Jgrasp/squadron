@@ -53,6 +53,8 @@
     <path d="M5 12h14M13 6l6 6-6 6" />
   {:else if name === 'update'}
     <path d="M12 3v12M7 10l5 5 5-5M5 21h14" />
+  {:else if name === 'plugins'}
+    <path d="M12 3l8 9-8 9-8-9z" />
   {:else if name === 'mcp'}
     <path d="M9 2v4M15 2v4M7 6h10v4a5 5 0 0 1-5 5 5 5 0 0 1-5-5V6z" /><path d="M12 15v4M9 22h6" />
   {/if}

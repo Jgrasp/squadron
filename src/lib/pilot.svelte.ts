@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, send, waitingFor, type Elsewhere } from './agents.svelte'
+import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, waitingFor, type Elsewhere } from './agents.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
@@ -180,6 +180,16 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return args.pinned ? `${who} pinned at the top of the agent list.` : `${who} no longer pinned.`
   },
 
+  set_title: (caller, args) => {
+    const target = args.agent ? find(String(args.agent)) : caller
+    if (!target) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    if (target.project !== caller.project) throw new Error(`${target.name} belongs to another project. You can only rename the agents of your own project.`)
+    const title = String(args.title ?? '').trim()
+    if (!title) throw new Error('The title is empty.')
+    rename(target.id, title)
+    return target === caller ? `You are now named ${title}.` : `The agent is now named ${title}.`
+  },
+
   set_progress: (caller, args) => {
     if (args.total === null || args.total === undefined) {
       caller.progress = null
@@ -249,9 +259,11 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     }
     const text = !path || removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
     const key = `${caller.review.project}#${caller.review.number}`
-    reviews[key] = [...(reviews[key] ?? []), { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
+    const before = reviews[key] ?? []
+    const kept = before.filter((c) => !path || c.path !== path || c.line !== line || c.removed !== removed)
+    reviews[key] = [...kept, { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
     const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
-    return `Added to the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
+    return `${kept.length < before.length ? 'Replaced the comment already on that line in' : 'Added to'} the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
   },
 
   read_pull_comments: async (caller, args) => {

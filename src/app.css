@@ -83,6 +83,8 @@
 
   --remote-dot: #7db8fa;
   --remote-text: #b9d6f7;
+  --merged: #c4a7f0;
+  --merged-text: #cdbcf7;
 
   --sub-running: #9ad6cb;
   --sub-waiting: #e08a5b;
@@ -322,6 +324,50 @@ pre,
   -webkit-mask-composite: xor;
   mask-composite: exclude;
   animation: snake 2.4s linear infinite;
+}
+
+.stripe {
+  position: relative;
+}
+
+.stripe::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 3px;
+  border-radius: 0 2px 2px 0;
+  background: var(--project, var(--accent));
+  pointer-events: none;
+}
+
+.stripe.effect-bar {
+  background-image: linear-gradient(90deg, color-mix(in srgb, var(--project, var(--accent)) 10%, transparent), transparent 45%);
+}
+
+.stripe.effect-bar::before {
+  --tint: var(--project, var(--accent));
+  background: linear-gradient(
+      180deg,
+      color-mix(in srgb, var(--tint) 30%, transparent),
+      var(--tint) 40%,
+      color-mix(in srgb, var(--tint) 30%, white) 50%,
+      var(--tint) 60%,
+      color-mix(in srgb, var(--tint) 30%, transparent)
+    )
+    0 0 / 100% 300%;
+  box-shadow: 0 0 12px 1px color-mix(in srgb, var(--tint) 70%, transparent);
+  animation: flow 1.6s linear infinite;
+}
+
+@keyframes flow {
+  from {
+    background-position: 0 100%;
+  }
+  to {
+    background-position: 0 -200%;
+  }
 }
 
 @keyframes ring {

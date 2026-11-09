@@ -62,6 +62,7 @@ const timers = new Map<string, number>()
 let claudePath = 'claude'
 let reviewPrompt = ''
 let tabEffect = 'pulse'
+let projectsEffect = 'snake'
 let tabOrder = 'manual'
 let tabHours = 4
 let keyMap: Record<string, string> = {}
@@ -270,7 +271,7 @@ function replay(id: string, text: string) {
       .join('\n')
   }
   const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
-  const stream = text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('inlinepath') ? hello.replaceAll('"Bonjour"', JSON.stringify('J’ai mis à jour `config/services.yaml` et `src/Segmentation/SegmentRepository.php:12`, puis relu `config/services.yaml` et `absent.md`.')) : text.includes('filecard') ? hello.replaceAll('"Bonjour"', JSON.stringify('Voici l’archive :\n\n[squadron-claude-design.zip](</home/demo/Téléchargements/squadron-claude-design.zip>)\n\nEt la liste des URL :\n\n[neogeofanatic-urls.csv](</home/demo/Documents/neogeofanatic-urls.csv>)')) : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('plugins') ? pluginRun() : text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('inlinepath') ? hello.replaceAll('"Bonjour"', JSON.stringify('J’ai mis à jour `config/services.yaml` et `src/Segmentation/SegmentRepository.php:12`, puis relu `config/services.yaml` et `absent.md`.')) : text.includes('filecard') ? hello.replaceAll('"Bonjour"', JSON.stringify('Voici l’archive :\n\n[squadron-claude-design.zip](</home/demo/Téléchargements/squadron-claude-design.zip>)\n\nEt la liste des URL :\n\n[neogeofanatic-urls.csv](</home/demo/Documents/neogeofanatic-urls.csv>)')) : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -298,6 +299,65 @@ function replay(id: string, text: string) {
     timers.set(id, window.setTimeout(next, lines[i]?.includes('"type":"advisor_tool_result"') ? 5000 : text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : 60))
   }
   next()
+}
+
+const PLUGIN_DIR = '/home/demo/.claude/plugins/cache'
+
+function pluginRun() {
+  const [init, ...rest] = hello.trim().split('\n')
+  const head = JSON.parse(init)
+  head.plugins = [
+    { name: 'impeccable', path: `${PLUGIN_DIR}/impeccable/impeccable/4.6.0`, source: 'impeccable@impeccable', version: '4.6.0' },
+    { name: 'shopify-plugin', path: `${PLUGIN_DIR}/claude-plugins-official/shopify-ai-toolkit/2.1.2`, source: 'shopify-ai-toolkit@claude-plugins-official', version: '2.1.2' },
+    { name: 'ponytail', path: `${PLUGIN_DIR}/ponytail/ponytail/5.3.2`, source: 'ponytail@ponytail', version: '5.3.2' },
+    { name: 'codegraph', path: '/home/demo/codegraph-plugin', source: 'codegraph@inline' },
+    { name: 'cc-plugin-telemetry', path: 'builtin', source: 'cc-plugin-telemetry@builtin' },
+  ]
+  const at = () => new Date().toISOString()
+  const say = (id: string, text: string) => JSON.stringify({ type: 'assistant', timestamp: at(), message: { id: `msg_${id}`, model: 'claude-haiku-5-5', content: [{ type: 'text', text }] } })
+  const tool = (id: string, name: string, input: object) => JSON.stringify({ type: 'assistant', timestamp: at(), message: { id: `msg_${id}`, model: 'claude-haiku-5-5', content: [{ type: 'tool_use', id, name, input }] } })
+  const result = (id: string, text: string) => JSON.stringify({ type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } })
+  const body = (dir: string, size: number) => JSON.stringify({ type: 'user', isSynthetic: true, message: { content: [{ type: 'text', text: `Base directory for this skill: ${dir}\n${'Instructions. '.repeat(size)}` }] } })
+  return [
+    JSON.stringify(head),
+    say('p0', 'Je regarde d’abord la page produit, puis je lance une passe de polish.'),
+    tool('p1', 'Read', { file_path: '/project/src/sections/product-main.liquid' }),
+    result('p1', 'liquid '.repeat(300)),
+    tool('p2', 'mcp__plugin_codegraph_codegraph__codegraph_explore', { query: 'ProductForm variant picker' }),
+    result('p2', 'symbol '.repeat(850)),
+    tool('p3', 'Skill', { skill: 'impeccable:impeccable', args: 'polish' }),
+    result('p3', 'Launching skill: impeccable:impeccable'),
+    body(`${PLUGIN_DIR}/impeccable/impeccable/4.6.0/skills/impeccable`, 800),
+    tool('p4', 'Read', { file_path: `${PLUGIN_DIR}/impeccable/impeccable/4.6.0/skills/impeccable/reference/polish.md` }),
+    result('p4', 'polish '.repeat(800)),
+    tool('p5', 'Edit', { file_path: '/project/src/sections/product-main.liquid', old_string: 'gap: 4px', new_string: 'gap: 12px' }),
+    result('p5', 'The file has been updated.'),
+    say('p6', 'Le prix barré manque de contraste, je corrige. Je passe à la fiche Shopify.'),
+    tool('p7', 'Skill', { skill: 'shopify-plugin:shopify' }),
+    result('p7', 'Launching skill: shopify-plugin:shopify'),
+    body(`${PLUGIN_DIR}/claude-plugins-official/shopify-ai-toolkit/2.1.2/skills/shopify`, 650),
+    tool('p8', 'mcp__plugin_shopify-plugin_shopify-dev__graphql', { query: 'product(handle: "veste-lin") { variants { title } }' }),
+    result('p8', JSON.stringify({ variants: ['S', 'M', 'L', 'XL'].map((title) => ({ title, sku: `VL-${title}` })) }).repeat(12)),
+    ...rest.map((l) => l.replaceAll('"Bonjour"', JSON.stringify('Les 4 variantes remontent. J’ai resserré l’espacement du sélecteur et corrigé le contraste du prix barré.'))),
+  ].join('\n')
+}
+
+type MockPlugin = { id: string; name: string; version: string; scope: string; enabled: boolean; installPath: string; description: string }
+
+const mockPlugins: MockPlugin[] = [
+  { id: 'impeccable@impeccable', name: 'impeccable', version: '4.6.0', scope: 'user', enabled: true, installPath: `${PLUGIN_DIR}/impeccable/impeccable/4.6.0`, description: 'Design fluency for frontend development. 1 skill with 24 commands and curated anti-pattern detection.' },
+  { id: 'shopify-ai-toolkit@claude-plugins-official', name: 'shopify-plugin', version: '2.1.2', scope: 'user', enabled: false, installPath: `${PLUGIN_DIR}/claude-plugins-official/shopify-ai-toolkit/2.1.2`, description: 'Build anything on Shopify: CLI, Admin API, Functions, Polaris extensions.' },
+  { id: 'ponytail@ponytail', name: 'ponytail', version: '5.3.2', scope: 'user', enabled: true, installPath: `${PLUGIN_DIR}/ponytail/ponytail/5.3.2`, description: 'Forces the laziest solution that works. YAGNI, stdlib first, one line over fifty.' },
+  { id: 'crew@jgrasp-marketplace', name: 'crew', version: '8a206b3', scope: 'user', enabled: false, installPath: `${PLUGIN_DIR}/jgrasp-marketplace/crew/8a206b3`, description: 'Architect, challenger, devs and testers driven by a PO agent.' },
+]
+const pluginFlags: { user: Record<string, boolean>; projects: Record<string, Record<string, boolean>> } = {
+  user: { 'impeccable@impeccable': true, 'shopify-ai-toolkit@claude-plugins-official': false, 'ponytail@ponytail': true, 'crew@jgrasp-marketplace': false },
+  projects: { '/home/demo/agence/orbit': { 'shopify-ai-toolkit@claude-plugins-official': true }, '/home/demo/agence/nova': { 'impeccable@impeccable': false } },
+}
+const pluginDetails: Record<string, { always: number; components: { kind: string; name: string; always: number; invoke: number }[] }> = {
+  'impeccable@impeccable': { always: 439, components: [{ kind: 'skill', name: 'impeccable', always: 220, invoke: 3700 }, { kind: 'agent', name: 'impeccable-documenter', always: 60, invoke: 960 }, { kind: 'agent', name: 'impeccable-finish-reviewer', always: 70, invoke: 5200 }] },
+  'shopify-ai-toolkit@claude-plugins-official': { always: 2100, components: [{ kind: 'skill', name: 'shopify', always: 1300, invoke: 9000 }, { kind: 'skill', name: 'ucp', always: 500, invoke: 4000 }, { kind: 'mcp', name: 'shopify-dev', always: 300, invoke: 0 }] },
+  'ponytail@ponytail': { always: 641, components: [{ kind: 'skill', name: 'ponytail', always: 140, invoke: 1100 }, { kind: 'skill', name: 'ponytail-review', always: 150, invoke: 1700 }] },
 }
 
 const projectOf = new Map<string, string>()
@@ -527,6 +587,39 @@ mockIPC(
       case 'open_link':
         window.open(a.url, '_blank')
         return
+      case 'plugins_installed':
+        return mockPlugins.map((p) => ({ ...p, enabled: pluginFlags.user[p.id] ?? false }))
+      case 'plugins_marketplaces':
+        return [
+          { name: 'claude-plugins-official', source: 'github', repo: 'anthropics/claude-plugins-official' },
+          { name: 'impeccable', source: 'github', repo: 'pbakaus/impeccable' },
+          { name: 'ponytail', source: 'github', repo: 'ponytail-dev/ponytail' },
+          { name: 'jgrasp-marketplace', source: 'directory', path: '/home/demo/Projects/marketplace' },
+        ]
+      case 'plugins_catalog':
+        return new Promise((resolve) =>
+          setTimeout(() => resolve([
+            { id: '42crunch-api-security-testing@claude-plugins-official', name: '42crunch-api-security-testing', description: 'Audit OpenAPI specs, detect OWASP API Security risks, and apply AI-powered fixes.', marketplace: 'claude-plugins-official', installs: 3474 },
+            { id: 'security-guidance@claude-plugins-official', name: 'security-guidance', description: 'Warns about risky patterns when editing files: command injection, XSS, unsafe deserialization.', marketplace: 'claude-plugins-official', installs: 28100 },
+            { id: 'shopify-ai-toolkit@claude-plugins-official', name: 'shopify-ai-toolkit', description: 'Build anything on Shopify.', marketplace: 'claude-plugins-official', installs: 9120 },
+          ]), 400),
+        )
+      case 'plugin_details':
+        return pluginDetails[a.id] ?? Promise.reject(`Plugin "${a.id}" not found.`)
+      case 'plugin_flags':
+        return { user: pluginFlags.user, projects: Object.fromEntries(((args as { projects: string[] }).projects).map((p) => [p, pluginFlags.projects[p] ?? {}])) }
+      case 'plugin_run': {
+        const [verb, id, , scope] = (args as { args: string[] }).args
+        const dir = (args as { dir: string | null }).dir
+        if (verb === 'enable' || verb === 'disable') {
+          if (scope === 'user') pluginFlags.user[id] = verb === 'enable'
+          else if (dir) pluginFlags.projects[dir] = { ...pluginFlags.projects[dir], [id]: verb === 'enable' }
+        } else if (verb === 'install') {
+          mockPlugins.push({ id, name: id.split('@')[0], version: '1.0.0', scope: 'user', enabled: true, installPath: `${PLUGIN_DIR}/${id}`, description: 'Freshly installed.' })
+          pluginFlags.user[id] = true
+        } else if (verb === 'uninstall') mockPlugins.splice(mockPlugins.findIndex((p) => p.id === id), 1)
+        return new Promise((resolve) => setTimeout(() => resolve('✔ Done'), 250))
+      }
       case 'claude_config':
         return new Promise((done) => setTimeout(() => done(a.setting ? `Set ${a.setting.replace('=', ' to ')}` : configUsage), 600))
       case 'stop_task': {
@@ -667,10 +760,11 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ticket_fields_off: ticketFieldsOff, ...runsConfig }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, projects_effect: projectsEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ticket_fields_off: ticketFieldsOff, ...runsConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
+        projectsEffect = (a as unknown as { config: { projects_effect: string } }).config.projects_effect
         tabOrder = (a as unknown as { config: { tab_order: string } }).config.tab_order
         tabHours = (a as unknown as { config: { tab_hours: number } }).config.tab_hours
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys
