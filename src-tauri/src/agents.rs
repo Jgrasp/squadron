@@ -242,18 +242,27 @@ impl Agents {
         }
     }
 
-    pub fn context_usage(&self, id: &str) -> Result<(), String> {
+    pub fn context_usage(
+        &self,
+        app: &AppHandle,
+        program: &str,
+        id: &str,
+        start: bool,
+    ) -> Result<(), String> {
         let mut list = self.list.lock().unwrap();
-        match list
-            .get_mut(id)
-            .and_then(|a| a.session.as_mut())
-            .filter(|s| s.alive())
-        {
-            Some(session) => session
-                .control(serde_json::json!({"subtype": "get_context_usage"}))
-                .map_err(|e| e.to_string()),
-            None => Ok(()),
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        if !agent.session.as_ref().is_some_and(Session::alive) {
+            if !start {
+                return Ok(());
+            }
+            spawn(self, app, program, id, agent)?;
         }
+        agent
+            .session
+            .as_mut()
+            .unwrap()
+            .control(serde_json::json!({"subtype": "get_context_usage"}))
+            .map_err(|e| e.to_string())
     }
 
     pub fn stop_task(&self, id: &str, task_id: &str) -> Result<(), String> {

@@ -767,4 +767,63 @@ mod live_options {
         next(&rx, "result");
         session.stop().unwrap();
     }
+
+    #[test]
+    #[ignore = "runs the real claude"]
+    fn real_claude_reports_context_of_a_resumed_session_before_any_message() {
+        let dir = std::env::temp_dir().join("squadron-live-context");
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let options = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+            agent: None,
+            advisor: None,
+        };
+        let start = |resume: Option<&str>| {
+            let (tx, rx) = std::sync::mpsc::channel();
+            let mut session = Session::start(
+                command("claude", &dir, &options, resume, false, None, None),
+                move |line, event| {
+                    let d: Value = serde_json::from_str(line).unwrap();
+                    let _ = match event {
+                        Event::System {
+                            session_id: Some(id),
+                            ..
+                        } => tx.send(format!("session {id}")),
+                        Event::Result { .. } => tx.send("result".into()),
+                        _ if d["response"]["response"]["categories"].is_array() => tx.send(
+                            format!("usage {}", d["response"]["response"]["totalTokens"]),
+                        ),
+                        _ => Ok(()),
+                    };
+                },
+                |_| {},
+            )
+            .unwrap();
+            session.control(json!({"subtype": "initialize"})).unwrap();
+            (session, rx)
+        };
+        let next = |rx: &std::sync::mpsc::Receiver<String>, what: &str| loop {
+            let line = rx.recv_timeout(Duration::from_secs(120)).unwrap();
+            println!("{line}");
+            if line.starts_with(what) {
+                return line;
+            }
+        };
+        let (mut first, rx) = start(None);
+        first.send("Reply with just: one").unwrap();
+        let id = next(&rx, "session")["session ".len()..].to_string();
+        next(&rx, "result");
+        first.stop().unwrap();
+
+        let (mut resumed, rx) = start(Some(&id));
+        resumed
+            .control(json!({"subtype": "get_context_usage"}))
+            .unwrap();
+        let usage = next(&rx, "usage");
+        assert!(usage != "usage null", "{usage}");
+        resumed.stop().unwrap();
+    }
 }
