@@ -176,6 +176,7 @@ export default {
   hideContent: 'Masquer',
   openInWindow: 'Ouvrir dans une fenêtre',
   fileMissing: 'Fichier introuvable.',
+  previewLines: '{shown} premières lignes sur {total}.',
 
   statusWorking: 'Au travail',
   statusBackground: 'Attend une tâche de fond',

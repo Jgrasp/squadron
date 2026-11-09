@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { tick } from 'svelte'
   import { slide } from 'svelte/transition'
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { KIND_ICONS, kindOf } from './Attachment.svelte'
@@ -11,6 +12,7 @@
 
   let { path, project }: { path: string; project: string } = $props()
 
+  const PREVIEW = 300
   const TONES = { sheet: '#4cbf85', pdf: '#e5655a', doc: '#6ea8f0', archive: '#e0b65b', code: '#b79cf0', file: 'var(--text-dim)' }
 
   const name = $derived(path.split('/').pop() ?? path)
@@ -20,6 +22,8 @@
 
   let open = $state(false)
   let text = $state<string | null>()
+  const lines = $derived(text?.split('\n') ?? [])
+  let limit = $state(PREVIEW)
   let error = $state('')
   let card: HTMLElement
   let scroller: HTMLElement | null = null
@@ -43,6 +47,15 @@
     while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
     card.dispatchEvent(new Event('unfold', { bubbles: true }))
     scroller?.style.setProperty('overflow-anchor', 'none')
+  }
+
+  function more(event: Event) {
+    const pre = event.target as HTMLElement
+    const body = event.currentTarget as HTMLElement
+    if (limit >= lines.length || pre.tagName !== 'PRE' || pre.scrollTop + pre.clientHeight < pre.scrollHeight - 200) return
+    const top = pre.scrollTop
+    limit += PREVIEW
+    tick().then(() => body.querySelector('pre')?.scrollTo({ top }))
   }
 
   function reveal() {
@@ -79,13 +92,19 @@
     </button>
   </div>
   {#if open}
-    <div class="body" transition:slide={{ duration: still ? 0 : 260 }} onintroend={reveal}>
+    <div class="body" onscrollcapture={more} transition:slide={{ duration: still ? 0 : 260 }} onintroend={reveal}>
       {#if error}
         <p class="note">{error}</p>
       {:else if text === null}
         <p class="note">{t('conversation.fileMissing')}</p>
       {:else}
-        <Markdown text={fenced(text, languageOf(name)?.name.toLowerCase())} />
+        <Markdown text={fenced(lines.slice(0, limit).join('\n'), languageOf(name)?.name.toLowerCase())} />
+        {#if lines.length > limit}
+          <p class="note more">
+            {t('conversation.previewLines', { shown: String(limit), total: String(lines.length) })}
+            <button type="button" onclick={float}>{t('conversation.openInWindow')}</button>
+          </p>
+        {/if}
       {/if}
     </div>
   {/if}
@@ -224,5 +243,17 @@
     padding: 12px 15px;
     font-size: 12.5px;
     color: var(--text-dim);
+  }
+
+  .more {
+    border-top: 1px solid var(--border);
+  }
+
+  .more button {
+    color: var(--accent-link);
+  }
+
+  .more button:hover {
+    text-decoration: underline;
   }
 </style>
