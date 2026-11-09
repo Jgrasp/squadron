@@ -1277,7 +1277,7 @@
             </div>
           {/if}
           <div class="bar" class:bang>
-            <Composer id="composer" label={t('agent.messageToAgent')} bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={(e) => clip.paste(e, composer)} oncaret={mentions.track} />
+            <Composer id="composer" label={t('agent.messageToAgent')} bind:value={text} bind:this={composer} {placeholder} onkeydown={(e) => (clip.key(e), keys(e))} onpaste={(e) => clip.paste(e, composer)} oncaret={mentions.track} files={mentions.paths} />
             <button type="button" class="btn-icon" aria-label={t('agent.attachFiles')} title={t('agent.attachTitle')} onclick={browseFiles}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg

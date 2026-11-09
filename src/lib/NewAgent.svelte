@@ -183,6 +183,7 @@
             onkeydown={keys}
             onpaste={(e) => clip.paste(e, message)}
             oncaret={mentions.track}
+            files={mentions.paths}
           />
           <div class="boxbar">
             <button type="button" class="btn-icon" aria-label={t('board.attach')} title={t('board.attachTitle')} onclick={browseFiles}>
