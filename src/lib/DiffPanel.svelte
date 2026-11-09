@@ -87,9 +87,13 @@
     pullError = ''
     const { base, branch, head } = pull
     const from = onlyNew ? since : null
+    const stale = () => !pull || keyOf(pull) !== key
     invoke<{ changes: Changes; ahead: number; added: number }>('pull_changes', { dir: folder, base, branch, head, since: from })
-      .then((result) => (pulled = { key, ...result }))
+      .then((result) => {
+        if (!stale()) pulled = { key, ...result }
+      })
       .catch((e) => {
+        if (stale()) return
         if (!from) return (pullError = String(e))
         sinceError = String(e)
         onlyNew = false
