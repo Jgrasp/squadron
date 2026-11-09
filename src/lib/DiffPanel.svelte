@@ -620,9 +620,12 @@
     merging = false
   }
 
+  const handing = $derived(reviewing ? [...review, ...comments.filter(here)] : [])
+
   function handOver() {
-    const list = $state.snapshot(review)
+    const list = $state.snapshot(handing)
     reviews[reviewKey] = []
+    comments = comments.filter((c) => !here(c))
     finishing = false
     onreview(summary.trim(), list)
     summary = ''
@@ -785,9 +788,9 @@
         <div class="actions">
           {#if (agent && !agent.review) || (own && handTo)}
             {@const to = agent?.name ?? handTo ?? ''}
-            <span class="hint">{t('review.sendOrPost', { count: review.length, agent: to, host: hostName(pull) })}</span>
+            <span class="hint">{t('review.sendOrPost', { count: handing.length, agent: to, host: hostName(pull) })}</span>
             <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
-            <button class="btn btn-primary" disabled={posting || !ready} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
+            <button class="btn btn-primary" disabled={posting || !(ready || handing.length)} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
               {#each own ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
