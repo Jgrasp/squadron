@@ -513,7 +513,9 @@
       measure()
     })
     observer.observe(column)
-    return () => observer.disconnect()
+    const unstick = () => (stuck = false)
+    scroller.addEventListener('unfold', unstick)
+    return () => (observer.disconnect(), scroller.removeEventListener('unfold', unstick))
   })
 
   async function jump(i: number) {

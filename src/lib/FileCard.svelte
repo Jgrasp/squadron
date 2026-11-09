@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { slide } from 'svelte/transition'
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { kindOf } from './Attachment.svelte'
   import { languageOf } from './CodeEditor.svelte'
@@ -21,7 +22,9 @@
   let open = $state(false)
   let text = $state<string | null>()
   let error = $state('')
-
+  let card: HTMLElement
+  let scroller: HTMLElement | null = null
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
 
   async function float() {
     const label = windowLabel(project, path)
@@ -30,16 +33,31 @@
     new WebviewWindow(label, { url: `index.html?${new URLSearchParams({ project, path })}`, title: `${name} · Squadron`, width: 760, height: 820, minWidth: 420, minHeight: 300 })
   }
 
-  function toggle() {
+  async function toggle() {
+    if (!open && text === undefined && !error)
+      await invoke<string | null>('read_project_file', { project, path })
+        .then((found) => (text = found))
+        .catch((e) => (error = errorText(e)))
     open = !open
-    if (!open || text !== undefined || error) return
-    invoke<string | null>('read_project_file', { project, path })
-      .then((found) => (text = found))
-      .catch((e) => (error = errorText(e)))
+    if (!open) return
+    scroller = card.parentElement
+    while (scroller && !/auto|scroll/.test(getComputedStyle(scroller).overflowY)) scroller = scroller.parentElement
+    card.dispatchEvent(new Event('unfold', { bubbles: true }))
+    scroller?.style.setProperty('overflow-anchor', 'none')
+  }
+
+  function reveal() {
+    if (!scroller) return
+    const shown = scroller
+    shown.addEventListener('scrollend', () => shown.style.removeProperty('overflow-anchor'), { once: true })
+    const view = scroller.getBoundingClientRect()
+    const box = card.getBoundingClientRect()
+    const by = Math.min(box.bottom + 12 - view.bottom, box.top - view.top - 12)
+    if (by > 0) scroller.scrollBy({ top: by, behavior: still ? 'instant' : 'smooth' })
   }
 </script>
 
-<div class="card" class:open style:--kind={TONES[kind]}>
+<div class="card" class:open bind:this={card} style:--kind={TONES[kind]}>
   <div class="head" title={path}>
     <span class="tile" aria-hidden="true">{ext || '·'}</span>
     <span class="text">
@@ -62,13 +80,11 @@
     </button>
   </div>
   {#if open}
-    <div class="body">
+    <div class="body" transition:slide={{ duration: still ? 0 : 260 }} onintroend={reveal}>
       {#if error}
         <p class="note">{error}</p>
       {:else if text === null}
         <p class="note">{t('conversation.fileMissing')}</p>
-      {:else if text === undefined}
-        <p class="note">{t('common.loading')}</p>
       {:else}
         <Markdown text={fenced(text, languageOf(name)?.name.toLowerCase())} />
       {/if}
