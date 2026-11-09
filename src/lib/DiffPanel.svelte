@@ -7,6 +7,7 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
+  import { slide } from 'svelte/transition'
   import { parsePatch, structuredPatch } from 'diff'
   import { changedFiles, rows, type Changes, type Hunk, type Proposal } from './diff'
   import DiffView, { type Line } from './DiffView.svelte'
@@ -465,9 +466,25 @@
     target = null
   })
 
+  const still = matchMedia('(prefers-reduced-motion: reduce)').matches
+
   function reveal(el: HTMLElement) {
-    within(el, 'center')
     el.querySelector('textarea')?.focus({ preventScroll: true })
+    const box = el.closest('.body')
+    if (!box) return
+    const top = el.getBoundingClientRect().top
+    const view = box.getBoundingClientRect()
+    if (top < view.top || top > view.bottom) within(el, 'center')
+  }
+
+  function glide(event: Event) {
+    const el = event.currentTarget as HTMLElement
+    const box = el.closest('.body')
+    if (!box) return
+    const r = el.getBoundingClientRect()
+    const view = box.getBoundingClientRect()
+    const by = Math.min(r.bottom + 12 - view.bottom, r.top - view.top - 48)
+    if (by > 0) box.scrollBy({ top: by, behavior: still ? 'instant' : 'smooth' })
   }
 
   function draft(): Comment {
@@ -1108,7 +1125,7 @@
       </div>
     {/each}
     {#if replying === th.root.id}
-      <form class="reply-form" onsubmit={(e) => reply(th, e)} use:reveal>
+      <form class="reply-form" onsubmit={(e) => reply(th, e)} use:reveal in:slide={{ duration: still ? 0 : 260 }} onintroend={glide}>
         <label for="reply-{th.root.id}" class="sr-only">{t('review.replyTo', { author: th.root.author })}</label>
         <textarea
           id="reply-{th.root.id}"
@@ -1143,7 +1160,7 @@
 {/snippet}
 
 {#snippet editor()}
-  <form class="inline" onsubmit={comment} use:reveal>
+  <form class="inline" onsubmit={comment} use:reveal in:slide={{ duration: still ? 0 : 260 }} onintroend={glide}>
     <label for="line-comment" class="sr-only">{t('review.commentOnLine', { line: String(commenting?.number ?? '') })}</label>
     <textarea
       id="line-comment"
