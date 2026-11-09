@@ -38,6 +38,20 @@ export function citedFiles(text: string, files: Set<string>) {
   return found
 }
 
+export const filesIn = (list: string[], dir: string) => list.filter((f) => f.startsWith(dir) && !f.endsWith('/')).length
+
+export function splitCited(text: string, files: Set<string>) {
+  const parts: { text: string; path?: string }[] = []
+  let last = 0
+  for (const cited of citedFiles(text, files)) {
+    if (cited.from > last) parts.push({ text: text.slice(last, cited.from) })
+    parts.push({ text: text.slice(cited.from, cited.to), path: cited.path })
+    last = cited.to
+  }
+  if (last < text.length) parts.push({ text: text.slice(last) })
+  return parts
+}
+
 export function fileChoices(paths: string[], text: string, caret: number): FileChoice[] {
   const found = mentionAt(text, caret)
   if (!found) return []

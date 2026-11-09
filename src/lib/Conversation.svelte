@@ -19,11 +19,14 @@ import { fences } from './codepaste'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
   import ValuesCard from './ValuesCard.svelte'
-  import { doing, INTERNAL, type Advice, type Agent, type Block, type Subagent, type ToolCall } from './stream'
+  import { doing, INTERNAL, type Advice, type Agent, type Block, type Subagent, type ToolCall, workdir } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
   import BackgroundCard from './BackgroundCard.svelte'
   import ToolRow from './ToolRow.svelte'
+  import FileChip from './FileChip.svelte'
+  import { filesIn, splitCited } from './mention.svelte'
+  import { invoke } from '@tauri-apps/api/core'
   import Shots from './Shots.svelte'
   import ShellCard from './ShellCard.svelte'
   import AdvisorCard from './AdvisorCard.svelte'
@@ -76,6 +79,17 @@ import { fences } from './codepaste'
   const answer = (list: Segment[]) => list.flatMap((s) => (s.type === 'text' ? [s.text] : [])).join('\n\n')
 
   const names = $derived(namesOf(agent))
+
+  let projectFiles = $state<string[]>([])
+  const known = $derived(new Set(projectFiles))
+  const citing = $derived(agent.entries.filter((entry) => entry.kind === 'user' && entry.text.includes('@')).length)
+
+  $effect(() => {
+    if (!citing) return
+    invoke<string[]>('project_files', { dir: workdir(agent) })
+      .then((list) => (projectFiles = list))
+      .catch(() => (projectFiles = []))
+  })
 
   const kinds: [string[], Key][] = [
     [['Read', 'Grep', 'Glob', 'LS'], 'conversation.reads'],
@@ -288,7 +302,7 @@ import { fences } from './codepaste'
         {#if said.text}
           {#each fences(said.text) as chunk, c (c)}
             {#if chunk.code}<div class="snippet"><Markdown text={chunk.text} /></div>
-            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{part.text}{/if}{/each}</div>{/if}
+            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{#each splitCited(part.text, known) as bit, b (b)}{#if bit.path}<FileChip path={bit.path} count={filesIn(projectFiles, bit.path)} light />{:else}{bit.text}{/if}{/each}{/if}{/each}</div>{/if}
           {/each}
         {/if}
         {#if said.blocks.length}
