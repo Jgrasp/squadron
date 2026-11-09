@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { getVersion } from '@tauri-apps/api/app'
   import { invoke } from '@tauri-apps/api/core'
   import { onMount } from 'svelte'
   import { clock, limits, type Limit } from './agents.svelte'
@@ -9,8 +10,12 @@
   type Load = { cpu: number; used: number; total: number }
 
   let load = $state<Load | null>(null)
+  let version = $state('')
 
   onMount(() => {
+    getVersion()
+      .then((v) => (version = v))
+      .catch(() => {})
     const read = () => invoke<Load | null>('system_load').then((l) => (load = l))
     read()
     const timer = setInterval(read, 2000)
@@ -40,6 +45,7 @@
 {/snippet}
 
 <footer class="status">
+  {#if version}<span class="item">Squadron <span class="mono">{version}</span></span>{/if}
   {#if load}
     <span class="item" title={t('shell.processorLoad')}>
       {t('shell.cpu')} {@render meter(load.cpu / 100)}<span class="mono">{percent(load.cpu / 100)}</span>
