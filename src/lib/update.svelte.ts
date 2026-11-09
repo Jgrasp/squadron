@@ -51,8 +51,9 @@ export async function checkNow() {
 }
 
 export async function install() {
+  if (!update.found || update.progress !== null) return
+  update.found = (await check().catch(() => null)) ?? update.found
   const found = update.found
-  if (!found || update.progress !== null) return
   const working = agents.list.filter((a) => a.status === 'working' || a.status === 'waiting').length
   if (
     working &&
