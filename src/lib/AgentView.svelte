@@ -28,7 +28,7 @@
   import ArtifactsPanel from './ArtifactsPanel.svelte'
   import { docsOf } from './artifacts'
   import { pointed, refresh as refreshArtifacts, shelf } from './artifacts.svelte'
-  import TicketPanel from './TicketPanel.svelte'
+  import TicketDialog from './TicketDialog.svelte'
   import { loadConnections, tickets } from './tickets.svelte'
   import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
@@ -786,12 +786,12 @@
 
 <main
   style:--panel-top="{headerHeight}px"
-  style:--panel-share={Math.max(bottomShare(openPanel(agent.project)), bottomShare(reading && 'ticket'))}
-  style:--panel-side="max({sideSpan(openPanel(agent.project))}, {sideSpan(reading && 'ticket')})"
+  style:--panel-share={bottomShare(openPanel(agent.project))}
+  style:--panel-side={sideSpan(openPanel(agent.project))}
 >
   <section class="conversation" aria-label={t('agent.conversation')}>
     {#if reading}
-      <TicketPanel connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />
+      <TicketDialog connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />
     {/if}
     <div class="top" bind:offsetHeight={headerHeight}>
       <div class="title">

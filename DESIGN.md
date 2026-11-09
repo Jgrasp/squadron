@@ -122,7 +122,7 @@ Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette,
 | `--remote-dot` / `--remote-text` | `#7DB8FA` / `#B9D6F7` | PR en revue, session distante, verdict « revérifier » |
 | `--merged` / `--merged-text` | `#C4A7F0` / `#CDBCF7` | PR fusionnée : ton de PullCard, texte de la puce PR (fond `--merged` 16 %) |
 | `--jira` | `#2684FF` | Marque Jira |
-| `--ticket-bg` / `--ticket-card` / `--ticket-card-hover` / `--ticket-border` / `--ticket-border-hover` / `--ticket-text` / `--ticket-muted` / `--ticket-button` | bleus nuit | Tiroir et panneau de ticket Jira, seulement là |
+| `--ticket-bg` / `--ticket-card` / `--ticket-card-hover` / `--ticket-border` / `--ticket-border-hover` / `--ticket-text` / `--ticket-muted` / `--ticket-button` | bleus nuit | Tiroir et popup de ticket Jira, seulement là |
 
 ### Exceptions en dur
 
@@ -259,7 +259,6 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 - **Terminal** : sessions en onglets 30px mono 12px, active `--menu` + contour `#4E443E`. Écran `#110E0D`.
 - **Sous-agents** : filtres 28px, lignes 36px en grille, mono 11,5px, couleurs `--sub-*`.
 - **Artefacts** : onglets d'artefacts, vue `--bg-main`, iframe fond blanc, contour 2px `--accent` en mode « Point ».
-- **Ticket** : famille `--ticket-*`, clé mono 600 12px `--ticket-text`, titre 17px, onglets soulignés 2px `--accent`.
 
 ### Pages
 - **Kanban** (`Board.svelte`) : colonnes `repeat(N, minmax(220px,1fr))`, espacement 12px, fond `--bg-sidebar`, rayon 8px. En-tête de colonne en capitales 11px, pastille 8px (`--sub-running`, `--accent`, `--done`), compteur mono. Carte `--surface-1` (`--surface-2` au survol), padding 12px 14px, rayon 6px ; en attente `--wait-*`, en erreur `--err-*`. Glisser : origine à 0,4, fantôme `--surface-4` + contour `--border-focus` incliné −2°, repère 2px `--accent`. « + Task » 34px pointillé.
@@ -268,6 +267,7 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 
 ### Dialogues
 Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-tête padding 20px 22px 6px, titre 18px 700, aide 13px `--text-dim`, fermer 32px `--surface-2`. Champs `.field`, chemins en mono. Boutons en bas à droite (Cancel `--surface-2`, action principale claire), séparés par un trait `--border`. Erreur de champ : `--err-text` avec icône, bouton principal désactivé.
+- **Ticket Jira** (`TicketDialog.svelte`) : Dialog plein écran, colonne principale (description, pièces jointes en grille `minmax(180px,1fr)` vignette 110px `--surface-1`, commentaires) + colonne 340px `--bg-sidebar` (champs, liens, « Open in Jira » `--ticket-*`), pied « Read only » + « Create a task ».
 - **Confirm** : 440px, icône 32px rayon 6px (`--surface-3`, avertissement `--wait-btn` / `--accent-soft`, erreur `--err-bg` / `--err`), titre 16px 700.
 - **Settings** : Dialog plein écran. Navigation 230px `--bg-sidebar`, groupes en capitales, entrées 34px, active `--surface-4` blanc 600. Contenu 860px max. Cartes de choix `--surface-1` + contour `--border-strong`, choisie `--surface-3` + anneau 2px `--text`.
 - **Add project** : dossier en lecture seule + « Browse… », « Git repository · branch X » en `--done-text`.
