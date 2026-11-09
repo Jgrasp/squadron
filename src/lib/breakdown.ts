@@ -145,21 +145,24 @@ export function breakdown(u: ContextUsage, refs: PluginRef[], prompt: number, us
     calls.push({ kind: 'call', name: name.split('__').at(-1), plugin, tokens })
     tools.delete(name)
   }
-  let budget = Math.max(0, category('messages') - total([...tools].map(([, tokens]) => ({ tokens }))) - total(calls) - u.messages.replies - u.messages.user)
+  let user = u.messages.user
+  let budget = Math.max(0, category('messages') - total([...tools].map(([, tokens]) => ({ tokens }))) - total(calls) - u.messages.replies - user)
   for (const use of uses) {
     if (use.kind === 'mcp') continue
     const row = use.parts[0]?.key === 'file' ? 'Read' : use.kind === 'agent' ? SPAWNS.find((s) => tools.has(s)) : 'Skill'
     const fromRow = row && tools.has(row) ? Math.min(tools.get(row)!, use.tokens) : 0
     if (row && fromRow) tools.set(row, tools.get(row)! - fromRow)
-    const fromRest = Math.min(budget, use.tokens - fromRow)
+    const fromUser = use.kind === 'skill' && row === 'Skill' ? Math.min(user, use.tokens - fromRow) : 0
+    user -= fromUser
+    const fromRest = Math.min(budget, use.tokens - fromRow - fromUser)
     budget -= fromRest
-    calls.push({ kind: 'call', name: use.label, plugin: use.plugin, use: use.id, tokens: fromRow + fromRest, estimate: true })
+    calls.push({ kind: 'call', name: use.label, plugin: use.plugin, use: use.id, tokens: fromRow + fromUser + fromRest, estimate: true })
   }
   const talk: Group[] = [
     { id: 'tools' as const, lines: [...tools].map(([name, tokens]): Line => ({ kind: 'tool', name, tokens })).sort((a, b) => b.tokens - a.tokens) },
     { id: 'calls' as const, lines: calls },
     { id: 'replies' as const, lines: [] as Line[], tokens: u.messages.replies },
-    { id: 'messages' as const, lines: [] as Line[], tokens: u.messages.user },
+    { id: 'messages' as const, lines: [] as Line[], tokens: user },
     {
       id: 'added' as const,
       lines: [

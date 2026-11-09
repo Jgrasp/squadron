@@ -3,6 +3,7 @@
   import { cubicOut } from 'svelte/easing'
   import { Tween } from 'svelte/motion'
   import ContextPanel from './ContextPanel.svelte'
+  import { fetchDetails } from './plugins.svelte'
   import { tokens } from './format'
   import { t } from './i18n/index.svelte'
   import { layout } from './layout.svelte'
@@ -11,6 +12,10 @@
   let { agent }: { agent: Agent } = $props()
 
   let open = $state(false)
+
+  $effect(() => {
+    fetchDetails((agent.plugins ?? []).filter((r) => !r.id.endsWith('@inline')).map((r) => r.id))
+  })
 
   const max = $derived(agent.context?.max ?? 0)
   const threshold = $derived(agent.context?.threshold ?? null)

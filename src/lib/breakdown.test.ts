@@ -93,13 +93,14 @@ describe('context breakdown', () => {
     expect(group('mcp').lines).toEqual([{ kind: 'server', name: 'sentry', tokens: 200 }])
   })
 
-  it('moves plugin calls out of the tool results without counting them twice', () => {
+  it('moves plugin calls out of the tool results and of the messages that carry skill bodies, without counting them twice', () => {
     expect(group('tools').lines.map((l) => [l.name, l.tokens])).toEqual([['Read', 540]])
     expect(group('calls').lines).toEqual([
       { kind: 'call', name: 'codegraph_explore', plugin: 'codegraph', tokens: 300 },
       { kind: 'call', name: 'humanizer', plugin: 'humanizer', use: 't1', tokens: 400, estimate: true },
     ])
-    expect(group('added').tokens).toBe(1800 - 540 - 300 - 400 - 300 - 100)
+    expect(group('messages').tokens).toBe(0)
+    expect(group('added').tokens).toBe(1800 - 540 - 300 - 400 - 300)
     expect(group('added').lines).toEqual([{ kind: 'hook', name: 'PONYTAIL MODE ACTIVE', tokens: 350, estimate: true }])
     expect(breakdown(trimUsage(raw), refs, 0).talk.find((g) => g.id === 'added')!.lines).toEqual([{ kind: 'added', name: 'hook_success', tokens: 2800, estimate: true }])
   })
