@@ -87,6 +87,7 @@ export const backend: Partial<Record<Locale, Table>> = {
       [/^Unknown effort: (.*)$/s, 'Effort inconnu : $1'],
       [/^Unknown permission mode: (.*)$/s, 'Mode d’autorisation inconnu : $1'],
       [/^Unknown tab effect: (.*)$/s, 'Effet d’onglet inconnu : $1'],
+      [/^Unknown projects effect: (.*)$/s, 'Effet de projet inconnu : $1'],
       [/^Unknown tab ring: (.*)$/s, 'Sonnerie d’onglet inconnue : $1'],
       [/^Unknown tab order: (.*)$/s, 'Ordre des onglets inconnu : $1'],
       [/^Could not start (.*?): (.*)$/s, 'Impossible de lancer $1 : $2'],

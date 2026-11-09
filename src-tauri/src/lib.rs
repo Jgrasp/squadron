@@ -396,6 +396,7 @@ struct Config {
     claude: String,
     defaults: claude::Options,
     tab_effect: String,
+    projects_effect: String,
     tab_ring: String,
     tab_order: String,
     tab_hours: u32,
@@ -431,6 +432,7 @@ impl Default for Config {
                 advisor: None,
             },
             tab_effect: "pulse".into(),
+            projects_effect: "snake".into(),
             tab_ring: "shake".into(),
             tab_order: "manual".into(),
             tab_hours: 4,
@@ -477,6 +479,9 @@ impl Settings {
         config.defaults.check()?;
         if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
+        }
+        if !["snake", "bar", "pulse"].contains(&config.projects_effect.as_str()) {
+            return Err(format!("Unknown projects effect: {}", config.projects_effect));
         }
         if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));

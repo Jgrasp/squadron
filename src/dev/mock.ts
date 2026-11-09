@@ -62,6 +62,7 @@ const timers = new Map<string, number>()
 let claudePath = 'claude'
 let reviewPrompt = ''
 let tabEffect = 'pulse'
+let projectsEffect = 'snake'
 let tabOrder = 'manual'
 let tabHours = 4
 let keyMap: Record<string, string> = {}
@@ -667,10 +668,11 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ticket_fields_off: ticketFieldsOff, ...runsConfig }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, projects_effect: projectsEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ticket_fields_off: ticketFieldsOff, ...runsConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
+        projectsEffect = (a as unknown as { config: { projects_effect: string } }).config.projects_effect
         tabOrder = (a as unknown as { config: { tab_order: string } }).config.tab_order
         tabHours = (a as unknown as { config: { tab_hours: number } }).config.tab_hours
         keyMap = (a as unknown as { config: { keys: Record<string, string> } }).config.keys

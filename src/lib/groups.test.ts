@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { contained, inBar, rollup, rows, within } from './groups'
+import { descendants, EMPTY, inBar, inTab, matching, sortProjects, total, within, type Tally } from './groups'
 import type { Group, Project } from './projects.svelte'
 
 const group = (id: string, parent = ''): Group => ({ id, name: id, parent })
@@ -8,30 +8,58 @@ const project = (name: string, g = '', pinned = false) => ({ name, path: `/p/${n
 const groups = [group('clients'), group('ring', 'clients'), group('tools')]
 const list = [project('RingApp', 'ring'), project('RingBack', 'ring'), project('Lunetterie', 'clients'), project('squadron', 'tools'), project('domotique')]
 
-describe('rows', () => {
-  it('lists groups before projects, nested, then root projects', () => {
-    const shown = rows(groups, list, {}, '').map((r) => (r.kind === 'group' ? `g:${r.id}@${r.depth}` : `p:${r.project.name}@${r.depth}`))
-    expect(shown).toEqual(['g:clients@0', 'g:ring@1', 'p:RingApp@2', 'p:RingBack@2', 'p:Lunetterie@1', 'g:tools@0', 'p:squadron@1', 'p:domotique@0'])
+const tally = (data: Record<string, Partial<Tally>>) => (path: string) => ({ ...EMPTY, ...data[path] })
+const names = (projects: Project[]) => projects.map((p) => p.name)
+
+describe('tabs', () => {
+  it('keeps a group, its sub-groups, or the projects without a group', () => {
+    expect(names(list.filter((p) => inTab(groups, p, 'clients')))).toEqual(['RingApp', 'RingBack', 'Lunetterie'])
+    expect(names(list.filter((p) => inTab(groups, p, 'ring')))).toEqual(['RingApp', 'RingBack'])
+    expect(names(list.filter((p) => inTab(groups, p, '-')))).toEqual(['domotique'])
+    expect(list.filter((p) => inTab(groups, p, ''))).toHaveLength(5)
   })
 
-  it('hides the content of a folded group', () => {
-    const shown = rows(groups, list, { clients: true }, '').map((r) => (r.kind === 'group' ? r.id : r.project.name))
-    expect(shown).toEqual(['clients', 'tools', 'squadron', 'domotique'])
+  it('treats a project of an unknown group as one without a group', () => {
+    expect(inTab(groups, project('lost', 'gone'), '-')).toBe(true)
   })
 
-  it('treats a project of an unknown group as a root project', () => {
-    const shown = rows(groups, [project('lost', 'gone')], {}, '').filter((r) => r.kind === 'project')
-    expect(shown.map((r) => r.depth)).toEqual([0])
+  it('lists every sub-group with its path under the tab', () => {
+    const deep = [...groups, group('ringapp', 'ring')]
+    expect(descendants(deep, 'clients')).toEqual([
+      { id: 'ring', path: ['ring'] },
+      { id: 'ringapp', path: ['ring', 'ringapp'] },
+    ])
+    expect(descendants(deep, 'tools')).toEqual([])
   })
 
-  it('keeps the ancestors of a match and opens folded groups while searching', () => {
-    const shown = rows(groups, list, { clients: true, ring: true }, 'ringb').map((r) => (r.kind === 'group' ? r.id : r.project.name))
-    expect(shown).toEqual(['clients', 'ring', 'RingBack'])
+  it('finds a project by its name or the name of one of its groups', () => {
+    expect(names(matching(groups, list, 'ringb'))).toEqual(['RingBack'])
+    expect(names(matching(groups, list, 'CLIENTS'))).toEqual(['RingApp', 'RingBack', 'Lunetterie'])
+    expect(matching(groups, list, '  ')).toBe(list)
   })
 
-  it('shows the whole content of a group whose name matches', () => {
-    const shown = rows(groups, list, {}, 'tools').map((r) => (r.kind === 'group' ? r.id : r.project.name))
-    expect(shown).toEqual(['tools', 'squadron'])
+  it('adds up the agents of a list of projects', () => {
+    const sum = total(list, tally({ '/p/RingApp': { working: 1, agents: 2, last: 5 }, '/p/squadron': { waiting: 2, agents: 2, last: 9 } }))
+    expect(sum).toEqual({ ...EMPTY, working: 1, waiting: 2, agents: 4, last: 9 })
+  })
+})
+
+describe('sortProjects', () => {
+  const pinned = [project('b', '', true), project('a'), project('c', '', true)]
+  const data = tally({ '/p/a': { last: 30, agents: 1 }, '/p/b': { last: 10, failed: 1, agents: 3 }, '/p/c': { last: 20, working: 1, agents: 1 } })
+
+  it('sorts by name, activity, attention, open agents or keeps the manual order', () => {
+    expect(names(sortProjects(pinned, 'name', data))).toEqual(['a', 'b', 'c'])
+    expect(names(sortProjects(pinned, 'activity', data))).toEqual(['a', 'c', 'b'])
+    expect(names(sortProjects(pinned, 'attention', data))).toEqual(['b', 'c', 'a'])
+    expect(names(sortProjects(pinned, 'agents', data))).toEqual(['b', 'a', 'c'])
+    expect(names(sortProjects(pinned, 'manual', data))).toEqual(['b', 'a', 'c'])
+  })
+
+  it('reverses the order, then puts the pinned projects first', () => {
+    expect(names(sortProjects(pinned, 'name', data, true))).toEqual(['c', 'b', 'a'])
+    expect(names(sortProjects(pinned, 'name', data, false, true))).toEqual(['b', 'c', 'a'])
+    expect(names(sortProjects(pinned, 'name', data, true, true))).toEqual(['c', 'b', 'a'])
   })
 })
 
@@ -40,13 +68,6 @@ describe('tree helpers', () => {
     expect(within(groups, 'ring', 'clients')).toBe(true)
     expect(within(groups, 'clients', 'ring')).toBe(false)
     expect(within(groups, 'clients', 'clients')).toBe(true)
-    expect(contained(groups, list, 'clients').map((p) => p.name)).toEqual(['RingApp', 'RingBack', 'Lunetterie'])
-  })
-
-  it('adds up what happens inside a group, sub-groups included', () => {
-    const stat = (path: string) => ({ working: path === '/p/RingApp' ? 1 : 0, waiting: path === '/p/Lunetterie' ? 2 : 0, failed: path === '/p/RingBack' ? 1 : 0 })
-    expect(rollup(groups, list, 'clients', stat)).toEqual({ working: 1, waiting: 2, failed: 1 })
-    expect(rollup(groups, list, 'tools', stat)).toEqual({ working: 0, waiting: 0, failed: 0 })
   })
 })
 
