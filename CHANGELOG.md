@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.36.1 · 2026-11-09
+
+### Fixes
+
+- File cards in a reply stack one per line instead of sitting side by side.
+- A new agent's first message field has the focus when the dialog opens, and the caret stays visible at the start of a line.
+- The status bar shows Squadron's version on the left.
+- The Jira ticket panel header stays on one line: type and sprint shorten, and View all and Open in Jira keep only their icon when the panel is narrow.
+
 ## 0.36.0 · 2026-11-06
 
 ### Extensions
