@@ -557,8 +557,8 @@
   }
 
   .verdict.act-recheck {
-    background: #60a5fa;
-    color: #0d1726;
+    background: var(--remote-dot);
+    color: var(--ink);
   }
 
   .verdict.act-fix {
@@ -582,8 +582,8 @@
   }
 
   .verdict.wait {
-    background: rgba(96, 165, 250, 0.14);
-    color: #a9cdfb;
+    background: color-mix(in srgb, var(--remote-dot) 14%, transparent);
+    color: var(--remote-text);
   }
 
   .about {

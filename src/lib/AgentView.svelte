@@ -1853,8 +1853,8 @@
   }
 
   .chip.pull .state.merged {
-    background: rgba(185, 163, 240, 0.16);
-    color: #cdbcf7;
+    background: color-mix(in srgb, var(--merged) 16%, transparent);
+    color: var(--merged-text);
   }
 
   .chip.pull :is(.state.declined, .state.closed) {

@@ -172,7 +172,7 @@
   }
 
   .merged {
-    --tone: #c4a7f0;
+    --tone: var(--merged);
   }
 
   .loading {

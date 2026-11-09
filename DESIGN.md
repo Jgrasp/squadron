@@ -6,7 +6,7 @@ Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions
 
 À relire avant toute maquette, artifact, bloc html ou retouche de style.
 
-- Uniquement des tokens de `app.css`. Une couleur en dur n'est admise que si elle figure dans « Exceptions en dur » plus bas.
+- Uniquement des tokens de `app.css`. Une couleur en dur n'est admise que si elle figure dans « Exceptions en dur » plus bas ; `scripts/design.test.ts` le vérifie.
 - Le cuivre (`--accent`, `--wait-*`, `--option*`) signale ce qui attend l'utilisateur : permission, question, plan, badge. Jamais pour une action ordinaire.
 - Bouton principal : clair, `--text` sur `--ink`, 700 (`.btn-primary`). Pas cuivre.
 - `--background*` est le bleu des tâches de fond, pas un fond de surface. L'encre sur cuivre est `--accent-ink`.
@@ -18,7 +18,7 @@ Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions
 ## Maquettes et artifacts
 
 - **Bloc ```html dans la conversation** : rendu dans une iframe qui reçoit le `:root` et les `@font-face` de l'app (`Markdown.svelte`, `themeCss`). Les tokens et DM Sans / DM Mono sont là ; les classes (`.btn`, `.field`…) non : recopier leurs règles depuis `app.css`. Fond `--bg-main`, 13,5px/1,5.
-- **Artifact** (`$SQUADRON_ARTIFACTS`, iframe `artifact://`) : rien n'est fourni. Recopier tel quel le bloc `:root` de `app.css` dans le `<style>` ; polices en repli `'DM Sans', 'Segoe UI', sans-serif`. Fond de page `--bg-app` ou `--bg-main` selon la zone maquettée.
+- **Artifact** (`$SQUADRON_ARTIFACTS`, iframe `artifact://`) : `<link rel="stylesheet" href="/__squadron/theme.css">` dans le `<head>` donne tout `app.css` (tokens, classes, keyframes) et DM Sans / DM Mono, servis par `artifacts.rs`. Ne pas recopier les tokens à la main. Fond de page `--bg-app` par défaut, poser `--bg-main` sur la zone maquettée.
 - Maquetter à la taille réelle : largeurs de « Disposition », conversation à 740px.
 - Plusieurs variantes : les poser côte à côte sur la même page, chacune titrée, mêmes données.
 - Chaînes de la maquette en anglais (langue de base de l'interface).
@@ -115,13 +115,14 @@ Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette,
 |---|---|---|
 | `--background` | `#8FB3D9` | Anneau pointillé d'une tâche de fond (StatusIcon, BackgroundCard) |
 | `--background-line` / `--background-bg` | `#5F7F9F` / `rgba(143,179,217,0.12)` | Contour et fond d'icône de BackgroundCard |
-| `--sub-running` / `-waiting` / `-error` / `-done` / `-done-cell` / `-stopped` | `#9AD6CB` / `#E08A5B` / `#F59E8C` / `#8BA36B` / `#5F7049` / `#4A3F39` | Cases et lignes des sous-agents |
-| `--persona` / `-bg` / `-line` | `#E3D3B4` / 9 % / 30 % | PersonaChip (définition d'agent) |
-| `--advisor` / `-text` / `-bg` / `-line` | `#C3B4F0` / `#DDD3FB` / 8 % / 32 % | Conseiller (AdvisorCard, option) |
-| `--mode-default` / `-accept` / `-plan` / `-auto` | `#999999` / `#AF87FF` / `#48968C` / `#FFC107` | Pilule du mode de permission |
-| `--remote-dot` / `--remote-text` | `#7DB8FA` / `#B9D6F7` | PR en revue, session distante |
+| `--sub-running` / `--sub-waiting` / `--sub-error` / `--sub-done` / `--sub-done-cell` / `--sub-stopped` | `#9AD6CB` / `#E08A5B` / `#F59E8C` / `#8BA36B` / `#5F7049` / `#4A3F39` | Cases et lignes des sous-agents |
+| `--persona` / `--persona-bg` / `--persona-line` | `#E3D3B4` / 9 % / 30 % | PersonaChip (définition d'agent) |
+| `--advisor` / `--advisor-text` / `--advisor-bg` / `--advisor-line` | `#C3B4F0` / `#DDD3FB` / 8 % / 32 % | Conseiller (AdvisorCard, option) |
+| `--mode-default` / `--mode-accept` / `--mode-plan` / `--mode-auto` | `#999999` / `#AF87FF` / `#48968C` / `#FFC107` | Pilule du mode de permission |
+| `--remote-dot` / `--remote-text` | `#7DB8FA` / `#B9D6F7` | PR en revue, session distante, verdict « revérifier » |
+| `--merged` / `--merged-text` | `#C4A7F0` / `#CDBCF7` | PR fusionnée : ton de PullCard, texte de la puce PR (fond `--merged` 16 %) |
 | `--jira` | `#2684FF` | Marque Jira |
-| `--ticket-bg` / `-card` / `-card-hover` / `-border` / `-border-hover` / `-text` / `-muted` / `-button` | bleus nuit | Tiroir et panneau de ticket Jira, seulement là |
+| `--ticket-bg` / `--ticket-card` / `--ticket-card-hover` / `--ticket-border` / `--ticket-border-hover` / `--ticket-text` / `--ticket-muted` / `--ticket-button` | bleus nuit | Tiroir et panneau de ticket Jira, seulement là |
 
 ### Exceptions en dur
 
@@ -137,8 +138,18 @@ Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette,
 | `#4E443E` | Contour neutre (« Interrompu », session de terminal active) |
 | `#5A3322` | Brun d'attente (progression d'un agent en attente) |
 | `#D9B6A3` | Texte d'un bouton désactivé sur `--wait-btn` |
-| `#C4A7F0` | PR fusionnée |
 | `#4CBF85`, `#E5655A`, `#6EA8F0`, `#E0B65B`, `#B79CF0` | Tons de fichier : tableur, PDF, doc, archive, code |
+| `#C7BCB4` | Texte des boutons de fenêtre |
+| `#5DB5E7` / `#0D1B24` | Marque du build de dev |
+| `#221A16` | Halo du splash |
+| `#2A1F14` | Bandeau d'avertissement de l'éditeur |
+| `#DDBBA8` | Détail d'un agent en attente |
+| `#C99A90` | Repères dans la sortie d'erreur (ErrorCard) |
+| `#CDB8FF`, `#0E1A27`, `#1A2633` | Épopée Jira, fonds du tiroir Jira |
+| `#1F8BFF`, `#FC6D26` | Logos Azure DevOps, GitLab |
+| `#4FA3E0`, `#7CC47C`, `#E3B341`, `#6FA0D0`, `#3CC39A`, `#E07A9B`, `#A8A29E` | Couleurs au choix (extensions, palette de projet) |
+| `#7FD1D9`, `#8DB4E8`, `#A8E3E8`, `#B3CDF0`, `#C9A6FF`, `#DCC5FF` | Palette ANSI du terminal |
+| `#4ADE80`, `#FB923C`, `#F87171` | Niveaux de ContextGauge |
 
 Les thèmes CodeMirror et xterm recopient des tokens en hexadécimal (objets JS) : garder les mêmes valeurs.
 
@@ -216,7 +227,7 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 
 ### Cartes de conversation
 - **FileCard** (`FileCard.svelte`) : `--bg-main`, rayon 8px, contour `--border-strong`, barre de ton 3px (tons de fichier). Vignette 30×36 rayon 5px, extension 700 9,5px. Nom 600 blanc, méta mono 11,5px. Actions sur `--surface-1`, boutons 28px.
-- **PullCard** : même coque que FileCard, tons `--ok` ouverte, `--err` échec, `--text-faint` brouillon/fermée, `#C4A7F0` fusionnée. Titre 15px 600, état en pilule (ton 14 %, rayon 10px, 11,5px 600). En ligne : pilule 21px `--surface-3`, aperçu 460px au survol.
+- **PullCard** : même coque que FileCard, tons `--ok` ouverte, `--err` échec, `--text-faint` brouillon/fermée, `--merged` fusionnée. Titre 15px 600, état en pilule (ton 14 %, rayon 10px, 11,5px 600). En ligne : pilule 21px `--surface-3`, aperçu 460px au survol.
 - **ShellCard** (commande `!`) : `--surface-1`, contour `--border`, rayon 9px ; contour `--ok` 55 % réussie, `--err` 60 % échouée, `--accent` 55 % en cours. `!` en `--accent`. Sortie `#110E0D`, mono 12px/1,5, 320px max.
 - **AdvisorCard** : liseré 2px `--advisor`, fond `--advisor-bg`, rayon `0 6px 6px 0`, padding 10px 14px, origine 11px 600 capitales.
 - **SubagentsCard** : `--surface-1` + contour `--border-strong`, padding 16px 18px, icône 30px `--surface-3`, cases 14px rayon 2px `--sub-*`.
@@ -253,7 +264,7 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 ### Pages
 - **Kanban** (`Board.svelte`) : colonnes `repeat(N, minmax(220px,1fr))`, espacement 12px, fond `--bg-sidebar`, rayon 8px. En-tête de colonne en capitales 11px, pastille 8px (`--sub-running`, `--accent`, `--done`), compteur mono. Carte `--surface-1` (`--surface-2` au survol), padding 12px 14px, rayon 6px ; en attente `--wait-*`, en erreur `--err-*`. Glisser : origine à 0,4, fantôme `--surface-4` + contour `--border-focus` incliné −2°, repère 2px `--accent`. « + Task » 34px pointillé.
 - **Overview** : tableau, en-têtes collants 11px 700 capitales, cellules padding 10px 12px, trait `--border`, agent en attente `rgba(59,34,22,0.55)`.
-- **Pull requests** (`PullsView.svelte`) : sections titrées en capitales 13px, lignes `--surface-1` + contour `--border`, padding 12px 14px, rayon 6px. Verdict 12px 600 rayon 4px : relire `--accent`, corriger `--err`, fusionner `--ok`, revérifier `#60A5FA`.
+- **Pull requests** (`PullsView.svelte`) : sections titrées en capitales 13px, lignes `--surface-1` + contour `--border`, padding 12px 14px, rayon 6px. Verdict 12px 600 rayon 4px : relire `--accent`, corriger `--err`, fusionner `--ok`, revérifier `--remote-dot`.
 
 ### Dialogues
 Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-tête padding 20px 22px 6px, titre 18px 700, aide 13px `--text-dim`, fermer 32px `--surface-2`. Champs `.field`, chemins en mono. Boutons en bas à droite (Cancel `--surface-2`, action principale claire), séparés par un trait `--border`. Erreur de champ : `--err-text` avec icône, bouton principal désactivé.
