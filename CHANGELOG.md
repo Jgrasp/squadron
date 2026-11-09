@@ -1,5 +1,49 @@
 # Changelog
 
+## 0.37.0 · 2026-11-09
+
+### Plugins
+
+- Settings have a Plugins tab: install Claude Code plugins and turn each on for every project or only the ones you tick.
+- Each agent shows the plugins it loaded and what they cost, and the conversation marks where a plugin kicked in.
+
+### Projects
+
+- The Projects panel shows groups as tabs, sub-groups as chips and projects as cards with their open agents, questions, errors and done agents.
+- It sorts by activity, attention, name, open agents or by hand, widens to several columns by dragging or double-clicking its edge, and the effect of a working project card (snake, live stripe or pulse) is chosen in Preferences.
+
+### Message box
+
+- A file or folder cited with @ shows as a chip, with an icon colored by file type, or for a folder its parent path and file count. Sent messages show the same chips.
+
+### Conversation
+
+- A large file opens fast in its file card: the preview shows its first 300 lines and loads the next ones as you scroll.
+- File cards and attachments show an icon for the file type instead of the extension text.
+- A file card's content unfolds downward with a slide, and the conversation glides just enough to show it.
+
+### Tickets
+
+- A Jira ticket opens in a full window: description, attachments and comments on the left, fields and links on the right, from the Kanban and from a conversation.
+
+### Pull requests
+
+- A comment or reply form slides open below its line, and the diff glides just enough to show it.
+- Finish review sends to the agent the comments added for it as well as the review draft, and counts them.
+
+### Agents
+
+- An agent can rename itself, or another agent of its project, with the set_title tool.
+- Every agent reads the project's DESIGN.md before an artifact, an html block or a style change, and an html artifact can link /__squadron/theme.css to get Squadron's colors, classes and fonts.
+
+### Fixes
+
+- Clicking Update looks again for the latest release, so a version published since the last check is the one installed.
+- On Windows, a terminal or a ! command on a project under \\wsl$ opens in its WSL distro and folder.
+- A pull request no longer stays stuck on fetching when its reviewed commit changes while it loads, or when two draft comments share a line.
+- A review agent's second comment on a line replaces its first instead of adding a duplicate.
+- The Plugins tab no longer stays on Loading when a plugin is installed in two scopes of the same project.
+
 ## 0.36.1 · 2026-11-09
 
 ### Fixes
