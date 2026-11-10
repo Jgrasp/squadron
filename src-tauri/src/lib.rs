@@ -1800,14 +1800,20 @@ fn delete_archived(app: AppHandle, files: State<AgentFiles>, id: String) -> Resu
 }
 
 #[tauri::command]
-fn list_archived(files: State<AgentFiles>) -> Vec<String> {
-    let Ok(dir) = std::fs::read_dir(files.0.join("archived")) else {
-        return Vec::new();
-    };
-    dir.filter_map(Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
-        .collect()
+async fn list_archived(files: State<'_, AgentFiles>) -> Result<Vec<String>, String> {
+    Ok(spread(&json_files(&files.0.join("archived")), |p| {
+        stored::header(&std::fs::read_to_string(p).ok()?)
+    }))
+}
+
+#[tauri::command]
+async fn archived_entries(
+    files: State<'_, AgentFiles>,
+    id: String,
+) -> Result<tauri::ipc::Response, String> {
+    let text = std::fs::read_to_string(files.archived(&id)?).map_err(|e| e.to_string())?;
+    let entries = stored::entries(&text).ok_or("The agent's history could not be read.")?;
+    Ok(tauri::ipc::Response::new(entries.into_bytes()))
 }
 
 #[tauri::command]
@@ -2352,6 +2358,7 @@ pub fn run() {
             restore_archived,
             delete_archived,
             list_archived,
+            archived_entries,
             add_rule,
             answer_permission,
             pilot_reply,

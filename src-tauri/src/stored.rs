@@ -12,6 +12,7 @@ struct History<'a> {
 #[derive(Deserialize)]
 struct Dated {
     at: Option<f64>,
+    kind: Option<String>,
 }
 
 pub fn header(text: &str) -> Option<String> {
@@ -23,6 +24,7 @@ pub fn header(text: &str) -> Option<String> {
     let stored = to_raw_value(&serde_json::json!({
         "count": entries.len(),
         "created": entries.iter().find_map(|e| e.at),
+        "users": entries.iter().filter(|e| e.kind.as_deref() == Some("user")).count(),
     }))
     .ok()?;
     fields.insert("stored".into(), &stored);
@@ -156,6 +158,7 @@ mod tests {
         assert_eq!(head["name"], "Panier");
         assert_eq!(head["stored"]["count"], 3);
         assert_eq!(head["stored"]["created"], 12.0);
+        assert_eq!(head["stored"]["users"], 1);
     }
 
     #[test]

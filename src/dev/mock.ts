@@ -773,7 +773,15 @@ mockIPC(
               .join('\n'),
           }))
       case 'list_archived':
-        return Object.keys(localStorage).filter((k) => k.startsWith('archived:')).map((k) => localStorage.getItem(k))
+        return Object.keys(localStorage)
+          .filter((k) => k.startsWith('archived:'))
+          .map((k) => {
+            const { entries = [], ...head } = JSON.parse(localStorage.getItem(k) ?? '{}')
+            const stored = { count: entries.length, created: entries.find((e: { at?: number }) => e.at)?.at ?? null, users: entries.filter((e: { kind: string }) => e.kind === 'user').length }
+            return JSON.stringify({ ...head, stored })
+          })
+      case 'archived_entries':
+        return JSON.stringify(JSON.parse(localStorage.getItem(`archived:${a.id}`) ?? '{}').entries ?? [])
       case 'restore_archived': {
         const data = localStorage.getItem(`archived:${a.id}`)
         localStorage.removeItem(`archived:${a.id}`)
