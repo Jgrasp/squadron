@@ -16,7 +16,7 @@ import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?r
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
 import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw'
 import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
-import { apply, calls, exited, fail, flaggedWorktree, newAgent, prompt, replayLog, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
+import { apply, calls, exited, fail, flaggedWorktree, newAgent, prompt, replayLog, starting, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -481,6 +481,16 @@ describe('background work', () => {
     expect([agent.status, agent.held, agent.background.map((b) => b.name)]).toEqual(['working', true, ['Run the full import']])
     for (const line of lines.slice(turn + 1)) apply(agent, JSON.parse(line))
     expect([agent.status, agent.held, agent.background]).toEqual(['done', false, []])
+  })
+
+  it('keeps a background command listed while the user talks to the agent, until it ends', () => {
+    const agent = fresh()
+    apply(agent, started)
+    apply(agent, result)
+    starting(agent)
+    expect([agent.held, agent.background.map((b) => b.name)]).toEqual([false, ['Sleep']])
+    apply(agent, { type: 'system', subtype: 'task_notification', task_id: 'b1', status: 'completed' })
+    expect(agent.background).toEqual([])
   })
 
   it('ends the turn when the user stops the background command', () => {

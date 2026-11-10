@@ -470,7 +470,7 @@ import { fences } from './codepaste'
   {/if}
 {/each}
 
-{#if agent.held && agent.background.length}
+{#if agent.background.length}
   <BackgroundCard {agent} {onterminal} />
 {/if}
 
