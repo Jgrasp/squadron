@@ -155,7 +155,7 @@ Les thèmes CodeMirror et xterm recopient des tokens en hexadécimal (objets JS)
 
 ### Bulle utilisateur et bouton principal
 
-Fond `--text`, texte `--ink`. La bulle a le coin bas droit pincé : `border-radius: 6px 6px 2px 6px`.
+Fond `--text`, texte `--ink`. La bulle a le coin bas droit pincé : `border-radius: 6px 6px 2px 6px`. Liens de la bulle : couleur du texte, soulignés 1px (2px au survol).
 
 ## Typographie
 
@@ -250,7 +250,7 @@ Fond `--wait-bg`, contour `--wait-border`, padding 16–18px, rayon 6px, espacem
 Fond `--err-bg`, contour `--err-border`, icône `--err`. Titre blanc, contexte `--err-muted`, message brut en `pre` mono 12px `--err-text` sur `--err-pre`. Actions : Recharger (bouton clair), Copier l'erreur, bouton danger `#3A2420` / `#F8D5CC`.
 
 ### Barre de saisie
-Zone padding 12px 20px 18px, trait haut `--border`. Conteneur `--surface-2`, rayon 6px, largeur `--conversation-width`. Champ CodeMirror 38–200px, blocs de code sur `--bg-main` mono 12,5px `#E8DDD4`. Boutons icône 38px (Joindre, Interrompre, ⋯), Envoyer `.btn-primary`. Mode `!` : contour 1px `--accent` + anneau 3px `--accent-soft`. Menus `/` et `@` en `--menu`. Puces de commentaires et pièces jointes au-dessus.
+Zone padding 12px 20px 18px, trait haut `--border`. Conteneur `--surface-2`, rayon 6px, largeur `--conversation-width`. Champ CodeMirror 38–200px, blocs de code sur `--bg-main` mono 12,5px `#E8DDD4`. Boutons icône 38px (Joindre, Interrompre, ⋯), Envoyer `.btn-primary`. Mode `!` : contour 1px `--accent` + anneau 3px `--accent-soft`. Menus `/` et `@` en `--menu`. Puces de commentaires et pièces jointes au-dessus. Liens du champ `--accent-link` soulignés, Ctrl+clic les ouvre.
 
 ### Barre d'état
 26px `--bg-sidebar`, trait haut, 11,5px `--text-dim`, espacement 18px. Jauges 44×4 (`--ok-line`, puis `--accent`, puis `--err`).

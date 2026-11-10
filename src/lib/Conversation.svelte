@@ -8,6 +8,7 @@
   import CommentChip from './CommentChip.svelte'
   import type { Proposal } from './diff'
   import { highlight } from './commands'
+  import { splitUrls } from './urls'
 import { fences } from './codepaste'
   import ErrorCard from './ErrorCard.svelte'
   import Icon from './Icon.svelte'
@@ -309,7 +310,7 @@ import { fences } from './codepaste'
         {#if said.text}
           {#each fences(said.text) as chunk, c (c)}
             {#if chunk.code}<div class="snippet"><Markdown text={chunk.text} /></div>
-            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{#each splitCited(part.text, known) as bit, b (b)}{#if bit.path}<FileChip path={bit.path} count={filesIn(projectFiles, bit.path)} light />{:else}{bit.text}{/if}{/each}{/if}{/each}</div>{/if}
+            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{#each splitCited(part.text, known) as bit, b (b)}{#if bit.path}<FileChip path={bit.path} count={filesIn(projectFiles, bit.path)} light />{:else}{#each splitUrls(bit.text) as piece, u (u)}{#if piece.url}<a href={piece.url} title={piece.url}>{piece.text}</a>{:else}{piece.text}{/if}{/each}{/if}{/each}{/if}{/each}</div>{/if}
           {/each}
         {/if}
         {#if said.blocks.length}
@@ -757,6 +758,17 @@ import { fences } from './codepaste'
 
   .said {
     white-space: pre-wrap;
+  }
+
+  .said a {
+    color: inherit;
+    text-decoration: underline;
+    text-decoration-thickness: 1px;
+    text-underline-offset: 2px;
+  }
+
+  .said a:hover {
+    text-decoration-thickness: 2px;
   }
 
   .said + .snippet,
