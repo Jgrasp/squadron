@@ -280,27 +280,32 @@ export function sleepIdle() {
 
 const seen = new Map<string, number>()
 
-export function shelveHidden() {
+const shelvable = (agent: Agent) => {
   const now = Date.now()
-  const shown = new Set(Object.values(agents.current))
-  for (const agent of agents.list) {
-    if (shown.has(agent.id)) seen.set(agent.id, now)
-    if (
-      agent.alive ||
-      onDisk.has(agent.id) ||
-      !agent.entries.length ||
-      shown.has(agent.id) ||
-      timers.has(agent.id) ||
-      writes.has(agent.id) ||
-      loading.has(agent.id) ||
-      now - agent.since < IDLE ||
-      now - (seen.get(agent.id) ?? 0) < IDLE
-    )
-      continue
-    agent.stored = { count: agent.entries.length, created: created(agent) || null }
-    agent.entries = []
-    onDisk.add(agent.id)
-  }
+  return (
+    !agent.alive &&
+    !onDisk.has(agent.id) &&
+    agent.entries.length > 0 &&
+    !Object.values(agents.current).includes(agent.id) &&
+    !timers.has(agent.id) &&
+    !writes.has(agent.id) &&
+    !loading.has(agent.id) &&
+    now - agent.since > IDLE &&
+    now - (seen.get(agent.id) ?? 0) > IDLE
+  )
+}
+
+export function shelveHidden() {
+  for (const id of Object.values(agents.current)) seen.set(id, Date.now())
+  for (const agent of agents.list)
+    if (shelvable(agent))
+      save(agent).then(() => {
+        if (!shelvable(agent)) return
+        agent.stored = { count: agent.entries.length, created: created(agent) || null }
+        agent.entries = []
+        agent.subagents = agent.subagents.map((s) => ({ ...s, log: [] }))
+        onDisk.add(agent.id)
+      }, () => {})
 }
 
 export const shownAgent = () => (projects.overview ? undefined : agents.current[projects.current])
