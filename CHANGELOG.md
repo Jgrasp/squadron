@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.40.0 · 2026-11-10
+
+### Conversation
+
+- An agent's notes between its steps stay visible in the conversation, with a light bar on their left, instead of folding into the steps line.
+
+### Pull requests
+
+- On a pull request to review, the agent button is a square icon beside Review, with the reviewing agent's state in its corner, and the Review buttons line up from row to row.
+
 ## 0.39.1 · 2026-11-10
 
 ### Pull requests
