@@ -77,7 +77,7 @@ export type BackgroundTask = { id: string; toolUseId: string; name: string; star
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments', 'use_mcp'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
@@ -176,7 +176,8 @@ export type Agent = {
   artifacts?: LegacyArtifact[]
   hiddenDocs?: string[]
   guess?: string
-  stored?: { count: number; created: number | null }
+  stored?: { count: number; created: number | null; users?: number }
+  onDemand?: string[]
 }
 
 export type LegacyArtifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number; link?: string }
@@ -368,7 +369,19 @@ function subagentEvent(agent: Agent, d: Json) {
   if (d.subtype === 'task_notification' && d.summary) sub.result = String(d.summary)
 }
 
-const SCHEDULES = ['CronCreate', 'ScheduleWakeup']
+const WAKE = 'wake:'
+
+export const holding = (agent: Agent) => agent.jobs.some((j) => !j.startsWith(WAKE) || Number(j.slice(WAKE.length)) > Date.now())
+
+function schedule(agent: Agent, call: ToolCall, text: string) {
+  if (call.name === 'ScheduleWakeup') {
+    agent.jobs = agent.jobs.filter((j) => !j.startsWith(WAKE))
+    if (!call.input.stop) agent.jobs.push(`${WAKE}${Date.now() + (Number(call.input.delaySeconds) || 0) * 1000 + 60_000}`)
+  } else if (call.name === 'CronCreate') {
+    const id = /\b(?:job|task) ([0-9a-f]{6,})\b/.exec(text)?.[1]
+    if (id) agent.jobs.push(`cron:${id}`)
+  } else if (call.name === 'CronDelete') agent.jobs = agent.jobs.filter((j) => j !== `cron:${call.input.id}`)
+}
 
 function job(agent: Agent, d: Json) {
   const id = String(d.task_id ?? '')
@@ -563,7 +576,7 @@ function stream(agent: Agent, d: Json) {
     const block = e.content_block
     const entry = agentEntry(agent)
     if (block.type === 'text') {
-      entry.blocks.push({ type: 'text', text: '', key })
+      entry.blocks.push({ type: 'text', text: '', key, at: Date.now() })
       act(agent, t('conversation.writingReply'))
     } else if (block.type === 'thinking') {
       entry.blocks.push({ type: 'thinking' })
@@ -615,7 +628,6 @@ function assistant(agent: Agent, d: Json) {
       const action = doing({ name: c.name, input: c.input })
       if (sub) sub.last = action
       else {
-        if (SCHEDULES.includes(c.name) && !c.input?.stop && !agent.jobs.includes(c.id)) agent.jobs.push(c.id)
         if (INTERNAL.includes(c.name)) track(agent, c)
         else act(agent, action)
       }
@@ -624,7 +636,7 @@ function assistant(agent: Agent, d: Json) {
     } else if (!sub && c.type === 'advisor_tool_result') {
       advised(blocks(), c)
     } else if (c.type === 'text' && (sub || !blocks().some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`)))) {
-      blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, ...at })
+      blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, at: d.timestamp ? Date.parse(d.timestamp) : Date.now() })
     }
   }
 }
@@ -766,6 +778,7 @@ function toolResults(agent: Agent, d: Json) {
       agent.worktree = { path: String(result.worktreePath), branch: String(result.worktreeBranch ?? '') }
     if (!d.parent_tool_use_id && call?.name === 'ExitWorktree' && !c.is_error) agent.worktree = null
     if (call && !call.result) for (const data of imagesOf(c.content)) captures.save?.(agent, call, data)
+    if (call && !call.result && !d.parent_tool_use_id && !c.is_error) schedule(agent, call, textOf(c.content))
     if (call)
       call.result = {
         text: textOf(c.content),

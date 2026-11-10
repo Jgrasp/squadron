@@ -18,6 +18,7 @@
   import PanelSettings from './PanelSettings.svelte'
   import ExtensionSettings from './ExtensionSettings.svelte'
   import PluginSettings from './PluginSettings.svelte'
+  import McpServers from './McpServers.svelte'
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
@@ -55,6 +56,7 @@
       [
         ['claude', 'settings.tabClaude'],
         ['plugins', 'settings.tabPlugins'],
+        ['mcp', 'mcp.tab'],
         ['editors', 'settings.tabEditors'],
         ['hosting', 'settings.tabHosting'],
         ['tickets', 'tickets.tab'],
@@ -300,6 +302,8 @@
       <ExtensionSettings />
     {:else if tab === 'plugins'}
       <PluginSettings />
+    {:else if tab === 'mcp'}
+      <McpServers />
     {:else if tab === 'shortcuts'}
       <p class="intro">{t('settings.shortcutsIntro')}</p>
       <ul class="keys">

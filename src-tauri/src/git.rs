@@ -430,6 +430,42 @@ pub fn review_checkout(
     Ok(())
 }
 
+pub fn drop_review_checkout(dir: &Path) -> Result<bool, String> {
+    if !dir.join(".git").is_file()
+        || !run(git(dir).args(["status", "--porcelain"]))?
+            .trim()
+            .is_empty()
+    {
+        return Ok(false);
+    }
+    let committed = run(git(dir).args(["reflog", "--format=%gs", "HEAD"]))?
+        .lines()
+        .any(|l| l.starts_with("commit"));
+    if committed
+        && !run(git(dir).args(["rev-list", "-1", "HEAD", "--not", "--remotes"]))?
+            .trim()
+            .is_empty()
+    {
+        return Ok(false);
+    }
+    let common = run(git(dir).args(["rev-parse", "--path-format=absolute", "--git-common-dir"]))?;
+    let main = Path::new(common.trim()).parent().ok_or("No repository.")?;
+    run(git(main).args(["worktree", "remove", &dir.to_string_lossy()]))?;
+    Ok(true)
+}
+
+pub fn restore_review_checkout(project: &Path, into: &Path, head: &str) -> Result<(), String> {
+    if into.join(".git").exists() {
+        return Ok(());
+    }
+    if head.is_empty() || head.starts_with('-') {
+        return Err("Unknown commit.".into());
+    }
+    let into = into.to_string_lossy();
+    run(git(project).args(["worktree", "add", "--quiet", "--detach", &into, head]))?;
+    Ok(())
+}
+
 fn between(dir: &Path, from: String, now: String) -> Result<Changes, String> {
     let names = diff(dir, &["--name-status", "-z", &from, &now])?;
     let stats = diff(dir, &["--numstat", "-z", &from, &now])?;
@@ -747,5 +783,56 @@ mod tests {
         assert_eq!(sub.files[0].path, "a.php");
         assert!(patch(&dir, "--output=/tmp/x", &found.now, "a").is_err());
         assert!(snapshot(&std::env::temp_dir().join("squadron-not-a-repo")).is_err());
+    }
+
+    #[test]
+    fn a_review_checkout_goes_away_unless_it_holds_changes_or_unpushed_commits() {
+        let root = std::env::temp_dir().join(format!("squadron-review-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let (origin, project) = (root.join("origin"), root.join("project"));
+        fs::create_dir_all(&origin).unwrap();
+        let commit = |dir: &Path, name: &str| {
+            fs::write(dir.join(name), name).unwrap();
+            run(git(dir).args(["add", name])).unwrap();
+            run(git(dir).args([
+                "-c",
+                "user.name=t",
+                "-c",
+                "user.email=t@t",
+                "commit",
+                "-qm",
+                name,
+            ]))
+            .unwrap();
+        };
+        run(git(&origin).args(["init", "-q", "-b", "main"])).unwrap();
+        commit(&origin, "a");
+        run(git(&root).args(["clone", "-q", &origin.to_string_lossy(), "project"])).unwrap();
+        let review = root.join("reviews").join("project-1");
+        fs::create_dir_all(review.parent().unwrap()).unwrap();
+        run(git(&project).args([
+            "worktree",
+            "add",
+            "-q",
+            "--detach",
+            &review.to_string_lossy(),
+            "origin/main",
+        ]))
+        .unwrap();
+
+        fs::write(review.join("a"), "changed").unwrap();
+        assert!(!drop_review_checkout(&review).unwrap());
+        run(git(&review).args(["checkout", "-q", "a"])).unwrap();
+        commit(&review, "fix");
+        assert!(!drop_review_checkout(&review).unwrap());
+        run(git(&review).args(["checkout", "-q", "--detach", "origin/main"])).unwrap();
+        run(git(&project).args(["worktree", "remove", "--force", &review.to_string_lossy()]))
+            .unwrap();
+
+        let head = run(git(&project).args(["rev-parse", "origin/main"])).unwrap();
+        restore_review_checkout(&project, &review, head.trim()).unwrap();
+        assert!(drop_review_checkout(&review).unwrap());
+        assert!(!review.exists());
+        let _ = fs::remove_dir_all(&root);
     }
 }

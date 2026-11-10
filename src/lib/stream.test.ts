@@ -16,7 +16,7 @@ import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?r
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
 import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw'
 import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
-import { apply, calls, exited, fail, flaggedWorktree, newAgent, prompt, replayLog, starting, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
+import { apply, calls, exited, holding, fail, flaggedWorktree, newAgent, prompt, replayLog, starting, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -510,19 +510,22 @@ describe('background work', () => {
     expect(agent.jobs).toEqual(['m1'])
     apply(agent, { type: 'system', subtype: 'task_updated', task_id: 'm1', patch: { status: 'killed' } })
     expect(agent.jobs).toEqual([])
-    apply(agent, {
-      type: 'assistant',
-      message: {
-        id: 'msg',
-        model: 'haiku',
-        content: [
-          { type: 'tool_use', id: 'w1', name: 'ScheduleWakeup', input: { delaySeconds: 600 } },
-          { type: 'tool_use', id: 'w2', name: 'ScheduleWakeup', input: { stop: true } },
-          { type: 'tool_use', id: 'c1', name: 'CronCreate', input: { cron: '*/5 * * * *', prompt: 'check' } },
-        ],
-      },
-    })
-    expect(agent.jobs).toEqual(['w1', 'c1'])
+    const call = (id: string, name: string, input: Record<string, unknown>, text: string) => {
+      apply(agent, { type: 'assistant', message: { id: `m-${id}`, model: 'haiku', content: [{ type: 'tool_use', id, name, input }] } })
+      apply(agent, { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: id, content: text }] } })
+    }
+    call('w1', 'ScheduleWakeup', { delaySeconds: 600 }, 'Next wakeup scheduled for 11:40:00 (in 600s).')
+    call('c1', 'CronCreate', { cron: '*/5 * * * *', prompt: 'check' }, 'Scheduled recurring job 809f73a8 (*/5 * * * *).')
+    call('c2', 'CronCreate', { cron: '7 14 13 10 *', recurring: false, prompt: 'remind' }, 'Scheduled one-shot task e15db44d (7 14 13 10 *).')
+    expect(agent.jobs).toHaveLength(3)
+    expect(holding(agent)).toBe(true)
+    call('w2', 'ScheduleWakeup', { stop: true }, 'Loop stopped — cancelled 1 pending wakeup(s).')
+    call('d1', 'CronDelete', { id: '809f73a8' }, 'Cancelled job 809f73a8.')
+    expect(agent.jobs).toEqual(['cron:e15db44d'])
+    call('d2', 'CronDelete', { id: 'e15db44d' }, 'Cancelled job e15db44d.')
+    expect(holding(agent)).toBe(false)
+    call('w3', 'ScheduleWakeup', { delaySeconds: -120 }, 'Next wakeup scheduled.')
+    expect([agent.jobs.length, holding(agent)]).toEqual([1, false])
     exited(agent, '')
     expect(agent.jobs).toEqual([])
   })

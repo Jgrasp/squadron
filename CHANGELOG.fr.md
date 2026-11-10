@@ -1,5 +1,27 @@
 # Nouveautés
 
+## 0.42.0 · 2026-11-10
+
+### Mémoire
+
+- Un agent qui a fini arrête son processus Claude Code au bout de 15 minutes au lieu d’une heure, avec ses serveurs MCP et les navigateurs qu’ils ont ouverts ; ton prochain message le relance. Une boucle arrêtée, un réveil passé ou un cron supprimé ne le gardent plus en vie.
+- La conversation d’un agent arrêté que tu n’as pas ouvert depuis 15 minutes quitte la mémoire, et se recharge quand tu l’ouvres.
+- Archiver un agent de revue supprime le checkout de sa pull request, sauf s’il contient des modifications ou des commits non poussés ; le restaurer remet en place le commit relu. Les checkouts orphelins sont supprimés au démarrage.
+
+### Serveurs MCP
+
+- Serveurs MCP à la demande : Réglages › Serveurs MCP sort un serveur de la configuration de Claude Code, pour qu’il ne démarre dans aucune session. Un agent le démarre pour lui seul depuis /mcp, ou de lui-même avec l’outil use_mcp quand sa tâche en a besoin, et le retrouve après une relance jusqu’à ce qu’il l’arrête.
+
+### Conversation
+
+- Les notes d’un agent entre ses étapes s’affichent en blocs de réponse avec leur heure.
+- Une réponse plus haute qu’une fois et demie la conversation se termine par un bouton « Haut de page ».
+- Le champ de réponse à la question d’un agent passe à la ligne et grandit avec le texte ; Maj+Entrée crée une nouvelle ligne.
+
+### Archives
+
+- La liste des agents archivés s’ouvre vite : elle ne lit que l’en-tête de chaque agent, et la fenêtre d’archives charge l’historique de l’agent affiché.
+
 ## 0.41.0 · 2026-11-10
 
 ### Conversation

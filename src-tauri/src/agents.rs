@@ -7,7 +7,7 @@ use std::path::PathBuf;
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
-use tauri::{AppHandle, Emitter};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub const NOT_FOUND: &str = "claude-not-found";
 
@@ -22,6 +22,7 @@ struct Agent {
     worktree: Option<String>,
     dir: Option<PathBuf>,
     stale: bool,
+    servers: Vec<String>,
 }
 
 #[derive(Default)]
@@ -114,6 +115,7 @@ impl Agents {
                 worktree: None,
                 dir: None,
                 stale: false,
+                servers: Vec::new(),
             });
         Ok(())
     }
@@ -126,6 +128,27 @@ impl Agents {
         }
         let mut list = self.list.lock().unwrap();
         list.get_mut(id).ok_or("Unknown agent.")?.dir = dir;
+        Ok(())
+    }
+
+    /// Keeps the on-demand MCP servers an agent uses and gives them to its process now and at each start.
+    pub fn set_servers(
+        &self,
+        id: &str,
+        names: Vec<String>,
+        configs: serde_json::Map<String, serde_json::Value>,
+    ) -> Result<(), String> {
+        let mut list = self.list.lock().unwrap();
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        agent.servers = names;
+        if let Some(session) = agent.session.as_mut().filter(|s| s.alive()) {
+            session
+                .request(
+                    "mcp:set",
+                    serde_json::json!({"subtype": "mcp_set_servers", "servers": configs}),
+                )
+                .map_err(|e| e.to_string())?;
+        }
         Ok(())
     }
 
@@ -485,6 +508,15 @@ fn spawn(
     })?;
     let mut session = session;
     let _ = session.control(serde_json::json!({"subtype": "initialize"}));
+    if !agent.servers.is_empty() {
+        let configs = app
+            .state::<crate::ondemand::OnDemand>()
+            .configs(&agent.servers);
+        let _ = session.request(
+            "mcp:set",
+            serde_json::json!({"subtype": "mcp_set_servers", "servers": configs}),
+        );
+    }
     agent.session = Some(session);
     Ok(())
 }

@@ -12,11 +12,12 @@ pub mod extensions;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
+mod ondemand;
 pub mod permissions;
 pub mod pilot;
 pub mod plugins;
 pub mod preview;
-pub mod process;
+mod process;
 pub mod projects;
 pub mod sessions;
 pub mod stored;
@@ -1052,6 +1053,57 @@ async fn review_checkout(
     .map_err(|e| e.to_string())?
 }
 
+fn reviews_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("reviews"))
+}
+
+#[tauri::command]
+async fn drop_review_checkout(app: AppHandle, dir: PathBuf) -> Result<bool, String> {
+    if dir.parent() != Some(reviews_dir(&app)?.as_path()) {
+        return Ok(false);
+    }
+    tauri::async_runtime::spawn_blocking(move || git::drop_review_checkout(&dir))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn prune_review_checkouts(app: AppHandle, keep: Vec<PathBuf>) -> Result<usize, String> {
+    let root = reviews_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok(list) = std::fs::read_dir(&root) else {
+            return 0;
+        };
+        list.flatten()
+            .map(|e| e.path())
+            .filter(|p| !keep.contains(p) && git::drop_review_checkout(p).unwrap_or(false))
+            .count()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn restore_review_checkout(
+    app: AppHandle,
+    project: PathBuf,
+    dir: PathBuf,
+    head: String,
+) -> Result<(), String> {
+    if dir.parent() != Some(reviews_dir(&app)?.as_path()) {
+        return Err("Not a review checkout.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        git::restore_review_checkout(&project, &dir, &head)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn pull_changes(
     dir: PathBuf,
@@ -1328,6 +1380,17 @@ fn restore_agent(
         Some(at) => agents.fork_at(&id, &at),
         None => Ok(()),
     }
+}
+
+#[tauri::command]
+fn set_agent_servers(
+    agents: State<Agents>,
+    on_demand: State<ondemand::OnDemand>,
+    id: String,
+    names: Vec<String>,
+) -> Result<(), String> {
+    let configs = on_demand.configs(&names);
+    agents.set_servers(&id, names, configs)
 }
 
 #[tauri::command]
@@ -1749,14 +1812,20 @@ fn delete_archived(app: AppHandle, files: State<AgentFiles>, id: String) -> Resu
 }
 
 #[tauri::command]
-fn list_archived(files: State<AgentFiles>) -> Vec<String> {
-    let Ok(dir) = std::fs::read_dir(files.0.join("archived")) else {
-        return Vec::new();
-    };
-    dir.filter_map(Result::ok)
-        .filter(|e| e.path().extension().is_some_and(|x| x == "json"))
-        .filter_map(|e| std::fs::read_to_string(e.path()).ok())
-        .collect()
+async fn list_archived(files: State<'_, AgentFiles>) -> Result<Vec<String>, String> {
+    Ok(spread(&json_files(&files.0.join("archived")), |p| {
+        stored::header(&std::fs::read_to_string(p).ok()?)
+    }))
+}
+
+#[tauri::command]
+async fn archived_entries(
+    files: State<'_, AgentFiles>,
+    id: String,
+) -> Result<tauri::ipc::Response, String> {
+    let text = std::fs::read_to_string(files.archived(&id)?).map_err(|e| e.to_string())?;
+    let entries = stored::entries(&text).ok_or("The agent's history could not be read.")?;
+    Ok(tauri::ipc::Response::new(entries.into_bytes()))
 }
 
 #[tauri::command]
@@ -2301,6 +2370,12 @@ pub fn run() {
             restore_archived,
             delete_archived,
             list_archived,
+            ondemand::mcp_servers,
+            ondemand::mcp_on_demand,
+            ondemand::mcp_everywhere,
+            ondemand::mcp_describe,
+            set_agent_servers,
+            archived_entries,
             add_rule,
             answer_permission,
             pilot_reply,
@@ -2345,6 +2420,9 @@ pub fn run() {
             linked_pull,
             numbered_pull,
             review_checkout,
+            drop_review_checkout,
+            prune_review_checkouts,
+            restore_review_checkout,
             changed_files,
             review_lines,
             pull_changes,
@@ -2467,6 +2545,7 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            app.manage(ondemand::OnDemand::load(config.join("mcp-on-demand.json")));
             app.manage(FoundCache::default());
             let root = app.path().app_data_dir()?.join("artifacts");
             let _ = std::fs::create_dir_all(&root);

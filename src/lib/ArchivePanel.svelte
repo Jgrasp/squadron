@@ -4,7 +4,8 @@
   import Conversation from './Conversation.svelte'
   import Dialog from './Dialog.svelte'
   import { projects, type Project } from './projects.svelte'
-  import { newAgent } from './stream'
+  import { invoke } from '@tauri-apps/api/core'
+  import { newAgent, type Entry } from './stream'
   import { date, errorText, t } from './i18n/index.svelte'
 
   let { project, onclose }: { project: Project; onclose: () => void } = $props()
@@ -22,8 +23,21 @@
 
   const shown = $derived((list ?? []).filter((a) => a.name.toLowerCase().includes(search.trim().toLowerCase())))
   const current = $derived(list?.find((a) => a.id === chosen))
-  const preview = $derived(current && { ...newAgent(current.id, current.project, current.name, current.options), ...current, asks: [], alive: false })
-  const messages = (a: Archived) => a.entries.filter((e) => e.kind === 'user').length
+  let history = $state.raw<{ id: string; entries: Entry[] } | null>(null)
+  $effect(() => {
+    const id = chosen
+    if (!id || history?.id === id) return
+    invoke<ArrayBuffer | string>('archived_entries', { id })
+      .then((raw) => {
+        if (chosen === id) history = { id, entries: JSON.parse(typeof raw === 'string' ? raw : new TextDecoder().decode(raw)) }
+      })
+      .catch((e) => (error = errorText(e)))
+  })
+  const preview = $derived(
+    current &&
+      history?.id === current.id && { ...newAgent(current.id, current.project, current.name, current.options), ...current, entries: history.entries, asks: [], alive: false },
+  )
+  const messages = (a: Archived) => a.stored?.users ?? 0
   const when = (at?: number) =>
     at ? date(at, { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '—'
 

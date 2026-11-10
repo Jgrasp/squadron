@@ -1,0 +1,18 @@
+export default {
+  tab: 'MCP servers',
+  intro: 'A server on demand starts in no session. An agent starts it for itself with /mcp, or on its own when its task needs it, and keeps it after a restart until it stops it.',
+  onDemand: 'On demand',
+  everywhere: 'In every session',
+  everywhereIntro: "Claude Code starts these servers in every session of every agent, from its user configuration.",
+  toOnDemand: 'Start on demand',
+  toEverywhere: 'Start everywhere',
+  description: 'What it is for, so that agents know when to start it',
+  noneOnDemand: 'No server on demand yet.',
+  noneEverywhere: "No server in Claude Code's user configuration.",
+  hintOff: 'on demand · off',
+  hintOn: 'on demand · on',
+  start: 'Start for this agent',
+  stop: 'Stop for this agent',
+  started: '{server} starts for this agent.',
+  stopped: '{server} is stopped for this agent.',
+}

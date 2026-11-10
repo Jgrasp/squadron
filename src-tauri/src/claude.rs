@@ -10,6 +10,7 @@ use std::thread;
 pub static COMPACT_WINDOW: AtomicU32 = AtomicU32::new(0);
 pub static CAPTURES: OnceLock<PathBuf> = OnceLock::new();
 pub static EXTENSION_ARGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+pub static ON_DEMAND: Mutex<String> = Mutex::new(String::new());
 
 pub const TESTED_VERSION: &str = "2.1.304";
 
@@ -17,7 +18,7 @@ const PROMPT: &str = "You run inside Squadron, a desktop app that shows your rep
 
 #[tauri::command]
 pub fn squadron_prompt_size() -> usize {
-    PROMPT.len()
+    PROMPT.len() + ON_DEMAND.lock().unwrap().len()
 }
 
 const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
@@ -129,8 +130,13 @@ pub fn command(
             "--permission-mode",
             &options.mode,
             "--append-system-prompt",
-            PROMPT,
         ]);
+    let extra = ON_DEMAND.lock().unwrap().clone();
+    if mcp.is_some() && !extra.is_empty() {
+        cmd.arg(format!("{PROMPT} {extra}"));
+    } else {
+        cmd.arg(PROMPT);
+    }
     if let Some(dir) = CAPTURES.get() {
         cmd.env("SQUADRON_CAPTURES", dir);
     }

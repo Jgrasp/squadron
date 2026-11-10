@@ -13,7 +13,7 @@
   import Viewer from './lib/Viewer.svelte'
   import Password from './lib/Password.svelte'
   import { loadSettings, settings, shortcut } from './lib/settings.svelte'
-  import { agents, archiveIdle, closeAll, create, find, rescan, restore, selected, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
+  import { agents, archiveIdle, closeAll, create, find, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
@@ -113,7 +113,7 @@
       boot.agents = agents.list.length
       trackHistory()
       archiveIdle()
-      setInterval(() => (rescan(), archiveIdle(), sleepIdle()), 15_000)
+      setInterval(() => (rescan(), archiveIdle(), sleepIdle(), shelveHidden()), 15_000)
       finished.then(showChangelogOnce)
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)

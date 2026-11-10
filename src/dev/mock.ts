@@ -27,6 +27,10 @@ const groups: Group[] = JSON.parse(localStorage.getItem('groups') ?? 'null') ?? 
   ? [{ id: 'g-clients', name: 'Clients', parent: '' }, { id: 'g-ring', name: 'Ring', parent: 'g-clients' }, { id: 'g-tools', name: 'Outils', parent: '' }]
   : [])
 const saveGroups = () => localStorage.setItem('groups', JSON.stringify(groups))
+const mockMcp = {
+  on_demand: [{ name: 'sentry', description: 'Production errors of the shop', command: 'npx @sentry/mcp-server' }],
+  everywhere: [{ name: 'chrome-devtools', description: '', command: 'npx chrome-devtools-mcp' }],
+}
 const label = location.search.includes('board') ? 'board' : location.search.includes('path=') ? 'file-mock' : location.search.includes('agent=') ? 'artifacts-mock' : 'main'
 const channel = new BroadcastChannel('squadron-events')
 channel.onmessage = ({ data }) => data.target === label && emit(data.event, data.payload)
@@ -773,7 +777,31 @@ mockIPC(
               .join('\n'),
           }))
       case 'list_archived':
-        return Object.keys(localStorage).filter((k) => k.startsWith('archived:')).map((k) => localStorage.getItem(k))
+        return Object.keys(localStorage)
+          .filter((k) => k.startsWith('archived:'))
+          .map((k) => {
+            const { entries = [], ...head } = JSON.parse(localStorage.getItem(k) ?? '{}')
+            const stored = { count: entries.length, created: entries.find((e: { at?: number }) => e.at)?.at ?? null, users: entries.filter((e: { kind: string }) => e.kind === 'user').length }
+            return JSON.stringify({ ...head, stored })
+          })
+      case 'mcp_servers':
+        return mockMcp
+      case 'mcp_on_demand':
+      case 'mcp_everywhere': {
+        const [from, to] = cmd === 'mcp_on_demand' ? [mockMcp.everywhere, mockMcp.on_demand] : [mockMcp.on_demand, mockMcp.everywhere]
+        const server = from.splice(from.findIndex((s) => s.name === a.name), 1)[0]
+        if (server) to.push(server)
+        return null
+      }
+      case 'mcp_describe': {
+        const server = mockMcp.on_demand.find((s) => s.name === a.name)
+        if (server) server.description = a.description
+        return null
+      }
+      case 'set_agent_servers':
+        return null
+      case 'archived_entries':
+        return JSON.stringify(JSON.parse(localStorage.getItem(`archived:${a.id}`) ?? '{}').entries ?? [])
       case 'restore_archived': {
         const data = localStorage.getItem(`archived:${a.id}`)
         localStorage.removeItem(`archived:${a.id}`)

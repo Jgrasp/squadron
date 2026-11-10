@@ -251,7 +251,42 @@ import { fences } from './codepaste'
     return at > agent.entries.findLastIndex((e) => e.kind === 'user') ? at : -1
   })
   const working = $derived(agent.status === 'working' && !agent.held)
+
+  const tall = new SvelteSet<string>()
+
+  function measure(el: HTMLElement, key: string) {
+    const scroller = el.closest<HTMLElement>('.scroller')
+    if (!scroller) return
+    const check = () => (el.offsetHeight > scroller.clientHeight * 1.5 ? tall.add(key) : tall.delete(key))
+    const watch = new ResizeObserver(check)
+    watch.observe(el)
+    watch.observe(scroller)
+    return {
+      update(next: string) {
+        tall.delete(key)
+        key = next
+        check()
+      },
+      destroy() {
+        watch.disconnect()
+        tall.delete(key)
+      },
+    }
+  }
+
+  function toTop(event: MouseEvent) {
+    const el = (event.currentTarget as HTMLElement).closest<HTMLElement>('.agent')
+    const scroller = el?.closest<HTMLElement>('.scroller')
+    if (!el || !scroller) return
+    scroller.scrollTo({ top: scroller.scrollTop + el.getBoundingClientRect().top - scroller.getBoundingClientRect().top - 18, behavior: 'smooth' })
+  }
 </script>
+
+{#snippet back(key: string)}
+  {#if tall.has(key)}
+    <div class="back"><button class="btn btn-ghost" type="button" onclick={toTop}><Icon name="arrow-up" size={12} />{t('conversation.backToTop')}</button></div>
+  {/if}
+{/snippet}
 
 {#snippet musing(thought: string, ms: number | undefined)}
   <div class="musing" class:now={ms === undefined}>
@@ -349,7 +384,7 @@ import { fences } from './codepaste'
         {@const after = reply[g + 1]}
         <PluginLine {agent} call={group.call} use={group.use} first={before?.type !== 'plugin' || before.use.plugin !== group.use.plugin} last={after?.type !== 'plugin' || after.use.plugin !== group.use.plugin} />
       {:else if settings.steps === 'detailed'}
-        <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(group.segments))} role="presentation">{@render detail(group.segments, i, tail, false)}</div>
+        <div class="agent" use:measure={`${i}.${g}`} oncontextmenu={(e) => openMenu(e, i, answer(group.segments))} role="presentation">{@render detail(group.segments, i, tail, false)}{@render back(`${i}.${g}`)}</div>
       {:else}
         {@const parts = split(group.segments)}
         {@const live = working && i === lastAgent && g === reply.length - 1}
@@ -358,7 +393,11 @@ import { fences } from './codepaste'
           {#if !Array.isArray(chunk) && 'thought' in chunk}
             {@render musing(chunk.thought, chunk.ms)}
           {:else if !Array.isArray(chunk)}
-            <div class="remark"><Markdown text={chunk.text} streaming={!!tail && chunk === tail} cards project={agent.project} {onrun} /></div>
+            <div class="agent" use:measure={`${i}.${g}.${c}`} oncontextmenu={(e) => openMenu(e, i, chunk.text)} role="presentation">
+              {#if chunk.at}<span class="stamp">{time(chunk.at)}</span>{/if}
+              <Markdown text={chunk.text} streaming={!!tail && chunk === tail} cards project={agent.project} {onrun} />
+              {@render back(`${i}.${g}.${c}`)}
+            </div>
           {:else if chunk.length || (live && !parts.answer.length)}
             <details class="steps" class:live={live && c === chunks.length - 1}>
               <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span><Shots paths={shotsOf(chunk)} /></summary>
@@ -367,7 +406,7 @@ import { fences } from './codepaste'
           {/if}
         {/each}
         {#if parts.answer.length}
-          <div class="agent" oncontextmenu={(e) => openMenu(e, i, answer(parts.answer))} role="presentation">{@render detail(parts.answer, i, tail, false)}</div>
+          <div class="agent" use:measure={`${i}.${g}.a`} oncontextmenu={(e) => openMenu(e, i, answer(parts.answer))} role="presentation">{@render detail(parts.answer, i, tail, false)}{@render back(`${i}.${g}.a`)}</div>
         {/if}
       {/if}
     {/each}
@@ -832,6 +871,20 @@ import { fences } from './codepaste'
     display: none;
   }
 
+  .back {
+    display: flex;
+    justify-content: flex-end;
+    padding-top: 12px;
+    border-top: 1px solid var(--border);
+  }
+
+  .back .btn {
+    height: 28px;
+    gap: 6px;
+    padding: 0 11px;
+    font-size: 12.5px;
+  }
+
   .thought,
   summary {
     display: flex;
@@ -865,11 +918,10 @@ import { fences } from './codepaste'
     color: var(--text-muted);
   }
 
-  .remark {
-    padding: 2px 0 2px 14px;
-    border-left: 2px solid var(--text-dim);
-    font-size: 13.5px;
-    color: var(--text-2);
+  .stamp {
+    margin-bottom: -8px;
+    font: 11.5px var(--mono);
+    color: var(--text-dim);
   }
 
   .musing.now {

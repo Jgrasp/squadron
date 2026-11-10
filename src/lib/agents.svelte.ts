@@ -29,6 +29,7 @@ import {
   fail,
   flaggedWorktree,
   GOAL_RELAUNCHES,
+  holding,
   created,
   newAgent,
   notice,
@@ -261,7 +262,7 @@ export async function closeAll() {
   await saveAll()
 }
 
-const IDLE = 60 * 60_000
+const IDLE = 15 * 60_000
 
 export function sleepIdle() {
   for (const agent of agents.list)
@@ -271,10 +272,40 @@ export function sleepIdle() {
       !agent.asks.length &&
       !agent.held &&
       !agent.remote &&
-      !agent.jobs.length &&
+      !holding(agent) &&
       Date.now() - agent.since > IDLE
     )
       invoke('sleep_agent', { id: agent.id }).catch(() => {})
+}
+
+const seen = new Map<string, number>()
+
+const shelvable = (agent: Agent) => {
+  const now = Date.now()
+  return (
+    !agent.alive &&
+    !onDisk.has(agent.id) &&
+    agent.entries.length > 0 &&
+    !Object.values(agents.current).includes(agent.id) &&
+    !timers.has(agent.id) &&
+    !writes.has(agent.id) &&
+    !loading.has(agent.id) &&
+    now - agent.since > IDLE &&
+    now - (seen.get(agent.id) ?? 0) > IDLE
+  )
+}
+
+export function shelveHidden() {
+  for (const id of Object.values(agents.current)) seen.set(id, Date.now())
+  for (const agent of agents.list)
+    if (shelvable(agent))
+      save(agent).then(() => {
+        if (!shelvable(agent)) return
+        agent.stored = { count: agent.entries.length, created: created(agent) || null }
+        agent.entries = []
+        agent.subagents = agent.subagents.map((s) => ({ ...s, log: [] }))
+        onDisk.add(agent.id)
+      }, () => {})
 }
 
 export const shownAgent = () => (projects.overview ? undefined : agents.current[projects.current])
@@ -315,6 +346,7 @@ export async function rescan() {
 export async function restore() {
   try {
     await adoptSaved()
+    invoke('prune_review_checkouts', { keep: agents.list.flatMap((a) => (a.worktree ? [a.worktree.path] : [])) }).catch(() => {})
   } finally {
     scanning = false
   }
@@ -416,6 +448,7 @@ async function adopt(data: Agent) {
     at: agent.forkOf ? agent.forkAt : null,
     dir: agent.worktree?.path ?? null,
   }).catch((e) => fail(find(agent.id)!, String(e)))
+  if (agent.onDemand?.length) await invoke('set_agent_servers', { id: agent.id, names: agent.onDemand }).catch(() => {})
   if (wanted) ensureLoaded(moved).finally(() => remote(agent.id, true))
 }
 
@@ -484,6 +517,8 @@ export async function archived() {
 
 export async function unarchive(id: string) {
   const { archived, withProject, ...data } = JSON.parse(await invoke<string>('restore_archived', { id })) as Archived
+  if (data.review?.head && data.worktree?.path)
+    await invoke('restore_review_checkout', { project: data.review.project, dir: data.worktree.path, head: data.review.head }).catch(() => {})
   await adopt(data)
   agents.current[data.project] = data.id
 }
@@ -834,6 +869,13 @@ export function mcpAct(id: string, server: Server) {
   invoke('mcp_request', { id, requestId: `mcp:${auth ? 'auth' : 'reconnect'}:${server.name}`, request }).catch((e) => note(id, '/mcp', errorText(e)))
 }
 
+export async function useServer(agent: Agent, name: string, on: boolean) {
+  const names = [...new Set([...(agent.onDemand ?? []).filter((n) => n !== name), ...(on ? [name] : [])])]
+  agent.onDemand = names.length ? names : undefined
+  persist(agent)
+  await invoke('set_agent_servers', { id: agent.id, names })
+}
+
 export function mcpToggle(id: string, server: string, enabled: boolean) {
   const request = { subtype: 'mcp_toggle', serverName: server, enabled }
   invoke('mcp_request', { id, requestId: `mcp:${enabled ? 'enable' : 'disable'}:${server}`, request }).catch((e) => note(id, '/mcp', errorText(e)))
@@ -846,10 +888,14 @@ const MCP_DONE: Record<string, Key> = {
   disable: 'conversation.mcpDisabled',
 }
 
-function mcpAnswered(id: string, answer: { request_id: string; subtype: string; error?: string; response?: { mcpServers?: Server[]; authUrl?: string } }) {
+function mcpAnswered(id: string, answer: { request_id: string; subtype: string; error?: string; response?: { mcpServers?: Server[]; authUrl?: string; errors?: Record<string, string> } }) {
   const [, kind, ...rest] = answer.request_id.split(':')
   const server = rest.join(':')
   if (answer.subtype === 'error') return note(id, '/mcp', server ? `${server} · ${answer.error}` : String(answer.error))
+  if (kind === 'set') {
+    for (const [name, error] of Object.entries(answer.response?.errors ?? {})) note(id, '/mcp', `${name} · ${error}`)
+    return mcpStatus(id)
+  }
   if (kind === 'status') servers[id] = answer.response?.mcpServers ?? []
   else if (answer.response?.authUrl) {
     invoke('open_link', { url: answer.response.authUrl })
@@ -941,6 +987,7 @@ export async function fork(id: string, upTo?: number) {
     if (resumes) await invoke('fork_agent', { id: agent.id, from: id, project: agent.project, options: agent.options, at: point.at })
     else await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: null, fork: false, at: null, dir: null })
     if (agent.worktree) await invoke('set_workdir', { id: agent.id, dir: agent.worktree.path })
+    if (agent.onDemand?.length) await invoke('set_agent_servers', { id: agent.id, names: agent.onDemand })
   } catch (e) {
     fail(agent, String(e))
   }
@@ -964,6 +1011,8 @@ export async function archive(id: string, extra: Record<string, unknown> = {}) {
   if (agent) await save(agent, { archived: Date.now(), remote: null, ...extra })
   await invoke('archive_agent_file', { id }).catch(() => invoke('delete_agent_file', { id }))
   agents.list = agents.list.filter((a) => a.id !== id)
+  const dir = agent?.worktree?.path
+  if (dir && !agents.list.some((a) => a.worktree?.path === dir)) invoke('drop_review_checkout', { dir }).catch(() => {})
 }
 
 export async function archiveProject(project: string) {

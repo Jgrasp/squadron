@@ -2,7 +2,8 @@
   import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, VALUES, type Server } from './agents.svelte'
+  import { archive, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, useServer, VALUES, type Server } from './agents.svelte'
+  import { loadServers, mcp, type Listed } from './ondemand.svelte'
   import { claudeConfig, labelOf as settingLabel, loadSettings, TERMINAL } from './claudeConfig.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
@@ -313,13 +314,14 @@
     const choices = options(command, catalogOf(agent))
       .filter((o) => `${o.value} ${o.label ?? ''}`.toLowerCase().includes(stage.query))
       .map((o) => ({ value: o.value, label: o.label ?? o.value, detail: o.detail, hint: o.label ? o.value : undefined, text: `/${command.name} ${o.value} ` }))
-    if (command.name !== 'mcp' || !servers[agent.id]) return choices
-    return [...servers[agent.id].filter((s) => s.name.toLowerCase().includes(stage.query)).map(serverItem), ...choices]
+    if (command.name !== 'mcp') return choices
+    const live = (servers[agent.id] ?? []).filter((s) => !mcp.onDemand.some((o) => o.name === s.name) && s.name.toLowerCase().includes(stage.query))
+    return [...live.map(serverItem), ...mcp.onDemand.filter((s) => s.name.toLowerCase().includes(stage.query)).map(onDemandItem), ...choices]
   })
   const staged = $derived(stage?.command?.name)
   $effect(() => {
     if (staged === 'config') untrack(loadSettings)
-    if (staged === 'mcp') untrack(() => mcpStatus(agent.id))
+    if (staged === 'mcp') untrack(() => (mcpStatus(agent.id), loadServers().catch(() => {})))
   })
   $effect(() => {
     if (agent.status === 'interrupted') composer?.focus()
@@ -360,6 +362,22 @@
       detail: off ? undefined : [server.error, t(server.status === 'needs-auth' ? 'agent.mcpAuthorize' : 'agent.mcpReconnect')].filter(Boolean).join(' · '),
       text: off ? `/mcp enable ${server.name} ` : '',
       action: off ? undefined : () => mcpAct(agent.id, server),
+    }
+  }
+  function onDemandItem(server: Listed): Item {
+    const on = !!agent.onDemand?.includes(server.name)
+    return {
+      value: server.name,
+      label: server.name,
+      hint: t(on ? 'mcp.hintOn' : 'mcp.hintOff'),
+      tone: on ? 'ok' : undefined,
+      detail: [server.description, t(on ? 'mcp.stop' : 'mcp.start')].filter(Boolean).join(' · '),
+      text: '',
+      action: () =>
+        useServer(agent, server.name, !on).then(
+          () => note(agent.id, '/mcp', t(on ? 'mcp.stopped' : 'mcp.started', { server: server.name })),
+          (e) => note(agent.id, '/mcp', errorText(e)),
+        ),
     }
   }
   const sections = $derived(
