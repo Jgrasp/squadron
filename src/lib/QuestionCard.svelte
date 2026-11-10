@@ -34,6 +34,12 @@
     answer(agent, ask, Object.fromEntries(questions.map((q) => [q.question, reply(q)])))
   }
 
+  const fit = (value: () => string | undefined) => (field: HTMLTextAreaElement) => {
+    value()
+    field.style.height = 'auto'
+    field.style.height = `${field.scrollHeight + 2}px`
+  }
+
   function keys(event: KeyboardEvent) {
     if (!simple || (event.target as HTMLElement).closest('input, textarea, [contenteditable]')) return
     const option = questions[0].options[Number(event.key) - 1]
@@ -54,14 +60,21 @@
 {#snippet ownField(q: Question)}
   <div class="own">
     <svg class="pen" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 20h4L19 9l-4-4L4 16v4zM14 6l4 4" /></svg>
-    <input
+    <textarea
+      rows="1"
       class:on={own[q.question]?.trim()}
       placeholder={t('agent.ownAnswer')}
       aria-label={t('agent.ownAnswer')}
       value={own[q.question] ?? ''}
+      {@attach fit(() => own[q.question])}
       oninput={(e) => (own[q.question] = e.currentTarget.value)}
-      onkeydown={(e) => e.key === 'Enter' && send()}
-    />
+      onkeydown={(e) => {
+        if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
+          e.preventDefault()
+          send()
+        }
+      }}
+    ></textarea>
     {#if own[q.question]}
       <button class="clear" aria-label={t('agent.clearOwnAnswer')} title={t('agent.clearOwnAnswer')} onclick={() => (own[q.question] = '')}>×</button>
     {/if}
@@ -341,9 +354,8 @@
 
   .pen {
     position: absolute;
-    top: 50%;
+    top: 14px;
     left: 18px;
-    transform: translateY(-50%);
     fill: none;
     stroke: var(--wait-muted);
     stroke-width: 2;
@@ -352,24 +364,27 @@
     pointer-events: none;
   }
 
-  .own input {
+  .own textarea {
     flex: 1;
     min-height: 42px;
-    padding: 0 36px 0 48px;
+    max-height: 240px;
+    padding: 10px 36px 10px 48px;
     border: 1px solid var(--wait-border);
     border-radius: 4px;
     background: color-mix(in srgb, var(--wait-bg), black 30%);
     color: var(--wait-text);
     font: inherit;
+    line-height: 20px;
     outline: none;
+    resize: none;
   }
 
-  .own input::placeholder {
+  .own textarea::placeholder {
     color: var(--wait-muted);
   }
 
-  .own input:focus,
-  .own input.on {
+  .own textarea:focus,
+  .own textarea.on {
     border-color: var(--accent);
     box-shadow: 0 0 0 1px var(--accent);
   }
@@ -380,11 +395,10 @@
 
   .clear {
     position: absolute;
-    top: 50%;
+    top: 9px;
     right: 6px;
     width: 24px;
     height: 24px;
-    transform: translateY(-50%);
     border-radius: 3px;
     color: var(--wait-muted);
     font-size: 18px;
