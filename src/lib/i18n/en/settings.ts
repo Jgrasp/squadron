@@ -39,7 +39,7 @@ export default {
   ringSound: 'Shake and chime',
   ringSoundHint: 'A short chime too, each time an agent starts waiting',
   stepsGrouped: 'Grouped',
-  stepsGroupedHint: 'One line per reply for the thinking, the notes and the commands; the answer stands on its own',
+  stepsGroupedHint: 'One line per reply for the thinking and the commands; the notes and the answer stand on their own',
   stepsDetailed: 'In full',
   stepsDetailedHint: 'Every thought, note and command in the flow of the conversation',
   thinkingHidden: 'Hidden',

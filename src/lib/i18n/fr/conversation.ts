@@ -50,7 +50,6 @@ export default {
   editedFiles: { one: 'a modifié un fichier', other: 'a modifié {count} fichiers' },
   lookedUp: { one: 'a cherché sur le web', other: 'a fait {count} recherches web' },
   usedTools: { one: 'a utilisé un outil', other: 'a utilisé {count} outils' },
-  notes: { one: '{count} note', other: '{count} notes' },
   liveSteps: '{now} · {steps}',
   steps: 'Étapes',
   thoughtMoment: 'A réfléchi un instant',
