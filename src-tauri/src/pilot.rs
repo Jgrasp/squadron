@@ -97,6 +97,15 @@ struct SetPinned {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct UseMcp {
+    /// The name of an MCP server that Squadron keeps off until an agent needs it, as your instructions list them.
+    server: String,
+    /// true to start it for you, false to stop it once you no longer need it.
+    on: bool,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct SetTitle {
     /// The new name of the agent, short, as shown in the agent list and the conversation header.
     title: String,
@@ -377,6 +386,16 @@ impl Pilot {
         Parameters(args): Parameters<SetPinned>,
     ) -> String {
         self.forward(&parts, "set_pinned", json!(args)).await
+    }
+
+    /// Starts or stops, for you only, an MCP server that Squadron keeps off until an agent needs it. Once it is on, load its tools with ToolSearch. Other agents and later sessions of other agents are not affected; Squadron starts it again for you after a restart until you stop it.
+    #[tool]
+    async fn use_mcp(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<UseMcp>,
+    ) -> String {
+        self.forward(&parts, "use_mcp", json!(args)).await
     }
 
     /// Renames an agent, yourself by default, as the user does by hand: the new name shows in the agent list and the conversation header. Use it when the task turns out to be something else than the current name says.

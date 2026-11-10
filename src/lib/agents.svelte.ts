@@ -448,6 +448,7 @@ async function adopt(data: Agent) {
     at: agent.forkOf ? agent.forkAt : null,
     dir: agent.worktree?.path ?? null,
   }).catch((e) => fail(find(agent.id)!, String(e)))
+  if (agent.onDemand?.length) await invoke('set_agent_servers', { id: agent.id, names: agent.onDemand }).catch(() => {})
   if (wanted) ensureLoaded(moved).finally(() => remote(agent.id, true))
 }
 
@@ -868,6 +869,13 @@ export function mcpAct(id: string, server: Server) {
   invoke('mcp_request', { id, requestId: `mcp:${auth ? 'auth' : 'reconnect'}:${server.name}`, request }).catch((e) => note(id, '/mcp', errorText(e)))
 }
 
+export async function useServer(agent: Agent, name: string, on: boolean) {
+  const names = [...new Set([...(agent.onDemand ?? []).filter((n) => n !== name), ...(on ? [name] : [])])]
+  agent.onDemand = names.length ? names : undefined
+  persist(agent)
+  await invoke('set_agent_servers', { id: agent.id, names })
+}
+
 export function mcpToggle(id: string, server: string, enabled: boolean) {
   const request = { subtype: 'mcp_toggle', serverName: server, enabled }
   invoke('mcp_request', { id, requestId: `mcp:${enabled ? 'enable' : 'disable'}:${server}`, request }).catch((e) => note(id, '/mcp', errorText(e)))
@@ -880,10 +888,14 @@ const MCP_DONE: Record<string, Key> = {
   disable: 'conversation.mcpDisabled',
 }
 
-function mcpAnswered(id: string, answer: { request_id: string; subtype: string; error?: string; response?: { mcpServers?: Server[]; authUrl?: string } }) {
+function mcpAnswered(id: string, answer: { request_id: string; subtype: string; error?: string; response?: { mcpServers?: Server[]; authUrl?: string; errors?: Record<string, string> } }) {
   const [, kind, ...rest] = answer.request_id.split(':')
   const server = rest.join(':')
   if (answer.subtype === 'error') return note(id, '/mcp', server ? `${server} · ${answer.error}` : String(answer.error))
+  if (kind === 'set') {
+    for (const [name, error] of Object.entries(answer.response?.errors ?? {})) note(id, '/mcp', `${name} · ${error}`)
+    return mcpStatus(id)
+  }
   if (kind === 'status') servers[id] = answer.response?.mcpServers ?? []
   else if (answer.response?.authUrl) {
     invoke('open_link', { url: answer.response.authUrl })
@@ -975,6 +987,7 @@ export async function fork(id: string, upTo?: number) {
     if (resumes) await invoke('fork_agent', { id: agent.id, from: id, project: agent.project, options: agent.options, at: point.at })
     else await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: null, fork: false, at: null, dir: null })
     if (agent.worktree) await invoke('set_workdir', { id: agent.id, dir: agent.worktree.path })
+    if (agent.onDemand?.length) await invoke('set_agent_servers', { id: agent.id, names: agent.onDemand })
   } catch (e) {
     fail(agent, String(e))
   }

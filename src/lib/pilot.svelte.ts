@@ -3,7 +3,8 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, waitingFor, type Elsewhere } from './agents.svelte'
+import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, useServer, waitingFor, type Elsewhere } from './agents.svelte'
+import { loadServers } from './ondemand.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
@@ -178,6 +179,18 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     pin(target.id, args.pinned)
     const who = target === caller ? 'You are' : `${target.name} is`
     return args.pinned ? `${who} pinned at the top of the agent list.` : `${who} no longer pinned.`
+  },
+
+  use_mcp: async (caller, args) => {
+    const name = String(args.server ?? '')
+    const { on_demand } = await loadServers()
+    if (!on_demand.some((s) => s.name === name))
+      throw new Error(`No on-demand MCP server “${name}”. Servers: ${on_demand.map((s) => s.name).join(', ') || 'none'}.`)
+    if (typeof args.on !== 'boolean') throw new Error('on must be true or false.')
+    await useServer(caller, name, args.on)
+    return args.on
+      ? `${name} is starting for you. Load its tools with ToolSearch (query "${name}"); they stay available after a restart until you stop it.`
+      : `${name} is stopped for you.`
   },
 
   set_title: (caller, args) => {

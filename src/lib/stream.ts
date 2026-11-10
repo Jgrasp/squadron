@@ -177,6 +177,7 @@ export type Agent = {
   hiddenDocs?: string[]
   guess?: string
   stored?: { count: number; created: number | null; users?: number }
+  onDemand?: string[]
 }
 
 export type LegacyArtifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number; link?: string }

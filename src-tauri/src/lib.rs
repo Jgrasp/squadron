@@ -16,7 +16,8 @@ pub mod permissions;
 pub mod pilot;
 pub mod plugins;
 pub mod preview;
-pub mod process;
+pub mod ondemand;
+mod process;
 pub mod projects;
 pub mod sessions;
 pub mod stored;
@@ -1382,6 +1383,17 @@ fn restore_agent(
 }
 
 #[tauri::command]
+fn set_agent_servers(
+    agents: State<Agents>,
+    on_demand: State<ondemand::OnDemand>,
+    id: String,
+    names: Vec<String>,
+) -> Result<(), String> {
+    let configs = on_demand.configs(&names);
+    agents.set_servers(&id, names, configs)
+}
+
+#[tauri::command]
 fn set_workdir(agents: State<Agents>, id: String, dir: Option<PathBuf>) -> Result<(), String> {
     agents.set_dir(&id, dir)
 }
@@ -2358,6 +2370,11 @@ pub fn run() {
             restore_archived,
             delete_archived,
             list_archived,
+            ondemand::mcp_servers,
+            ondemand::mcp_on_demand,
+            ondemand::mcp_everywhere,
+            ondemand::mcp_describe,
+            set_agent_servers,
             archived_entries,
             add_rule,
             answer_permission,
@@ -2528,6 +2545,7 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            app.manage(ondemand::OnDemand::load(config.join("mcp-on-demand.json")));
             app.manage(FoundCache::default());
             let root = app.path().app_data_dir()?.join("artifacts");
             let _ = std::fs::create_dir_all(&root);
