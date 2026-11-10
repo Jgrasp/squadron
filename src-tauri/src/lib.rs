@@ -820,6 +820,26 @@ fn set_artifact_link(agent: String, id: String, link: String) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn set_artifact_share(
+    agent: String,
+    id: String,
+    destination: String,
+    link: Option<String>,
+) -> Result<(), String> {
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64);
+    artifacts::set_shared(
+        artifacts_root()?,
+        &agent,
+        &id,
+        &destination,
+        link.as_deref(),
+        at,
+    )
+}
+
+#[tauri::command]
 fn delete_artifact(agent: String, id: String) -> Result<(), String> {
     artifacts::remove(artifacts_root()?, &agent, &id)
 }
@@ -2400,6 +2420,7 @@ pub fn run() {
             read_artifact,
             write_artifact,
             set_artifact_link,
+            set_artifact_share,
             delete_artifact,
             open_artifact_folder,
             list_dir,

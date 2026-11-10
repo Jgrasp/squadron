@@ -332,6 +332,29 @@ L'exemple `hello` le montre avec l'outil `github_user`, qui appelle `https://api
 
 L'exemple `hello` a un panneau qui affiche le compteur et l'augmente par un bouton, à travers son WASM.
 
+### Partager un artifact (`artifact.share`)
+
+Un élément de l'emplacement `artifact.actions` devient une destination de partage avec l'action `artifact.share` :
+
+```json
+{ "slot": "artifact.actions", "id": "team", "label": { "en": "Share with the team" },
+  "action": { "artifact.share": {
+    "confirm": { "en": "“{artifact.title}” becomes a Google web app for your team." },
+    "lines": ["Google Apps Script · access: akki.fr"],
+    "shared": { "en": "Shared with the team" },
+    "share": "Share the artifact {artifact.id} at {artifact.dir}, then call publish_artifact with id {artifact.id}, destination {destination} and its link.",
+    "update": { "tool": "deploy" },
+    "unshare": { "tool": "undeploy" },
+    "delete": { "en": "Also delete the Apps Script project" },
+    "deleteHint": { "en": "What the team entered is deleted with it." }
+} } }
+```
+
+- **Étapes** : `share` est obligatoire, `update` et `unshare` facultatifs. Chacune est un prompt envoyé à l'agent, ou `{ "tool": "<nom>" }` qui appelle `call-tool` du module WASM sans passer par un agent. L'outil reçoit `{ verb, destination, artifact: { id, title, dir, entry }, link, delete }` et rend le lien pour `share` et `update`. Il n'a pas besoin de figurer dans `contributes.tools` : les agents ne le voient pas.
+- **Variables** des prompts et de `confirm` : `{artifact.id}`, `{artifact.title}`, `{artifact.dir}` (dossier absolu de l'artifact), `{artifact.entry}`, `{agent}`, `{destination}` (la clé `<extension>.<élément>`), `{link}` et `{delete}` (`true` si la case de suppression est cochée).
+- **Lien** : un prompt finit par `publish_artifact` avec `id`, `destination` et `link` (toute adresse `https://`), ou un `link` vide pour retirer le partage. Squadron garde un lien par destination dans le `.squadron.json` de l'artifact, avec l'heure du partage.
+- **Menu** : partagée, la destination montre Open, Copy link, Update quand l'artifact a changé depuis le partage et que `update` existe, Stop sharing si `unshare` existe. Stop sharing demande confirmation, avec la case `delete` quand elle est déclarée. Pendant une étape, un bandeau s'affiche sous l'en-tête du panneau.
+
 ### Distribution (étape 8)
 
 Sur le modèle de Zed : chaque extension vit dans son dépôt, un dépôt central la recense, et c'est la CI de ce dépôt qui la compile.

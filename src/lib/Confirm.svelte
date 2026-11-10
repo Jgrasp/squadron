@@ -40,12 +40,18 @@
         {#each current.lines as line, i (i)}<code>{line}</code>{/each}
       </div>
     {/if}
+    {#if current.check}
+      <label class="check">
+        <input type="checkbox" onchange={(e) => current.check?.onchange(e.currentTarget.checked)} />
+        <span>{current.check.label}{#if current.check.hint}<small>{current.check.hint}</small>{/if}</span>
+      </label>
+    {/if}
     <div class="actions">
       {#if current.choice}
         <button class="btn btn-secondary" onclick={() => answer(false)}>{current.cancelLabel ?? t('common.cancel')}</button>
       {/if}
       <!-- svelte-ignore a11y_autofocus -->
-      <button class="btn btn-primary" autofocus onclick={() => answer(true)}>
+      <button class="btn" class:btn-primary={!current.danger} class:danger={current.danger} autofocus onclick={() => answer(true)}>
         {current.okLabel ?? t('common.ok')}
       </button>
     </div>
@@ -135,6 +141,38 @@
     background: var(--surface-3);
     color: var(--text);
     overflow-wrap: anywhere;
+  }
+
+  .check {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    margin: -6px 0 20px 44px;
+    cursor: pointer;
+  }
+
+  .check input {
+    margin: 3px 0 0;
+    accent-color: var(--accent);
+  }
+
+  .check span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    font-size: 13px;
+    color: var(--text-2);
+  }
+
+  .check small {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .danger {
+    background: #3a2420;
+    color: #f8d5cc;
+    font-weight: 700;
   }
 
   .actions {

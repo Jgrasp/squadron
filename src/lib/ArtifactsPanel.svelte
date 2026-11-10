@@ -4,12 +4,12 @@
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { save } from '@tauri-apps/plugin-dialog'
   import { persist, send } from './agents.svelte'
-  import { artifactUrl, docsOf, fileName, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
-  import { refresh, shelf } from './artifacts.svelte'
-  import { ask } from './asking.svelte'
+  import { artifactUrl, docsOf, fileName, fillShare, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
+  import { refresh, shelf, working, workKey, type Work } from './artifacts.svelte'
+  import { ask, message as tell } from './asking.svelte'
   import { time } from './format'
-  import { text } from './extensions'
-  import { extensionItem, extensions, runItem } from './extensions.svelte'
+  import { text, type Item, type Text } from './extensions'
+  import { extensionItem, extensions, runItem, shareTool } from './extensions.svelte'
   import { errorText, locale, t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
@@ -29,7 +29,6 @@
 
   let selected = $state<{ id: string; at: number } | null>(null)
   let copied = $state('')
-  let asked = $state<string[]>([])
   let pointing = $state(false)
   let markdown = $state('')
   let frame = $state<HTMLIFrameElement>()
@@ -61,7 +60,11 @@
 
   const destinations = $derived(shown('artifact.actions'))
   const link = $derived(open?.link ?? null)
-  const publishing = $derived(!!open && open.kind !== 'doc' && !open.link && asked.includes(open.id))
+  const local_ = $derived(open && open.kind !== 'doc' ? open : undefined)
+  const busy = $derived(local_ ? working[workKey(agent.id, local_.id)] : undefined)
+  const shared = $derived(!!link || !!Object.keys(local_?.links ?? {}).length)
+  const shareOf = (item?: Item) => (item && 'artifact.share' in item.action ? item.action['artifact.share'] : undefined)
+  const tr = (value?: Text) => (value ? text(value, locale()) : '')
   const madeBy = (extension: string) => {
     const name = extensions.list.find((m) => m.id === extension)?.manifest?.name
     return name ? text(name, locale()) : extension
@@ -71,7 +74,50 @@
     menu = false
     const item = extensionItem('artifact.actions', id)
     if (id === 'claude' && open && open.kind !== 'doc') share(open)
+    else if (item && shareOf(item)) step(item, 'share')
     else if (item) runItem(item, { agent })
+  }
+
+  const valuesOf = (artifact: ArtifactInfo, destination: string, remove = false) => ({
+    'artifact.id': artifact.id,
+    'artifact.title': artifact.title,
+    'artifact.dir': `${shelf.root}/${agent.id}/${artifact.id}`,
+    'artifact.entry': artifact.entry,
+    agent: agent.name,
+    destination,
+    link: artifact.links?.[destination]?.link ?? '',
+    delete: String(remove),
+  })
+
+  async function step(item: Item, verb: Work['verb']) {
+    const artifact = local_
+    const action = shareOf(item)
+    const how = action?.[verb]
+    if (!artifact || !action || !how) return
+    menu = false
+    const label = labelOf('artifact.actions', item.key)
+    let remove = false
+    if (verb === 'share' && !(await ask(fillShare(tr(action.confirm), valuesOf(artifact, item.key)), { title: label, okLabel: label, lines: action.lines }))) return
+    const check = action.delete ? { label: tr(action.delete), hint: tr(action.deleteHint) || undefined, onchange: (on: boolean) => (remove = on) } : undefined
+    if (verb === 'unshare' && !(await ask(t('agent.artifactStopAsk'), { title: t('agent.artifactStopTitle'), kind: 'warning', okLabel: t('agent.artifactStop'), danger: true, check }))) return
+    const key = workKey(agent.id, artifact.id)
+    const values = valuesOf(artifact, item.key, remove)
+    if (typeof how === 'string') {
+      working[key] = { destination: item.key, verb, by: agent.name }
+      return onshare(fillShare(how, values))
+    }
+    working[key] = { destination: item.key, verb, by: madeBy(item.extension) }
+    try {
+      const input = { verb, destination: item.key, artifact: { id: artifact.id, title: artifact.title, dir: values['artifact.dir'], entry: artifact.entry }, link: values.link, delete: remove }
+      const out = (await shareTool(item.extension, how.tool, input, agent)).trim()
+      if (verb !== 'unshare' && !/^https:\/\/\S+$/.test(out)) throw new Error(t('agent.artifactNoLink', { tool: how.tool }))
+      await invoke('set_artifact_share', { agent: agent.id, id: artifact.id, destination: item.key, link: verb === 'unshare' ? null : out })
+      await refresh(agent.id)
+    } catch (e) {
+      tell(errorText(e), { kind: 'error', title: label })
+    } finally {
+      delete working[key]
+    }
   }
 
   function aim(on: boolean) {
@@ -111,9 +157,8 @@
   }
 
   async function share(artifact: ArtifactInfo) {
-    asked = [...asked, artifact.id]
-    if (!(await ask(t('agent.artifactShareAsk', { title: artifact.title, name: agent.name }), { title: t('agent.artifactShareTitle'), okLabel: t('agent.artifactShare') })))
-      return void (asked = asked.filter((id) => id !== artifact.id))
+    if (!(await ask(t('agent.artifactShareAsk', { title: artifact.title, name: agent.name }), { title: t('agent.artifactShareTitle'), okLabel: t('agent.artifactShare') }))) return
+    working[workKey(agent.id, artifact.id)] = { destination: 'claude', verb: 'share', by: agent.name }
     onshare(sharePrompt(artifact))
   }
 
@@ -159,7 +204,7 @@
         title={t('agent.artifactShareMenuOf', { title: open.title })}
         onclick={() => (menu = !menu)}
       >
-        {#if link}<span class="dot" aria-hidden="true"></span>{/if}{t('agent.artifactShareMenu')}
+        {#if shared}<span class="dot" aria-hidden="true"></span>{/if}{t('agent.artifactShareMenu')}
         <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
       </button>
       {#if menu}
@@ -178,8 +223,28 @@
                   <button class="btn btn-ghost" role="menuitem" onclick={() => copy('link', link)}>{copied === 'link' ? t('common.copied') : t('agent.artifactCopyLink')}</button>
                 </div>
               </div>
+            {:else if item && shareOf(item) && local_?.links?.[id]}
+              {@const action = shareOf(item)!}
+              {@const on = local_.links[id]}
+              {@const stale = local_.modified > on.at}
+              <div class="entry">
+                <div class="option">
+                  <span class="ico"><Icon name={item.icon ?? 'plugins'} /></span>
+                  <span class="text">
+                    <b><span class="dot" aria-hidden="true"></span>{tr(action.shared) || labelOf('artifact.actions', id)}</b>
+                    <span>{stale ? t('agent.artifactStale', { time: time(on.at) }) : t('agent.artifactSince', { time: time(on.at) })}</span>
+                    <span class="by">{madeBy(item.extension)}</span>
+                  </span>
+                </div>
+                <div class="acts">
+                  {#if stale && action.update}<button class="btn btn-primary" role="menuitem" disabled={!!busy} onclick={() => step(item, 'update')}>{t('agent.artifactUpdate')}</button>{/if}
+                  <button class={stale && action.update ? 'btn btn-ghost' : 'btn btn-primary'} role="menuitem" onclick={() => ((menu = false), invoke('open_link', { url: on.link }))}>{t('agent.artifactOpen')}</button>
+                  <button class="btn btn-ghost" role="menuitem" onclick={() => copy(id, on.link)}>{copied === id ? t('common.copied') : t('agent.artifactCopyLink')}</button>
+                  {#if action.unshare}<span class="gap"></span><button class="btn btn-ghost danger" role="menuitem" disabled={!!busy} onclick={() => step(item, 'unshare')}>{t('agent.artifactStop')}</button>{/if}
+                </div>
+              </div>
             {:else if id === 'claude' || item}
-              <button class="option" role="menuitem" disabled={id === 'claude' && (open.kind !== 'markdown' || publishing)} onclick={() => pick(id)}>
+              <button class="option" role="menuitem" disabled={(id === 'claude' && open.kind !== 'markdown') || (!!busy && (id === 'claude' || !!shareOf(item)))} onclick={() => pick(id)}>
                 <span class="ico"><Icon name={id === 'claude' ? 'artifact' : (item?.icon ?? 'plugins')} /></span>
                 <span class="text">
                   <b>{labelOf('artifact.actions', id)}</b>
@@ -234,10 +299,14 @@
     </div>
   {/if}
 
-  {#if publishing}
+  {#if busy}
     <div class="band" role="status">
       <StatusIcon status="background" />
-      <span>{t('agent.artifactSharing', { name: agent.name })}</span>
+      {#if busy.destination === 'claude'}
+        <span>{t('agent.artifactSharing', { name: agent.name })}</span>
+      {:else}
+        <span><b>{labelOf('artifact.actions', busy.destination)}</b> · {t(busy.verb === 'share' ? 'agent.artifactBusyShare' : busy.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: busy.by })}</span>
+      {/if}
     </div>
   {/if}
 
@@ -433,6 +502,15 @@
     display: flex;
     gap: 6px;
     margin-left: 42px;
+  }
+
+  .acts .gap {
+    flex: 1;
+  }
+
+  .band b {
+    font-weight: 600;
+    color: var(--text-strong);
   }
 
   .acts .btn {

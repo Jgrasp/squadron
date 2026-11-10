@@ -47,6 +47,18 @@ describe('extensions', () => {
     expect(keys({ ...lando, contributes: { items: [lando.contributes.items[0], lando.contributes.items[0]] } })).toEqual(['extensions.twiceItem'])
   })
 
+  it('only takes a share action in the Share menu, with tool steps from a wasm module', () => {
+    const share = (action: object, slot = 'artifact.actions', wasm?: string) =>
+      keys({ ...lando, wasm, contributes: { items: [{ slot, id: 'team', label: { en: 'Team' }, action: { 'artifact.share': action } }] } })
+    const base = { confirm: { en: 'Share {artifact.title}?' }, share: 'Share {artifact.id}' }
+    expect(share(base)).toEqual([])
+    expect(share(base, 'agent.menu')).toEqual(['extensions.shareSlot'])
+    expect(share({ share: 'x' })).toEqual(['extensions.badShare'])
+    expect(share({ ...base, unshare: { tool: 'undeploy' } })).toEqual(['extensions.badShare'])
+    expect(share({ ...base, unshare: { tool: 'undeploy' } }, 'artifact.actions', 'share.wasm')).toEqual([])
+    expect(share({ ...base, lines: ['a\nb'] })).toEqual(['extensions.badShare'])
+  })
+
   it('only lets colors into the theme', () => {
     expect(keys({ ...lando, contributes: { theme: { accent: 'red; } body { display: none' } } })).toEqual(['extensions.badTheme'])
     expect(keys({ ...lando, contributes: { theme: { accent: 'rgb(10, 20, 30)' } } })).toEqual([])

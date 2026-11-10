@@ -96,6 +96,9 @@ export const extensionItems = (slot: Slot) => itemsOf(extensions.list, slot)
 
 export const spotlightItems = () => spotlightOf(extensions.list)
 
+export const shareTool = (extension: string, tool: string, input: unknown, agent: Agent) =>
+  invoke<string>('extensions_wasm_tool', { id: extension, name: tool, input: JSON.stringify(input), agent: info(agent) })
+
 export const extensionItem = (slot: Slot, key: string) => extensionItems(slot).find((i) => i.key === key)
 
 export async function runItem(item: Item, { project, agent }: Context) {
@@ -109,7 +112,7 @@ export async function runItem(item: Item, { project, agent }: Context) {
   }
   if ('run' in action)
     return invoke('extensions_wasm_run', { id: item.extension, action: action.run, agent: agent && info(agent) }).catch((e) => message(errorText(e), { kind: 'error', title: item.extension }))
-  if (!agent) return
+  if (!agent || 'artifact.share' in action) return
   if ('prompt.insert' in action) pointed[agent.id] = [...(pointed[agent.id] ?? []), action['prompt.insert']]
   else {
     const extension = extensions.list.find((m) => m.id === item.extension)

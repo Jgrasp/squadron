@@ -38,6 +38,8 @@ export default {
   later: 'Plus tard',
   allow: 'Autoriser',
   needsWasm: 'Élément {item} : l’action run demande un module "wasm".',
+  shareSlot: 'Élément {item} : l’action artifact.share ne va que dans l’emplacement artifact.actions.',
+  badShare: 'Élément {item} : artifact.share demande confirm et share, chaque étape étant un prompt ou un "tool" du module "wasm".',
   badWasm: 'wasm doit être le chemin d’un fichier .wasm dans le dossier de l’extension.',
   badExec: 'permissions.exec doit être une liste de noms de programmes, comme ["git"].',
   toolNeedsWasm: 'Outil {tool} : donnez-lui une commande, ou un module "wasm" qui y répond.',

@@ -19,6 +19,12 @@ listen<string>('artifacts-changed', ({ payload }) => refresh(payload))
 
 export const pointed = $state<Record<string, string[]>>({})
 
+export type Work = { destination: string; verb: 'share' | 'update' | 'unshare'; by: string }
+
+export const working = $state<Record<string, Work>>({})
+
+export const workKey = (agent: string, artifact: string) => `${agent}/${artifact}`
+
 listen<{ agent: string; kind: 'point' | 'share'; text: string }>('artifact-do', ({ payload: { agent, kind, text } }) => {
   if (getCurrentWindow().label !== 'main') return
   if (kind === 'share') send(agent, text)

@@ -37,6 +37,8 @@ export default {
   later: 'Later',
   allow: 'Allow',
   needsWasm: 'Item {item}: the run action needs a "wasm" module.',
+  shareSlot: 'Item {item}: the artifact.share action only goes in the artifact.actions slot.',
+  badShare: 'Item {item}: artifact.share needs confirm and share, each step being a prompt or a "tool" of the "wasm" module.',
   badWasm: 'wasm must be the path of a .wasm file inside the extension folder.',
   badExec: 'permissions.exec must be a list of program names, like ["git"].',
   toolNeedsWasm: 'Tool {tool}: give it a command, or a "wasm" module that answers it.',
