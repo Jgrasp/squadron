@@ -14,6 +14,7 @@ jobs:
       id: ${{ steps.create.outputs.id }}
     steps:
       - id: create
+        if: ${{ !env.ACT }}
         env:
           GH_TOKEN: ${{ github.token }}
           MESSAGE: ${{ github.event.head_commit.message }}
@@ -67,7 +68,10 @@ jobs:
         with:
           workspaces: src-tauri
       - run: pnpm install --frozen-lockfile
+      - if: ${{ env.ACT }}
+        run: pnpm tauri build ${{ matrix.args }} --no-sign
       - uses: tauri-apps/tauri-action@v0
+        if: ${{ !env.ACT }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}

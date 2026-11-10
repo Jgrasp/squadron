@@ -9,6 +9,7 @@
     "tauri": "tauri",
     "app": "tauri dev --config src-tauri/tauri.dev.conf.json",
     "test": "vitest run --passWithNoTests",
+    "act": "gh act push",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json && vitest run --passWithNoTests && cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
