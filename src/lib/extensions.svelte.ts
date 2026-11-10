@@ -230,7 +230,9 @@ $effect.root(() => {
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
     const list = extensions.list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) }))
-    invoke<Record<string, string>>('extensions_wasm_sync', { list }).then((errors) => (extensions.errors = errors))
+    invoke<Record<string, string>>('extensions_wasm_sync', { list }).then((errors) => {
+      extensions.errors = errors
+    })
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
