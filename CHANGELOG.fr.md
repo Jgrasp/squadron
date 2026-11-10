@@ -15,7 +15,7 @@
 ### Conversation
 
 - Les notes d’un agent entre ses étapes s’affichent en blocs de réponse avec leur heure.
-- Une réponse plus haute qu’une fois et demie la conversation se termine par un bouton « Haut de page ».
+- Une réponse plus haute qu’une fois et demie la conversation se termine par un bouton « Revenir en haut ».
 - Le champ de réponse à la question d’un agent passe à la ligne et grandit avec le texte ; Maj+Entrée crée une nouvelle ligne.
 
 ### Archives
