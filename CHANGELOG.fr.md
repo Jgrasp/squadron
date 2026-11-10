@@ -1,5 +1,20 @@
 # Nouveautés
 
+## 0.39.0 · 2026-11-10
+
+### Pull requests
+
+- Un agent peut changer le titre et la description d’une pull request avec update_pull, avec votre compte, sur Bitbucket, GitHub, GitLab et Azure DevOps.
+- Une pull request fusionnée ou fermée ne propose que des commentaires quand vous terminez sa relecture, et l’agent de relecture porte le nom de la pull request.
+
+### Extensions
+
+- Une extension peut voir vos agents et ce qu’ils font, archiver ceux qui ne travaillent pas, et se réveiller avec un minuteur, une fois que vous l’autorisez (API d’extension 1.1).
+
+### Conversation
+
+- Quand la réponse d’un agent cite plus de trois fichiers, seules les deux premières cartes s’affichent, et une barre liste les autres jusqu’à ce que vous demandiez à toutes les voir.
+
 ## 0.38.1 · 2026-11-09
 
 ### Correctifs
