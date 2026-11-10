@@ -278,6 +278,31 @@ export function sleepIdle() {
       invoke('sleep_agent', { id: agent.id }).catch(() => {})
 }
 
+const seen = new Map<string, number>()
+
+export function shelveHidden() {
+  const now = Date.now()
+  const shown = new Set(Object.values(agents.current))
+  for (const agent of agents.list) {
+    if (shown.has(agent.id)) seen.set(agent.id, now)
+    if (
+      agent.alive ||
+      onDisk.has(agent.id) ||
+      !agent.entries.length ||
+      shown.has(agent.id) ||
+      timers.has(agent.id) ||
+      writes.has(agent.id) ||
+      loading.has(agent.id) ||
+      now - agent.since < IDLE ||
+      now - (seen.get(agent.id) ?? 0) < IDLE
+    )
+      continue
+    agent.stored = { count: agent.entries.length, created: created(agent) || null }
+    agent.entries = []
+    onDisk.add(agent.id)
+  }
+}
+
 export const shownAgent = () => (projects.overview ? undefined : agents.current[projects.current])
 
 export const archivable = (agent: Agent) =>
