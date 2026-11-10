@@ -9,6 +9,8 @@
   import { requestPanel } from './layout.svelte'
   import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, requestChanges, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
+  import Icon from './Icon.svelte'
+  import StatusIcon from './StatusIcon.svelte'
   import Reviewers from './Reviewers.svelte'
   import PullReview from './PullReview.svelte'
   import type { Agent } from './stream'
@@ -46,6 +48,7 @@
   const starting = (pull: Pull) => busy?.number === pull.number && busy.doing === 'ask'
   const asking = (pull: Pull): Choice => ({
     label: t('review.askAgent'),
+    icon: 'persona',
     title: settings.pilot ? t('review.askAgentTitle') : t('review.askAgentNeedsPilot'),
     run: () => (settings.pilot ? askAgent(pull).catch((e) => (failure = `#${pull.number}: ${errorText(e)}`)) : (ui.settings = 'preferences')),
   })
@@ -82,7 +85,7 @@
 
   let menu = $state('')
 
-  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean; spinning?: boolean }
+  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean; spinning?: boolean; icon?: string; status?: Agent['status'] }
 
   const openOn = (pull: Pull): Choice => ({ label: t('review.openOn', { host: hostName(pull) }), run: () => invoke('open_link', { url: pull.url }) })
   const merging = (pull: Pull): Choice[] =>
@@ -183,16 +186,15 @@
         {#each [...waiting, ...reviewed] as pull (pull.number)}
           {@const reviewer = reviewerOf(project.path, pull)}
           {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
-          {@const seeing = reviewer && { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, run: () => show(reviewer) }}
-          {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
-          {@const agentChoice = seeing ? (main === seeing ? undefined : seeing) : starting(pull) ? undefined : asking(pull)}
+          {@const agentChoice = reviewer ? { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status: reviewer.attention && reviewer.status !== 'working' && reviewer.status !== 'error' ? 'waiting' : reviewer.status, run: () => show(reviewer) } : asking(pull)}
+          {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : reviewer && moved(project.path, pull) && behind(reviewer, pull) && reviewer.status !== 'working' ? { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) } : reviewing}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
             {@render split(
               `review-${pull.number}`,
               main,
-              waitsFor(project.path, pull) && main !== seeing,
+              waitsFor(project.path, pull),
               [...(main === reviewing ? [] : [reviewing]), openOn(pull), ...approving(pull), ...requesting(pull)],
               main === reviewing && opened?.number === pull.number,
               agentChoice,
@@ -265,7 +267,14 @@
 {#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean)}
   <div class="split" data-menu>
     {#if lead}
-      <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} disabled={!!busy && !lead.always} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
+      {#if lead.icon}
+        <button class="btn btn-secondary lead agent" aria-label={lead.label} title={lead.title ?? lead.label} disabled={!!busy && !lead.always} onclick={() => ((menu = ''), lead.run())}>
+          <Icon name={lead.icon} />
+          {#if lead.status}<span class="badge"><StatusIcon status={lead.status} /></span>{/if}
+        </button>
+      {:else}
+        <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} disabled={!!busy && !lead.always} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
+      {/if}
     {/if}
     <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={!!busy && !main.always} onclick={() => ((menu = ''), main.run())}>
       {#if main.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>{/if}
@@ -697,6 +706,32 @@
 
   .split .lead {
     margin-right: 8px;
+  }
+
+  .split .main {
+    min-width: 76px;
+  }
+
+  .split .agent {
+    position: relative;
+    width: 32px;
+    padding: 0;
+  }
+
+  .badge {
+    position: absolute;
+    right: -4px;
+    bottom: -4px;
+    width: 14px;
+    height: 14px;
+    display: grid;
+    place-items: center;
+    border-radius: 50%;
+    background: var(--surface-1);
+  }
+
+  article.done .badge {
+    background: var(--bg-main);
   }
 
   .main:not(.alone) {
