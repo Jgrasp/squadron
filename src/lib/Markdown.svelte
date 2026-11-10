@@ -126,6 +126,7 @@
   import PullCard from './PullCard.svelte'
   import TaskRef from './TaskRef.svelte'
   import FileCard from './FileCard.svelte'
+  import FileMore from './FileMore.svelte'
   import TaskDialog from './TaskDialog.svelte'
   import { projects } from './projects.svelte'
   import { codeOf, leading, leads, mentions, taskAt, taskId } from './taskref'
@@ -245,11 +246,14 @@
         while (top.parentElement && top.parentElement !== box) top = top.parentElement
         const slot = document.createElement('div')
         slot.className = 'file-slot'
+        slot.dataset.path = path
         ;(below.get(top) ?? top).after(slot)
         below.set(top, slot)
         added.push(slot)
         mounted.push(mount(FileCard, { target: slot, props: { path, project } }))
       }
+      const folds = new Map<Element, { count: number; drop: () => void }>()
+      undo.unshift(() => folds.forEach((fold) => fold.drop()))
       const rows = () => {
         for (const slot of box?.querySelectorAll<HTMLElement>('.file-slot') ?? []) {
           const prev = slot.previousElementSibling
@@ -264,6 +268,19 @@
             undo.unshift(() => made.replaceWith(...made.childNodes))
           }
           row.append(slot)
+        }
+        for (const row of box?.querySelectorAll<HTMLElement>('.file-row') ?? []) {
+          const slots = [...row.querySelectorAll<HTMLElement>(':scope > .file-slot')]
+          if (folds.get(row)?.count === slots.length) continue
+          folds.get(row)?.drop()
+          folds.delete(row)
+          if (slots.length < 4) continue
+          const spot = document.createElement('div')
+          spot.className = 'file-more'
+          row.append(spot)
+          const paths = slots.slice(2).map((slot) => slot.dataset.path ?? slot.dataset.projectFile ?? slot.dataset.file ?? '')
+          const more = mount(FileMore, { target: spot, props: { row, paths } })
+          folds.set(row, { count: slots.length, drop: () => (unmount(more), spot.remove(), row.classList.remove('folded')) })
         }
       }
       for (const link of box?.querySelectorAll<HTMLAnchorElement>('a[data-project-file-inline]') ?? []) {
@@ -463,12 +480,17 @@
 
   .prose :global(.file-row) {
     display: grid;
+    grid-template-columns: minmax(0, 1fr);
     gap: 8px;
     margin: 4px 0 10px;
   }
 
   .prose :global(.file-row > .file-slot) {
     margin: 0;
+  }
+
+  .prose :global(.file-row.folded > .file-slot:nth-child(n + 3)) {
+    display: none;
   }
 
   .prose :global(li:has(> .file-slot)) {

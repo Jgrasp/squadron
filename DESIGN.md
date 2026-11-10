@@ -228,7 +228,7 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 - **Colonne de repères** : un trait par message de l'utilisateur, groupés et centrés. Inactif 10×2px `--text-faint`, actif 18×3px `--accent` avec halo. Info-bulle `--menu` 300px.
 
 ### Cartes de conversation
-- **FileCard** (`FileCard.svelte`) : `--bg-main`, rayon 8px, contour `--border-strong`, barre de ton 3px (tons de fichier). Vignette 30×36 rayon 5px, extension 700 9,5px. Nom 600 blanc, méta mono 11,5px. Actions sur `--surface-1`, boutons 28px.
+- **FileCard** (`FileCard.svelte`) : `--bg-main`, rayon 8px, contour `--border-strong`, barre de ton 3px (tons de fichier). Vignette 30×36 rayon 5px, extension 700 9,5px. Nom 600 blanc, méta mono 11,5px. Actions sur `--surface-1`, boutons 28px. Au-delà de 3 cartes d'affilée, seules les 2 premières restent : **FileMore** les suit, même coque sans barre de ton, vignettes des types cachés empilées (décalage 12px, 3 max), « N more files » 600 et les noms en mono 11,5px `--text-dim`, « Show all » 28px. Déplié : lien « Show fewer files » 12,5px `--text-dim`.
 - **PullCard** : même coque que FileCard, tons `--ok` ouverte, `--err` échec, `--text-faint` brouillon/fermée, `--merged` fusionnée. Titre 15px 600, état en pilule (ton 14 %, rayon 10px, 11,5px 600). En ligne : pilule 21px `--surface-3`, aperçu 460px au survol.
 - **ShellCard** (commande `!`) : `--surface-1`, contour `--border`, rayon 9px ; contour `--ok` 55 % réussie, `--err` 60 % échouée, `--accent` 55 % en cours. `!` en `--accent`. Sortie `#110E0D`, mono 12px/1,5, 320px max.
 - **AdvisorCard** : liseré 2px `--advisor`, fond `--advisor-bg`, rayon `0 6px 6px 0`, padding 10px 14px, origine 11px 600 capitales.

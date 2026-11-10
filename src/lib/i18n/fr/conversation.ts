@@ -177,6 +177,9 @@ export default {
   openInWindow: 'Ouvrir dans une fenêtre',
   fileMissing: 'Fichier introuvable.',
   previewLines: '{shown} premières lignes sur {total}.',
+  moreFiles: { one: '{count} autre fichier', other: '{count} autres fichiers' },
+  showAll: 'Tout afficher',
+  showFewerFiles: 'Afficher moins de fichiers',
 
   statusWorking: 'Au travail',
   statusBackground: 'Attend une tâche de fond',
