@@ -399,6 +399,12 @@ pub async fn merge(slug: &str, number: u64) -> Result<(), String> {
     api(Method::PATCH, &path, &[], Some(done)).await.map(|_| ())
 }
 
+pub async fn update(slug: &str, number: u64, changes: Value) -> Result<(), String> {
+    api(Method::PATCH, &pull_api(slug, number), &[], Some(changes))
+        .await
+        .map(|_| ())
+}
+
 pub(crate) fn azure_run(value: &Value) -> Run {
     let status = match (
         value["status"].as_str().unwrap_or_default(),

@@ -1,3 +1,7 @@
+<script lang="ts" module>
+  export const TONES = { sheet: '#4cbf85', pdf: '#e5655a', doc: '#6ea8f0', archive: '#e0b65b', code: '#b79cf0', file: 'var(--text-dim)' }
+</script>
+
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
   import { tick } from 'svelte'
@@ -13,7 +17,6 @@
   let { path, project }: { path: string; project: string } = $props()
 
   const PREVIEW = 300
-  const TONES = { sheet: '#4cbf85', pdf: '#e5655a', doc: '#6ea8f0', archive: '#e0b65b', code: '#b79cf0', file: 'var(--text-dim)' }
 
   const name = $derived(path.split('/').pop() ?? path)
   const folder = $derived(path.slice(0, -name.length))

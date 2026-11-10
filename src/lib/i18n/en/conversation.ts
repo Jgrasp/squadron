@@ -175,6 +175,9 @@ export default {
   openInWindow: 'Open in a window',
   fileMissing: 'File not found.',
   previewLines: 'First {shown} of {total} lines.',
+  moreFiles: { one: '{count} more file', other: '{count} more files' },
+  showAll: 'Show all',
+  showFewerFiles: 'Show fewer files',
 
   statusWorking: 'Working',
   statusBackground: 'Waiting on a background task',

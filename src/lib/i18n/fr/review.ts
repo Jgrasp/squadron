@@ -213,7 +213,7 @@ export default {
   keepIt: 'La garder',
   fixAgentName: 'Corrections #{number}',
   newAgent: 'un nouvel agent',
-  agentName: 'Relecture',
+  agentName: 'Relecture #{number}',
   reviewingTag: 'Relit #{number}',
   reviewingTitle: 'Relit la pull request #{number} : ses remarques vont dans votre brouillon de relecture',
   promptTitle: 'Consigne de relecture',

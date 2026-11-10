@@ -437,6 +437,12 @@ pub async fn merge(slug: &str, iid: u64) -> Result<(), String> {
     api(Method::PUT, slug, &path, &[], None).await.map(|_| ())
 }
 
+pub async fn update(slug: &str, iid: u64, changes: Value) -> Result<(), String> {
+    api(Method::PUT, slug, &request(slug, iid), &[], Some(changes))
+        .await
+        .map(|_| ())
+}
+
 pub(crate) fn gitlab_run(value: &Value) -> Run {
     let status = match value["status"].as_str().unwrap_or_default() {
         "success" => "success",

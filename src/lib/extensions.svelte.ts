@@ -2,13 +2,13 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { run, type Context } from './actions.svelte'
-import { agents, find } from './agents.svelte'
+import { agents, archivable, archive, find, shownAgent } from './agents.svelte'
 import { pointed } from './artifacts.svelte'
 import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { argsOf, ARGS, catalogOf, EXEC, type Source, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
+import { AGENTS, argsOf, ARGS, catalogOf, EXEC, type Source, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -21,6 +21,17 @@ export const badgeOf = (key: string) => extensions.shown[key]?.badge
 
 const info = (agent: Agent) => ({ id: agent.id, name: agent.name, project: agent.project, dir: workdir(agent) })
 
+const stateOf = (agent: Agent) => ({
+  ...info(agent),
+  status: agent.status,
+  since: Math.round(agent.since),
+  pinned: !!agent.pinned,
+  remote: !!agent.remote,
+  shown: agent.id === shownAgent(),
+  branch: agent.worktree?.branch ?? null,
+  archivable: archivable(agent),
+})
+
 export const commandLine = (key: string) =>
   key.startsWith(EXEC)
     ? t('extensions.anyArgs', { program: key.slice(EXEC.length) })
@@ -28,7 +39,11 @@ export const commandLine = (key: string) =>
       ? t('extensions.network', { host: key.slice(NET.length) })
       : key.startsWith(ARGS)
         ? t('extensions.claudeArgs', { args: (JSON.parse(key.slice(ARGS.length)) as string[]).join(' ') })
-        : key
+        : key === `${AGENTS}read`
+          ? t('extensions.agentsRead')
+          : key === `${AGENTS}archive`
+            ? t('extensions.agentsArchive')
+            : key
 
 export async function loadExtensions() {
   const listing = await invoke<{ extensions: Found[]; disabled: string[]; approved: Record<string, string[]>; sources: string[]; origins: Record<string, string> }>('extensions_list')
@@ -145,7 +160,11 @@ export async function uninstall(extension: Extension) {
   await loadExtensions()
 }
 
-export const asks = (entry: CatalogEntry) => [...(entry.permissions?.exec ?? []).map((p) => commandLine(EXEC + p)), ...(entry.permissions?.network ?? []).map((h) => commandLine(NET + h))]
+export const asks = (entry: CatalogEntry) => [
+  ...(entry.permissions?.exec ?? []).map((p) => commandLine(EXEC + p)),
+  ...(entry.permissions?.network ?? []).map((h) => commandLine(NET + h)),
+  ...(entry.permissions?.agents ?? []).map((a) => commandLine(AGENTS + a)),
+]
 
 const TOLD = 'squadron.extension-updates'
 
@@ -169,9 +188,24 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
     const key = `${p.extension}.${p.item}`
     extensions.shown[key] = { ...extensions.shown[key], [p.call === 'set-badge' ? 'badge' : 'label']: (p.value as string | null) ?? null }
   }
+  if ((p.call === 'agents' || p.call === 'archive-agent') && getCurrentWindow().label === 'main') answerHost(String(p.reply), p.call, String(p.agent))
   if (p.call === 'insert-prompt' && find(String(p.agent))) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
   if (p.call === 'notify' && ((await isPermissionGranted()) || (await requestPermission()) === 'granted')) sendNotification({ title: String(p.title), body: String(p.body) })
 })
+
+async function answerHost(reply: string, call: string, id: string) {
+  const answer = (value: unknown, error: string | null = null) => invoke('extensions_wasm_answer', { reply, value, error })
+  if (call === 'agents') return answer(agents.list.map(stateOf))
+  const agent = find(id)
+  if (!agent) return answer(null, `No open agent has the id ${id}.`)
+  if (!archivable(agent)) return answer(null, `${agent.name} stays: it works, waits for the user, is pinned, remote or shown.`)
+  try {
+    await archive(agent.id)
+    answer(null)
+  } catch (e) {
+    answer(null, errorText(e))
+  }
+}
 
 const seen = new Map<string, string>()
 
@@ -196,7 +230,9 @@ $effect.root(() => {
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
     const list = extensions.list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) }))
-    invoke<Record<string, string>>('extensions_wasm_sync', { list }).then((errors) => (extensions.errors = errors))
+    invoke<Record<string, string>>('extensions_wasm_sync', { list }).then((errors) => {
+      extensions.errors = errors
+    })
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return

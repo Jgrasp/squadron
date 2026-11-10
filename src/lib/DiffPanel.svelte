@@ -594,6 +594,7 @@
     ['approve', 'review.verdictApprove'],
     ['request_changes', 'review.verdictRequestChanges'],
   ]
+  const closed = $derived(!!pull && pull.state !== 'open')
   const ready = $derived(verdict === 'request_changes' ? !!summary.trim() || review.length > 0 : verdict === 'approve' || !!summary.trim() || review.length > 0)
 
   async function submit() {
@@ -775,7 +776,7 @@
       {#if own && pull.mergeable && !review.length}
         <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
       {/if}
-      {#if !own}
+      {#if !own && !closed}
         <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'request_changes'} onclick={() => ((verdict = 'request_changes'), (finishing = true))}>{t('review.verdictRequestChanges')}</button>
         <button class="btn btn-secondary" disabled={posting} onclick={approveNow}>{posting && verdict === 'approve' ? t('review.posting') : t('review.verdictApprove')}</button>
       {/if}
@@ -814,7 +815,7 @@
             <button class="btn btn-primary" disabled={posting || !(ready || handing.length)} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
-              {#each own ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
+              {#each own || closed ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
                 <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{t(label)}</button>
               {/each}
             </div>

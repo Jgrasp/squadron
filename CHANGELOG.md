@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.39.0 · 2026-11-10
+
+### Pull requests
+
+- An agent can change the title and description of a pull request with update_pull, with your account, on Bitbucket, GitHub, GitLab and Azure DevOps.
+- A merged or closed pull request offers only comments when you finish its review, and the reviewing agent is named after the pull request.
+
+### Extensions
+
+- An extension can see your agents and what they are doing, archive those that are not working, and wake itself up with a timer, once you allow it (extension API 1.1).
+
+### Conversation
+
+- When an agent’s reply names more than three files, only the first two cards show, and a bar lists the rest until you ask to see them all.
+
+
 ## 0.38.1 · 2026-11-09
 
 ### Fixes

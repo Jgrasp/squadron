@@ -277,14 +277,16 @@ export function sleepIdle() {
       invoke('sleep_agent', { id: agent.id }).catch(() => {})
 }
 
+export const shownAgent = () => (projects.overview ? undefined : agents.current[projects.current])
+
+export const archivable = (agent: Agent) =>
+  ['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && !agent.pinned && agent.id !== shownAgent()
+
 export function archiveIdle() {
   const days = settings.archive_after_days
   if (!days) return
   const limit = Date.now() - days * 86_400_000
-  const shown = projects.overview ? undefined : agents.current[projects.current]
-  for (const agent of [...agents.list])
-    if (['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && !agent.pinned && agent.since < limit && agent.id !== shown)
-      archive(agent.id)
+  for (const agent of [...agents.list]) if (archivable(agent) && agent.since < limit) archive(agent.id)
 }
 
 let scanning = true

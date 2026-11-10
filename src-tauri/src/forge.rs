@@ -1352,6 +1352,70 @@ pub async fn merge(dir: &Path, number: u64) -> Result<(), String> {
     }
 }
 
+pub async fn update(
+    dir: &Path,
+    number: u64,
+    title: Option<String>,
+    description: Option<String>,
+) -> Result<(), String> {
+    let repo = repo_of(dir)?;
+    let title = title.map(|t| t.trim().to_string());
+    if title.as_deref() == Some("") {
+        return Err("The title is empty.".into());
+    }
+    let mut changes = serde_json::Map::new();
+    if let Some(title) = title {
+        changes.insert("title".into(), title.into());
+    }
+    if let Some(description) = description {
+        changes.insert("description".into(), description.into());
+    }
+    if changes.is_empty() {
+        return Err("Give a new title, a new description, or both.".into());
+    }
+    match repo.host {
+        Host::GitLab => gitlab::update(&repo.slug, number, Value::Object(changes)).await,
+        Host::Azure => azure::update(&repo.slug, number, Value::Object(changes)).await,
+        Host::Bitbucket => {
+            let path = format!("/repositories/{}/pullrequests/{number}", repo.slug);
+            let found = bitbucket(
+                Method::GET,
+                &path,
+                &[("fields", "title,reviewers.uuid")],
+                None,
+            )
+            .await?;
+            changes
+                .entry("title")
+                .or_insert_with(|| found["title"].clone());
+            changes.insert("reviewers".into(), found["reviewers"].clone());
+            bitbucket(Method::PUT, &path, &[], Some(Value::Object(changes)))
+                .await
+                .map(|_| ())
+        }
+        Host::GitHub => {
+            if let Some(description) = changes.remove("description") {
+                changes.insert("body".into(), description);
+            }
+            blocking(move || {
+                gh(
+                    &[
+                        "api",
+                        "-X",
+                        "PATCH",
+                        &format!("repos/{}/pulls/{number}", repo.slug),
+                        "--input",
+                        "-",
+                    ],
+                    Some(&Value::Object(changes).to_string()),
+                )
+                .map(|_| ())
+            })
+            .await
+        }
+    }
+}
+
 #[derive(Debug, Default, PartialEq, Serialize)]
 pub struct Run {
     pub host: String,

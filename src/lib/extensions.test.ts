@@ -171,4 +171,14 @@ describe('extensions', () => {
     expect(load(found, [], {})[0].pending).toEqual(['net:api.github.com'])
     expect(grantsOf(load(found, [], { gh: ['net:api.github.com'] })[0])).toEqual(['net:api.github.com'])
   })
+
+  it('asks to see and archive agents', () => {
+    const base = { id: 'jira', version: '1.0.0', api: 1, name: { en: 'Jira' } }
+    const both = { ...base, permissions: { agents: ['read', 'archive'] } }
+    expect(keys(both)).toEqual([])
+    for (const agents of [['delete'], 'read', [1]]) expect(keys({ ...base, permissions: { agents } })).toEqual(['extensions.badAgents'])
+    const found = [{ dir: '/m/jira', linked: false, manifest: both, error: null }]
+    expect(load(found, [], {})[0].pending).toEqual(['agents:read', 'agents:archive'])
+    expect(grantsOf(load(found, [], { jira: ['agents:read'] })[0])).toEqual(['agents:read'])
+  })
 })
