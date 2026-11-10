@@ -358,7 +358,10 @@ import { fences } from './codepaste'
           {#if !Array.isArray(chunk) && 'thought' in chunk}
             {@render musing(chunk.thought, chunk.ms)}
           {:else if !Array.isArray(chunk)}
-            <div class="remark"><Markdown text={chunk.text} streaming={!!tail && chunk === tail} cards project={agent.project} {onrun} /></div>
+            <div class="agent" oncontextmenu={(e) => openMenu(e, i, chunk.text)} role="presentation">
+              {#if chunk.at}<span class="stamp">{time(chunk.at)}</span>{/if}
+              <Markdown text={chunk.text} streaming={!!tail && chunk === tail} cards project={agent.project} {onrun} />
+            </div>
           {:else if chunk.length || (live && !parts.answer.length)}
             <details class="steps" class:live={live && c === chunks.length - 1}>
               <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span><Shots paths={shotsOf(chunk)} /></summary>
@@ -865,11 +868,10 @@ import { fences } from './codepaste'
     color: var(--text-muted);
   }
 
-  .remark {
-    padding: 2px 0 2px 14px;
-    border-left: 2px solid var(--text-dim);
-    font-size: 13.5px;
-    color: var(--text-2);
+  .stamp {
+    margin-bottom: -8px;
+    font: 11.5px var(--mono);
+    color: var(--text-dim);
   }
 
   .musing.now {

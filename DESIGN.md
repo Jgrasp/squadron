@@ -220,7 +220,7 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 - **Message utilisateur** : bulle claire à droite, 540px max, padding 12px 16px.
 - **Réponse de l'agent** : bloc `--surface-1`, padding 16px 18px, rayon 6px, espacement 12px. Markdown 1,65 ; code en ligne `--surface-3`, mono 12,5px, padding 1px 6px.
 - **Résumé replié** (réflexion, groupe d'actions) : 12,5px `--text-muted`, chevron dans un carré 18px `--surface-3`.
-- **Note** (texte de l'agent entre deux étapes) : toujours visible, hors du repli. Liseré gauche 2px `--text-dim`, padding 2px 0 2px 14px, 13,5px `--text-2`, droit. La réflexion affichée garde son liseré `--border-strong` et son italique `--text-muted`.
+- **Note** (texte de l'agent entre deux étapes) : toujours visible, hors du repli, dans un bloc de réponse, son heure en tête en mono 11,5px `--text-dim`. La réponse finale n'a pas d'heure.
 - **Appel d'outil** (`ToolRow`) : ligne 30px, nom sur 40px `--text-dim`, argument en mono, statut à droite. Edit et Write ouvrent le Diff ; Bash se déplie. En échec : `--err-bg`, contour `#6B3A33`, sortie `--err-text` sur `--err-pre`.
 - **Fin de tour** : mono 11,5px `--text-dim`, « Turn N done · N in · N out · durée ».
 - **Repères d'historique** (permission répondue) : 12,5px, padding 9px 14px. Autorisé `#1F2321` / contour `#33403B` / `--ok-text`. Refusé `#241917` / contour `#4A2E29` / `--err-text`.

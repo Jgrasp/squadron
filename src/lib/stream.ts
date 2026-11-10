@@ -575,7 +575,7 @@ function stream(agent: Agent, d: Json) {
     const block = e.content_block
     const entry = agentEntry(agent)
     if (block.type === 'text') {
-      entry.blocks.push({ type: 'text', text: '', key })
+      entry.blocks.push({ type: 'text', text: '', key, at: Date.now() })
       act(agent, t('conversation.writingReply'))
     } else if (block.type === 'thinking') {
       entry.blocks.push({ type: 'thinking' })
@@ -635,7 +635,7 @@ function assistant(agent: Agent, d: Json) {
     } else if (!sub && c.type === 'advisor_tool_result') {
       advised(blocks(), c)
     } else if (c.type === 'text' && (sub || !blocks().some((b) => b.type === 'text' && b.key.startsWith(`${d.message.id}:`)))) {
-      blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, ...at })
+      blocks().push({ type: 'text', text: c.text, key: `${d.message.id}:${sub ? d.uuid : 'full'}`, at: d.timestamp ? Date.parse(d.timestamp) : Date.now() })
     }
   }
 }
