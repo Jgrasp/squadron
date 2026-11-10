@@ -16,6 +16,10 @@ export type ManifestPanel = { id: string; title: Text; page: string }
 
 export type Panel = ManifestPanel & { key: `extension:${string}`; extension: string }
 
+export const AGENT_ACCESS = ['read', 'archive'] as const
+
+export type Permissions = { exec?: string[]; network?: string[]; agents?: (typeof AGENT_ACCESS)[number][] }
+
 export type Manifest = {
   id: string
   version: string
@@ -23,7 +27,7 @@ export type Manifest = {
   name: Text
   description?: Text
   wasm?: string
-  permissions?: { exec?: string[]; network?: string[] }
+  permissions?: Permissions
   contributes?: { args?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
 }
 
@@ -92,6 +96,8 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
     problems.push(['extensions.badExec'])
   const network = isObject(raw.permissions) ? raw.permissions.network : undefined
   if (network !== undefined && (!Array.isArray(network) || !network.every((h) => typeof h === 'string' && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)))) problems.push(['extensions.badNetwork'])
+  const access = isObject(raw.permissions) ? raw.permissions.agents : undefined
+  if (access !== undefined && (!Array.isArray(access) || !access.every((a) => (AGENT_ACCESS as readonly unknown[]).includes(a)))) problems.push(['extensions.badAgents'])
   const contributes = raw.contributes ?? {}
   if (!isObject(contributes)) problems.push(['extensions.badContributes'])
   else {
@@ -153,17 +159,20 @@ export const NET = 'net:'
 
 export const ARGS = 'args:'
 
+export const AGENTS = 'agents:'
+
 export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
     ...(manifest.contributes?.tools ?? []).flatMap((t) => (t.command ? [t.command] : [])),
     ...(manifest.permissions?.exec ?? []).map((p) => EXEC + p),
     ...(manifest.permissions?.network ?? []).map((h) => NET + h),
+    ...(manifest.permissions?.agents ?? []).map((a) => AGENTS + a),
     ...(manifest.contributes?.args?.length ? [ARGS + JSON.stringify(manifest.contributes.args)] : []),
   ]),
 ]
 
-export const grantsOf = (extension: Extension) => extension.commands.filter((c) => (c.startsWith(EXEC) || c.startsWith(NET)) && !extension.pending.includes(c))
+export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
 
 export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}): Extension[] {
   const taken: string[] = []
@@ -207,7 +216,7 @@ export type CatalogEntry = {
   repository: string
   archive: string
   sha256: string
-  permissions?: { exec?: string[]; network?: string[] }
+  permissions?: Permissions
   source: string
   official: boolean
 }

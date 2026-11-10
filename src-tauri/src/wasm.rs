@@ -3,16 +3,19 @@ use serde::Deserialize;
 use serde_json::{Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
-use std::sync::mpsc;
+use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
-use std::time::{Duration, SystemTime};
+use std::time::{Duration, Instant, SystemTime};
 use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
 use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 wasmtime::component::bindgen!({ path: "../extensions/api/wit", world: "squadron-extension" });
 
-use squadron::api::types::{Output, Request, Response};
+use squadron::api::types::{AgentState, Output, Request, Response};
+
+pub const READ_AGENTS: &str = "agents:read";
+pub const ARCHIVE_AGENTS: &str = "agents:archive";
 
 const FUEL: u64 = 5_000_000_000;
 const MEMORY: usize = 64 << 20;
@@ -20,8 +23,12 @@ const MAX_STATE: usize = 1 << 20;
 const ANSWER: Duration = Duration::from_secs(150);
 const FETCH: Duration = Duration::from_secs(30);
 const MAX_BODY: usize = 8 << 20;
+const WINDOW: Duration = Duration::from_secs(10);
+const MIN_TIMER: u32 = 10;
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
+
+type Answers = Arc<Mutex<HashMap<String, mpsc::Sender<Result<Value, String>>>>>;
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct AgentInfo {
@@ -38,6 +45,34 @@ impl From<AgentInfo> for Agent {
             name: a.name,
             project: a.project,
             dir: a.dir,
+        }
+    }
+}
+
+#[derive(Deserialize)]
+struct Listed {
+    #[serde(flatten)]
+    agent: AgentInfo,
+    status: String,
+    since: u64,
+    pinned: bool,
+    remote: bool,
+    shown: bool,
+    branch: Option<String>,
+    archivable: bool,
+}
+
+impl From<Listed> for AgentState {
+    fn from(l: Listed) -> Self {
+        AgentState {
+            agent: l.agent.into(),
+            status: l.status,
+            since: l.since,
+            pinned: l.pinned,
+            remote: l.remote,
+            shown: l.shown,
+            branch: l.branch,
+            archivable: l.archivable,
         }
     }
 }
@@ -60,6 +95,7 @@ enum Job {
         mpsc::Sender<Result<String, String>>,
     ),
     Allow(Vec<String>),
+    Timer,
 }
 
 struct Loaded {
@@ -77,6 +113,8 @@ struct Host {
     state: BTreeMap<String, String>,
     allowed: Vec<String>,
     emit: Emit,
+    answers: Answers,
+    timer: Option<Instant>,
 }
 
 impl WasiView for Host {
@@ -95,6 +133,27 @@ impl Host {
             m.extend(a.clone());
         }
         (self.emit)(message);
+    }
+
+    fn may(&self, access: &str) -> Result<(), String> {
+        if self.allowed.iter().any(|a| a == access) {
+            return Ok(());
+        }
+        let wanted = access.trim_start_matches("agents:");
+        Err(format!(
+            "{access} is not allowed. List \"{wanted}\" in permissions.agents; the user then allows it."
+        ))
+    }
+
+    fn ask(&self, call: &str, mut args: Value) -> Result<Value, String> {
+        let id = uuid::Uuid::new_v4().to_string();
+        let (tx, rx) = mpsc::channel();
+        self.answers.lock().unwrap().insert(id.clone(), tx);
+        args["reply"] = json!(id);
+        self.tell(call, args);
+        let answer = rx.recv_timeout(WINDOW);
+        self.answers.lock().unwrap().remove(&id);
+        answer.map_err(|_| "Squadron did not answer.".to_string())?
     }
 }
 
@@ -186,6 +245,34 @@ impl squadron::api::host::Host for Host {
         fetch(&self.allowed, request, |name| {
             crate::forge::read_secret(&secret_key(&id, name)?)
         })
+    }
+
+    fn agents(&mut self) -> Result<Vec<AgentState>, String> {
+        self.may(READ_AGENTS)?;
+        let list: Vec<Listed> =
+            serde_json::from_value(self.ask("agents", json!({}))?).map_err(|e| e.to_string())?;
+        Ok(list.into_iter().map(AgentState::from).collect())
+    }
+
+    fn archive_agent(&mut self, agent: String) -> Result<(), String> {
+        self.may(ARCHIVE_AGENTS)?;
+        self.ask("archive-agent", json!({"agent": agent}))
+            .map(|_| ())
+    }
+
+    fn set_timer(&mut self, seconds: u32) {
+        self.timer = Some(Instant::now() + Duration::from_secs(seconds.max(MIN_TIMER).into()));
+    }
+}
+
+fn wait(rx: &mpsc::Receiver<Job>, timer: Option<Instant>) -> Option<Job> {
+    let Some(due) = timer else {
+        return rx.recv().ok();
+    };
+    match rx.recv_timeout(due.saturating_duration_since(Instant::now())) {
+        Ok(job) => Some(job),
+        Err(RecvTimeoutError::Timeout) => Some(Job::Timer),
+        Err(RecvTimeoutError::Disconnected) => None,
     }
 }
 
@@ -338,6 +425,7 @@ pub struct Runtime {
     loaded: Mutex<HashMap<String, Loaded>>,
     states: PathBuf,
     emit: Emit,
+    answers: Answers,
 }
 
 fn resolve(dir: &str, wasm: &str) -> Result<PathBuf, String> {
@@ -368,7 +456,14 @@ impl Runtime {
             loaded: Default::default(),
             states,
             emit: Arc::new(emit),
+            answers: Default::default(),
         })
+    }
+
+    pub fn answer(&self, reply: &str, answer: Result<Value, String>) {
+        if let Some(tx) = self.answers.lock().unwrap().remove(reply) {
+            let _ = tx.send(answer);
+        }
     }
 
     pub fn sync(&self, specs: Vec<Spec>) -> HashMap<String, String> {
@@ -408,9 +503,10 @@ impl Runtime {
     fn start(&self, spec: &Spec, path: &Path) -> Result<mpsc::Sender<Job>, String> {
         let component = Component::from_file(&self.engine, path).map_err(|e| format!("{e:#}"))?;
         let engine = self.engine.clone();
-        let (id, emit, file) = (
+        let (id, emit, answers, file) = (
             spec.id.clone(),
             self.emit.clone(),
+            self.answers.clone(),
             self.states.join(format!("{}.json", spec.id)),
         );
         let mut allowed = spec.allowed.clone();
@@ -426,6 +522,8 @@ impl Runtime {
             file: file.clone(),
             allowed: allowed.clone(),
             emit: emit.clone(),
+            answers: answers.clone(),
+            timer: None,
         };
         let (ready_tx, ready_rx) = mpsc::channel();
         let (tx, rx) = mpsc::channel::<Job>();
@@ -438,7 +536,8 @@ impl Runtime {
             let _ = ready_tx.send(Ok(()));
             let mut job = Some(Job::Event("started".into(), None, "{}".into()));
             loop {
-                let Some(next) = job.take().or_else(|| rx.recv().ok()) else {
+                let timer = current.0.data().timer;
+                let Some(next) = job.take().or_else(|| wait(&rx, timer)) else {
                     break;
                 };
                 let (store, bindings) = &mut current;
@@ -448,6 +547,13 @@ impl Runtime {
                         allowed = list.clone();
                         store.data_mut().allowed = list;
                         None
+                    }
+                    Job::Timer => {
+                        store.data_mut().timer = None;
+                        bindings
+                            .call_on_event(&mut *store, "timer", None, "{}")
+                            .err()
+                            .map(trapped)
                     }
                     Job::Event(name, agent, data) => bindings
                         .call_on_event(&mut *store, &name, agent.as_ref(), &data)
@@ -482,8 +588,12 @@ impl Runtime {
                 };
                 if let Some(error) = failure {
                     report(json!({"extension": id, "call": "error", "error": error}));
+                    let timer = current.0.data().timer;
                     match instantiate(&engine, &component, host(&allowed)) {
-                        Ok(fresh) => current = fresh,
+                        Ok(mut fresh) => {
+                            fresh.0.data_mut().timer = timer;
+                            current = fresh;
+                        }
                         Err(e) => {
                             report(
                                 json!({"extension": id, "call": "error", "error": format!("{e:#}")}),
@@ -665,6 +775,112 @@ mod tests {
             restarted.tool("hello", "clicks", "{}", None).unwrap(),
             "The Count button was clicked 4 times."
         );
+    }
+
+    fn host(
+        allowed: &[&str],
+        window: impl Fn(&str, &Value) -> Result<Value, String> + Send + Sync + 'static,
+    ) -> (Host, Arc<Mutex<Vec<Value>>>) {
+        let told = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let answers = Answers::default();
+        let (record, pending) = (told.clone(), answers.clone());
+        let host = Host {
+            id: "jira".into(),
+            wasi: WasiCtx::builder().build(),
+            table: ResourceTable::new(),
+            limits: StoreLimitsBuilder::new().build(),
+            file: std::env::temp_dir().join(format!("squadron-wasm-{}.json", uuid::Uuid::new_v4())),
+            state: BTreeMap::new(),
+            allowed: allowed.iter().map(|a| a.to_string()).collect(),
+            emit: Arc::new(move |v: Value| {
+                record.lock().unwrap().push(v.clone());
+                let reply = v["reply"].as_str().unwrap_or_default();
+                if let Some(tx) = pending.lock().unwrap().remove(reply) {
+                    let _ = tx.send(window(v["call"].as_str().unwrap(), &v));
+                }
+            }),
+            answers,
+            timer: None,
+        };
+        (host, told)
+    }
+
+    #[test]
+    fn lists_and_archives_agents_only_with_their_permission() {
+        use squadron::api::host::Host as _;
+        let window = |call: &str, v: &Value| match (call, v["agent"].as_str()) {
+            ("agents", _) => Ok(
+                json!([{"id": "a1", "name": "RING-1", "project": "/p", "dir": "/p/w", "status": "done", "since": 1_700_000_000_000u64, "pinned": false, "remote": false, "shown": false, "branch": "ring-1", "archivable": true}]),
+            ),
+            ("archive-agent", Some("a1")) => Ok(Value::Null),
+            _ => Err("RING-2 stays: it works.".into()),
+        };
+
+        let (mut denied, told) = host(&["exec:git"], window);
+        assert!(denied.agents().unwrap_err().contains("agents:read"));
+        assert!(
+            denied
+                .archive_agent("a1".into())
+                .unwrap_err()
+                .contains(r#""archive" in permissions.agents"#)
+        );
+        assert!(told.lock().unwrap().is_empty());
+
+        let (mut host, told) = host(&[READ_AGENTS, ARCHIVE_AGENTS], window);
+        let agents = host.agents().unwrap();
+        assert_eq!(agents[0].agent.dir, "/p/w");
+        assert_eq!(agents[0].branch.as_deref(), Some("ring-1"));
+        assert!(agents[0].archivable);
+        host.archive_agent("a1".into()).unwrap();
+        assert_eq!(
+            host.archive_agent("a2".into()).unwrap_err(),
+            "RING-2 stays: it works."
+        );
+        let calls: Vec<_> = told
+            .lock()
+            .unwrap()
+            .iter()
+            .map(|v| (v["call"].clone(), v["agent"].clone()))
+            .collect();
+        assert_eq!(
+            calls,
+            [
+                (json!("agents"), Value::Null),
+                (json!("archive-agent"), json!("a1")),
+                (json!("archive-agent"), json!("a2"))
+            ]
+        );
+        assert!(host.answers.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn gives_up_when_the_window_does_not_answer() {
+        use squadron::api::host::Host as _;
+        let (mut host, _) = host(&[READ_AGENTS], |_, _| Ok(json!([])));
+        host.emit = Arc::new(|_| {});
+        let started = Instant::now();
+        assert_eq!(host.agents().unwrap_err(), "Squadron did not answer.");
+        assert!(started.elapsed() >= WINDOW);
+        assert!(host.answers.lock().unwrap().is_empty());
+    }
+
+    #[test]
+    fn rings_the_timer_once_after_ten_seconds_at_least() {
+        use squadron::api::host::Host as _;
+        let (mut host, _) = host(&[], |_, _| Ok(Value::Null));
+        host.set_timer(1);
+        let left = host.timer.unwrap() - Instant::now();
+        assert!(left > Duration::from_secs(9) && left <= Duration::from_secs(10));
+
+        let (tx, rx) = mpsc::channel();
+        assert!(matches!(wait(&rx, Some(Instant::now())), Some(Job::Timer)));
+        tx.send(Job::Allow(vec![])).unwrap();
+        assert!(matches!(
+            wait(&rx, Some(Instant::now() + Duration::from_secs(60))),
+            Some(Job::Allow(_))
+        ));
+        drop(tx);
+        assert!(wait(&rx, None).is_none());
     }
 
     #[test]

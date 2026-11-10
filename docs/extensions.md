@@ -122,7 +122,8 @@ Elles sont déclarées dans le manifeste, montrées à l'installation et accept�
 
 - `exec` : les programmes que le WASM peut lancer, avec n'importe quels arguments, sans shell.
 - `network` : les noms d'hôte que `host::fetch` peut joindre, en HTTPS.
-- `agents:read`, `agents:send`, `cards:write`, `project:read` : l'accès aux données et aux actions de Squadron.
+- `agents` : `read` donne les agents ouverts et ce qu'ils font (`host::agents`), `archive` permet d'en archiver (`host::archive-agent`). *Fait en 1.1.0.*
+- `agents:send`, `cards:write`, `project:read` : prévus, pour les autres données et actions de Squadron.
 - `tools` : outils proposés aux agents.
 
 Le sandbox ne protège que ce que l'extension ne peut pas faire. Une commande autorisée tourne avec tous les droits de l'utilisateur. Avec une marketplace, la vraie barrière est l'écran de permissions, et il doit le dire clairement.
@@ -182,6 +183,7 @@ Ce que le manifeste ajoute :
 - l'action `{ "run": "<action>" }` pour un élément : Squadron appelle `run` ;
 - un outil sans `command`, avec un `input` facultatif (schéma JSON de type object) : Squadron appelle `call-tool` avec l'entrée en JSON ;
 - `"permissions": { "exec": ["git"] }` : les programmes que `host::exec` peut lancer, avec n'importe quels arguments, sans shell. La popup d'accord les présente ainsi (« git …, avec n'importe quels arguments »).
+- `"permissions": { "agents": ["read", "archive"] }` : voir les agents ouverts, en archiver. La popup d'accord les présente ainsi (« Voit vos agents et ce qu'ils font », « Archive vos agents qui ne travaillent pas »).
 
 Comment ça tourne :
 
@@ -190,12 +192,14 @@ Comment ça tourne :
 - WASI sans fichiers, sans réseau et sans variables d'environnement ;
 - l'état de `state-set` va dans `<config>/extensions-state/<id>.json`, 1 Mo au plus ;
 - une extension qui plante est signalée dans Settings › Extensions et repart sur une instance neuve, en gardant son état ;
-- les événements `agent.done` et `agent.waiting` partent quand l'état d'un agent change.
+- les événements `agent.done` et `agent.waiting` partent quand l'état d'un agent change ;
+- `host::agents` et `host::archive-agent` interrogent la fenêtre principale, qui répond par `extensions_wasm_answer` en 10 s au plus. L'archivage suit la règle de l'archivage automatique (`archivable` dans `agents.svelte.ts`) : agent qui ne travaille pas, sans question en attente, ni épinglé, ni distant, ni affiché ;
+- `host::set-timer` envoie l'événement `timer` après 10 s au moins, depuis le fil de l'extension, sans fil en plus. Un nouvel appel remplace le minuteur en cours. Il survit à un plantage, pas au rechargement ni au redémarrage : l'extension le réarme sur `started`.
 
-Le contrat (`extensions/api/wit/squadron.wit`). On peut lui ajouter des imports sans casser les extensions déjà compilées. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
+Le contrat (`extensions/api/wit/squadron.wit`), en 1.1.0. On peut lui ajouter des imports sans casser les extensions déjà compilées : une extension compilée contre 1.0.0 se charge dans un Squadron 1.1.0, vérifié avec l'exemple `hello`. Une extension qui appelle une fonction 1.1.0 ne se charge pas dans un Squadron plus ancien. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
 
 ```wit
-package squadron:api@1.0.0;
+package squadron:api@1.1.0;
 
 interface types {
   /// The agent a call is about.
@@ -205,6 +209,23 @@ interface types {
     project: string,
     /// The folder the agent works in: its worktree, or its project.
     dir: string,
+  }
+
+  /// An agent open in Squadron, with what it is doing. Since 1.1.0.
+  record agent-state {
+    agent: agent,
+    /// `working`, `waiting`, `done`, `interrupted` or `error`.
+    status: string,
+    /// When the status last changed, in milliseconds since 1970.
+    since: u64,
+    pinned: bool,
+    remote: bool,
+    /// Open on screen.
+    shown: bool,
+    /// The branch of its worktree, when it has one.
+    branch: option<string>,
+    /// `archive-agent` would archive it now.
+    archivable: bool,
   }
 
   record output {
@@ -230,7 +251,7 @@ interface types {
 }
 
 interface host {
-  use types.{output, request, response};
+  use types.{agent-state, output, request, response};
 
   /// Writes a line to Squadron's log.
   log: func(message: string);
@@ -251,13 +272,19 @@ interface host {
   fetch: func(request: request) -> result<response, string>;
   /// Sends a JSON message to one of the extension's open panels, which receives it in `squadron.on`.
   panel-post: func(panel: string, message: string);
+  /// The agents open in Squadron, archived ones aside. Needs `agents: ["read"]` in `permissions`. Since 1.1.0.
+  agents: func() -> result<list<agent-state>, string>;
+  /// Archives an agent, as the user would. Refused while it works, waits for the user, is pinned, remote or shown. Needs `agents: ["archive"]` in `permissions`. Since 1.1.0.
+  archive-agent: func(agent: string) -> result<_, string>;
+  /// Sends the event `timer` in `seconds`, 10 at least, and replaces the one pending. Since 1.1.0.
+  set-timer: func(seconds: u32);
 }
 
 world squadron-extension {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;

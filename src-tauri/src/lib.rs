@@ -1499,6 +1499,16 @@ fn extensions_wasm_event(
 }
 
 #[tauri::command]
+fn extensions_wasm_answer(
+    runtime: State<wasm::Runtime>,
+    reply: String,
+    value: Option<Value>,
+    error: Option<String>,
+) {
+    runtime.answer(&reply, error.map_or(Ok(value.unwrap_or_default()), Err));
+}
+
+#[tauri::command]
 async fn extensions_wasm_run(
     app: AppHandle,
     id: String,
@@ -2339,6 +2349,7 @@ pub fn run() {
             extensions_secret_set,
             extensions_wasm_sync,
             extensions_wasm_event,
+            extensions_wasm_answer,
             extensions_set_args,
             extensions_wasm_run,
             extensions_wasm_tool,

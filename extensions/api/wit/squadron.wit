@@ -1,4 +1,4 @@
-package squadron:api@1.0.0;
+package squadron:api@1.1.0;
 
 interface types {
   /// The agent a call is about.
@@ -8,6 +8,23 @@ interface types {
     project: string,
     /// The folder the agent works in: its worktree, or its project.
     dir: string,
+  }
+
+  /// An agent open in Squadron, with what it is doing. Since 1.1.0.
+  record agent-state {
+    agent: agent,
+    /// `working`, `waiting`, `done`, `interrupted` or `error`.
+    status: string,
+    /// When the status last changed, in milliseconds since 1970.
+    since: u64,
+    pinned: bool,
+    remote: bool,
+    /// Open on screen.
+    shown: bool,
+    /// The branch of its worktree, when it has one.
+    branch: option<string>,
+    /// `archive-agent` would archive it now.
+    archivable: bool,
   }
 
   record output {
@@ -33,7 +50,7 @@ interface types {
 }
 
 interface host {
-  use types.{output, request, response};
+  use types.{agent-state, output, request, response};
 
   /// Writes a line to Squadron's log.
   log: func(message: string);
@@ -54,13 +71,19 @@ interface host {
   fetch: func(request: request) -> result<response, string>;
   /// Sends a JSON message to one of the extension's open panels, which receives it in `squadron.on`.
   panel-post: func(panel: string, message: string);
+  /// The agents open in Squadron, archived ones aside. Needs `agents: ["read"]` in `permissions`. Since 1.1.0.
+  agents: func() -> result<list<agent-state>, string>;
+  /// Archives an agent, as the user would. Refused while it works, waits for the user, is pinned, remote or shown. Needs `agents: ["archive"]` in `permissions`. Since 1.1.0.
+  archive-agent: func(agent: string) -> result<_, string>;
+  /// Sends the event `timer` in `seconds`, 10 at least, and replaces the one pending. Since 1.1.0.
+  set-timer: func(seconds: u32);
 }
 
 world squadron-extension {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;
