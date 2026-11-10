@@ -1052,6 +1052,57 @@ async fn review_checkout(
     .map_err(|e| e.to_string())?
 }
 
+fn reviews_dir(app: &AppHandle) -> Result<PathBuf, String> {
+    Ok(app
+        .path()
+        .app_data_dir()
+        .map_err(|e| e.to_string())?
+        .join("reviews"))
+}
+
+#[tauri::command]
+async fn drop_review_checkout(app: AppHandle, dir: PathBuf) -> Result<bool, String> {
+    if dir.parent() != Some(reviews_dir(&app)?.as_path()) {
+        return Ok(false);
+    }
+    tauri::async_runtime::spawn_blocking(move || git::drop_review_checkout(&dir))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn prune_review_checkouts(app: AppHandle, keep: Vec<PathBuf>) -> Result<usize, String> {
+    let root = reviews_dir(&app)?;
+    tauri::async_runtime::spawn_blocking(move || {
+        let Ok(list) = std::fs::read_dir(&root) else {
+            return 0;
+        };
+        list.flatten()
+            .map(|e| e.path())
+            .filter(|p| !keep.contains(p) && git::drop_review_checkout(p).unwrap_or(false))
+            .count()
+    })
+    .await
+    .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+async fn restore_review_checkout(
+    app: AppHandle,
+    project: PathBuf,
+    dir: PathBuf,
+    head: String,
+) -> Result<(), String> {
+    if dir.parent() != Some(reviews_dir(&app)?.as_path()) {
+        return Err("Not a review checkout.".into());
+    }
+    tauri::async_runtime::spawn_blocking(move || {
+        git::restore_review_checkout(&project, &dir, &head)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
 #[tauri::command]
 async fn pull_changes(
     dir: PathBuf,
@@ -2345,6 +2396,9 @@ pub fn run() {
             linked_pull,
             numbered_pull,
             review_checkout,
+            drop_review_checkout,
+            prune_review_checkouts,
+            restore_review_checkout,
             changed_files,
             review_lines,
             pull_changes,

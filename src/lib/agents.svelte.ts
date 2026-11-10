@@ -346,6 +346,7 @@ export async function rescan() {
 export async function restore() {
   try {
     await adoptSaved()
+    invoke('prune_review_checkouts', { keep: agents.list.flatMap((a) => (a.worktree ? [a.worktree.path] : [])) }).catch(() => {})
   } finally {
     scanning = false
   }
@@ -515,6 +516,8 @@ export async function archived() {
 
 export async function unarchive(id: string) {
   const { archived, withProject, ...data } = JSON.parse(await invoke<string>('restore_archived', { id })) as Archived
+  if (data.review?.head && data.worktree?.path)
+    await invoke('restore_review_checkout', { project: data.review.project, dir: data.worktree.path, head: data.review.head }).catch(() => {})
   await adopt(data)
   agents.current[data.project] = data.id
 }
@@ -995,6 +998,8 @@ export async function archive(id: string, extra: Record<string, unknown> = {}) {
   if (agent) await save(agent, { archived: Date.now(), remote: null, ...extra })
   await invoke('archive_agent_file', { id }).catch(() => invoke('delete_agent_file', { id }))
   agents.list = agents.list.filter((a) => a.id !== id)
+  const dir = agent?.worktree?.path
+  if (dir && !agents.list.some((a) => a.worktree?.path === dir)) invoke('drop_review_checkout', { dir }).catch(() => {})
 }
 
 export async function archiveProject(project: string) {
