@@ -1,7 +1,7 @@
 <script lang="ts">
   import { perform } from './actions.svelte'
   import { invoke } from '@tauri-apps/api/core'
-  import { agents, archived, find, ofProject, onDisk, selected, show, unarchive, type Archived } from './agents.svelte'
+  import { agents, find, ofProject, onDisk, selected, show, unarchive } from './agents.svelte'
   import { ago } from './format'
   import { t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
@@ -13,28 +13,28 @@
 
   let { onclose }: { onclose: () => void } = $props()
 
-  type Entry = { agent: Agent | Archived; archived: boolean; text: string; hay: string }
+  type Found = { id: string; name: string; project: string; since: number; text: string }
+  type Entry = { agent: Pick<Agent, 'id' | 'name' | 'project' | 'since'>; archived: boolean; text: string; hay: string }
 
   const textOf = (agent: Agent) =>
     agent.entries
       .map((e) => (e.kind === 'user' ? e.text : e.kind === 'agent' ? e.blocks.map((b) => (b.type === 'text' ? b.text : '')).join('\n') : ''))
       .join('\n')
 
-  const entry = (agent: Agent | Archived, isArchived: boolean): Entry => {
-    const text = textOf(agent)
-    return { agent, archived: isArchived, text, hay: text.toLowerCase() }
-  }
+  const entry = (agent: Entry['agent'], isArchived: boolean, text: string): Entry => ({ agent, archived: isArchived, text, hay: text.toLowerCase() })
 
-  let pool = $state<Entry[]>(agents.list.map((a) => entry(a, false)))
-  archived().then((list) => (pool = [...pool, ...list.map((a) => entry(a, true))]))
+  let pool = $state.raw<Entry[]>(agents.list.map((a) => entry(a, false, onDisk.has(a.id) ? '' : textOf(a))))
+  invoke<Found[]>('archived_texts').then((list) => (pool = [...pool, ...list.map(({ text, ...agent }) => entry(agent, true, text))]))
   const shelved = agents.list.filter((a) => onDisk.has(a.id)).map((a) => a.id)
   if (shelved.length)
     invoke<Record<string, string>>('agent_texts', { ids: shelved }).then((texts) => {
-      pool = pool.map((e) => (!e.archived && e.agent.id in texts ? { ...e, text: texts[e.agent.id], hay: texts[e.agent.id].toLowerCase() } : e))
+      pool = pool.map((e) => (!e.archived && e.agent.id in texts ? entry(e.agent, false, texts[e.agent.id]) : e))
     })
 
   let query = $state('')
   let active = $state(0)
+  let only = $state<string>()
+  let shelf = $state(false)
   let dialog: HTMLDialogElement
   let field: HTMLInputElement
 
@@ -57,7 +57,7 @@
   const rest = $derived(query.trim().split(/\s+/).slice(1).join(' '))
   const term = $derived(rows.length && rest ? rest : query.trim())
 
-  const hits = $derived.by(() => {
+  const matched = $derived.by(() => {
     const q = term.toLowerCase()
     if (!q) return pool.filter((e) => !e.archived).sort((a, b) => b.agent.since - a.agent.since).slice(0, 12).map((e) => ({ ...e, excerpt: '' }))
     const out: (Entry & { excerpt: string; named: boolean })[] = []
@@ -66,10 +66,40 @@
       const at = q.length > 1 ? e.hay.indexOf(q) : -1
       if (named || at >= 0) out.push({ ...e, named, excerpt: at >= 0 ? snippet(e.text, at, q.length) : '' })
     }
-    return out
-      .sort((a, b) => Number(b.named) - Number(a.named) || Number(a.archived) - Number(b.archived) || b.agent.since - a.agent.since)
-      .slice(0, 50)
+    return out.sort((a, b) => Number(b.named) - Number(a.named) || Number(a.archived) - Number(b.archived) || b.agent.since - a.agent.since)
   })
+
+  const facets = $derived.by(() => {
+    if (!query.trim()) return []
+    const counts = new Map<string, number>()
+    for (const hit of matched) if (!shelf || hit.archived) counts.set(hit.agent.project, (counts.get(hit.agent.project) ?? 0) + 1)
+    if (only && !counts.has(only)) counts.set(only, 0)
+    return [...counts]
+      .flatMap(([path, count]) => {
+        const project = projectOf(path)
+        return project ? [{ project, count }] : []
+      })
+      .sort((a, b) => b.count - a.count)
+  })
+
+  const scoped = $derived(matched.filter((hit) => !only || hit.agent.project === only))
+  const shelfCount = $derived(scoped.filter((hit) => hit.archived).length)
+  const shelfShown = $derived(shelf || (shelfCount > 0 && shelfCount < scoped.length))
+
+  const hits = $derived(scoped.filter((hit) => !shelf || hit.archived).slice(0, 50))
+
+  $effect(() => {
+    if (query.trim()) return
+    only = undefined
+    shelf = false
+  })
+
+  function narrow(path?: string) {
+    if (path === undefined) shelf = !shelf
+    else only = only === path ? undefined : path
+    active = 0
+    field.focus()
+  }
 
   $effect(() => {
     void query
@@ -157,6 +187,20 @@
       <div class="starters">
         <span>{t('spotlight.actions')}</span>
         {#each STARTERS as word (word)}<button type="button" onclick={() => start(word)}>{word}</button>{/each}
+      </div>
+    {:else if facets.length > 1 || only || shelfShown}
+      <div class="filters">
+        <span>{t('spotlight.filter')}</span>
+        {#each facets as { project, count } (project.path)}
+          <button type="button" class="facet" class:on={only === project.path} aria-pressed={only === project.path} style:--project={project.color} onclick={() => narrow(project.path)}>
+            <i></i><span class="name">{project.name}</span><small>{count}</small>
+          </button>
+        {/each}
+        {#if shelfShown}
+          <button type="button" class="facet shelf" class:on={shelf} aria-pressed={shelf} onclick={() => narrow()}>
+            <span class="name">{t('shell.searchArchivedTag')}</span><small>{shelfCount}</small>
+          </button>
+        {/if}
       </div>
     {/if}
     <ul role="listbox" aria-label={t('shell.searchTitle')}>
@@ -294,6 +338,71 @@
     background: var(--surface-3);
     font: 500 12px var(--mono);
     color: var(--text-2);
+  }
+
+  .filters {
+    display: flex;
+    align-items: center;
+    flex-wrap: wrap;
+    gap: 6px;
+    padding: 10px 18px;
+    border-bottom: 1px solid var(--border);
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .filters > span {
+    margin-right: 4px;
+  }
+
+  .facet {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 220px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 3px;
+    background: var(--surface-3);
+    font-size: 12px;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+
+  .facet:hover {
+    background: var(--surface-4);
+  }
+
+  .facet i {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 2px;
+    background: var(--project);
+  }
+
+  .facet .name {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .facet small {
+    flex: none;
+    font: 500 11px var(--mono);
+    color: var(--text-dim);
+  }
+
+  .facet.shelf {
+    --project: var(--text-muted);
+  }
+
+  .facet.on {
+    background: color-mix(in srgb, var(--project) 16%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--project) 60%, transparent);
+    font-weight: 600;
+    color: var(--text-strong);
   }
 
   .section {

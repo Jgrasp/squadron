@@ -275,7 +275,7 @@ Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-
 - **Settings** : Dialog plein écran. Navigation 230px `--bg-sidebar`, groupes en capitales, entrées 34px, active `--surface-4` blanc 600. Contenu 860px max. Cartes de choix `--surface-1` + contour `--border-strong`, choisie `--surface-3` + anneau 2px `--text`.
 - **Add project** : dossier en lecture seule + « Browse… », « Git repository · branch X » en `--done-text`.
 - **New agent** : nom, modèle et effort en segments, mode de permission en 4 cartes, premier message, « Ctrl ↵ ».
-- **Spotlight** : 680px à 14vh, rayon 10px, champ 52px 16px, sections en capitales, résultat choisi `--surface-2` + contour `--border-strong`, `↵` en `--accent`. **QuickOpen** : 620px `--menu`, rayon 9px, champ 44px, lignes 34px.
+- **Spotlight** : 680px à 14vh, rayon 10px, champ 52px 16px, sections en capitales, filtres sous le champ dès qu'on tape (puces 22px rayon 3px `--surface-3`, pastille projet 8px, compte mono 11px ; active teintée par la couleur du projet comme la cible d'une action), résultat choisi `--surface-2` + contour `--border-strong`, `↵` en `--accent`. **QuickOpen** : 620px `--menu`, rayon 9px, champ 44px, lignes 34px.
 
 ### États vides
 Centrés, 440–460px. Aucun projet : triangle cuivre, titre 24px, texte `--text-muted`, bouton « Add project », zone de dépôt en pointillé. Projet sans agent : bouton « New agent » et `Ctrl N`. Dossier introuvable : carte d'alerte avec trois actions.

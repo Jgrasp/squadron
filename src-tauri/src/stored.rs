@@ -1,5 +1,5 @@
-use serde::Deserialize;
 use serde::de::IgnoredAny;
+use serde::{Deserialize, Serialize};
 use serde_json::value::{RawValue, to_raw_value};
 use std::collections::BTreeMap;
 
@@ -57,12 +57,6 @@ pub fn keep_entries(data: String, old: impl FnOnce() -> Option<String>) -> Resul
 }
 
 #[derive(Deserialize)]
-struct Said {
-    #[serde(default)]
-    entries: Vec<Line>,
-}
-
-#[derive(Deserialize)]
 struct Line {
     kind: String,
     text: Option<Text>,
@@ -93,11 +87,41 @@ impl Text {
     }
 }
 
-pub fn texts(text: &str) -> String {
-    let Ok(said) = serde_json::from_str::<Said>(text) else {
-        return String::new();
-    };
-    said.entries
+#[derive(Deserialize)]
+struct Shelved {
+    id: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    project: String,
+    #[serde(default)]
+    since: f64,
+    #[serde(default)]
+    entries: Vec<Line>,
+}
+
+#[derive(Serialize, Clone)]
+pub struct Found {
+    pub id: String,
+    name: String,
+    project: String,
+    since: f64,
+    pub text: String,
+}
+
+pub fn found(text: &str) -> Option<Found> {
+    let shelved = serde_json::from_str::<Shelved>(text).ok()?;
+    Some(Found {
+        text: said_text(&shelved.entries),
+        id: shelved.id,
+        name: shelved.name,
+        project: shelved.project,
+        since: shelved.since,
+    })
+}
+
+fn said_text(entries: &[Line]) -> String {
+    entries
         .iter()
         .map(|line| match line.kind.as_str() {
             "user" => line.text.as_ref().map_or("", Text::plain).to_string(),
@@ -155,7 +179,7 @@ mod tests {
     }
 
     #[test]
-    fn entries_and_texts_read_the_history() {
+    fn entries_read_the_history() {
         assert_eq!(
             serde_json::from_str::<Vec<serde_json::Value>>(&entries(AGENT).unwrap())
                 .unwrap()
@@ -164,6 +188,14 @@ mod tests {
         );
         assert_eq!(entries(r#"{"id":"a"}"#).unwrap(), "[]");
         assert_eq!(entries(r#"{"id":"a","entries":[{"kind""#), None);
-        assert_eq!(texts(AGENT), "Salut\n\nGo\n");
+    }
+
+    #[test]
+    fn found_keeps_the_header_and_the_text() {
+        let found = serde_json::to_value(found(AGENT).unwrap()).unwrap();
+        assert_eq!(found["id"], "a");
+        assert_eq!(found["name"], "Panier");
+        assert_eq!(found["text"], "Salut\n\nGo\n");
+        assert!(found.get("entries").is_none());
     }
 }

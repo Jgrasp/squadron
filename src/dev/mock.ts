@@ -755,6 +755,19 @@ mockIPC(
         localStorage.setItem(`archived:${a.id}`, localStorage.getItem(`agent:${a.id}`) ?? '{}')
         localStorage.removeItem(`agent:${a.id}`)
         return
+      case 'archived_texts':
+        return Object.keys(localStorage)
+          .filter((k) => k.startsWith('archived:'))
+          .map((k) => JSON.parse(localStorage.getItem(k) ?? '{}'))
+          .map((agent) => ({
+            id: agent.id,
+            name: agent.name,
+            project: agent.project,
+            since: agent.since,
+            text: (agent.entries ?? [])
+              .map((e: any) => (e.kind === 'user' ? e.text : e.kind === 'agent' ? e.blocks.map((b: any) => (b.type === 'text' ? b.text : '')).join('\n') : ''))
+              .join('\n'),
+          }))
       case 'list_archived':
         return Object.keys(localStorage).filter((k) => k.startsWith('archived:')).map((k) => localStorage.getItem(k))
       case 'restore_archived': {
