@@ -44,10 +44,15 @@ jobs:
       - uses: actions/checkout@v7
       - name: System libraries
         if: runner.os == 'Linux'
-        timeout-minutes: 5
+        timeout-minutes: 15
         run: |
+          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99ci
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf
+          for i in 1 2 3; do
+            sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf && break
+            [ "$i" = 3 ] && exit 1
+            sleep 15
+          done
       - uses: pnpm/action-setup@v6
         with:
           version: 12.9.1
