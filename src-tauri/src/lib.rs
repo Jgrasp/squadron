@@ -15,6 +15,7 @@ pub mod gitlab;
 pub mod permissions;
 pub mod pilot;
 pub mod plugins;
+pub mod preview;
 pub mod process;
 pub mod projects;
 pub mod sessions;
@@ -2026,6 +2027,11 @@ fn launch(uri: &str, context: gtk::gio::AppLaunchContext) -> Result<(), String> 
 }
 
 #[tauri::command]
+async fn link_preview(url: String) -> Option<preview::Preview> {
+    preview::fetch(&url).await
+}
+
+#[tauri::command]
 fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
         return Err("Only web links open from here.".into());
@@ -2273,6 +2279,7 @@ pub fn run() {
             system_load,
             stop_turn,
             open_link,
+            link_preview,
             git_branch,
             set_workdir,
             agent_ids,

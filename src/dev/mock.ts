@@ -655,6 +655,10 @@ mockIPC(
       case 'open_link':
         window.open(a.url, '_blank')
         return
+      case 'link_preview':
+        return a.url.includes('github.com')
+          ? { title: 'GitHub - nektos/act: Run your GitHub Actions locally 🚀', description: 'Run your GitHub Actions locally 🚀. Contribute to nektos/act development by creating an account on GitHub.', site: 'GitHub', image: 'https://opengraph.githubassets.com/c5edb8ab3e5c401b76cfb5316227093cdc7d5114a362915f2d72274d48976101/nektos/act', icon: 'https://github.githubassets.com/favicons/favicon.png' }
+          : { title: 'Usage guide - act - User Guide', description: '', site: new URL(a.url).host, image: null, icon: 'https://nektosact.com/favicon.svg' }
       case 'plugins_installed':
         return mockPlugins.map((p) => ({ ...p, enabled: pluginFlags.user[p.id] ?? false }))
       case 'plugins_marketplaces':

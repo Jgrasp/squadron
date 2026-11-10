@@ -8,7 +8,11 @@
   import CommentChip from './CommentChip.svelte'
   import type { Proposal } from './diff'
   import { highlight } from './commands'
-  import { splitUrls } from './urls'
+  import { splitUrls, urlsIn } from './urls'
+  import LinkCard from './LinkCard.svelte'
+  import LinkChip from './LinkChip.svelte'
+  import PullCard from './PullCard.svelte'
+  import { isPullLink } from './linked.svelte'
 import { fences } from './codepaste'
   import ErrorCard from './ErrorCard.svelte'
   import Icon from './Icon.svelte'
@@ -85,6 +89,7 @@ import { fences } from './codepaste'
 
   let projectFiles = $state<string[]>([])
   const known = $derived(new Set(projectFiles))
+  const linkCards = (text: string) => [...new Set(fences(text).flatMap((chunk) => (chunk.code ? [] : urlsIn(chunk.text).map((u) => u.url))))].slice(0, 3)
   const citing = $derived(agent.entries.filter((entry) => entry.kind === 'user' && entry.text.includes('@')).length)
 
   $effect(() => {
@@ -299,6 +304,7 @@ import { fences } from './codepaste'
     </div>
   {:else if entry.kind === 'user'}
     {@const said = ticketBlocks(entry.text)}
+    {@const cards = linkCards(said.text)}
     {#if entry.files?.length}
       <div class="files" data-user={i}>{#each entry.files as file (file)}<Attachment path={file} large look="card" />{/each}</div>
     {/if}
@@ -310,7 +316,7 @@ import { fences } from './codepaste'
         {#if said.text}
           {#each fences(said.text) as chunk, c (c)}
             {#if chunk.code}<div class="snippet"><Markdown text={chunk.text} /></div>
-            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{#each splitCited(part.text, known) as bit, b (b)}{#if bit.path}<FileChip path={bit.path} count={filesIn(projectFiles, bit.path)} light />{:else}{#each splitUrls(bit.text) as piece, u (u)}{#if piece.url}<a href={piece.url} title={piece.url}>{piece.text}</a>{:else}{piece.text}{/if}{/each}{/if}{/each}{/if}{/each}</div>{/if}
+            {:else}<div class="said">{#each highlight(chunk.text, names) as part, p (p)}{#if part.command}<span class="cmd">{part.text}</span>{:else}{#each splitCited(part.text, known) as bit, b (b)}{#if bit.path}<FileChip path={bit.path} count={filesIn(projectFiles, bit.path)} light />{:else}{#each splitUrls(bit.text) as piece, u (u)}{#if piece.url}<LinkChip url={piece.url} light link />{:else}{piece.text}{/if}{/each}{/if}{/each}{/if}{/each}</div>{/if}
           {/each}
         {/if}
         {#if said.blocks.length}
@@ -323,6 +329,9 @@ import { fences } from './codepaste'
           </div>
         {/if}
       </div>
+    {/if}
+    {#if cards.length}
+      <div class="link-cards">{#each cards as url (url)}{#if isPullLink(url)}<PullCard {url} />{:else}<LinkCard {url} />{/if}{/each}</div>
     {/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
   {:else if entry.kind === 'shell'}
@@ -760,15 +769,21 @@ import { fences } from './codepaste'
     white-space: pre-wrap;
   }
 
-  .said a {
-    color: inherit;
-    text-decoration: underline;
-    text-decoration-thickness: 1px;
-    text-underline-offset: 2px;
+  .link-cards {
+    align-self: flex-end;
+    width: min(440px, 100%);
+    margin-top: -8px;
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
   }
 
-  .said a:hover {
-    text-decoration-thickness: 2px;
+  .link-cards:empty {
+    display: none;
+  }
+
+  .link-cards :global(.card) {
+    margin: 0;
   }
 
   .said + .snippet,

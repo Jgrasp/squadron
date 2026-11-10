@@ -8,6 +8,7 @@
   import { minimalSetup } from 'codemirror'
   import { mount, unmount } from 'svelte'
   import FileChip from './FileChip.svelte'
+  import LinkChip from './LinkChip.svelte'
   import { citedFiles, filesIn } from './mention.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { urlsIn } from './urls'
@@ -46,54 +47,6 @@
     { decorations: (plugin) => plugin.decorations },
   )
 
-  const urlMark = Decoration.mark({ class: 'cm-url' })
-
-  function urlMarks(view: EditorView) {
-    const doc = view.state.doc
-    const tree = syntaxTree(view.state)
-    const marks: Range<Decoration>[] = []
-    for (const { from, to } of view.visibleRanges)
-      for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
-        const line = doc.line(n)
-        for (const url of urlsIn(line.text)) {
-          const start = line.from + url.from
-          if (/^(FencedCode|CodeText)$/.test(tree.resolveInner(start, 1).name)) continue
-          marks.push(urlMark.range(start, line.from + url.to))
-        }
-      }
-    return Decoration.set(marks, true)
-  }
-
-  const urls = ViewPlugin.fromClass(
-    class {
-      decorations: DecorationSet
-      constructor(view: EditorView) {
-        this.decorations = urlMarks(view)
-      }
-      update(update: ViewUpdate) {
-        if (update.docChanged || update.viewportChanged || syntaxTree(update.startState) !== syntaxTree(update.state)) this.decorations = urlMarks(update.view)
-      }
-    },
-    {
-      decorations: (plugin) => plugin.decorations,
-      eventHandlers: {
-        mousedown(event, view) {
-          if (!(event.ctrlKey || event.metaKey) || event.button !== 0) return false
-          const pos = view.posAtCoords(event)
-          if (pos === null) return false
-          let hit: string | undefined
-          this.decorations.between(pos, pos, (from, to) => {
-            hit = view.state.sliceDoc(from, to)
-          })
-          if (!hit) return false
-          event.preventDefault()
-          invoke('open_link', { url: hit })
-          return true
-        },
-      },
-    },
-  )
-
   const chips = new WeakMap<HTMLElement, ReturnType<typeof mount>>()
 
   class FileWidget extends WidgetType {
@@ -121,6 +74,68 @@
       if (chip) unmount(chip)
     }
   }
+
+  class LinkWidget extends WidgetType {
+    url: string
+
+    constructor(url: string) {
+      super()
+      this.url = url
+    }
+
+    eq(other: LinkWidget) {
+      return other.url === this.url
+    }
+
+    toDOM() {
+      const host = document.createElement('span')
+      host.addEventListener('mousedown', (event) => {
+        if (!(event.ctrlKey || event.metaKey) || event.button !== 0) return
+        event.preventDefault()
+        invoke('open_link', { url: this.url })
+      })
+      chips.set(host, mount(LinkChip, { target: host, props: { url: this.url } }))
+      return host
+    }
+
+    destroy(dom: HTMLElement) {
+      const chip = chips.get(dom)
+      if (chip) unmount(chip)
+    }
+  }
+
+  function linkMarks(view: EditorView, typing = false) {
+    const doc = view.state.doc
+    const tree = syntaxTree(view.state)
+    const head = view.state.selection.main.head
+    const marks: Range<Decoration>[] = []
+    for (const { from, to } of view.visibleRanges)
+      for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
+        const line = doc.line(n)
+        for (const found of urlsIn(line.text)) {
+          const start = line.from + found.from
+          const end = line.from + found.to
+          if (head > start && (head < end || (typing && head === end))) continue
+          if (/^(FencedCode|CodeText)$/.test(tree.resolveInner(start, 1).name)) continue
+          marks.push(Decoration.replace({ widget: new LinkWidget(found.url) }).range(start, end))
+        }
+      }
+    return Decoration.set(marks, true)
+  }
+
+  const linkChips = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet
+      constructor(view: EditorView) {
+        this.decorations = linkMarks(view)
+      }
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged || update.selectionSet || syntaxTree(update.startState) !== syntaxTree(update.state))
+          this.decorations = linkMarks(update.view, update.transactions.some((tr) => tr.isUserEvent('input.type')))
+      }
+    },
+    { decorations: (plugin) => plugin.decorations },
+  )
 
   function fileChips(list: string[]) {
     const files = new Set(list)
@@ -205,7 +220,8 @@
           markdown({ codeLanguages: languages, addKeymap: false }),
           syntaxHighlighting(classHighlighter),
           fences,
-          urls,
+          linkChips,
+          EditorView.atomicRanges.of((view) => view.plugin(linkChips)?.decorations ?? Decoration.none),
           chipping.of(fileChips(files)),
           EditorView.lineWrapping,
           EditorView.theme({}, { dark: true }),
@@ -295,16 +311,6 @@
 
   .composer-field :global(.cm-placeholder) {
     color: var(--text-faint);
-  }
-
-  .composer-field :global(.cm-url) {
-    color: var(--accent-link);
-    text-decoration: underline;
-    text-underline-offset: 2px;
-  }
-
-  .composer-field :global(.cm-url:hover) {
-    color: var(--accent-soft);
   }
 
   .composer-field :global(.cm-fence) {
