@@ -1105,6 +1105,16 @@ async fn merge_pull(dir: PathBuf, number: u64) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn update_pull(
+    dir: PathBuf,
+    number: u64,
+    title: Option<String>,
+    description: Option<String>,
+) -> Result<(), String> {
+    forge::update(&dir, number, title, description).await
+}
+
+#[tauri::command]
 async fn forge_accounts() -> forge::Accounts {
     tauri::async_runtime::spawn_blocking(forge::accounts)
         .await
@@ -2302,6 +2312,7 @@ pub fn run() {
             pull_reply,
             post_remarks,
             merge_pull,
+            update_pull,
             forge_accounts,
             bitbucket_sign_in,
             forge_sign_out,

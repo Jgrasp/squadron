@@ -146,6 +146,19 @@ struct ReadPullComments {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct UpdatePull {
+    /// The pull request number. The one of your branch when left empty.
+    number: Option<u64>,
+    /// The new title. Kept when left empty.
+    title: Option<String>,
+    /// The new description, in Markdown, which replaces the whole current one. Kept when left empty.
+    description: Option<String>,
+    /// Project name or path. Your own project when left empty.
+    project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct GetReviewPrompt {
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
@@ -406,6 +419,16 @@ impl Pilot {
     ) -> String {
         self.forward(&parts, "read_pull_comments", json!(args))
             .await
+    }
+
+    /// Changes the title or the description of a pull request on Bitbucket, GitHub, GitLab or Azure DevOps, with the user's account: no token needed. The description you give replaces the whole current one.
+    #[tool]
+    async fn update_pull(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<UpdatePull>,
+    ) -> String {
+        self.forward(&parts, "update_pull", json!(args)).await
     }
 
     /// Returns the instructions given to the agents Squadron starts to review a pull request of a project: the global prompt, the project's own when it has one, and the one used.

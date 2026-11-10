@@ -9,7 +9,7 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
+import { lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -264,6 +264,18 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     reviews[key] = [...kept, { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
     const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
     return `${kept.length < before.length ? 'Replaced the comment already on that line in' : 'Added to'} the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
+  },
+
+  update_pull: async (caller, args) => {
+    const project = projectFor(caller, args.project)
+    const number = Number(args.number) || (project.path === caller.project ? pullOf(caller)?.number : undefined)
+    if (!number) throw new Error('No pull request found for your branch. Pass its number.')
+    const title = typeof args.title === 'string' && args.title.trim() ? args.title : undefined
+    const description = typeof args.description === 'string' && args.description.trim() ? args.description : undefined
+    await invoke('update_pull', { dir: project.path, number, title, description })
+    lookUpAll(true)
+    const changed = [title && 'title', description && 'description'].filter(Boolean).join(' and ')
+    return `Changed the ${changed} of pull request #${number}.`
   },
 
   read_pull_comments: async (caller, args) => {

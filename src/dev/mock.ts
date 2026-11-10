@@ -1060,6 +1060,7 @@ mockIPC(
         return { name: 'Quentin Briais', avatar: '' }
       case 'pull_reply':
         return
+      case 'update_pull':
       case 'merge_pull':
         return
       case 'post_remarks':
