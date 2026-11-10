@@ -261,7 +261,7 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 - **Éditeur** : arbre 220px 12,5px, corps `--bg-app`, onglets 36px, actif `--bg-app` + liseré haut 2px couleur du projet. Barre d'état 30px.
 - **Terminal** : sessions en onglets 30px mono 12px, active `--menu` + contour `#4E443E`. Écran `#110E0D`.
 - **Sous-agents** : filtres 28px, lignes 36px en grille, mono 11,5px, couleurs `--sub-*`.
-- **Artefacts** : onglets d'artefacts, vue `--bg-main`, iframe fond blanc, contour 2px `--accent` en mode « Point ».
+- **Artefacts** : `Select` 420px max pour choisir l'artefact quand l'agent en a plusieurs (détail : type et heure), vue `--bg-main`, iframe fond blanc, contour 2px `--accent` en mode « Point ».
 
 ### Pages
 - **Kanban** (`Board.svelte`) : colonnes `repeat(N, minmax(220px,1fr))`, espacement 12px, fond `--bg-sidebar`, rayon 8px. En-tête de colonne en capitales 11px, pastille 8px (`--sub-running`, `--accent`, `--done`), compteur mono. Carte `--surface-1` (`--surface-2` au survol), padding 12px 14px, rayon 6px ; en attente `--wait-*`, en erreur `--err-*`. Glisser : origine à 0,4, fantôme `--surface-4` + contour `--border-focus` incliné −2°, repère 2px `--accent`. « + Task » 34px pointillé.
