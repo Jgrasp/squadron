@@ -185,6 +185,7 @@
           {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
           {@const seeing = reviewer && { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, run: () => show(reviewer) }}
           {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : !reviewer || !seeing || !moved(project.path, pull) ? reviewing : !behind(reviewer, pull) ? seeing : reviewer.status === 'working' ? seeing : { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) }}
+          {@const agentChoice = seeing ? (main === seeing ? undefined : seeing) : starting(pull) ? undefined : asking(pull)}
           <article class:done={!waitsFor(project.path, pull)}>
             <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
             {@render about(pull)}
@@ -192,8 +193,9 @@
               `review-${pull.number}`,
               main,
               waitsFor(project.path, pull) && main !== seeing,
-              [...(main === reviewing ? [] : [reviewing]), ...(seeing && main !== seeing ? [seeing] : []), ...(reviewer ? [] : [asking(pull)]), openOn(pull), ...approving(pull), ...requesting(pull)],
+              [...(main === reviewing ? [] : [reviewing]), openOn(pull), ...approving(pull), ...requesting(pull)],
               main === reviewing && opened?.number === pull.number,
+              agentChoice,
             )}
           </article>
         {:else}
@@ -263,7 +265,7 @@
 {#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean)}
   <div class="split" data-menu>
     {#if lead}
-      <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
+      <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} disabled={!!busy && !lead.always} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
     {/if}
     <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={!!busy && !main.always} onclick={() => ((menu = ''), main.run())}>
       {#if main.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>{/if}

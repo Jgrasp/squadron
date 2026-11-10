@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.39.1 · 2026-11-10
+
+### Pull requests
+
+- Sur une pull request à relire, le bouton qui demande un agent ou montre sa relecture est à côté de Relire, et non plus dans son menu.
+
 ## 0.39.0 · 2026-11-10
 
 ### Pull requests

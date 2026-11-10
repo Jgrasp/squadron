@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.39.1 · 2026-11-10
+
+### Pull requests
+
+- On a pull request to review, the button that asks an agent or shows its review sits beside Review instead of in its menu.
+
 ## 0.39.0 · 2026-11-10
 
 ### Pull requests
