@@ -1651,6 +1651,11 @@ fn extensions_wasm_answer(
 }
 
 #[tauri::command]
+fn extension_data_dir(runtime: State<wasm::Runtime>, id: String) -> Result<PathBuf, String> {
+    runtime.data_dir(&id)
+}
+
+#[tauri::command]
 async fn extensions_wasm_run(
     app: AppHandle,
     id: String,
@@ -2421,6 +2426,7 @@ pub fn run() {
             write_artifact,
             set_artifact_link,
             set_artifact_share,
+            extension_data_dir,
             delete_artifact,
             open_artifact_folder,
             list_dir,

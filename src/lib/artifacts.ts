@@ -56,7 +56,7 @@ export function docsOf(agent: Agent, linked: string[] = []): Doc[] {
   })
 }
 
-export const fillShare = (text: string, values: Record<string, string>) => text.replace(/\{(artifact\.(?:id|title|dir|entry)|agent|destination|link|delete)\}/g, (all, key: string) => values[key] ?? all)
+export const fillShare = (text: string, values: Record<string, string>) => text.replace(/\{(artifact\.(?:id|title|dir|entry)|extension\.data|agent|destination|link|delete)\}/g, (all, key: string) => values[key] ?? all)
 
 export const sharePrompt = (artifact: ArtifactInfo) =>
   `Publish the artifact ${artifact.id} “${artifact.title}” as a Claude Doc on claude.ai with the Claude Docs connector, keeping its content as it is. Then call publish_artifact with id ${artifact.id} and the doc's link, without content, so that I can share it from Squadron.`

@@ -870,6 +870,8 @@ mockIPC(
           }
         shelve()
         return null
+      case 'extension_data_dir':
+        return `/home/demo/.config/dev.squadron.desktop/extensions-data/${a.id}`
       case 'extensions_wasm_tool':
         return new Promise((r) => setTimeout(() => r(a.name === 'deploy' ? 'https://script.google.com/a/macros/akki.fr/s/AKfycbx4QmDemo/exec' : ''), 1500))
       case 'delete_artifact':

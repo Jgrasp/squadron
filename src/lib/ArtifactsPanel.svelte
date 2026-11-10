@@ -85,13 +85,14 @@
     else if (item) runItem(item, { agent })
   }
 
-  const valuesOf = (artifact: ArtifactInfo, destination: string, remove = false) => ({
+  const valuesOf = (artifact: ArtifactInfo, destination: string, data: string, remove = false) => ({
     'artifact.id': artifact.id,
     'artifact.title': artifact.title,
     'artifact.dir': `${shelf.root}/${agent.id}/${artifact.id}`,
     'artifact.entry': artifact.entry,
     agent: agent.name,
     destination,
+    'extension.data': data,
     link: artifact.links?.[destination]?.link ?? '',
     delete: String(remove),
   })
@@ -103,12 +104,13 @@
     if (!artifact || !action || !how) return
     menu = false
     const label = labelOf('artifact.actions', item.key)
+    const data = await invoke<string>('extension_data_dir', { id: item.extension }).catch(() => '')
     let remove = false
-    if (verb === 'share' && !(await ask(fillShare(tr(action.confirm), valuesOf(artifact, item.key)), { title: label, okLabel: label, lines: action.lines }))) return
+    if (verb === 'share' && !(await ask(fillShare(tr(action.confirm), valuesOf(artifact, item.key, data)), { title: label, okLabel: label, lines: action.lines }))) return
     const check = action.delete ? { label: tr(action.delete), hint: tr(action.deleteHint) || undefined, onchange: (on: boolean) => (remove = on) } : undefined
     if (verb === 'unshare' && !(await ask(t('agent.artifactStopAsk'), { title: t('agent.artifactStopTitle'), kind: 'warning', okLabel: t('agent.artifactStop'), danger: true, check }))) return
     const key = workKey(agent.id, artifact.id)
-    const values = valuesOf(artifact, item.key, remove)
+    const values = valuesOf(artifact, item.key, data, remove)
     const name = `${artifact.title} · ${label}`
     if (typeof how === 'string') {
       const known = agents.list.find((a) => a.sharing?.agent === agent.id && a.sharing.artifact === artifact.id && a.sharing.destination === item.key)
@@ -119,7 +121,7 @@
     }
     working[key] = { destination: item.key, verb, by: madeBy(item.extension), since: Date.now() }
     try {
-      const input = { verb, destination: item.key, artifact: { id: artifact.id, title: artifact.title, dir: values['artifact.dir'], entry: artifact.entry }, link: values.link, delete: remove }
+      const input = { verb, destination: item.key, artifact: { id: artifact.id, title: artifact.title, dir: values['artifact.dir'], entry: artifact.entry }, link: values.link, delete: remove, data }
       const out = (await shareTool(item.extension, how.tool, input, agent)).trim()
       if (verb !== 'unshare' && !/^https:\/\/\S+$/.test(out)) throw new Error(t('agent.artifactNoLink', { tool: how.tool }))
       await invoke('set_artifact_share', { agent: agent.id, id: artifact.id, destination: item.key, link: verb === 'unshare' ? null : out })

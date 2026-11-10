@@ -110,6 +110,7 @@ struct Host {
     table: ResourceTable,
     limits: StoreLimits,
     file: PathBuf,
+    data: PathBuf,
     state: BTreeMap<String, String>,
     allowed: Vec<String>,
     emit: Emit,
@@ -258,6 +259,13 @@ impl squadron::api::host::Host for Host {
         self.may(ARCHIVE_AGENTS)?;
         self.ask("archive-agent", json!({"agent": agent}))
             .map(|_| ())
+    }
+
+    fn data_dir(&mut self) -> String {
+        if let Err(e) = std::fs::create_dir_all(&self.data) {
+            log::warn!("extension {}: no data folder: {e}", self.id);
+        }
+        self.data.to_string_lossy().into_owned()
     }
 
     fn set_timer(&mut self, seconds: u32) {
@@ -460,6 +468,19 @@ impl Runtime {
         })
     }
 
+    fn data_of(&self, id: &str) -> PathBuf {
+        self.states.with_file_name("extensions-data").join(id)
+    }
+
+    pub fn data_dir(&self, id: &str) -> Result<PathBuf, String> {
+        if !crate::extensions::valid_id(id) {
+            return Err(format!("{id} is not an extension."));
+        }
+        let dir = self.data_of(id);
+        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+        Ok(dir)
+    }
+
     pub fn answer(&self, reply: &str, answer: Result<Value, String>) {
         if let Some(tx) = self.answers.lock().unwrap().remove(reply) {
             let _ = tx.send(answer);
@@ -503,11 +524,12 @@ impl Runtime {
     fn start(&self, spec: &Spec, path: &Path) -> Result<mpsc::Sender<Job>, String> {
         let component = Component::from_file(&self.engine, path).map_err(|e| format!("{e:#}"))?;
         let engine = self.engine.clone();
-        let (id, emit, answers, file) = (
+        let (id, emit, answers, file, data) = (
             spec.id.clone(),
             self.emit.clone(),
             self.answers.clone(),
             self.states.join(format!("{}.json", spec.id)),
+            self.data_of(&spec.id),
         );
         let mut allowed = spec.allowed.clone();
         let host = move |allowed: &Vec<String>| Host {
@@ -520,6 +542,7 @@ impl Runtime {
                 .and_then(|b| serde_json::from_slice(&b).ok())
                 .unwrap_or_default(),
             file: file.clone(),
+            data: data.clone(),
             allowed: allowed.clone(),
             emit: emit.clone(),
             answers: answers.clone(),
@@ -790,6 +813,7 @@ mod tests {
             table: ResourceTable::new(),
             limits: StoreLimitsBuilder::new().build(),
             file: std::env::temp_dir().join(format!("squadron-wasm-{}.json", uuid::Uuid::new_v4())),
+            data: std::env::temp_dir().join(format!("squadron-data-{}", uuid::Uuid::new_v4())),
             state: BTreeMap::new(),
             allowed: allowed.iter().map(|a| a.to_string()).collect(),
             emit: Arc::new(move |v: Value| {
@@ -987,5 +1011,16 @@ mod tests {
                 .unwrap_err()
                 .contains("not running")
         );
+    }
+
+    #[test]
+    fn gives_each_extension_a_data_folder_next_to_its_state() {
+        let root = std::env::temp_dir().join(format!("squadron-wasm-{}", uuid::Uuid::new_v4()));
+        let runtime = Runtime::new(root.join("extensions-state"), |_| {}).unwrap();
+        let dir = runtime.data_dir("team-share").unwrap();
+        assert_eq!(dir, root.join("extensions-data").join("team-share"));
+        assert!(dir.is_dir());
+        assert!(runtime.data_dir("../escape").is_err());
+        std::fs::remove_dir_all(root).unwrap();
     }
 }
