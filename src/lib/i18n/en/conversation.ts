@@ -48,7 +48,6 @@ export default {
   editedFiles: { one: 'edited a file', other: 'edited {count} files' },
   lookedUp: { one: 'looked something up', other: 'made {count} web lookups' },
   usedTools: { one: 'used a tool', other: 'used {count} tools' },
-  notes: { one: '{count} note', other: '{count} notes' },
   liveSteps: '{now} · {steps}',
   steps: 'Steps',
   thoughtMoment: 'Thought for a moment',

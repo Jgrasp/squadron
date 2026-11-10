@@ -1,5 +1,15 @@
 # Nouveautés
 
+## 0.40.0 · 2026-11-10
+
+### Conversation
+
+- Les notes qu’un agent écrit entre ses étapes restent visibles dans la conversation, avec un liseré clair à gauche, au lieu de se replier dans la ligne des étapes.
+
+### Pull requests
+
+- Sur une pull request à relire, le bouton de l’agent est une icône carrée à côté de Relire, avec l’état de l’agent de relecture dans son coin, et les boutons Relire s’alignent d’une ligne à l’autre.
+
 ## 0.39.1 · 2026-11-10
 
 ### Pull requests

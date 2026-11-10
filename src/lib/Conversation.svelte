@@ -186,10 +186,14 @@ import { fences } from './codepaste'
     return last?.type === 'text' ? t('conversation.writing') : t('conversation.working')
   }
 
-  function runs(list: Segment[]) {
-    const out: ({ thought: string; ms: number | undefined } | Segment[])[] = []
+  function runs(list: Segment[], thoughts: boolean) {
+    const out: ({ thought: string; ms: number | undefined } | Extract<Segment, { type: 'text' }> | Segment[])[] = []
     for (const segment of list) {
-      if (segment.type === 'work' && segment.thought) {
+      if (segment.type === 'text') {
+        out.push(segment)
+        continue
+      }
+      if (thoughts && segment.type === 'work' && segment.thought) {
         out.push({ thought: segment.thought, ms: segment.ms })
         if (segment.calls.length) out.push([{ ...segment, thinking: false, thought: '' }])
         continue
@@ -198,7 +202,7 @@ import { fences } from './codepaste'
       if (Array.isArray(last)) last.push(segment)
       else out.push([segment])
     }
-    return out
+    return out.length ? out : [[]]
   }
 
   function split(list: Segment[]) {
@@ -220,8 +224,6 @@ import { fences } from './codepaste'
       rest -= n
     }
     if (rest) parts.push(t('conversation.usedTools', { count: rest }))
-    const notes = steps.filter((s) => s.type === 'text').length
-    if (notes) parts.push(t('conversation.notes', { count: notes }))
     let line = list(parts, 'unit')
     if (live) line = line ? t('conversation.liveSteps', { now: now(steps), steps: line }) : now(steps)
     return line.charAt(0).toUpperCase() + line.slice(1) || t('conversation.steps')
@@ -341,10 +343,12 @@ import { fences } from './codepaste'
       {:else}
         {@const parts = split(group.segments)}
         {@const live = working && i === lastAgent && g === reply.length - 1}
-        {@const chunks = settings.thinking === 'shown' || (live && !parts.answer.length && settings.thinking !== 'hidden') ? runs(parts.steps) : [parts.steps]}
+        {@const chunks = runs(parts.steps, settings.thinking === 'shown' || (live && !parts.answer.length && settings.thinking !== 'hidden'))}
         {#each chunks as chunk, c (c)}
-          {#if !Array.isArray(chunk)}
+          {#if !Array.isArray(chunk) && 'thought' in chunk}
             {@render musing(chunk.thought, chunk.ms)}
+          {:else if !Array.isArray(chunk)}
+            <div class="remark"><Markdown text={chunk.text} streaming={!!tail && chunk === tail} cards project={agent.project} {onrun} /></div>
           {:else if chunk.length || (live && !parts.answer.length)}
             <details class="steps" class:live={live && c === chunks.length - 1}>
               <summary><span class="chevron" aria-hidden="true">›</span><span class="line">{stepsLine(chunk, live && c === chunks.length - 1)}</span><Shots paths={shotsOf(chunk)} /></summary>
@@ -832,6 +836,13 @@ import { fences } from './codepaste'
     font-size: 13px;
     font-style: italic;
     color: var(--text-muted);
+  }
+
+  .remark {
+    padding: 2px 0 2px 14px;
+    border-left: 2px solid var(--text-dim);
+    font-size: 13.5px;
+    color: var(--text-2);
   }
 
   .musing.now {

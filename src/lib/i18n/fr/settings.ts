@@ -41,7 +41,7 @@ export default {
   ringSound: 'Secousse et carillon',
   ringSoundHint: 'Un court carillon en plus, chaque fois qu’un agent se met à attendre',
   stepsGrouped: 'Regroupées',
-  stepsGroupedHint: 'Une ligne par réponse pour la réflexion, les notes et les commandes ; la réponse reste à part',
+  stepsGroupedHint: 'Une ligne par réponse pour la réflexion et les commandes ; les notes et la réponse restent à part',
   stepsDetailed: 'En entier',
   stepsDetailedHint: 'Chaque pensée, note et commande dans le fil de la conversation',
   thinkingHidden: 'Masquée',

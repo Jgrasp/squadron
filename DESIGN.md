@@ -220,6 +220,7 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 - **Message utilisateur** : bulle claire à droite, 540px max, padding 12px 16px.
 - **Réponse de l'agent** : bloc `--surface-1`, padding 16px 18px, rayon 6px, espacement 12px. Markdown 1,65 ; code en ligne `--surface-3`, mono 12,5px, padding 1px 6px.
 - **Résumé replié** (réflexion, groupe d'actions) : 12,5px `--text-muted`, chevron dans un carré 18px `--surface-3`.
+- **Note** (texte de l'agent entre deux étapes) : toujours visible, hors du repli. Liseré gauche 2px `--text-dim`, padding 2px 0 2px 14px, 13,5px `--text-2`, droit. La réflexion affichée garde son liseré `--border-strong` et son italique `--text-muted`.
 - **Appel d'outil** (`ToolRow`) : ligne 30px, nom sur 40px `--text-dim`, argument en mono, statut à droite. Edit et Write ouvrent le Diff ; Bash se déplie. En échec : `--err-bg`, contour `#6B3A33`, sortie `--err-text` sur `--err-pre`.
 - **Fin de tour** : mono 11,5px `--text-dim`, « Turn N done · N in · N out · durée ».
 - **Repères d'historique** (permission répondue) : 12,5px, padding 9px 14px. Autorisé `#1F2321` / contour `#33403B` / `--ok-text`. Refusé `#241917` / contour `#4A2E29` / `--err-text`.
@@ -265,7 +266,7 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 ### Pages
 - **Kanban** (`Board.svelte`) : colonnes `repeat(N, minmax(220px,1fr))`, espacement 12px, fond `--bg-sidebar`, rayon 8px. En-tête de colonne en capitales 11px, pastille 8px (`--sub-running`, `--accent`, `--done`), compteur mono. Carte `--surface-1` (`--surface-2` au survol), padding 12px 14px, rayon 6px ; en attente `--wait-*`, en erreur `--err-*`. Glisser : origine à 0,4, fantôme `--surface-4` + contour `--border-focus` incliné −2°, repère 2px `--accent`. « + Task » 34px pointillé.
 - **Overview** : tableau, en-têtes collants 11px 700 capitales, cellules padding 10px 12px, trait `--border`, agent en attente `rgba(59,34,22,0.55)`.
-- **Pull requests** (`PullsView.svelte`) : sections titrées en capitales 13px, lignes `--surface-1` + contour `--border`, padding 12px 14px, rayon 6px. Verdict 12px 600 rayon 4px : relire `--accent`, corriger `--err`, fusionner `--ok`, revérifier `--remote-dot`.
+- **Pull requests** (`PullsView.svelte`) : sections titrées en capitales 13px, lignes `--surface-1` + contour `--border`, padding 12px 14px, rayon 6px. Verdict 12px 600 rayon 4px : relire `--accent`, corriger `--err`, fusionner `--ok`, revérifier `--remote-dot`. À gauche de « Review » dans « To review » : bouton agent 32px `--surface-2`, icône `persona`, état de l'agent de relecture en StatusIcon dans une pastille 14px au coin bas droit.
 
 ### Dialogues
 Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-tête padding 20px 22px 6px, titre 18px 700, aide 13px `--text-dim`, fermer 32px `--surface-2`. Champs `.field`, chemins en mono. Boutons en bas à droite (Cancel `--surface-2`, action principale claire), séparés par un trait `--border`. Erreur de champ : `--err-text` avec icône, bouton principal désactivé.
