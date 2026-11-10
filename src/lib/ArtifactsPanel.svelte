@@ -3,9 +3,9 @@
   import { invoke } from '@tauri-apps/api/core'
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { save } from '@tauri-apps/plugin-dialog'
-  import { persist, send } from './agents.svelte'
+  import { agents, persist, send, show } from './agents.svelte'
   import { artifactUrl, docsOf, fileName, fillShare, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
-  import { refresh, shelf, working, workKey, type Work } from './artifacts.svelte'
+  import { delegate, refresh, shelf, working, workKey, type Delegation, type Work } from './artifacts.svelte'
   import { ask, message as tell } from './asking.svelte'
   import { time } from './format'
   import { text, type Item, type Text } from './extensions'
@@ -24,8 +24,9 @@
     windowed = false,
     onpoint,
     onshare = (text) => send(agent.id, text),
+    ondelegate = delegate,
     onclose,
-  }: { agent: Agent; windowed?: boolean; onpoint: (text: string) => void; onshare?: (text: string) => void; onclose: () => void } = $props()
+  }: { agent: Agent; windowed?: boolean; onpoint: (text: string) => void; onshare?: (text: string) => void; ondelegate?: (delegation: Delegation) => Promise<string | undefined> | void; onclose: () => void } = $props()
 
   let selected = $state<{ id: string; at: number } | null>(null)
   let copied = $state('')
@@ -61,7 +62,13 @@
   const destinations = $derived(shown('artifact.actions'))
   const link = $derived(open?.link ?? null)
   const local_ = $derived(open && open.kind !== 'doc' ? open : undefined)
-  const busy = $derived(local_ ? working[workKey(agent.id, local_.id)] : undefined)
+  const busy = $derived.by(() => {
+    const work = local_ && working[workKey(agent.id, local_.id)]
+    if (!work || work.destination === 'claude') return work
+    const now = local_.links?.[work.destination]
+    return (work.verb === 'unshare' ? !now : !!now && now.at > work.since) ? undefined : work
+  })
+  const helper = $derived(busy?.helper ? agents.list.find((a) => a.id === busy.helper) : undefined)
   const shared = $derived(!!link || !!Object.keys(local_?.links ?? {}).length)
   const shareOf = (item?: Item) => (item && 'artifact.share' in item.action ? item.action['artifact.share'] : undefined)
   const tr = (value?: Text) => (value ? text(value, locale()) : '')
@@ -102,11 +109,15 @@
     if (verb === 'unshare' && !(await ask(t('agent.artifactStopAsk'), { title: t('agent.artifactStopTitle'), kind: 'warning', okLabel: t('agent.artifactStop'), danger: true, check }))) return
     const key = workKey(agent.id, artifact.id)
     const values = valuesOf(artifact, item.key, remove)
+    const name = `${artifact.title} · ${label}`
     if (typeof how === 'string') {
-      working[key] = { destination: item.key, verb, by: agent.name }
-      return onshare(fillShare(how, values))
+      const known = agents.list.find((a) => a.sharing?.agent === agent.id && a.sharing.artifact === artifact.id && a.sharing.destination === item.key)
+      working[key] = { destination: item.key, verb, by: known?.name ?? name, since: Date.now(), helper: known?.id }
+      const id = await ondelegate({ agent: agent.id, artifact: artifact.id, destination: item.key, name, text: fillShare(how, values) })
+      if (id && working[key]) working[key] = { ...working[key], helper: id, by: agents.list.find((a) => a.id === id)?.name ?? name }
+      return
     }
-    working[key] = { destination: item.key, verb, by: madeBy(item.extension) }
+    working[key] = { destination: item.key, verb, by: madeBy(item.extension), since: Date.now() }
     try {
       const input = { verb, destination: item.key, artifact: { id: artifact.id, title: artifact.title, dir: values['artifact.dir'], entry: artifact.entry }, link: values.link, delete: remove }
       const out = (await shareTool(item.extension, how.tool, input, agent)).trim()
@@ -158,7 +169,7 @@
 
   async function share(artifact: ArtifactInfo) {
     if (!(await ask(t('agent.artifactShareAsk', { title: artifact.title, name: agent.name }), { title: t('agent.artifactShareTitle'), okLabel: t('agent.artifactShare') }))) return
-    working[workKey(agent.id, artifact.id)] = { destination: 'claude', verb: 'share', by: agent.name }
+    working[workKey(agent.id, artifact.id)] = { destination: 'claude', verb: 'share', by: agent.name, since: Date.now() }
     onshare(sharePrompt(artifact))
   }
 
@@ -305,7 +316,8 @@
       {#if busy.destination === 'claude'}
         <span>{t('agent.artifactSharing', { name: agent.name })}</span>
       {:else}
-        <span><b>{labelOf('artifact.actions', busy.destination)}</b> · {t(busy.verb === 'share' ? 'agent.artifactBusyShare' : busy.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: busy.by })}</span>
+        <span class="busy"><b>{labelOf('artifact.actions', busy.destination)}</b> · {busy.helper ? t('agent.artifactBusyHelper') : t(busy.verb === 'share' ? 'agent.artifactBusyShare' : busy.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: busy.by })}</span>
+        {#if helper && !windowed}<button class="btn btn-ghost" onclick={() => show(helper)}>{t('agent.artifactViewAgent')}</button>{/if}
       {/if}
     </div>
   {/if}
@@ -506,6 +518,16 @@
 
   .acts .gap {
     flex: 1;
+  }
+
+  .band .busy {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .band .btn {
+    height: 28px;
+    font-size: 12.5px;
   }
 
   .band b {

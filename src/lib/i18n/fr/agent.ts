@@ -200,6 +200,8 @@ export default {
   artifactBusyUpdate: '{who} est en train de le mettre à jour…',
   artifactBusyUnshare: '{who} est en train d’arrêter le partage…',
   artifactNoLink: 'L’outil {tool} de l’extension n’a pas rendu de lien https://.',
+  artifactBusyHelper: 'un agent dédié s’en occupe…',
+  artifactViewAgent: 'Voir l’agent',
   artifactRemote: 'Ce doc est sur claude.ai : ouvrez-le là-bas pour le lire, le commenter ou le partager.',
   landmarks: 'Repères de la conversation',
   goToMessage: 'Aller au message {n} : {text}',

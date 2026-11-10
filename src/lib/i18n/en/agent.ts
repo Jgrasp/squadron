@@ -198,6 +198,8 @@ export default {
   artifactBusyUpdate: '{who} is updating it…',
   artifactBusyUnshare: '{who} is stopping the share…',
   artifactNoLink: 'The extension tool {tool} did not give back an https:// link.',
+  artifactBusyHelper: 'an agent of its own is on it…',
+  artifactViewAgent: 'View the agent',
   artifactRemote: 'This doc lives on claude.ai: open it there to read it, comment on it or share it.',
   landmarks: 'Conversation landmarks',
   goToMessage: 'Go to message {n}: {text}',
