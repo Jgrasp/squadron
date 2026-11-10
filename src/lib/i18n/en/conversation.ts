@@ -58,6 +58,7 @@ export default {
   fromSquadron: 'From Squadron',
   approvedByYou: 'approved by you',
   sentRemote: 'Sent via remote control · {time}',
+  backToTop: 'Back to top',
   turnDone: 'Turn {index} done · {input} in · {output} out · {duration}',
   turnLive: 'Turn in progress · {input} in · {output} out · {duration}',
   interruptedBy: 'Interrupted by you · {time}',

@@ -219,6 +219,7 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 ### Conversation
 - **Message utilisateur** : bulle claire à droite, 540px max, padding 12px 16px.
 - **Réponse de l'agent** : bloc `--surface-1`, padding 16px 18px, rayon 6px, espacement 12px. Markdown 1,65 ; code en ligne `--surface-3`, mono 12,5px, padding 1px 6px.
+- **Retour en haut** : sous une réponse plus haute qu'une fois et demie la conversation, filet `--border`, padding-top 12px, puis « Back to top » en `.btn-ghost` 28px aligné à droite, qui fait défiler jusqu'au début du bloc.
 - **Résumé replié** (réflexion, groupe d'actions) : 12,5px `--text-muted`, chevron dans un carré 18px `--surface-3`.
 - **Note** (texte de l'agent entre deux étapes) : toujours visible, hors du repli, dans un bloc de réponse, son heure en tête en mono 11,5px `--text-dim`. La réponse finale n'a pas d'heure.
 - **Appel d'outil** (`ToolRow`) : ligne 30px, nom sur 40px `--text-dim`, argument en mono, statut à droite. Edit et Write ouvrent le Diff ; Bash se déplie. En échec : `--err-bg`, contour `#6B3A33`, sortie `--err-text` sur `--err-pre`.

@@ -60,6 +60,7 @@ export default {
   fromSquadron: 'De Squadron',
   approvedByYou: 'approuvé par vous',
   sentRemote: 'Envoyé par contrôle à distance · {time}',
+  backToTop: 'Revenir en haut',
   turnDone: 'Tour {index} terminé · {input} en entrée · {output} en sortie · {duration}',
   turnLive: 'Tour en cours · {input} en entrée · {output} en sortie · {duration}',
   interruptedBy: 'Interrompu par vous · {time}',
