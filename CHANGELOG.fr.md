@@ -1,5 +1,17 @@
 # Nouveautés
 
+## 0.41.0 · 2026-11-10
+
+### Conversation
+
+- Un lien dans votre message s’affiche en puce avec l’icône du site, et une carte sous le message donne le titre, la description et l’image de la page. Les liens tapés dans la zone de saisie deviennent aussi des puces, que Ctrl+clic ouvre.
+- Une commande en arrière-plan reste affichée dans la conversation pendant que vous parlez à l’agent, jusqu’à ce qu’elle se termine.
+- Les artefacts d’un agent se choisissent dans une liste au lieu d’une rangée d’onglets.
+
+### Recherche
+
+- La fenêtre de recherche s’ouvre vite même avec beaucoup d’agents archivés, et ses filtres par projet et agents archivés apparaissent dès qu’on tape.
+
 ## 0.40.0 · 2026-11-10
 
 ### Conversation
