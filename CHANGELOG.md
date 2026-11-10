@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.41.0 · 2026-11-10
+
+### Conversation
+
+- A link in your message shows as a chip with the site's icon, and a card under the message gives the page's title, description and image. Links typed in the message box become chips too, and Ctrl+click opens them.
+- A background command stays listed in the conversation while you talk to the agent, until it ends.
+- An agent's artifacts are picked from a list instead of a row of tabs.
+
+### Search
+
+- The search window opens fast even with many archived agents, and its filters by project and archived agents appear once you start typing.
+
 ## 0.40.0 · 2026-11-10
 
 ### Conversation

@@ -10,7 +10,7 @@ Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions
 - Le cuivre (`--accent`, `--wait-*`, `--option*`) signale ce qui attend l'utilisateur : permission, question, plan, badge. Jamais pour une action ordinaire.
 - Bouton principal : clair, `--text` sur `--ink`, 700 (`.btn-primary`). Pas cuivre.
 - `--background*` est le bleu des tâches de fond, pas un fond de surface. L'encre sur cuivre est `--accent-ink`.
-- Rayons : 6px les cartes, 8px les dialogues et les cartes de conversation à barre de ton (PullCard, FileCard), 4px boutons et champs.
+- Rayons : 6px les cartes, 8px les dialogues et les cartes de conversation à barre de ton (PullCard, FileCard, LinkCard), 4px boutons et champs.
 - Contours en `box-shadow: inset 0 0 0 1px …`, pas en `border`, sauf séparateurs de zones.
 - Partir du CSS du composant existant le plus proche (fichier cité dans « Composants ») au lieu d'inventer. Réutiliser `StatusIcon`, `ModeIcon`, `Icon`, `Avatar`, `SidePanel`, `Dialog`, `Confirm`, `Select` plutôt que les redessiner.
 - Utiliser les classes de `app.css` (`.btn*`, `.field`, `.option-*`, `.effect-*`, `.sr-only`) sans les redéfinir.
@@ -31,7 +31,7 @@ Source : page « Cuivre » du canvas Claude Design « Squadron — 10 directions
 |---|---|---|
 | `--bg-app` | `#141110` | Fenêtre, en-tête, corps de l'éditeur |
 | `--bg-sidebar` | `#171311` | Liste des agents, panneaux de droite, colonnes du Kanban, barre d'état |
-| `--bg-main` | `#1C1816` | Conversation, dialogues, Kanban, PullCard, FileCard |
+| `--bg-main` | `#1C1816` | Conversation, dialogues, Kanban, PullCard, FileCard, LinkCard |
 | `--bg-rail` | `#191513` | Colonne de repères |
 | `--bg-tabs` | `#1E1A18` | Conteneur des onglets de projet |
 | `--surface-1` | `#221D1A` | Bloc de réponse, carte Kanban, ligne de PR, agent sélectionné |
@@ -169,7 +169,7 @@ Fond `--text`, texte `--ink`. La bulle a le coin bas droit pincé : `border-radi
 
 ## Formes et espacements
 
-- Rayons : 2px (barres, petites pastilles), 3px (code en ligne, badges, puces), 4px (boutons, champs, lignes), 6px (cartes, blocs, menus), 8px (dialogues, colonnes Kanban, PullCard, FileCard), 50 % (points), 999px (pilules d'état).
+- Rayons : 2px (barres, petites pastilles), 3px (code en ligne, badges, puces), 4px (boutons, champs, lignes), 6px (cartes, blocs, menus), 8px (dialogues, colonnes Kanban, PullCard, FileCard, LinkCard), 50 % (points), 999px (pilules d'état).
 - Espacements : 4, 6, 8, 10, 12, 14, 16, 18, 20, 24, 32px.
 - Ombres : menus `0 14px 36px rgba(0,0,0,0.5)` + contour `0 0 0 1px --border-strong`, dialogues `0 30px 80px rgba(0,0,0,0.6)`, panneau glissant `-18px 0 40px rgba(0,0,0,0.45)`, agent en attente sélectionné `0 8px 24px rgba(201,105,58,0.18)`.
 - Barre de ton : 3px à gauche d'une carte, couleur d'état ou de type (PullCard, FileCard, agent fini non lu). Liseré 2px pour AdvisorCard et le fil de commentaire à soi.
@@ -237,6 +237,8 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 - **BackgroundCard** : `--surface-1` + contour `--background-line`, icône 30px `--background-bg`.
 - **NoticeCard** : encart contour `--border`, 12,5px `--text-muted`, 640px max ; variante réglages 680px, rayon 8px, lignes 40px.
 - **CommentChip** : 26px `--surface-3` + contour `--border-strong`, icône `--accent-soft`, mono 12px.
+- **FileChip** / **LinkChip** : 20px, rayon 4px, `--surface-3` + contour `--border-strong`, mono 12,5px `--text-2`, tuile 15px. LinkChip : favicon sur tuile `--text`, domaine puis chemin `--text-faint`. Dans la bulle (`light`) : voile `--accent-ink` 13 % + contour 22 % (20 % au survol), texte et icônes `--accent-ink`, chemin et compteur à 58 %.
+- **LinkCard** : sous la bulle, 440px, 3 au plus (un lien de PR donne une PullCard). Coque de FileCard, barre de ton `--text-faint`, contour `--border-focus` au survol. Image OpenGraph 104×54 rayon 5px, sinon vignette 30×36 avec le favicon sur `--text`. Méta mono 11,5px (site · domaine), titre 13px 600 blanc, description 12,5px `--text-muted` sur 2 lignes.
 - **TaskRef** : carte de tâche (padding 10px 14px, rayon 8px, contour `--border`) ou puce `--surface-3` avec point 6px de la colonne.
 
 ### Cartes qui attendent l'utilisateur
@@ -250,7 +252,7 @@ Fond `--wait-bg`, contour `--wait-border`, padding 16–18px, rayon 6px, espacem
 Fond `--err-bg`, contour `--err-border`, icône `--err`. Titre blanc, contexte `--err-muted`, message brut en `pre` mono 12px `--err-text` sur `--err-pre`. Actions : Recharger (bouton clair), Copier l'erreur, bouton danger `#3A2420` / `#F8D5CC`.
 
 ### Barre de saisie
-Zone padding 12px 20px 18px, trait haut `--border`. Conteneur `--surface-2`, rayon 6px, largeur `--conversation-width`. Champ CodeMirror 38–200px, blocs de code sur `--bg-main` mono 12,5px `#E8DDD4`. Boutons icône 38px (Joindre, Interrompre, ⋯), Envoyer `.btn-primary`. Mode `!` : contour 1px `--accent` + anneau 3px `--accent-soft`. Menus `/` et `@` en `--menu`. Puces de commentaires et pièces jointes au-dessus.
+Zone padding 12px 20px 18px, trait haut `--border`. Conteneur `--surface-2`, rayon 6px, largeur `--conversation-width`. Champ CodeMirror 38–200px, blocs de code sur `--bg-main` mono 12,5px `#E8DDD4`. Boutons icône 38px (Joindre, Interrompre, ⋯), Envoyer `.btn-primary`. Mode `!` : contour 1px `--accent` + anneau 3px `--accent-soft`. Menus `/` et `@` en `--menu`. Puces de commentaires et pièces jointes au-dessus. Les liens deviennent des LinkChip, que Ctrl+clic ouvre.
 
 ### Barre d'état
 26px `--bg-sidebar`, trait haut, 11,5px `--text-dim`, espacement 18px. Jauges 44×4 (`--ok-line`, puis `--accent`, puis `--err`).
@@ -261,7 +263,7 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 - **Éditeur** : arbre 220px 12,5px, corps `--bg-app`, onglets 36px, actif `--bg-app` + liseré haut 2px couleur du projet. Barre d'état 30px.
 - **Terminal** : sessions en onglets 30px mono 12px, active `--menu` + contour `#4E443E`. Écran `#110E0D`.
 - **Sous-agents** : filtres 28px, lignes 36px en grille, mono 11,5px, couleurs `--sub-*`.
-- **Artefacts** : onglets d'artefacts, vue `--bg-main`, iframe fond blanc, contour 2px `--accent` en mode « Point ».
+- **Artefacts** : `Select` 420px max pour choisir l'artefact quand l'agent en a plusieurs (détail : type et heure), vue `--bg-main`, iframe fond blanc, contour 2px `--accent` en mode « Point ».
 
 ### Pages
 - **Kanban** (`Board.svelte`) : colonnes `repeat(N, minmax(220px,1fr))`, espacement 12px, fond `--bg-sidebar`, rayon 8px. En-tête de colonne en capitales 11px, pastille 8px (`--sub-running`, `--accent`, `--done`), compteur mono. Carte `--surface-1` (`--surface-2` au survol), padding 12px 14px, rayon 6px ; en attente `--wait-*`, en erreur `--err-*`. Glisser : origine à 0,4, fantôme `--surface-4` + contour `--border-focus` incliné −2°, repère 2px `--accent`. « + Task » 34px pointillé.
@@ -275,7 +277,7 @@ Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-
 - **Settings** : Dialog plein écran. Navigation 230px `--bg-sidebar`, groupes en capitales, entrées 34px, active `--surface-4` blanc 600. Contenu 860px max. Cartes de choix `--surface-1` + contour `--border-strong`, choisie `--surface-3` + anneau 2px `--text`.
 - **Add project** : dossier en lecture seule + « Browse… », « Git repository · branch X » en `--done-text`.
 - **New agent** : nom, modèle et effort en segments, mode de permission en 4 cartes, premier message, « Ctrl ↵ ».
-- **Spotlight** : 680px à 14vh, rayon 10px, champ 52px 16px, sections en capitales, résultat choisi `--surface-2` + contour `--border-strong`, `↵` en `--accent`. **QuickOpen** : 620px `--menu`, rayon 9px, champ 44px, lignes 34px.
+- **Spotlight** : 680px à 14vh, rayon 10px, champ 52px 16px, sections en capitales, filtres sous le champ dès qu'on tape (puces 22px rayon 3px `--surface-3`, pastille projet 8px, compte mono 11px ; active teintée par la couleur du projet comme la cible d'une action), résultat choisi `--surface-2` + contour `--border-strong`, `↵` en `--accent`. **QuickOpen** : 620px `--menu`, rayon 9px, champ 44px, lignes 34px.
 
 ### États vides
 Centrés, 440–460px. Aucun projet : triangle cuivre, titre 24px, texte `--text-muted`, bouton « Add project », zone de dépôt en pointillé. Projet sans agent : bouton « New agent » et `Ctrl N`. Dossier introuvable : carte d'alerte avec trois actions.

@@ -3,6 +3,7 @@ export default {
   actions: 'Actions',
   agents: 'Agents',
   recent: 'Recent agents',
+  filter: 'Filter',
   hintActions: '↑ ↓ to move · Enter to run · Tab to complete · Esc to close',
   open: 'Open project',
   newAgent: 'New agent',

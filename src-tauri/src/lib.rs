@@ -15,6 +15,7 @@ pub mod gitlab;
 pub mod permissions;
 pub mod pilot;
 pub mod plugins;
+pub mod preview;
 pub mod process;
 pub mod projects;
 pub mod sessions;
@@ -1365,6 +1366,56 @@ fn system_load(cpu: State<system::Cpu>) -> Option<system::Load> {
 
 struct AgentFiles(PathBuf);
 
+#[derive(Default)]
+struct FoundCache(Mutex<HashMap<PathBuf, (std::time::SystemTime, stored::Found)>>);
+
+impl FoundCache {
+    fn get(&self, path: &Path) -> Option<stored::Found> {
+        let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok()?;
+        if let Some((at, found)) = self.0.lock().unwrap().get(path) {
+            if *at == modified {
+                return Some(found.clone());
+            }
+        }
+        let found = stored::found(&std::fs::read_to_string(path).ok()?)?;
+        self.0
+            .lock()
+            .unwrap()
+            .insert(path.to_path_buf(), (modified, found.clone()));
+        Some(found)
+    }
+}
+
+fn spread<T: Send>(paths: &[PathBuf], each: impl Fn(&Path) -> Option<T> + Sync) -> Vec<T> {
+    let threads = std::thread::available_parallelism()
+        .map_or(4, |n| n.get())
+        .min(8);
+    let chunk = paths.len().div_ceil(threads).max(1);
+    let each = &each;
+    std::thread::scope(|scope| {
+        let workers: Vec<_> = paths
+            .chunks(chunk)
+            .map(|part| {
+                scope.spawn(move || part.iter().filter_map(|p| each(p)).collect::<Vec<_>>())
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().unwrap_or_default())
+            .collect()
+    })
+}
+
+fn json_files(dir: &Path) -> Vec<PathBuf> {
+    let Ok(dir) = std::fs::read_dir(dir) else {
+        return Vec::new();
+    };
+    dir.filter_map(Result::ok)
+        .map(|e| e.path())
+        .filter(|p| p.extension().is_some_and(|x| x == "json"))
+        .collect()
+}
+
 struct LayoutFile(PathBuf);
 
 #[tauri::command]
@@ -1733,33 +1784,8 @@ async fn account_name() -> Option<String> {
 
 #[tauri::command]
 async fn load_agents(files: State<'_, AgentFiles>) -> Result<Vec<String>, String> {
-    let Ok(dir) = std::fs::read_dir(&files.0) else {
-        return Ok(Vec::new());
-    };
-    let paths: Vec<PathBuf> = dir
-        .filter_map(Result::ok)
-        .map(|e| e.path())
-        .filter(|p| p.extension().is_some_and(|x| x == "json"))
-        .collect();
-    let threads = std::thread::available_parallelism()
-        .map_or(4, |n| n.get())
-        .min(8);
-    let chunk = paths.len().div_ceil(threads).max(1);
-    Ok(std::thread::scope(|scope| {
-        let workers: Vec<_> = paths
-            .chunks(chunk)
-            .map(|part| {
-                scope.spawn(move || {
-                    part.iter()
-                        .filter_map(|p| stored::header(&std::fs::read_to_string(p).ok()?))
-                        .collect::<Vec<_>>()
-                })
-            })
-            .collect();
-        workers
-            .into_iter()
-            .flat_map(|w| w.join().unwrap_or_default())
-            .collect()
+    Ok(spread(&json_files(&files.0), |p| {
+        stored::header(&std::fs::read_to_string(p).ok()?)
     }))
 }
 
@@ -1776,15 +1802,24 @@ async fn load_entries(
 #[tauri::command]
 async fn agent_texts(
     files: State<'_, AgentFiles>,
+    cache: State<'_, FoundCache>,
     ids: Vec<String>,
 ) -> Result<HashMap<String, String>, String> {
-    Ok(ids
+    let paths: Vec<PathBuf> = ids.iter().filter_map(|id| files.path(id).ok()).collect();
+    Ok(spread(&paths, |p| cache.get(p))
         .into_iter()
-        .filter_map(|id| {
-            let text = std::fs::read_to_string(files.path(&id).ok()?).ok()?;
-            Some((id, stored::texts(&text)))
-        })
+        .map(|found| (found.id, found.text))
         .collect())
+}
+
+#[tauri::command]
+async fn archived_texts(
+    files: State<'_, AgentFiles>,
+    cache: State<'_, FoundCache>,
+) -> Result<Vec<stored::Found>, String> {
+    Ok(spread(&json_files(&files.0.join("archived")), |p| {
+        cache.get(p)
+    }))
 }
 
 #[tauri::command]
@@ -1989,6 +2024,11 @@ fn launch(uri: &str, context: gtk::gio::AppLaunchContext) -> Result<(), String> 
         std::thread::spawn(move || child.wait());
         Ok(())
     })
+}
+
+#[tauri::command]
+async fn link_preview(url: String) -> Option<preview::Preview> {
+    preview::fetch(&url).await
 }
 
 #[tauri::command]
@@ -2239,6 +2279,7 @@ pub fn run() {
             system_load,
             stop_turn,
             open_link,
+            link_preview,
             git_branch,
             set_workdir,
             agent_ids,
@@ -2346,6 +2387,7 @@ pub fn run() {
             account_name,
             load_entries,
             agent_texts,
+            archived_texts,
             get_layout,
             set_layout,
             extensions_list,
@@ -2425,6 +2467,7 @@ pub fn run() {
             });
             app.manage(Settings::load(config.join("settings.json")));
             app.manage(AgentFiles(config.join("agents")));
+            app.manage(FoundCache::default());
             let root = app.path().app_data_dir()?.join("artifacts");
             let _ = std::fs::create_dir_all(&root);
             let ids = |dir: PathBuf| {

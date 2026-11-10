@@ -8,7 +8,10 @@
   import { minimalSetup } from 'codemirror'
   import { mount, unmount } from 'svelte'
   import FileChip from './FileChip.svelte'
+  import LinkChip from './LinkChip.svelte'
   import { citedFiles, filesIn } from './mention.svelte'
+  import { invoke } from '@tauri-apps/api/core'
+  import { urlsIn } from './urls'
 
   function fenceLines(view: EditorView) {
     const doc = view.state.doc
@@ -71,6 +74,68 @@
       if (chip) unmount(chip)
     }
   }
+
+  class LinkWidget extends WidgetType {
+    url: string
+
+    constructor(url: string) {
+      super()
+      this.url = url
+    }
+
+    eq(other: LinkWidget) {
+      return other.url === this.url
+    }
+
+    toDOM() {
+      const host = document.createElement('span')
+      host.addEventListener('mousedown', (event) => {
+        if (!(event.ctrlKey || event.metaKey) || event.button !== 0) return
+        event.preventDefault()
+        invoke('open_link', { url: this.url })
+      })
+      chips.set(host, mount(LinkChip, { target: host, props: { url: this.url } }))
+      return host
+    }
+
+    destroy(dom: HTMLElement) {
+      const chip = chips.get(dom)
+      if (chip) unmount(chip)
+    }
+  }
+
+  function linkMarks(view: EditorView, typing = false) {
+    const doc = view.state.doc
+    const tree = syntaxTree(view.state)
+    const head = view.state.selection.main.head
+    const marks: Range<Decoration>[] = []
+    for (const { from, to } of view.visibleRanges)
+      for (let n = doc.lineAt(from).number; n <= doc.lineAt(to).number; n++) {
+        const line = doc.line(n)
+        for (const found of urlsIn(line.text)) {
+          const start = line.from + found.from
+          const end = line.from + found.to
+          if (head > start && (head < end || (typing && head === end))) continue
+          if (/^(FencedCode|CodeText)$/.test(tree.resolveInner(start, 1).name)) continue
+          marks.push(Decoration.replace({ widget: new LinkWidget(found.url) }).range(start, end))
+        }
+      }
+    return Decoration.set(marks, true)
+  }
+
+  const linkChips = ViewPlugin.fromClass(
+    class {
+      decorations: DecorationSet
+      constructor(view: EditorView) {
+        this.decorations = linkMarks(view)
+      }
+      update(update: ViewUpdate) {
+        if (update.docChanged || update.viewportChanged || update.selectionSet || syntaxTree(update.startState) !== syntaxTree(update.state))
+          this.decorations = linkMarks(update.view, update.transactions.some((tr) => tr.isUserEvent('input.type')))
+      }
+    },
+    { decorations: (plugin) => plugin.decorations },
+  )
 
   function fileChips(list: string[]) {
     const files = new Set(list)
@@ -155,6 +220,8 @@
           markdown({ codeLanguages: languages, addKeymap: false }),
           syntaxHighlighting(classHighlighter),
           fences,
+          linkChips,
+          EditorView.atomicRanges.of((view) => view.plugin(linkChips)?.decorations ?? Decoration.none),
           chipping.of(fileChips(files)),
           EditorView.lineWrapping,
           EditorView.theme({}, { dark: true }),

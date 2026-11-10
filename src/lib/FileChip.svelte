@@ -103,16 +103,23 @@
   }
 
   .light {
-    background: var(--accent-ink);
+    background: color-mix(in srgb, var(--accent-ink) 13%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-ink) 22%, transparent);
+    color: var(--accent-ink);
+  }
+
+  .light i {
+    background: none;
     box-shadow: none;
-    color: var(--accent-soft);
+    color: var(--accent-ink);
   }
 
   .light :is(.parent, .count) {
-    color: color-mix(in srgb, var(--accent-soft) 55%, transparent);
+    color: color-mix(in srgb, var(--accent-ink) 58%, transparent);
   }
 
   .light.folder svg {
-    color: var(--accent-soft);
+    color: var(--accent-ink);
+    fill-opacity: 0.2;
   }
 </style>

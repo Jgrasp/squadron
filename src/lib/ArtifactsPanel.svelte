@@ -10,6 +10,7 @@
   import { time } from './format'
   import { errorText, t } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
+  import Select from './Select.svelte'
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
 
@@ -152,13 +153,13 @@
   {/snippet}
 
   {#if list.length > 1}
-    <div class="tabs" role="tablist" aria-label={t('agent.artifactList')}>
-      {#each list as artifact (artifact.id)}
-        <button role="tab" aria-selected={artifact === open} title={artifact.title} onclick={() => choose(artifact.id)}>
-          <span class="name">{artifact.title}</span>
-          <span class="kind">{artifact.kind === 'doc' ? 'claude.ai' : artifact.kind}</span>
-        </button>
-      {/each}
+    <div class="pick">
+      <Select
+        label={t('agent.artifactList')}
+        value={open?.id ?? ''}
+        options={list.map((a) => ({ value: a.id, label: a.title, detail: a.kind === 'doc' ? 'claude.ai' : `${a.kind} · ${t('agent.artifactModified', { time: time(a.modified) })}` }))}
+        onpick={choose}
+      />
     </div>
   {/if}
 
@@ -199,46 +200,14 @@
 </SidePanel>
 
 <style>
-  .tabs {
+  .pick {
     flex: none;
-    display: flex;
-    gap: 4px;
     padding: 8px 12px;
-    overflow-x: auto;
     border-bottom: 1px solid var(--border);
   }
 
-  .tabs button {
-    flex: none;
-    max-width: 240px;
-    display: flex;
-    align-items: baseline;
-    gap: 6px;
-    padding: 5px 10px;
-    border-radius: 4px;
-    font-size: 12.5px;
-    color: var(--text-2);
-  }
-
-  .tabs button:hover {
-    background: var(--surface-2);
-  }
-
-  .tabs button[aria-selected='true'] {
-    background: var(--surface-4);
-    color: var(--text-strong);
-  }
-
-  .name {
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-  }
-
-  .kind {
-    font-family: var(--mono);
-    font-size: 10.5px;
-    color: var(--text-faint);
+  .pick :global(.select) {
+    max-width: 420px;
   }
 
   .view {

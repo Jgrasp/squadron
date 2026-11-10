@@ -5,6 +5,7 @@ export default {
   actions: 'Actions',
   agents: 'Agents',
   recent: 'Agents récents',
+  filter: 'Filtrer',
   hintActions: '↑ ↓ pour se déplacer · Entrée pour lancer · Tab pour compléter · Échap pour fermer',
   open: 'Ouvrir le projet',
   newAgent: 'Nouvel agent',
