@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.42.0 · 2026-11-10
+
+### Memory
+
+- An agent that has finished stops its Claude Code process after 15 minutes instead of an hour, with its MCP servers and the browsers they opened; your next message starts it again. A stopped loop, a past wakeup or a deleted cron job no longer keeps it running.
+- The conversation of a stopped agent you have not opened for 15 minutes leaves memory, and reloads when you open it.
+- Archiving a review agent deletes its pull request checkout, unless it holds changes or unpushed commits; restoring it checks the reviewed commit out again. Leftover checkouts are removed at startup.
+
+### MCP servers
+
+- MCP servers on demand: Settings › MCP servers moves a server out of Claude Code’s configuration, so it starts in no session. An agent starts it for itself from /mcp, or on its own with the use_mcp tool when its task needs it, and gets it back after a restart until it stops it.
+
+### Conversation
+
+- An agent’s notes between its steps show as reply blocks with their time.
+- A reply taller than one and a half times the conversation ends with a Back to top button.
+- The answer field of an agent’s question wraps its text and grows with it; Shift+Enter starts a new line.
+
+### Archives
+
+- The archived agents list opens fast: it reads only each agent’s header, and the archive panel loads the history of the agent it shows.
+
 ## 0.41.0 · 2026-11-10
 
 ### Conversation
