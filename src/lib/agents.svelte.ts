@@ -29,6 +29,7 @@ import {
   fail,
   flaggedWorktree,
   GOAL_RELAUNCHES,
+  holding,
   created,
   newAgent,
   notice,
@@ -261,7 +262,7 @@ export async function closeAll() {
   await saveAll()
 }
 
-const IDLE = 60 * 60_000
+const IDLE = 15 * 60_000
 
 export function sleepIdle() {
   for (const agent of agents.list)
@@ -271,7 +272,7 @@ export function sleepIdle() {
       !agent.asks.length &&
       !agent.held &&
       !agent.remote &&
-      !agent.jobs.length &&
+      !holding(agent) &&
       Date.now() - agent.since > IDLE
     )
       invoke('sleep_agent', { id: agent.id }).catch(() => {})
