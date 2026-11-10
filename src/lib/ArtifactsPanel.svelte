@@ -8,8 +8,13 @@
   import { refresh, shelf } from './artifacts.svelte'
   import { ask } from './asking.svelte'
   import { time } from './format'
-  import { errorText, t } from './i18n/index.svelte'
+  import { text } from './extensions'
+  import { extensionItem, extensions, runItem } from './extensions.svelte'
+  import { errorText, locale, t } from './i18n/index.svelte'
+  import Icon from './Icon.svelte'
+  import { detailOf, labelOf, shown } from './layout-slots.svelte'
   import Markdown from './Markdown.svelte'
+  import StatusIcon from './StatusIcon.svelte'
   import Select from './Select.svelte'
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
@@ -28,6 +33,7 @@
   let pointing = $state(false)
   let markdown = $state('')
   let frame = $state<HTMLIFrameElement>()
+  let menu = $state(false)
 
   const local = $derived(shelf.of[agent.id] ?? [])
   const docs = $derived(docsOf(agent, local.flatMap((a) => (a.link ? [a.link] : []))))
@@ -50,7 +56,23 @@
   $effect(() => {
     void open?.id
     pointing = false
+    menu = false
   })
+
+  const destinations = $derived(shown('artifact.actions'))
+  const link = $derived(open?.link ?? null)
+  const publishing = $derived(!!open && open.kind !== 'doc' && !open.link && asked.includes(open.id))
+  const madeBy = (extension: string) => {
+    const name = extensions.list.find((m) => m.id === extension)?.manifest?.name
+    return name ? text(name, locale()) : extension
+  }
+
+  function pick(id: string) {
+    menu = false
+    const item = extensionItem('artifact.actions', id)
+    if (id === 'claude' && open && open.kind !== 'doc') share(open)
+    else if (item) runItem(item, { agent })
+  }
 
   function aim(on: boolean) {
     pointing = on
@@ -124,7 +146,54 @@
   }
 </script>
 
-<svelte:window onmessage={message} />
+<svelte:window onmessage={message} onclick={(e) => menu && !(e.target as Element).closest?.('[data-share]') && (menu = false)} onkeydown={(e) => e.key === 'Escape' && menu && (menu = false)} />
+
+{#snippet shareMenu()}
+  {#if open && destinations.length}
+    <div class="anchor" data-share>
+      <button
+        class="btn btn-ghost share"
+        class:open={menu}
+        aria-haspopup="menu"
+        aria-expanded={menu}
+        title={t('agent.artifactShareMenuOf', { title: open.title })}
+        onclick={() => (menu = !menu)}
+      >
+        {#if link}<span class="dot" aria-hidden="true"></span>{/if}{t('agent.artifactShareMenu')}
+        <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+      {#if menu}
+        <div class="menu" role="menu" aria-label={t('agent.artifactShareMenu')}>
+          {#each destinations as id, i (id)}
+            {@const item = extensionItem('artifact.actions', id)}
+            {#if i > 0 && (id === 'claude') !== (destinations[i - 1] === 'claude')}<span class="sep" aria-hidden="true"></span>{/if}
+            {#if id === 'claude' && link}
+              <div class="entry">
+                <div class="option">
+                  <span class="ico"><Icon name="artifact" /></span>
+                  <span class="text"><b><span class="dot" aria-hidden="true"></span>{t('agent.artifactSharedOn')}</b><span>{t('agent.artifactOnClaude')}</span></span>
+                </div>
+                <div class="acts">
+                  <button class="btn btn-primary" role="menuitem" onclick={() => ((menu = false), invoke('open_link', { url: link }))}>{t('agent.artifactOpenClaude')}</button>
+                  <button class="btn btn-ghost" role="menuitem" onclick={() => copy('link', link)}>{copied === 'link' ? t('common.copied') : t('agent.artifactCopyLink')}</button>
+                </div>
+              </div>
+            {:else if id === 'claude' || item}
+              <button class="option" role="menuitem" disabled={id === 'claude' && (open.kind !== 'markdown' || publishing)} onclick={() => pick(id)}>
+                <span class="ico"><Icon name={id === 'claude' ? 'artifact' : (item?.icon ?? 'plugins')} /></span>
+                <span class="text">
+                  <b>{labelOf('artifact.actions', id)}</b>
+                  <span>{id === 'claude' && open.kind !== 'markdown' ? t('agent.artifactMarkdownOnly') : detailOf('artifact.actions', id)}</span>
+                  {#if item}<span class="by">{madeBy(item.extension)}</span>{/if}
+                </span>
+              </button>
+            {/if}
+          {/each}
+        </div>
+      {/if}
+    </div>
+  {/if}
+{/snippet}
 
 <SidePanel kind="artifacts" title={t('agent.artifactsTitle')} {windowed} {onclose}>
   {#snippet sub()}
@@ -132,12 +201,14 @@
   {/snippet}
   {#snippet actions()}
     {#if open?.kind === 'doc'}
+      {@render shareMenu()}
       <button class="btn btn-ghost danger" onclick={() => remove(open)}>{t('agent.artifactHide')}</button>
     {:else if open}
       {#if open.kind === 'html'}
         <button class="btn btn-ghost" aria-pressed={pointing} title={t('agent.artifactPointTitle')} onclick={() => aim(!pointing)}>{pointing ? t('agent.artifactPointing') : copied === 'point' ? t('agent.artifactPointSent', { name: agent.name }) : t('agent.artifactPoint')}</button>
       {/if}
       <button class="btn btn-ghost" onclick={() => source(open)}>{copied === 'source' ? t('common.copied') : t('agent.artifactCopy')}</button>
+      {@render shareMenu()}
       {#if open.kind === 'html'}
         <button class="btn btn-ghost" onclick={() => invoke('open_artifact_folder', { agent: agent.id, id: open.id }).catch((e) => ask(errorText(e), { kind: 'error' }))}>{t('agent.artifactFolder')}</button>
       {:else}
@@ -163,19 +234,10 @@
     </div>
   {/if}
 
-  {#if open && (open.kind === 'doc' || open.link || open.kind === 'markdown')}
-    <div class="share">
-      {#if open.kind === 'doc' || open.link}
-        {@const link = open.link!}
-        <span class="where">{t('agent.artifactShared')} <span class="mono">{link.replace('https://', '')}</span></span>
-        <button class="btn btn-ghost" onclick={() => copy('link', link)}>{copied === 'link' ? t('common.copied') : t('agent.artifactCopyLink')}</button>
-        <button class="btn btn-primary" onclick={() => invoke('open_link', { url: link })}>{t('agent.artifactOpenClaude')}</button>
-      {:else if asked.includes(open.id)}
-        <span class="where">{t('agent.artifactSharing', { name: agent.name })}</span>
-      {:else}
-        <span class="where">{t('agent.artifactShareHint')}</span>
-        <button class="btn btn-ghost" onclick={() => share(open)}>{t('agent.artifactShare')}</button>
-      {/if}
+  {#if publishing}
+    <div class="band" role="status">
+      <StatusIcon status="background" />
+      <span>{t('agent.artifactSharing', { name: agent.name })}</span>
     </div>
   {/if}
 
@@ -236,27 +298,153 @@
     outline-offset: -2px;
   }
 
-  .share {
+  .band {
     flex: none;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 10px;
     padding: 8px 12px 8px 20px;
-    border-bottom: 1px solid var(--border);
+    border-bottom: 1px solid var(--background-line);
+    background: var(--background-bg);
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .anchor {
+    position: relative;
+    flex: none;
+  }
+
+  .share {
+    gap: 7px;
+  }
+
+  .share.open {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .chevron {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+    opacity: 0.7;
+  }
+
+  .dot {
+    display: inline-block;
+    flex: none;
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--ok);
+  }
+
+  .menu {
+    position: absolute;
+    z-index: 30;
+    top: calc(100% + 6px);
+    right: 0;
+    width: 380px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .option {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 7px 8px;
+    border-radius: 4px;
+    text-align: left;
+  }
+
+  button.option:hover:not(:disabled),
+  button.option:focus-visible {
+    background: var(--menu-hover);
+    outline: none;
+  }
+
+  button.option:disabled {
+    opacity: 0.5;
+  }
+
+  .ico {
+    width: 30px;
+    height: 30px;
+    flex: none;
+    display: grid;
+    place-items: center;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+  }
+
+  .text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .text b {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--text-strong);
+  }
+
+  .text b .dot {
+    margin: 0 6px 1px 0;
+    vertical-align: middle;
+  }
+
+  .text span {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .text .by {
+    font: 11.5px var(--mono);
+    color: var(--text-faint);
+  }
+
+  .entry {
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    padding: 8px 8px 10px;
+  }
+
+  .entry .option {
+    padding: 0;
+  }
+
+  .acts {
+    display: flex;
+    gap: 6px;
+    margin-left: 42px;
+  }
+
+  .acts .btn {
+    height: 28px;
+    padding: 0 10px;
     font-size: 12.5px;
   }
 
-  .where {
-    flex: 1;
-    min-width: 0;
-    overflow: hidden;
-    white-space: nowrap;
-    text-overflow: ellipsis;
-    color: var(--text-muted);
-  }
-
-  .where .mono {
-    color: var(--text);
+  .sep {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border);
   }
 
   .remote {

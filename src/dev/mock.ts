@@ -1295,6 +1295,7 @@ mockIPC(
                     { slot: 'agent.tools', id: 'logs', label: { en: 'Logs', fr: 'Journaux' }, icon: 'terminal', action: { 'terminal.run': 'lando logs -f' } },
                     { slot: 'agent.menu', id: 'review', label: { en: 'Review the diff', fr: 'Relire le diff' }, hint: { en: 'Inserts a review prompt', fr: 'Insère un prompt de relecture' }, action: { 'prompt.insert': 'Review the diff and list the risks.' } },
                     { slot: 'menu.squadron', id: 'docs', label: { en: 'Lando docs', fr: 'Doc Lando' }, hint: { en: 'docs.lando.dev' }, action: { 'url.open': 'https://docs.lando.dev' } },
+                    { slot: 'artifact.actions', id: 'pdf', label: { en: 'Export as PDF', fr: 'Exporter en PDF' }, hint: { en: 'Prints the page to a file next to the artifact', fr: 'Imprime la page dans un fichier à côté de l’artifact' }, action: { 'prompt.insert': 'Export the open artifact as a PDF.' } },
                   ],
                   tools: [{ name: 'logs', description: 'Last 200 lines of the Lando logs', command: 'lando logs --tail 200' }],
                 },

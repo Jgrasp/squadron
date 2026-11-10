@@ -41,7 +41,7 @@ export type Item = ExtensionItem & { key: string; extension: string; allowed: bo
 
 export type Exposed = ExtensionTool & { extension: string; tool: string }
 
-export const EXTENSION_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squadron']
+export const EXTENSION_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squadron', 'artifact.actions']
 
 export const ICONS = ['editor', 'pull', 'terminal', 'diff', 'kanban', 'remote', 'subagents', 'artifact', 'branch', 'options', 'context', 'turns', 'tasks', 'persona', 'plus', 'copy', 'folder', 'archive', 'stop', 'pin', 'grid', 'jump', 'update', 'mcp']
 

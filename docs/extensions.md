@@ -142,7 +142,7 @@ Voir `extensions/examples/hello/extension.json`, et la référence complète dan
 
 - **Où** : `<config>/extensions/<dossier>/extension.json`, ou un dossier ajouté depuis Settings › Extensions (« Ajouter un dossier… »). Les dossiers ajoutés et les extensions désactivées sont dans `<config>/extensions.json`. Un changement de `extension.json` se recharge en moins d'une seconde.
 - **Manifeste** : `id` (minuscules, chiffres, tirets), `version`, `api: 1`, `name` et `description` en `{ "en": "…", "fr": "…" }`, l'anglais étant obligatoire.
-- **`contributes.items`** : `slot` parmi `agent.tools`, `agent.menu` et `menu.squadron`, `id`, `label`, `hint` facultatif, `icon` facultative, prise dans les icônes de Squadron, et une `action` parmi :
+- **`contributes.items`** : `slot` parmi `agent.tools`, `agent.menu`, `menu.squadron` et `artifact.actions` (le menu Share du panneau Artifacts, après « Publish on claude.ai », avec le nom de l'extension sous chaque destination), `id`, `label`, `hint` facultatif, `icon` facultative, prise dans les icônes de Squadron, et une `action` parmi :
   - `{ "terminal.run": "lando logs -f" }` : tape la commande dans le terminal de l'agent sans la lancer, l'utilisateur appuie sur Entrée. Une seule ligne ;
   - `{ "prompt.insert": "…" }` : ajoute le texte à la zone de saisie de l'agent ;
   - `{ "url.open": "https://…" }` : ouvre le lien dans le navigateur ;

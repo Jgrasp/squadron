@@ -33,6 +33,7 @@ describe('extensions', () => {
     const item = (extra: object) => keys({ ...lando, contributes: { items: [{ slot: 'agent.tools', id: 'a', label: { en: 'A' }, action: { squadron: 'kanban' }, ...extra }] } })
     expect(item({})).toEqual([])
     expect(item({ slot: 'agent.info' })).toEqual(['extensions.badSlot'])
+    expect(item({ slot: 'artifact.actions', action: { 'prompt.insert': 'Share it' } })).toEqual([])
     expect(item({ icon: 'rocket' })).toEqual(['extensions.badIcon'])
     expect(item({ action: { squadron: 'explode' } })).toEqual(['extensions.badSquadron'])
     expect(item({ action: { 'terminal.run': 'ls\nrm -rf ~' } })).toEqual(['extensions.badCommand'])
