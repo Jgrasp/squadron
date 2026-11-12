@@ -9,7 +9,7 @@
   import { ask, message as tell } from './asking.svelte'
   import { time } from './format'
   import { text, type Item, type Text } from './extensions'
-  import { extensionItem, extensions, runItem, shareTool } from './extensions.svelte'
+  import { allowed, extensionItem, extensions, runItem, shareTool } from './extensions.svelte'
   import { errorText, locale, t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
@@ -104,6 +104,7 @@
     const how = action?.[verb]
     if (!artifact || !action || !how) return
     menu = false
+    if (!(await allowed(item.extension))) return
     const label = labelOf('artifact.actions', item.key)
     const data = await invoke<string>('extension_data_dir', { id: item.extension }).catch(() => '')
     let remove = false

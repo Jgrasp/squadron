@@ -347,7 +347,7 @@ Un élément de l'emplacement `artifact.actions` devient une destination de part
 { "slot": "artifact.actions", "id": "team", "label": { "en": "Share with the team" },
   "action": { "artifact.share": {
     "confirm": { "en": "“{artifact.title}” becomes a Google web app for your team." },
-    "lines": ["Google Apps Script · access: akki.fr"],
+    "lines": ["Google Apps Script · access: example.com"],
     "shared": { "en": "Shared with the team" },
     "share": "Share the artifact {artifact.id} at {artifact.dir}, then call publish_artifact with id {artifact.id}, destination {destination} and its link.",
     "update": { "tool": "deploy" },

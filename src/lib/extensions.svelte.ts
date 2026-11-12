@@ -186,6 +186,26 @@ export async function checkUpdates() {
     for (const c of fresh) sendNotification({ title: t('extensions.updateTitle'), body: t('extensions.updateBody', { name: text(c.name, locale()), version: c.version }) })
 }
 
+const syncSkills = (list: Extension[]) =>
+  invoke<string[]>('extensions_set_skills', { list: skillsOf(list) }).then((errors) => {
+    for (const error of errors) console.warn(error)
+  })
+
+const syncWasm = (list: Extension[]) =>
+  invoke<Record<string, string>>('extensions_wasm_sync', {
+    list: list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) })),
+  }).then((errors) => {
+    extensions.errors = errors
+  })
+
+export async function allowed(id: string) {
+  const extension = extensions.list.find((m) => m.id === id)
+  if (!extension?.pending.length) return !!extension
+  if (!(await requestApproval(extension))) return false
+  await Promise.all([syncSkills(extensions.list), syncWasm(extensions.list)])
+  return true
+}
+
 export const approve = (extension: Extension) => invoke('extensions_approve', { id: extension.id, commands: extension.commands }).then(loadExtensions)
 
 listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-host', async ({ payload: p }) => {
@@ -236,16 +256,11 @@ $effect.root(() => {
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
-    invoke<string[]>('extensions_set_skills', { list: skillsOf(extensions.list) }).then((errors) => {
-      for (const error of errors) console.warn(error)
-    })
+    syncSkills(extensions.list)
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
-    const list = extensions.list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) }))
-    invoke<Record<string, string>>('extensions_wasm_sync', { list }).then((errors) => {
-      extensions.errors = errors
-    })
+    syncWasm(extensions.list)
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return

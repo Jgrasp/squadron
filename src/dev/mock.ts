@@ -873,7 +873,7 @@ mockIPC(
       case 'extension_data_dir':
         return `/home/demo/.config/dev.squadron.desktop/extensions-data/${a.id}`
       case 'extensions_wasm_tool':
-        return new Promise((r) => setTimeout(() => r(a.name === 'deploy' ? 'https://script.google.com/a/macros/akki.fr/s/AKfycbx4QmDemo/exec' : ''), 1500))
+        return new Promise((r) => setTimeout(() => r(a.name === 'deploy' ? 'https://script.google.com/macros/s/AKfycbx4QmDemo/exec' : ''), 1500))
       case 'delete_artifact':
         shelves.set(a.agent, (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id))
         shelve()
@@ -1325,17 +1325,19 @@ mockIPC(
                 api: 1,
                 name: { en: 'Team share (Google)' },
                 wasm: 'team-share.wasm',
+                permissions: { exec: ['python3'] },
                 contributes: {
+                  skills: ['skills/share'],
                   items: [
                     {
                       slot: 'artifact.actions',
                       id: 'team',
                       label: { en: 'Share with the team', fr: 'Partager avec l’équipe' },
-                      hint: { en: 'Google web app for akki.fr accounts', fr: 'App web Google pour les comptes akki.fr' },
+                      hint: { en: 'Google web app for example.com accounts', fr: 'App web Google pour les comptes example.com' },
                       action: {
                         'artifact.share': {
-                          confirm: { en: '“{artifact.title}” becomes a Google web app that only akki.fr accounts can open, deployed from your Google account.' },
-                          lines: ['Google Apps Script · access: akki.fr'],
+                          confirm: { en: '“{artifact.title}” becomes a Google web app that only example.com accounts can open, deployed from your Google account.' },
+                          lines: ['Google Apps Script · access: example.com'],
                           shared: { en: 'Shared with the team', fr: 'Partagé avec l’équipe' },
                           share: 'Share the artifact {artifact.id} at {artifact.dir} with the team-share skill, then call publish_artifact with id {artifact.id}, destination {destination} and its /exec link.',
                           update: { tool: 'deploy' },
@@ -1360,6 +1362,8 @@ mockIPC(
       case 'extensions_set_tools':
       case 'extensions_wasm_event':
         return
+      case 'extensions_set_skills':
+        return []
       case 'extensions_wasm_sync':
         return {}
       case 'extensions_enable': {
