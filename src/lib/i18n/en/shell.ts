@@ -373,4 +373,6 @@ export default {
   splashReadyName: 'All set, {name}',
   splashAgentCount: { one: '{count} agent', other: '{count} agents' },
   splashProjectCount: { one: '{count} project', other: '{count} projects' },
+  quitTitle: 'Quit Squadron?',
+  quitAsk: { one: 'An agent is still working. Quitting Squadron stops it.', other: '{count} agents are still working. Quitting Squadron stops them.' },
 }

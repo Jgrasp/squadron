@@ -36,6 +36,7 @@
   import PullReview from './lib/PullReview.svelte'
   import SidePanel from './lib/SidePanel.svelte'
   import { t } from './lib/i18n/index.svelte'
+  import { ask } from './lib/asking.svelte'
   import PanelButtons from './lib/PanelButtons.svelte'
   import Splash from './lib/Splash.svelte'
   import { boot, finished } from './lib/boot.svelte'
@@ -125,8 +126,22 @@
 
   $effect(() => {
     const appWindow = getCurrentWindow()
+    let asking = false
     const unlisten = appWindow.onCloseRequested(async (event) => {
       event.preventDefault()
+      if (asking) return
+      const busy = agents.list.filter((a) => a.status === 'working' || a.status === 'waiting')
+      asking = busy.length > 0
+      if (
+        busy.length &&
+        !(await ask(t('shell.quitAsk', { count: busy.length }), {
+          title: t('shell.quitTitle'),
+          kind: 'warning',
+          okLabel: t('shell.quit'),
+          lines: busy.map((a) => a.name),
+        }).finally(() => (asking = false)))
+      )
+        return
       await closeAll().catch(() => {})
       await appWindow.destroy()
     })

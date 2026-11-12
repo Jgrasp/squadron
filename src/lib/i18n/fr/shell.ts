@@ -375,4 +375,6 @@ export default {
   splashReadyName: 'Tout est prêt, {name}',
   splashAgentCount: { one: '{count} agent', other: '{count} agents' },
   splashProjectCount: { one: '{count} projet', other: '{count} projets' },
+  quitTitle: 'Quitter Squadron ?',
+  quitAsk: { one: 'Un agent travaille encore. Quitter Squadron l’arrête.', other: '{count} agents travaillent encore. Quitter Squadron les arrête.' },
 } satisfies Catalog['shell']
