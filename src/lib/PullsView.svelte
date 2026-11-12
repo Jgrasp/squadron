@@ -47,7 +47,7 @@
   }
   const starting = (pull: Pull) => busy?.number === pull.number && busy.doing === 'ask'
   const asking = (pull: Pull): Choice => ({
-    label: t('review.askAgent'),
+    label: t('review.agentButton'),
     icon: 'persona',
     title: settings.pilot ? t('review.askAgentTitle') : t('review.askAgentNeedsPilot'),
     run: () => (settings.pilot ? askAgent(pull).catch((e) => (failure = `#${pull.number}: ${errorText(e)}`)) : (ui.settings = 'preferences')),
@@ -145,6 +145,14 @@
     if (moved(project.path, pull)) return ['act-recheck', t('review.newChanges')]
     if (pull.reviewed === 'changes_requested') return ['wait-bad', t('review.youAskedForChanges')]
     return ['quiet', t('review.youCommented')]
+  }
+
+  function agentLabel(status: Agent['status']) {
+    if (status === 'working') return t('review.agentButtonWorking')
+    if (status === 'waiting') return t('review.agentButtonWaiting')
+    if (status === 'error') return t('review.agentButtonError')
+    if (status === 'interrupted') return t('review.agentButtonStopped')
+    return t('review.agentButtonDone')
   }
 
   function watching(pull: Pull, agent: Agent): [string, string] {
@@ -287,8 +295,13 @@
 {#snippet reviewRow(pull: Pull, state: [string, string], primary: boolean, done: boolean)}
   {@const reviewer = reviewerOf(project.path, pull)}
   {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
-  {@const agentChoice = reviewer ? { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status: reviewer.attention && reviewer.status !== 'working' && reviewer.status !== 'error' ? 'waiting' : reviewer.status, run: () => show(reviewer) } : asking(pull)}
-  {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : reviewer && moved(project.path, pull) && behind(reviewer, pull) && reviewer.status !== 'working' ? { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) } : reviewing}
+  {@const status = reviewer && (reviewer.attention && reviewer.status !== 'working' && reviewer.status !== 'error' ? 'waiting' : reviewer.status)}
+  {@const agentChoice = starting(pull)
+    ? { label: t('review.starting'), icon: 'persona', spinning: true, run: () => {} }
+    : reviewer && status
+      ? { label: agentLabel(status), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status, run: () => show(reviewer) }
+      : asking(pull)}
+  {@const main = reviewer && moved(project.path, pull) && behind(reviewer, pull) && reviewer.status !== 'working' ? { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) } : reviewing}
   <article class:done>
     <span class="verdict {state[0]}">{state[1]}</span>
     {@render about(pull)}
@@ -299,29 +312,36 @@
       [...(main === reviewing ? [] : [reviewing]), openOn(pull), ...approving(pull), ...requesting(pull)],
       main === reviewing && opened?.number === pull.number,
       agentChoice,
+      false,
+      starting(pull),
     )}
   </article>
 {/snippet}
 
-{#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean)}
+{#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean, frozen = false)}
   <div class="split" data-menu>
     {#if lead}
       {#if lead.icon}
-        <button class="btn btn-secondary lead agent" aria-label={lead.label} title={lead.title ?? lead.label} disabled={!!busy && !lead.always} onclick={() => ((menu = ''), lead.run())}>
-          <Icon name={lead.icon} />
-          {#if lead.status}<span class="badge"><StatusIcon status={lead.status} /></span>{/if}
+        <button class="btn lead agent" class:starting={lead.spinning} title={lead.title ?? lead.label} disabled={lead.spinning || (!!busy && !lead.always)} onclick={() => ((menu = ''), lead.run())}>
+          <span class="sign">
+            {#if lead.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>
+            {:else if lead.status}<StatusIcon status={lead.status} />
+            {:else}<Icon name={lead.icon} />{/if}
+          </span>
+          <span class="label">{lead.label}</span>
         </button>
       {:else}
         <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} disabled={!!busy && !lead.always} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
       {/if}
     {/if}
-    <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={!!busy && !main.always} onclick={() => ((menu = ''), main.run())}>
+    <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={frozen || (!!busy && !main.always)} onclick={() => ((menu = ''), main.run())}>
       {#if main.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>{/if}
       {main.label}
     </button>
     {#if more.length}
       <button
         class="btn {primary ? 'btn-primary' : 'btn-secondary'} more"
+        disabled={frozen}
         aria-label={t('review.moreActions')}
         title={t('review.moreActions')}
         aria-haspopup="menu"
@@ -767,25 +787,37 @@
   }
 
   .split .agent {
-    position: relative;
-    width: 32px;
-    padding: 0;
+    width: 152px;
+    justify-content: flex-start;
+    gap: 8px;
+    background: var(--persona-bg);
+    box-shadow: inset 0 0 0 1px var(--persona-line);
+    color: var(--persona);
   }
 
-  .badge {
-    position: absolute;
-    right: -4px;
-    bottom: -4px;
+  .split .agent:hover:not(:disabled) {
+    background: color-mix(in srgb, var(--persona) 16%, transparent);
+  }
+
+  .split .agent.starting:disabled {
+    opacity: 1;
+  }
+
+  .split .agent ~ .main {
+    width: 152px;
+  }
+
+  .sign {
+    flex: none;
     width: 14px;
-    height: 14px;
     display: grid;
     place-items: center;
-    border-radius: 50%;
-    background: var(--surface-1);
   }
 
-  article.done .badge {
-    background: var(--bg-main);
+  .label {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
   }
 
   .main:not(.alone) {
