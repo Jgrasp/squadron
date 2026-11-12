@@ -498,7 +498,7 @@ impl Settings {
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
         }
-        if config.tab_hours > 24 * 30 {
+        if config.tab_hours > 24 * 30 && config.tab_hours != u32::MAX {
             return Err(format!("Unknown tab delay: {}", config.tab_hours));
         }
         if config.compact_window != 0 && !(100_000..=1_000_000).contains(&config.compact_window) {

@@ -123,6 +123,7 @@ export function sortProjects(list: Project[], by: ProjectSort, tally: (path: str
 }
 
 export const HOURS = 3_600_000
+export const ALWAYS = 4_294_967_295
 
 export function inBar(
   project: Pick<Project, 'path' | 'pinned'>,
@@ -132,6 +133,7 @@ export function inBar(
   hours: number,
 ) {
   if (project.pinned || project.path === current) return true
+  if (hours === ALWAYS) return true
   if (hours <= 0) return false
   return activity.busy || (activity.last > 0 && now - activity.last < hours * HOURS)
 }

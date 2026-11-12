@@ -236,6 +236,7 @@ export default {
   tabHours: 'Projects in the tab bar',
   tabHoursHint: 'Besides the pinned ones, the bar shows the projects where an agent was active in the last…',
   tabHoursOption: '{count} h',
+  tabHoursAlways: 'Always',
   tabHoursPinned: 'Pinned only',
   addProject: '+ Add a project',
   tabOrder: 'Tab order',

@@ -238,6 +238,7 @@ export default {
   tabHours: 'Projets dans la barre d’onglets',
   tabHoursHint: 'En plus des projets épinglés, la barre montre ceux où un agent a été actif ces dernières…',
   tabHoursOption: '{count} h',
+  tabHoursAlways: 'Toujours',
   tabHoursPinned: 'Épinglés seulement',
   addProject: '+ Ajouter un projet',
   tabOrder: 'Ordre des onglets',

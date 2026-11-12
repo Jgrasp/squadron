@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { descendants, EMPTY, inBar, inTab, matching, sortProjects, total, within, type Tally } from './groups'
+import { ALWAYS, descendants, EMPTY, inBar, inTab, matching, sortProjects, total, within, type Tally } from './groups'
 import type { Group, Project } from './projects.svelte'
 
 const group = (id: string, parent = ''): Group => ({ id, name: id, parent })
@@ -85,6 +85,10 @@ describe('inBar', () => {
     expect(inBar({ path: '/a', pinned: false }, '', { busy: false, last: now - 3 * 3_600_000 }, now, 4)).toBe(true)
     expect(inBar({ path: '/a', pinned: false }, '', { busy: false, last: now - 5 * 3_600_000 }, now, 4)).toBe(false)
     expect(inBar({ path: '/a', pinned: false }, '', idle, now, 4)).toBe(false)
+  })
+
+  it('keeps every project when the delay is always', () => {
+    expect(inBar({ path: '/a', pinned: false }, '', idle, now, ALWAYS)).toBe(true)
   })
 
   it('keeps pinned and current only when the delay is zero', () => {
