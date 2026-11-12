@@ -60,6 +60,6 @@ describe('docsOf', () => {
 
 describe('fillShare', () => {
   it('fills the known names and leaves the others', () => {
-    expect(fillShare('Share {artifact.id} at {artifact.dir} from {extension.data} for {agent}, {other}', { 'artifact.id': 'plan', 'artifact.dir': '/a/plan', 'extension.data': '/x/team', agent: 'Atlas' })).toBe('Share plan at /a/plan from /x/team for Atlas, {other}')
+    expect(fillShare('Share {artifact.id} at {artifact.dir} from {extension.data} for {agent} ({agent.id}), {other}', { 'agent.id': 'a1', 'artifact.id': 'plan', 'artifact.dir': '/a/plan', 'extension.data': '/x/team', agent: 'Atlas' })).toBe('Share plan at /a/plan from /x/team for Atlas (a1), {other}')
   })
 })

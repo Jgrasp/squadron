@@ -91,6 +91,7 @@
     'artifact.dir': `${shelf.root}/${agent.id}/${artifact.id}`,
     'artifact.entry': artifact.entry,
     agent: agent.name,
+    'agent.id': agent.id,
     destination,
     'extension.data': data,
     link: artifact.links?.[destination]?.link ?? '',
