@@ -758,6 +758,30 @@ mod tests {
 
     #[tokio::test(flavor = "multi_thread")]
     #[ignore = "runs the real claude"]
+    async fn real_claude_adds_a_folder_as_a_project() {
+        let calls = drive(
+            "haiku",
+            "Add ~/Projects/squadron-extensions to Squadron as a project.",
+            |call| match call.tool.as_str() {
+                "add_project" => "Added the project squadron-extensions at /home/me/Projects/squadron-extensions.".to_string(),
+                _ => "[]".to_string(),
+            },
+        )
+        .await;
+        let added = calls
+            .iter()
+            .find(|c| c.tool == "add_project")
+            .expect("add_project called");
+        assert!(
+            added.args["path"]
+                .as_str()
+                .unwrap()
+                .ends_with("Projects/squadron-extensions")
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
     async fn real_claude_sends_an_instruction_to_another_agent() {
         let calls = drive(
             "haiku",
