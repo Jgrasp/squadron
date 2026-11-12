@@ -86,9 +86,9 @@ describe('extensions', () => {
     expect(itemsOf(load([found('/m/lando', lando)], ['lando']), 'agent.tools')).toEqual([])
   })
 
-  it('offers every item of every slot to the spotlight, unless it opts out', () => {
+  it('offers every item to the spotlight, unless it opts out or needs an open artifact', () => {
     const found = (dir: string, manifest: unknown) => ({ dir, linked: false, manifest, error: null })
-    const hidden = { ...lando, contributes: { items: [...lando.contributes.items, { slot: 'agent.menu', id: 'quiet', label: { en: 'Quiet' }, action: { squadron: 'kanban' }, spotlight: false }] } }
+    const hidden = { ...lando, contributes: { items: [...lando.contributes.items, { slot: 'agent.menu', id: 'quiet', label: { en: 'Quiet' }, action: { squadron: 'kanban' }, spotlight: false }, { slot: 'artifact.actions', id: 'share', label: { en: 'Share' }, action: { 'prompt.insert': 'Share it' } }] } }
     const items = spotlightOf(load([found('/m/lando', hidden)], []))
     expect(items.map((i) => i.key)).toEqual(['lando.logs', 'lando.docs'])
     expect(items.map(needsAgent)).toEqual([true, false])

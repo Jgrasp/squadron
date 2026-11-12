@@ -226,7 +226,10 @@ export const itemsOf = (extensions: Extension[], slot: Slot): Item[] =>
       .map((i) => ({ ...i, key: `${m.manifest.id}.${i.id}`, extension: m.manifest.id, allowed: !('terminal.run' in i.action) || !m.pending.includes(i.action['terminal.run']) })),
   )
 
-export const spotlightOf = (extensions: Extension[]): Item[] => EXTENSION_SLOTS.flatMap((slot) => itemsOf(extensions, slot)).filter((i) => i.spotlight !== false)
+export const spotlightOf = (extensions: Extension[]): Item[] =>
+  EXTENSION_SLOTS.filter((slot) => slot !== 'artifact.actions')
+    .flatMap((slot) => itemsOf(extensions, slot))
+    .filter((i) => i.spotlight !== false)
 
 export const needsAgent = (item: ExtensionItem) => NEEDS_AGENT.some((kind) => kind in item.action)
 
