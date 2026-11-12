@@ -1,14 +1,35 @@
 <script lang="ts">
   import { perform, ui } from './actions.svelte'
+  import { ask, message } from './asking.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { agents, find, ofProject, onDisk, selected, show, unarchive } from './agents.svelte'
   import { ago } from './format'
-  import { t } from './i18n/index.svelte'
+  import { errorText, t } from './i18n/index.svelte'
+  import { showPulls } from './linked.svelte'
   import Icon from './Icon.svelte'
   import { projects, scratch, type Project } from './projects.svelte'
-  import { lists, needsYou } from './pulls.svelte'
-  import { hint } from './settings.svelte'
-  import { chains, chats, match, projectsFor, projectsNamed, STARTERS, VERBS, verbsFor, verbsOf, type Focus, type Row } from './spotlight'
+  import { approve, hostName, lists, lookUpLists, merge, moved, needsYou, openReview, requestChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { hint, settings } from './settings.svelte'
+  import {
+    chains,
+    chats,
+    match,
+    projectsFor,
+    projectsNamed,
+    PULL_ACTS,
+    pullActs,
+    pullsIn,
+    pullsNamed,
+    STARTERS,
+    VERBS,
+    verbsFor,
+    verbsOf,
+    waits,
+    type Focus,
+    type Listed,
+    type PullAct,
+    type Row,
+  } from './spotlight'
   import type { Agent } from './stream'
 
   let { onclose }: { onclose: () => void } = $props()
@@ -16,7 +37,14 @@
   type Found = { id: string; name: string; project: string; since: number; text: string }
   type Entry = { agent: Pick<Agent, 'id' | 'name' | 'project' | 'since'>; archived: boolean; text: string; hay: string }
   type Hit = Entry & { excerpt: string }
-  type Line = { kind: 'row'; row: Row } | { kind: 'project'; project: Project } | { kind: 'chat' } | { kind: 'hit'; hit: Hit }
+  type Line =
+    | { kind: 'row'; row: Row }
+    | { kind: 'project'; project: Project }
+    | { kind: 'chat' }
+    | { kind: 'hit'; hit: Hit }
+    | { kind: 'waiting' }
+    | ({ kind: 'pull' } & Listed)
+    | { kind: 'act'; act: PullAct }
   type Group = { title: string; lines: Line[] }
 
   const textOf = (agent: Agent) =>
@@ -39,6 +67,7 @@
   let only = $state<string>()
   let shelf = $state(false)
   let focus = $state<Focus>()
+  let before = $state<Focus>()
   let doomed = $state(false)
   let dialog: HTMLDialogElement
   let field: HTMLInputElement
@@ -96,6 +125,51 @@
 
   const hits = $derived(scoped.filter((hit) => focus || !shelf || hit.archived).slice(0, 50))
 
+  const listed = $derived(
+    projects.list.flatMap((project) => {
+      const found = lists[project.path]
+      return found ? [...found.review, ...found.mine, ...found.others].map((pull) => ({ project, pull })) : []
+    }),
+  )
+  const waiting = $derived(
+    projects.list.flatMap((project) => {
+      const found = lists[project.path]
+      return found ? [...found.review.filter((pull) => waitsFor(project.path, pull)), ...found.mine.filter((pull) => pull.changes_requested)].map((pull) => ({ project, pull })) : []
+    }),
+  )
+  const own = (project: Project, pull: Pull) => !!lists[project.path]?.mine.some((p) => p.number === pull.number)
+
+  function actTitle(act: PullAct, project: Project, pull: Pull) {
+    if (act === 'review') return t('review.review')
+    if (act === 'reviewer') return t('review.openConversationOf', { name: reviewerOf(project.path, pull)?.name ?? '' })
+    if (act === 'agent') return t('review.askAgent')
+    if (act === 'host') return t('review.openOn', { host: hostName(pull) })
+    if (act === 'approve') return t('review.verdictApprove')
+    if (act === 'changes') return t('review.verdictRequestChanges')
+    return t('review.merge')
+  }
+
+  function actsOf(project: Project, pull: Pull) {
+    const mine = own(project, pull)
+    const again = moved(project.path, pull)
+    return pullActs(
+      query,
+      {
+        reviewer: !!reviewerOf(project.path, pull),
+        approve: !mine && (pull.reviewed !== 'approved' || again),
+        changes: !mine && (pull.reviewed !== 'changes_requested' || again),
+        merge: pull.mergeable,
+      },
+      (act) => actTitle(act, project, pull),
+    )
+  }
+
+  function status(project: Project, pull: Pull): { tone: 'wait' | 'quiet'; text: string } {
+    if (own(project, pull) && pull.changes_requested) return { tone: 'wait', text: t('review.changesRequested') }
+    if (!own(project, pull) && waitsFor(project.path, pull)) return { tone: 'wait', text: pull.reviewed ? t('review.newChanges') : t('review.waitingForYou') }
+    return { tone: 'quiet', text: standing(pull)[1] }
+  }
+
   const groups = $derived.by((): Group[] => {
     const found = hits.map((hit): Line => ({ kind: 'hit', hit }))
     const row = (row: Row): Line => ({ kind: 'row', row })
@@ -110,11 +184,23 @@
         { title: t('spotlight.withoutProject'), lines: focus.verb.id === 'new' && (!query.trim() || chats(query)) ? [{ kind: 'chat' }] : [] },
       ]
     if (focus?.kind === 'agent') return [{ title: focus.agent.name, lines: verbsFor(focus.agent, query, world).map(row) }]
-    const lead: Line[] = [...(chats(query) ? [{ kind: 'chat' } as const] : []), ...projectsNamed(query, world).map((project): Line => ({ kind: 'project', project }))]
+    if (focus?.kind === 'waiting') return [{ title: t('spotlight.waiting'), lines: pullsIn(query, waiting).map((found): Line => ({ kind: 'pull', ...found })) }]
+    if (focus?.kind === 'pull') {
+      const { project, pull } = focus
+      return [{ title: `#${pull.number} · ${project.name}`, lines: actsOf(project, pull).map((act): Line => ({ kind: 'act', act })) }]
+    }
+    const lead: Line[] = [
+      ...(waiting.length && waits(query) ? [{ kind: 'waiting' } as const] : []),
+      ...(chats(query) ? [{ kind: 'chat' } as const] : []),
+      ...projectsNamed(query, world).map((project): Line => ({ kind: 'project', project })),
+    ]
     const actions = [...lead, ...rows.map(row)].slice(0, 8)
+    const pulls = pullsNamed(query, listed).map((found): Line => ({ kind: 'pull', ...found }))
     return [
+      { title: t('spotlight.waiting'), lines: !query.trim() && waiting.length ? [{ kind: 'waiting' }] : [] },
       { title: t('spotlight.actions'), lines: actions },
-      { title: actions.length ? t('spotlight.agents') : query.trim() ? '' : t('spotlight.recent'), lines: found },
+      { title: t('spotlight.pulls'), lines: pulls },
+      { title: actions.length || pulls.length ? t('spotlight.agents') : query.trim() ? '' : t('spotlight.recent'), lines: found },
     ]
   })
   const lines = $derived(groups.flatMap((g) => g.lines))
@@ -153,6 +239,8 @@
   function next(line: Line | undefined): Focus | undefined {
     if (!line) return
     if (line.kind === 'project') return { kind: 'project', project: line.project }
+    if (line.kind === 'waiting') return { kind: 'waiting' }
+    if (line.kind === 'pull') return { kind: 'pull', project: line.project, pull: line.pull }
     if (line.kind === 'row' && !focus && chains(line.row, query)) return { kind: 'verb', verb: line.row.verb }
     if (line.kind === 'hit' && !line.hit.archived && focus?.kind !== 'agent') {
       const agent = find(line.hit.agent.id)
@@ -160,10 +248,52 @@
     }
   }
 
+  async function act(act: PullAct, project: Project, pull: Pull) {
+    const dir = project.path
+    try {
+      if (act === 'review') return openReview(dir, pull.number)
+      if (act === 'host') return await invoke('open_link', { url: pull.url })
+      if (act === 'reviewer') {
+        const agent = reviewerOf(dir, pull)
+        return agent && show(agent)
+      }
+      if (act === 'agent') {
+        if (!settings.pilot) {
+          ui.settings = 'preferences'
+          return
+        }
+        await reviewWithAgent(dir, pull)
+        return showPulls(dir)
+      }
+      if (act === 'merge') {
+        const sure = await ask(t('review.mergeAsk', { number: String(pull.number), title: pull.title, base: pull.base, host: hostName(pull) }), {
+          title: t('review.mergeTitle'),
+          kind: 'warning',
+          okLabel: t('review.merge'),
+          cancelLabel: t('common.cancel'),
+        })
+        if (!sure) return
+        await merge(dir, pull)
+      } else if (act === 'approve') await approve(dir, pull)
+      else await requestChanges(dir, pull)
+      await lookUpLists(dir, true)
+    } catch (e) {
+      message(`#${pull.number}: ${errorText(e)}`, { kind: 'error', title: project.name })
+    }
+  }
+
   async function choose(index: number) {
     const line = lines[index]
     if (!line) return
+    if (line.kind === 'waiting') {
+      before = focus
+      focus = { kind: 'waiting' }
+      query = ''
+      return
+    }
     onclose()
+    if (line.kind === 'pull') return openReview(line.project.path, line.pull.number)
+    if (line.kind === 'act') return focus?.kind === 'pull' && act(line.act, focus.project, focus.pull)
     if (line.kind === 'row') return perform(line.row)
     if (line.kind === 'project') return perform({ key: '', verb: VERBS.find((v) => v.id === 'open')!, title: '', project: line.project, complete: '' })
     if (line.kind === 'chat') {
@@ -179,7 +309,7 @@
   function keys(event: KeyboardEvent) {
     if (event.key === 'Backspace' && focus && !query) {
       event.preventDefault()
-      if (doomed) focus = undefined
+      if (doomed) [focus, before] = [before, undefined]
       doomed = !doomed
       return
     }
@@ -197,6 +327,7 @@
       const line = lines[active]
       const chained = next(line)
       if (chained) {
+        before = focus
         focus = chained
         query = ''
       } else if (line?.kind === 'row' && !focus) query = line.row.complete
@@ -230,7 +361,13 @@
     return here ? hint(action) : ''
   }
 
-  const named = (focus: Focus) => (focus.kind === 'project' ? focus.project.name : focus.kind === 'agent' ? focus.agent.name : focus.verb.title())
+  function named(focus: Focus) {
+    if (focus.kind === 'project') return focus.project.name
+    if (focus.kind === 'agent') return focus.agent.name
+    if (focus.kind === 'pull') return `#${focus.pull.number}`
+    if (focus.kind === 'waiting') return t('spotlight.toReviewChip')
+    return focus.verb.title()
+  }
 
   const placeholder = $derived(
     focus?.kind === 'project'
@@ -239,7 +376,11 @@
         ? t('spotlight.placeholderVerb')
         : focus?.kind === 'agent'
           ? t('spotlight.placeholderAgent', { name: focus.agent.name })
-          : t('spotlight.placeholder'),
+          : focus?.kind === 'pull'
+            ? t('spotlight.placeholderPull', { number: String(focus.pull.number) })
+            : focus?.kind === 'waiting'
+              ? t('spotlight.placeholderWaiting')
+              : t('spotlight.placeholder'),
   )
 
   const help = $derived.by(() => {
@@ -249,7 +390,7 @@
     const tab = next(line) ? t('spotlight.hintChain') : line?.kind === 'row' && !focus ? t('spotlight.hintComplete') : ''
     return [
       t('spotlight.hintMove'),
-      line?.kind === 'hit' || line?.kind === 'project' ? t('spotlight.hintOpen') : t('spotlight.hintRun'),
+      line?.kind === 'hit' || line?.kind === 'project' || line?.kind === 'pull' || line?.kind === 'waiting' ? t('spotlight.hintOpen') : t('spotlight.hintRun'),
       tab,
       focus ? t('spotlight.hintBack', { name: named(focus) }) : '',
       t('spotlight.hintClose'),
@@ -274,6 +415,10 @@
         <span class="chip tinted agent" class:doomed style:--project={projectOf(focus.agent.project)?.color}><i></i><span class="name">{focus.agent.name}</span></span>
       {:else if focus?.kind === 'verb'}
         <span class="chip" class:doomed><Icon name={focus.verb.icon} /><span class="name">{focus.verb.title()}</span></span>
+      {:else if focus?.kind === 'pull'}
+        <span class="chip" class:doomed><Icon name="pull" /><span class="num">#{focus.pull.number}</span><span class="name">{focus.pull.title}</span></span>
+      {:else if focus?.kind === 'waiting'}
+        <span class="chip" class:doomed><Icon name="eye" /><span class="name">{t('spotlight.toReviewChip')}</span></span>
       {/if}
       <input bind:this={field} bind:value={query} class="query" {placeholder} spellcheck="false" onkeydown={keys} />
     </div>
@@ -328,6 +473,34 @@
                 <span class="grow"></span>
                 {#if ofProject(line.project.path).length}<span class="note quiet">{t('spotlight.agentCount', { count: ofProject(line.project.path).length })}</span>{/if}
                 {@render kbds(i, chained, '')}
+              </button>
+            {:else if line.kind === 'waiting'}
+              <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
+                <span class="icon"><Icon name="eye" /></span>
+                <span class="title">{t('spotlight.waitingRow')}</span>
+                <span class="kind">{t('spotlight.allProjects')}</span>
+                <span class="grow"></span>
+                <span class="note wait">{t('spotlight.toReview', { count: waiting.length })}</span>
+                {@render kbds(i, chained, '')}
+              </button>
+            {:else if line.kind === 'pull'}
+              {@const note = status(line.project, line.pull)}
+              <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
+                <span class="icon"><Icon name="pull" /></span>
+                <span class="num">#{line.pull.number}</span>
+                <span class="title">{line.pull.title}</span>
+                <span class="target" style:--project={line.project.color}><i></i>{line.project.name}</span>
+                <span class="grow"></span>
+                <span class="kind">{line.pull.author}</span>
+                <span class="note {note.tone}">{note.text}</span>
+                {@render kbds(i, chained, '')}
+              </button>
+            {:else if line.kind === 'act'}
+              <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
+                <span class="icon"><Icon name={PULL_ACTS[line.act].icon} /></span>
+                {#if focus?.kind === 'pull'}<span class="title">{actTitle(line.act, focus.project, focus.pull)}</span>{/if}
+                <span class="grow"></span>
+                {@render kbds(i, false, '')}
               </button>
             {:else if line.kind === 'chat'}
               <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
@@ -435,6 +608,13 @@
 
   .chip :global(.icon) {
     color: var(--text-muted);
+  }
+
+  .chip .num,
+  .num {
+    flex: none;
+    font: 500 12px var(--mono);
+    color: var(--text-dim);
   }
 
   .chip .name {

@@ -1,7 +1,7 @@
 import type { Catalog } from '../index.svelte'
 
 export default {
-  placeholder: 'Chercher un agent, un projet ou une conversation — ou taper une action',
+  placeholder: 'Chercher un agent, un projet, une pull request ou une conversation — ou taper une action',
   actions: 'Actions',
   agents: 'Agents',
   recent: 'Agents récents',
@@ -9,6 +9,12 @@ export default {
   placeholderProject: 'Tapez une action, ou cherchez les agents de {name}',
   placeholderVerb: 'Tapez un projet',
   placeholderAgent: 'Que faire de {name} ?',
+  placeholderWaiting: 'Cherchez parmi les pull requests qui vous attendent',
+  placeholderPull: 'Que faire de #{number} ?',
+  waiting: 'Vous attend',
+  waitingRow: 'Pull requests qui vous attendent',
+  allProjects: 'tous les projets',
+  toReviewChip: 'À relire',
   hintMove: '↑ ↓ pour se déplacer',
   hintRun: 'Entrée pour lancer',
   hintOpen: 'Entrée pour ouvrir',

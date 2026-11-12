@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { chains, chats, match, projectsFor, projectsNamed, VERBS, verbsFor, verbsOf, words, type World } from './spotlight'
+import { chains, chats, match, projectsFor, projectsNamed, pullActs, pullsIn, pullsNamed, VERBS, verbsFor, verbsOf, waits, words, type Listed, type World } from './spotlight'
+import type { Pull } from './pulls.svelte'
 import type { Project } from './projects.svelte'
 import type { Agent } from './stream'
 
@@ -116,5 +117,43 @@ describe('spotlight chips', () => {
     expect(chains(pr, 'pr')).toBe(true)
     expect(chains(match('pr uh', world())[0], 'pr uh')).toBe(false)
     expect(chains(match('set lay', world())[0], 'set')).toBe(false)
+  })
+})
+
+describe('spotlight pull requests', () => {
+  const pull = (number: number, title: string, extra: Partial<Pull> = {}) => ({ number, title, draft: false, ...extra }) as Pull
+  const listed: Listed[] = [
+    { project: squadron, pull: pull(412, 'Refactor the checkout steps') },
+    { project: uh, pull: pull(31, 'Push notification opt-in') },
+    { project: uh, pull: pull(4120, 'Draft checkout', { draft: true }) },
+  ]
+  const numbers = (found: Listed[]) => found.map((f) => f.pull.number)
+
+  it('finds a pull request by its title or its number, drafts left out', () => {
+    expect(numbers(pullsNamed('checkout', listed))).toEqual([412])
+    expect(numbers(pullsNamed('#41', listed))).toEqual([412])
+    expect(numbers(pullsNamed('31', listed))).toEqual([31])
+    expect(pullsNamed('ch', listed)).toEqual([])
+  })
+
+  it('narrows the pull requests waiting by project or title', () => {
+    expect(numbers(pullsIn('', listed))).toEqual([412, 31, 4120])
+    expect(numbers(pullsIn('uh push', listed))).toEqual([31])
+  })
+
+  it('reads the waiting list from its own words', () => {
+    expect(waits('review')).toBe(true)
+    expect(waits('to rev')).toBe(true)
+    expect(waits('pr')).toBe(false)
+    expect(waits('to')).toBe(false)
+  })
+
+  it('offers only what can be done with a pull request', () => {
+    const title = (act: string) => act
+    const all = { reviewer: false, approve: true, changes: true, merge: true }
+    expect(pullActs('', all, title)).toEqual(['review', 'agent', 'host', 'approve', 'changes', 'merge'])
+    expect(pullActs('', { reviewer: true, approve: false, changes: false, merge: false }, title)).toEqual(['review', 'reviewer', 'host'])
+    expect(pullActs('mer', all, title)).toEqual(['merge'])
+    expect(pullActs('app', all, title)).toEqual(['approve'])
   })
 })
