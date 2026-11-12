@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { argsOf, catalogOf, grantsOf, itemsOf, load, newer, OFFICIAL, panelsOf, shownOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { argsOf, catalogOf, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -39,6 +39,10 @@ describe('extensions', () => {
     expect(item({ action: { 'url.open': 'javascript:alert(1)' } })).toEqual(['extensions.badUrl'])
     expect(item({ action: { 'url.open': 'https://a.b', squadron: 'kanban' } })).toEqual(['extensions.badAction'])
     expect(item({ slot: 'menu.squadron', action: { 'prompt.insert': 'Review' } })).toEqual(['extensions.needsAgent'])
+    expect(item({ words: ['logs', 'tail'], spotlight: false })).toEqual([])
+    expect(item({ words: 'logs' })).toEqual(['extensions.badWords'])
+    expect(item({ words: ['a\nb'] })).toEqual(['extensions.badWords'])
+    expect(item({ spotlight: 'no' })).toEqual(['extensions.badSpotlight'])
     expect(keys({ ...lando, contributes: { items: [lando.contributes.items[0], lando.contributes.items[0]] } })).toEqual(['extensions.twiceItem'])
   })
 
@@ -58,6 +62,14 @@ describe('extensions', () => {
     expect(itemsOf(extensions, 'agent.tools').map((i) => i.key)).toEqual(['lando.logs'])
     expect(themeOf(extensions)).toEqual({ accent: '#4fa3e0' })
     expect(itemsOf(load([found('/m/lando', lando)], ['lando']), 'agent.tools')).toEqual([])
+  })
+
+  it('offers every item of every slot to the spotlight, unless it opts out', () => {
+    const found = (dir: string, manifest: unknown) => ({ dir, linked: false, manifest, error: null })
+    const hidden = { ...lando, contributes: { items: [...lando.contributes.items, { slot: 'agent.menu', id: 'quiet', label: { en: 'Quiet' }, action: { squadron: 'kanban' }, spotlight: false }] } }
+    const items = spotlightOf(load([found('/m/lando', hidden)], []))
+    expect(items.map((i) => i.key)).toEqual(['lando.logs', 'lando.docs'])
+    expect(items.map(needsAgent)).toEqual([true, false])
   })
 
   it('checks the tools offered to agents', () => {

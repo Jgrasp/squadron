@@ -8,7 +8,7 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { AGENTS, argsOf, ARGS, catalogOf, EXEC, type Source, grantsOf, itemsOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
+import { AGENTS, argsOf, ARGS, catalogOf, EXEC, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -93,6 +93,8 @@ listen<{ id: string; agent: string; tool: string; args: unknown }>('extensions-t
 })
 
 export const extensionItems = (slot: Slot) => itemsOf(extensions.list, slot)
+
+export const spotlightItems = () => spotlightOf(extensions.list)
 
 export const extensionItem = (slot: Slot, key: string) => extensionItems(slot).find((i) => i.key === key)
 

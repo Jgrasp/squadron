@@ -6,7 +6,7 @@ export type Text = { en: string } & Partial<Record<Locale, string>>
 
 export type ExtensionAction = { 'terminal.run': string } | { 'prompt.insert': string } | { 'url.open': string } | { squadron: Action } | { run: string } | { 'panel.open': string }
 
-export type ExtensionItem = { slot: Slot; id: string; label: Text; hint?: Text; icon?: string; action: ExtensionAction }
+export type ExtensionItem = { slot: Slot; id: string; label: Text; hint?: Text; icon?: string; action: ExtensionAction; words?: string[]; spotlight?: boolean }
 
 export type ExtensionTool = { name: string; description: string; command?: string; input?: Record<string, unknown> }
 
@@ -45,7 +45,7 @@ export const EXTENSION_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squad
 
 export const ICONS = ['editor', 'pull', 'terminal', 'diff', 'kanban', 'remote', 'subagents', 'artifact', 'branch', 'options', 'context', 'turns', 'tasks', 'persona', 'plus', 'copy', 'folder', 'archive', 'stop', 'pin', 'grid', 'jump', 'update', 'mcp']
 
-const NEEDS_AGENT = ['terminal.run', 'prompt.insert', 'panel.open']
+export const NEEDS_AGENT = ['terminal.run', 'prompt.insert', 'panel.open']
 
 const ID = /^[a-z0-9][a-z0-9-]{0,39}$/
 
@@ -123,6 +123,8 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
         if (!isText(item.label)) problems.push(['extensions.noLabel', at])
         if (item.hint !== undefined && !isText(item.hint)) problems.push(['extensions.badHint', at])
         if (item.icon !== undefined && !ICONS.includes(item.icon as string)) problems.push(['extensions.badIcon', { ...at, icons: ICONS.join(', ') }])
+        if (item.words !== undefined && (!Array.isArray(item.words) || !item.words.every(oneLine))) problems.push(['extensions.badWords', at])
+        if (item.spotlight !== undefined && typeof item.spotlight !== 'boolean') problems.push(['extensions.badSpotlight', at])
         const wrong = actionProblem(item.action, item.slot as Slot, wasm, panelIds)
         if (wrong) problems.push([wrong[0], { ...at, ...wrong[1] }])
       })
@@ -193,6 +195,10 @@ export const itemsOf = (extensions: Extension[], slot: Slot): Item[] =>
       .filter((i) => i.slot === slot)
       .map((i) => ({ ...i, key: `${m.manifest.id}.${i.id}`, extension: m.manifest.id, allowed: !('terminal.run' in i.action) || !m.pending.includes(i.action['terminal.run']) })),
   )
+
+export const spotlightOf = (extensions: Extension[]): Item[] => EXTENSION_SLOTS.flatMap((slot) => itemsOf(extensions, slot)).filter((i) => i.spotlight !== false)
+
+export const needsAgent = (item: ExtensionItem) => NEEDS_AGENT.some((kind) => kind in item.action)
 
 export const toolsOf = (extensions: Extension[]): Exposed[] =>
   active(extensions).flatMap((m) =>

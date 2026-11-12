@@ -4,7 +4,9 @@
   import { invoke } from '@tauri-apps/api/core'
   import { agents, find, ofProject, onDisk, selected, show, unarchive } from './agents.svelte'
   import { ago } from './format'
-  import { errorText, t } from './i18n/index.svelte'
+  import { errorText, locale, t } from './i18n/index.svelte'
+  import { extensions, runItem, spotlightItems } from './extensions.svelte'
+  import { needsAgent, text, type Item } from './extensions'
   import { showPulls } from './linked.svelte'
   import Icon from './Icon.svelte'
   import { projects, scratch, type Project } from './projects.svelte'
@@ -16,6 +18,7 @@
     match,
     projectsFor,
     projectsNamed,
+    reachedBy,
     PULL_ACTS,
     pullActs,
     pullsIn,
@@ -45,6 +48,7 @@
     | { kind: 'waiting' }
     | ({ kind: 'pull' } & Listed)
     | { kind: 'act'; act: PullAct }
+    | { kind: 'item'; item: Item; agent?: Agent }
   type Group = { title: string; lines: Line[] }
 
   const textOf = (agent: Agent) =>
@@ -137,6 +141,16 @@
       return found ? [...found.review.filter((pull) => waitsFor(project.path, pull)), ...found.mine.filter((pull) => pull.changes_requested)].map((pull) => ({ project, pull })) : []
     }),
   )
+  const modName = (item: Item) => {
+    const manifest = extensions.list.find((m) => m.id === item.extension)?.manifest
+    return manifest ? text(manifest.name, locale()) : item.extension
+  }
+  const label = (item: Item) => text(item.label, locale())
+  const itemsFor = (agent: Agent | undefined): Line[] =>
+    spotlightItems()
+      .filter((item) => (!needsAgent(item) || agent) && reachedBy(query, [label(item), ...(item.words ?? []), modName(item)]))
+      .map((item) => ({ kind: 'item', item, agent: needsAgent(item) ? agent : undefined }))
+
   const own = (project: Project, pull: Pull) => !!lists[project.path]?.mine.some((p) => p.number === pull.number)
 
   function actTitle(act: PullAct, project: Project, pull: Pull) {
@@ -183,7 +197,11 @@
         { title: t('spotlight.projects'), lines: projectsFor(focus.verb, query, world).map(row) },
         { title: t('spotlight.withoutProject'), lines: focus.verb.id === 'new' && (!query.trim() || chats(query)) ? [{ kind: 'chat' }] : [] },
       ]
-    if (focus?.kind === 'agent') return [{ title: focus.agent.name, lines: verbsFor(focus.agent, query, world).map(row) }]
+    if (focus?.kind === 'agent') {
+      const agent = focus.agent
+      const mods = query.trim() ? itemsFor(agent).filter((line) => line.kind === 'item' && line.agent) : spotlightItems().filter(needsAgent).map((item): Line => ({ kind: 'item', item, agent }))
+      return [{ title: agent.name, lines: [...verbsFor(agent, query, world).map(row), ...mods] }]
+    }
     if (focus?.kind === 'waiting') return [{ title: t('spotlight.waiting'), lines: pullsIn(query, waiting).map((found): Line => ({ kind: 'pull', ...found })) }]
     if (focus?.kind === 'pull') {
       const { project, pull } = focus
@@ -194,7 +212,7 @@
       ...(chats(query) ? [{ kind: 'chat' } as const] : []),
       ...projectsNamed(query, world).map((project): Line => ({ kind: 'project', project })),
     ]
-    const actions = [...lead, ...rows.map(row)].slice(0, 8)
+    const actions = [...lead, ...rows.map(row), ...itemsFor(world.shown)].slice(0, 8)
     const pulls = pullsNamed(query, listed).map((found): Line => ({ kind: 'pull', ...found }))
     return [
       { title: t('spotlight.waiting'), lines: !query.trim() && waiting.length ? [{ kind: 'waiting' }] : [] },
@@ -294,6 +312,7 @@
     onclose()
     if (line.kind === 'pull') return openReview(line.project.path, line.pull.number)
     if (line.kind === 'act') return focus?.kind === 'pull' && act(line.act, focus.project, focus.pull)
+    if (line.kind === 'item') return runItem(line.item, { project: line.agent ? projectOf(line.agent.project) : world.current, agent: line.agent })
     if (line.kind === 'row') return perform(line.row)
     if (line.kind === 'project') return perform({ key: '', verb: VERBS.find((v) => v.id === 'open')!, title: '', project: line.project, complete: '' })
     if (line.kind === 'chat') {
@@ -499,6 +518,17 @@
               <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
                 <span class="icon"><Icon name={PULL_ACTS[line.act].icon} /></span>
                 {#if focus?.kind === 'pull'}<span class="title">{actTitle(line.act, focus.project, focus.pull)}</span>{/if}
+                <span class="grow"></span>
+                {@render kbds(i, false, '')}
+              </button>
+            {:else if line.kind === 'item'}
+              <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
+                <span class="icon"><Icon name={line.item.icon ?? 'plugins'} /></span>
+                <span class="title">{label(line.item)}</span>
+                {#if line.agent && focus?.kind !== 'agent'}
+                  <span class="target agent" style:--project={projectOf(line.agent.project)?.color}><i></i>{line.agent.name}</span>
+                {/if}
+                <span class="tag">{modName(line.item)}</span>
                 <span class="grow"></span>
                 {@render kbds(i, false, '')}
               </button>

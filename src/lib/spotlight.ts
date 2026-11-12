@@ -236,3 +236,9 @@ export function pullActs(query: string, allowed: Allowed, title: (act: PullAct) 
   if (allowed.merge) acts.push('merge')
   return acts.filter((act) => tokens.every((token) => reaches([...PULL_ACTS[act].words, ...words(title(act))], token)))
 }
+
+export function reachedBy(query: string, texts: string[]) {
+  const tokens = words(query)
+  const all = texts.flatMap(words)
+  return tokens.length > 0 && tokens[0].length > 1 && tokens.every((token) => reaches(all, token))
+}

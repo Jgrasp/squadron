@@ -148,6 +148,7 @@ Voir `extensions/examples/hello/extension.json`, et la référence complète dan
   - `{ "url.open": "https://…" }` : ouvre le lien dans le navigateur ;
   - `{ "squadron": "kanban" }` : une action du registre (`newAgent`, `kanban`, `editor`, `terminal`, `diff`…).
   `terminal.run` et `prompt.insert` demandent un agent, donc pas de `menu.squadron`.
+- **Spotlight** : chaque élément, quel que soit son `slot`, sort aussi dans le spotlight sous son libellé, avec le nom de l'extension en étiquette. `words` facultatif ajoute des mots qui le trouvent (`["sentry", "errors"]`), `"spotlight": false` l'en retire. Un élément qui demande un agent (`terminal.run`, `prompt.insert`, `panel.open`) vise l'agent affiché, ou celui de la puce agent ; sans agent, il n'est pas proposé.
 - **`contributes.theme`** : des variables de Cuivre et des couleurs, par exemple `{ "accent": "#4fa3e0" }`.
 - **Clés des éléments** : `<extension>.<élément>`, par exemple `lando.logs`. Les éléments se rangent, se masquent et se pilotent par MCP (`get_layout`, `set_layout`) comme les éléments intégrés. Dans le menu de l'agent, ils s'insèrent avant Archiver.
 - **Erreurs** : chaque problème du manifeste s'affiche, traduit, sous l'extension dans Settings › Extensions. Une extension en erreur n'ajoute rien.
