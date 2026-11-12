@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { argsOf, catalogOf, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { argsOf, catalogOf, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -57,6 +57,15 @@ describe('extensions', () => {
     expect(share({ ...base, unshare: { tool: 'undeploy' } })).toEqual(['extensions.badShare'])
     expect(share({ ...base, unshare: { tool: 'undeploy' } }, 'artifact.actions', 'share.wasm')).toEqual([])
     expect(share({ ...base, lines: ['a\nb'] })).toEqual(['extensions.badShare'])
+  })
+
+  it('gives the skills of an extension only once the user allowed them', () => {
+    expect(keys({ ...lando, contributes: { skills: ['skills/share'] } })).toEqual([])
+    expect(keys({ ...lando, contributes: { skills: ['../share'] } })).toEqual(['extensions.badSkills'])
+    expect(keys({ ...lando, contributes: { skills: ['a/share', 'b/share'] } })).toEqual(['extensions.badSkills'])
+    const found = [{ dir: '/x/team', linked: false, error: null, manifest: { ...lando, id: 'team', contributes: { skills: ['skills/share'] } } }]
+    expect(skillsOf(load(found, []))).toEqual([])
+    expect(skillsOf(load(found, [], { team: ['skills:["skills/share"]'] }))).toEqual([{ id: 'team', dir: '/x/team', skills: ['skills/share'] }])
   })
 
   it('only lets colors into the theme', () => {

@@ -464,6 +464,78 @@ pub fn read(dir: &Path, linked: bool) -> Found {
     }
 }
 
+#[derive(Deserialize)]
+pub struct SkillSet {
+    pub id: String,
+    pub dir: String,
+    pub skills: Vec<String>,
+}
+
+fn copy_dir(from: &Path, to: &Path) -> std::io::Result<()> {
+    std::fs::create_dir_all(to)?;
+    for item in std::fs::read_dir(from)?.flatten() {
+        let kind = item.file_type()?;
+        if kind.is_dir() {
+            copy_dir(&item.path(), &to.join(item.file_name()))?;
+        } else if kind.is_file() {
+            std::fs::copy(item.path(), to.join(item.file_name()))?;
+        }
+    }
+    Ok(())
+}
+
+fn plugin_of(root: &Path, set: &SkillSet, errors: &mut Vec<String>) -> Option<PathBuf> {
+    if !valid_id(&set.id) {
+        return None;
+    }
+    let base = Path::new(&set.dir).canonicalize().ok()?;
+    let plugin = root.join(&set.id);
+    let _ = std::fs::remove_dir_all(&plugin);
+    let mut any = false;
+    for skill in &set.skills {
+        let source = base
+            .join(skill)
+            .canonicalize()
+            .ok()
+            .filter(|s| s.starts_with(&base) && s.join("SKILL.md").is_file());
+        let (Some(source), Some(name)) = (source.as_ref(), Path::new(skill).file_name()) else {
+            errors.push(format!(
+                "{}: {skill} is not a folder of the extension with a SKILL.md.",
+                set.id
+            ));
+            continue;
+        };
+        match copy_dir(source, &plugin.join("skills").join(name)) {
+            Ok(()) => any = true,
+            Err(e) => errors.push(format!("{}: {skill}: {e}", set.id)),
+        }
+    }
+    let manifest = plugin.join(".claude-plugin");
+    (any && std::fs::create_dir_all(&manifest).is_ok()
+        && std::fs::write(
+            manifest.join("plugin.json"),
+            serde_json::json!({ "name": set.id }).to_string(),
+        )
+        .is_ok())
+    .then_some(plugin)
+}
+
+pub fn sync_skills(root: &Path, list: &[SkillSet]) -> (Vec<PathBuf>, Vec<String>) {
+    let mut errors = Vec::new();
+    let plugins: Vec<PathBuf> = list
+        .iter()
+        .filter_map(|set| plugin_of(root, set, &mut errors))
+        .collect();
+    if let Ok(read) = std::fs::read_dir(root) {
+        for item in read.flatten() {
+            if !plugins.contains(&item.path()) {
+                let _ = std::fs::remove_dir_all(item.path());
+            }
+        }
+    }
+    (plugins, errors)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -706,5 +778,39 @@ mod tests {
         let before = m.stamp();
         std::fs::write(m.dir.join("a/extension.json"), "{}").unwrap();
         assert_ne!(before, m.stamp());
+    }
+
+    #[test]
+    fn turns_the_skills_of_each_extension_into_a_plugin_folder() {
+        let root = std::env::temp_dir().join(format!("squadron-skills-{}", uuid::Uuid::new_v4()));
+        let ext = root.join("ext");
+        std::fs::create_dir_all(ext.join("skills/share/scripts")).unwrap();
+        std::fs::write(ext.join("skills/share/SKILL.md"), "---\nname: share\n---").unwrap();
+        std::fs::write(ext.join("skills/share/scripts/deploy.sh"), "echo").unwrap();
+        std::fs::create_dir_all(ext.join("empty")).unwrap();
+        std::fs::create_dir_all(root.join("outside")).unwrap();
+        std::fs::write(root.join("outside/SKILL.md"), "x").unwrap();
+        let plugins = root.join("plugins");
+        std::fs::create_dir_all(plugins.join("gone")).unwrap();
+        let set = SkillSet {
+            id: "team-share".into(),
+            dir: ext.to_string_lossy().into(),
+            skills: vec!["skills/share".into(), "empty".into(), "../outside".into()],
+        };
+        let (made, errors) = sync_skills(&plugins, &[set]);
+        assert_eq!(made, [plugins.join("team-share")]);
+        assert_eq!(errors.len(), 2);
+        assert!(
+            plugins
+                .join("team-share/skills/share/scripts/deploy.sh")
+                .is_file()
+        );
+        assert!(
+            plugins
+                .join("team-share/.claude-plugin/plugin.json")
+                .is_file()
+        );
+        assert!(!plugins.join("gone").exists());
+        std::fs::remove_dir_all(root).unwrap();
     }
 }

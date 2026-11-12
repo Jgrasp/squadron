@@ -1550,6 +1550,17 @@ fn extensions_set_args(args: Vec<String>) {
 }
 
 #[tauri::command]
+fn extensions_set_skills(
+    extensions: State<extensions::Extensions>,
+    list: Vec<extensions::SkillSet>,
+) -> Vec<String> {
+    let root = extensions.file.with_file_name("extensions-plugins");
+    let (plugins, errors) = extensions::sync_skills(&root, &list);
+    *claude::EXTENSION_PLUGINS.lock().unwrap() = plugins;
+    errors
+}
+
+#[tauri::command]
 async fn extensions_set_tools(
     tools: State<'_, extension_tools::Tools>,
     list: Vec<extension_tools::ExtensionTool>,
@@ -2513,6 +2524,7 @@ pub fn run() {
             extensions_wasm_event,
             extensions_wasm_answer,
             extensions_set_args,
+            extensions_set_skills,
             extensions_wasm_run,
             extensions_wasm_tool,
             open_extensions_folder,

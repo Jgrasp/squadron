@@ -8,7 +8,7 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { AGENTS, argsOf, ARGS, catalogOf, EXEC, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
+import { AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -39,6 +39,8 @@ export const commandLine = (key: string) =>
       ? t('extensions.network', { host: key.slice(NET.length) })
       : key.startsWith(ARGS)
         ? t('extensions.claudeArgs', { args: (JSON.parse(key.slice(ARGS.length)) as string[]).join(' ') })
+        : key.startsWith(SKILLS)
+          ? t('extensions.claudeSkills', { skills: (JSON.parse(key.slice(SKILLS.length)) as string[]).map((s) => s.split(/[\\/]/).pop()).join(', ') })
         : key === `${AGENTS}read`
           ? t('extensions.agentsRead')
           : key === `${AGENTS}archive`
@@ -231,6 +233,12 @@ $effect.root(() => {
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
     invoke('extensions_set_args', { args: argsOf(extensions.list) })
+  })
+  $effect(() => {
+    if (getCurrentWindow().label !== 'main') return
+    invoke<string[]>('extensions_set_skills', { list: skillsOf(extensions.list) }).then((errors) => {
+      for (const error of errors) console.warn(error)
+    })
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return

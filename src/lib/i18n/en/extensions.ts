@@ -45,6 +45,8 @@ export default {
   badToolInput: 'Tool {tool}: input must be a JSON schema of type object.',
   anyArgs: '{program} …, with any arguments',
   claudeArgs: 'Starts Claude Code with {args}',
+  claudeSkills: 'Gives your agents the skills {skills}',
+  badSkills: 'contributes.skills must be a list of folders of the extension, each holding a SKILL.md, with different names.',
   badArgs: 'contributes.args must be a list of Claude Code options, like ["--chrome"], starting with an option.',
   reservedArg: 'contributes.args: Squadron sets {arg} itself.',
   network: 'HTTPS requests to {host}',

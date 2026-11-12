@@ -335,6 +335,10 @@ L'exemple `hello` le montre avec l'outil `github_user`, qui appelle `https://api
 
 L'exemple `hello` a un panneau qui affiche le compteur et l'augmente par un bouton, à travers son WASM.
 
+### Skills (`contributes.skills`)
+
+`"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.
+
 ### Partager un artifact (`artifact.share`)
 
 Un élément de l'emplacement `artifact.actions` devient une destination de partage avec l'action `artifact.share` :

@@ -39,7 +39,7 @@ export type Manifest = {
   description?: Text
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -127,6 +127,10 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
     const args = contributes.args ?? []
     if (!Array.isArray(args) || !args.every(oneLine) || (args.length && !args[0].startsWith('-'))) problems.push(['extensions.badArgs'])
     else for (const arg of args) if (RESERVED.includes(arg.split('=')[0])) problems.push(['extensions.reservedArg', { arg }])
+    const skills = contributes.skills ?? []
+    if (!Array.isArray(skills) || !skills.every((s) => typeof s === 'string' && !s.startsWith('/') && !s.split(/[\\/]/).some((p) => !p || p === '..' || p === '.')))
+      problems.push(['extensions.badSkills'])
+    else if (new Set(skills.map((s) => s.split(/[\\/]/).pop())).size < skills.length) problems.push(['extensions.badSkills'])
     const panels = contributes.panels ?? []
     if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html')))
       problems.push(['extensions.badPanels'])
@@ -186,6 +190,8 @@ export const ARGS = 'args:'
 
 export const AGENTS = 'agents:'
 
+export const SKILLS = 'skills:'
+
 export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
@@ -194,6 +200,7 @@ export const commandsOf = (manifest: Manifest) => [
     ...(manifest.permissions?.network ?? []).map((h) => NET + h),
     ...(manifest.permissions?.agents ?? []).map((a) => AGENTS + a),
     ...(manifest.contributes?.args?.length ? [ARGS + JSON.stringify(manifest.contributes.args)] : []),
+    ...(manifest.contributes?.skills?.length ? [SKILLS + JSON.stringify(manifest.contributes.skills)] : []),
   ]),
 ]
 
@@ -231,6 +238,9 @@ export const toolsOf = (extensions: Extension[]): Exposed[] =>
   )
 
 export const argsOf = (extensions: Extension[]) => active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(ARGS) && !m.pending.includes(c)) ? (m.manifest.contributes?.args ?? []) : []))
+
+export const skillsOf = (extensions: Extension[]) =>
+  active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(SKILLS) && !m.pending.includes(c)) ? [{ id: m.manifest.id, dir: m.dir, skills: m.manifest.contributes?.skills ?? [] }] : []))
 
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))

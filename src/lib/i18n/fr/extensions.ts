@@ -46,6 +46,8 @@ export default {
   badToolInput: 'Outil {tool} : input doit être un schéma JSON de type object.',
   anyArgs: '{program} …, avec n’importe quels arguments',
   claudeArgs: 'Lance Claude Code avec {args}',
+  claudeSkills: 'Donne à vos agents les skills {skills}',
+  badSkills: 'contributes.skills doit être une liste de dossiers de l’extension, chacun avec un SKILL.md, aux noms différents.',
   badArgs: 'contributes.args doit être une liste d’options de Claude Code, comme ["--chrome"], qui commence par une option.',
   reservedArg: 'contributes.args : Squadron règle {arg} lui-même.',
   network: 'Requêtes HTTPS vers {host}',
