@@ -66,6 +66,8 @@
   }
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
+  const watched = $derived(found?.others.filter((p) => reviewerOf(project.path, p)) ?? [])
+  const others = $derived(found?.others.filter((p) => !p.draft && !reviewerOf(project.path, p)) ?? [])
 
   let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' | 'ask' } | null>(null)
   let failure = $state('')
@@ -144,6 +146,21 @@
     if (pull.reviewed === 'changes_requested') return ['wait-bad', t('review.youAskedForChanges')]
     return ['quiet', t('review.youCommented')]
   }
+
+  function watching(pull: Pull, agent: Agent): [string, string] {
+    if (agent.status === 'working') return ['agent', t('review.agentAtWork')]
+    if (agent.status === 'error') return ['wait-bad', t('review.agentFailed')]
+    if (agent.status === 'interrupted') return ['quiet', t('review.agentStopped')]
+    if (behind(agent, pull)) return ['act-recheck', t('review.newChanges')]
+    if (agent.status === 'waiting') return ['agent', t('review.agentWaits')]
+    return ['agent', t('review.agentReviewed')]
+  }
+
+  function openState(pull: Pull): [string, string] {
+    if (pull.changes_requested) return ['wait-bad', t('review.changesRequested')]
+    if (pull.reviewers.length && pull.reviewers.every((r) => r.verdict === 'approved')) return ['done-ok', t('review.approved')]
+    return ['wait', t('review.inReview')]
+  }
 </script>
 
 <svelte:window onclick={(e) => menu && !(e.target as HTMLElement).closest('[data-menu]') && (menu = '')} onkeydown={(e) => e.key === 'Escape' && menu && (menu = '')} />
@@ -184,24 +201,27 @@
       <section>
         <h2>{t('review.toReview')} <span class="n">{found.review.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
-          {@const reviewer = reviewerOf(project.path, pull)}
-          {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
-          {@const agentChoice = reviewer ? { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status: reviewer.attention && reviewer.status !== 'working' && reviewer.status !== 'error' ? 'waiting' : reviewer.status, run: () => show(reviewer) } : asking(pull)}
-          {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : reviewer && moved(project.path, pull) && behind(reviewer, pull) && reviewer.status !== 'working' ? { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) } : reviewing}
-          <article class:done={!waitsFor(project.path, pull)}>
-            <span class="verdict {verdict(pull)[0]}">{verdict(pull)[1]}</span>
-            {@render about(pull)}
-            {@render split(
-              `review-${pull.number}`,
-              main,
-              waitsFor(project.path, pull),
-              [...(main === reviewing ? [] : [reviewing]), openOn(pull), ...approving(pull), ...requesting(pull)],
-              main === reviewing && opened?.number === pull.number,
-              agentChoice,
-            )}
-          </article>
+          {@render reviewRow(pull, verdict(pull), waitsFor(project.path, pull), !waitsFor(project.path, pull))}
         {:else}
           <p class="empty">{t('review.nobodyWaits', { project: project.name })}</p>
+        {/each}
+      </section>
+
+      {#if watched.length}
+        <section>
+          <h2>{t('review.agentReviews')} <span class="n">{watched.length}</span><span class="hint">{t('review.agentReviewsHint')}</span></h2>
+          {#each watched as pull (pull.number)}
+            {@render reviewRow(pull, watching(pull, reviewerOf(project.path, pull)!), false, false)}
+          {/each}
+        </section>
+      {/if}
+
+      <section>
+        <h2>{t('review.othersInReview')} <span class="n">{others.length}</span><span class="hint">{t('review.othersInReviewHint')}</span></h2>
+        {#each others as pull (pull.number)}
+          {@render reviewRow(pull, openState(pull), false, true)}
+        {:else}
+          <p class="empty">{t('review.noOtherPulls', { project: project.name })}</p>
         {/each}
       </section>
 
@@ -262,6 +282,25 @@
       <button class="close" aria-label={t('review.hideMessage')} title={t('review.hide')} onclick={() => (failure = '')}>×</button>
     </div>
   {/if}
+{/snippet}
+
+{#snippet reviewRow(pull: Pull, state: [string, string], primary: boolean, done: boolean)}
+  {@const reviewer = reviewerOf(project.path, pull)}
+  {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
+  {@const agentChoice = reviewer ? { label: t('review.seeReviewAgent'), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status: reviewer.attention && reviewer.status !== 'working' && reviewer.status !== 'error' ? 'waiting' : reviewer.status, run: () => show(reviewer) } : asking(pull)}
+  {@const main = starting(pull) ? { label: t('review.starting'), spinning: true, run: () => {} } : reviewer && moved(project.path, pull) && behind(reviewer, pull) && reviewer.status !== 'working' ? { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) } : reviewing}
+  <article class:done>
+    <span class="verdict {state[0]}">{state[1]}</span>
+    {@render about(pull)}
+    {@render split(
+      `review-${pull.number}`,
+      main,
+      primary,
+      [...(main === reviewing ? [] : [reviewing]), openOn(pull), ...approving(pull), ...requesting(pull)],
+      main === reviewing && opened?.number === pull.number,
+      agentChoice,
+    )}
+  </article>
 {/snippet}
 
 {#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean)}
@@ -533,6 +572,15 @@
     letter-spacing: 0;
   }
 
+  .hint {
+    margin-left: 4px;
+    font-size: 12.5px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-faint);
+  }
+
   article {
     display: grid;
     grid-template-columns: 170px auto minmax(0, 1fr) auto auto;
@@ -595,6 +643,12 @@
   .verdict.wait {
     background: color-mix(in srgb, var(--remote-dot) 14%, transparent);
     color: var(--remote-text);
+  }
+
+  .verdict.agent {
+    background: var(--persona-bg);
+    box-shadow: inset 0 0 0 1px var(--persona-line);
+    color: var(--persona);
   }
 
   .about {

@@ -184,7 +184,7 @@ export default {
   itemDiff: 'Diff',
   itemKanban: 'Kanban',
   itemPulls: 'Pull requests',
-  itemPullsHint: 'Those you review and those you wrote',
+  itemPullsHint: 'Every open pull request of the project',
   itemRuns: 'Actions and pipelines',
   itemRunsHint: 'Shown while one runs and for a while once it ends',
   slotMenu: 'Agent menu',

@@ -258,9 +258,22 @@ pub async fn lists(slug: &str) -> Result<Lists, String> {
             search(slug, &query, &me).await
         }
     };
+    let review = list("searchCriteria.reviewerId").await?;
+    let mine = list("searchCriteria.creatorId").await?;
+    let url = format!("{}/pullrequests", repository(slug));
+    let query = [("searchCriteria.status", "active"), ("$top", "50")];
+    let open = api(Method::GET, &url, &query, None).await?;
+    let mut others = Vec::new();
+    for pull in open["value"].as_array().into_iter().flatten() {
+        let number = pull["pullRequestId"].as_u64();
+        if !review.iter().chain(&mine).any(|p| Some(p.number) == number) {
+            others.push(full(slug, pull, &me).await);
+        }
+    }
     Ok(Lists {
-        review: list("searchCriteria.reviewerId").await?,
-        mine: list("searchCriteria.creatorId").await?,
+        review,
+        mine,
+        others,
     })
 }
 

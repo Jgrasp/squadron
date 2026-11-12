@@ -53,7 +53,7 @@ export function standing(pull: Pull): [string, string] {
   return ['wait', t('review.inReview')]
 }
 
-export type Lists = { review: Pull[]; mine: Pull[]; error: string }
+export type Lists = { review: Pull[]; mine: Pull[]; others: Pull[]; error: string }
 
 export type Remark = {
   id: number
@@ -114,7 +114,7 @@ export async function lookUpLists(project: string, force = false) {
   try {
     lists[project] = { ...(await invoke<Omit<Lists, 'error'>>('pull_lists', { dir: project })), error: '' }
   } catch (e) {
-    lists[project] = { review: [], mine: [], error: String(e) }
+    lists[project] = { review: [], mine: [], others: [], error: String(e) }
   }
 }
 

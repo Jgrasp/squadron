@@ -132,6 +132,7 @@ pub struct Reviewer {
 pub struct Lists {
     pub review: Vec<Pull>,
     pub mine: Vec<Pull>,
+    pub others: Vec<Pull>,
 }
 
 #[derive(Debug, PartialEq, Serialize)]
@@ -703,8 +704,11 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
             let me = bitbucket_me().await?;
             let url = format!("/repositories/{}/pullrequests", repo.slug);
             let mut found = Vec::new();
-            for who in ["reviewers", "author"] {
-                let q = format!("{who}.uuid=\"{me}\" AND state=\"OPEN\"");
+            for q in [
+                format!("reviewers.uuid=\"{me}\" AND state=\"OPEN\""),
+                format!("author.uuid=\"{me}\" AND state=\"OPEN\""),
+                "state=\"OPEN\"".to_string(),
+            ] {
                 let page = bitbucket(
                     Method::GET,
                     &url,
@@ -747,7 +751,16 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                 }
                 review.push(pull);
             }
-            Ok(Lists { review, mine })
+            let others = found[2]
+                .iter()
+                .filter(|p| !found[0].iter().chain(&found[1]).any(|f| f["id"] == p["id"]))
+                .map(|p| bitbucket_pull(p, &Value::Null, &me))
+                .collect();
+            Ok(Lists {
+                review,
+                mine,
+                others,
+            })
         }
         Host::GitHub => {
             blocking(move || {
@@ -778,8 +791,9 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                     Ok(list(query)?.iter().map(|p| github_pull(p, &me)).collect())
                 };
                 let mut review = search("review-requested:@me")?;
+                let open = list("")?;
                 // GitHub's search index can lag hours behind a new review request.
-                for found in list("")?.iter().filter(|p| {
+                for found in open.iter().filter(|p| {
                     p["reviewRequests"]
                         .as_array()
                         .into_iter()
@@ -817,9 +831,16 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                     .map(|sha| sha.trim().to_string())
                     .filter(|sha| !sha.is_empty());
                 }
+                let others = open
+                    .iter()
+                    .filter(|p| p["author"]["login"] != me.as_str())
+                    .map(|p| github_pull(p, &me))
+                    .filter(|p| !review.iter().any(|r| r.number == p.number))
+                    .collect();
                 Ok(Lists {
                     review,
                     mine: search("author:@me")?,
+                    others,
                 })
             })
             .await

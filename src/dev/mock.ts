@@ -1012,6 +1012,12 @@ mockIPC(
             pull(2108, 'feat(segments): channel-aware segment resolver', 'Quentin Briais', 'feat/orbit', { approvals: 1, comments: 3, checks: 'passing', mergeable: true }),
             pull(2101, 'Faster price index rebuild', 'Quentin Briais', 'dev/T17', { changes_requested: true, checks: 'failing', comments: 5 }),
           ],
+          others: [
+            pull(2110, 'Retry failed Stripe webhooks', 'Lucas M.', 'fix/stripe-retry', { checks: 'passing' }),
+            pull(2104, 'Keep promotions after login', 'Amandine T.', 'fix/cart-promo', { changes_requested: true, conflicts: true, comments: 7 }),
+            pull(2097, 'Deployment checklist for Black Friday', 'Lucas M.', 'docs/bf-checklist', { reviewers: [{ name: 'Loris Marino', avatar: '', verdict: 'approved' }], approvals: 1 }),
+            pull(2095, 'Draft: rework the search facets', 'Amandine T.', 'wip/facets', { draft: true }),
+          ],
         }
       }
       case 'ticket_connections':

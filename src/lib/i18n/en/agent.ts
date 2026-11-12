@@ -95,7 +95,7 @@ export default {
   diff: 'Diff',
   diffTitle: 'See the agent’s changes ({shortcut})',
   pullRequests: 'Pull requests',
-  pullsTitle: 'Pull requests you review and you wrote',
+  pullsTitle: 'Every open pull request of the project',
   kanban: 'Kanban',
   kanbanTitle: 'Kanban ({shortcut})',
   showItem: 'Show {item}',

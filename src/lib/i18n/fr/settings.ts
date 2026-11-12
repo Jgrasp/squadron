@@ -186,7 +186,7 @@ export default {
   itemDiff: 'Diff',
   itemKanban: 'Kanban',
   itemPulls: 'Pull requests',
-  itemPullsHint: 'Celles que vous relisez et celles que vous avez écrites',
+  itemPullsHint: 'Toutes les pull requests ouvertes du projet',
   itemRuns: 'Actions et pipelines',
   itemRunsHint: 'Visible pendant qu’un pipeline tourne, puis un moment après sa fin',
   slotMenu: 'Menu de l’agent',
