@@ -5,7 +5,7 @@
   import Avatar from './Avatar.svelte'
   import { COLUMNS, follow, moveCard, stage, type Actions, type Card, type Column, type Mirror } from './board'
   import Dialog from './Dialog.svelte'
-  import JiraDrawer from './JiraDrawer.svelte'
+  import JiraDialog from './JiraDialog.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
   import LaunchOptions from './LaunchOptions.svelte'
   import { imagePaste } from './paste'
@@ -314,11 +314,13 @@
 
   <div class="stage">
     {#if jira}
-      <button class="scrim" aria-label={t('common.close')} tabindex="-1" onclick={() => ((jira = false), (viewing = null))}></button>
       {#key project.path}
-        <JiraDrawer
+        <JiraDialog
           {project}
-          linked={(ticket) => !!linkedCard(ticket)}
+          task={(ticket) => {
+            const card = linkedCard(ticket)
+            return card ? follow(card, agentOf(card)).column : null
+          }}
           {viewing}
           onview={(ticket) => (viewing = { connection: ticket.connection, key: ticket.key })}
           oncreate={fromTicket}
@@ -705,14 +707,6 @@
     min-height: 0;
     display: flex;
     flex-direction: column;
-  }
-
-  .scrim {
-    position: absolute;
-    inset: 0;
-    z-index: 2;
-    background: rgba(12, 9, 8, 0.45);
-    cursor: default;
   }
 
   .jira {

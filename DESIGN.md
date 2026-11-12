@@ -122,7 +122,7 @@ Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette,
 | `--remote-dot` / `--remote-text` | `#7DB8FA` / `#B9D6F7` | PR en revue, session distante, verdict « revérifier » |
 | `--merged` / `--merged-text` | `#C4A7F0` / `#CDBCF7` | PR fusionnée : ton de PullCard, texte de la puce PR (fond `--merged` 16 %) |
 | `--jira` | `#2684FF` | Marque Jira |
-| `--ticket-bg` / `--ticket-card` / `--ticket-card-hover` / `--ticket-border` / `--ticket-border-hover` / `--ticket-text` / `--ticket-muted` / `--ticket-button` | bleus nuit | Tiroir et popup de ticket Jira, seulement là |
+| `--ticket-bg` / `--ticket-card` / `--ticket-card-hover` / `--ticket-border` / `--ticket-border-hover` / `--ticket-text` / `--ticket-muted` / `--ticket-button` | bleus nuit | Popup de ticket Jira et clés Jira (Kanban, agents), seulement là |
 
 ### Exceptions en dur
 
@@ -145,7 +145,7 @@ Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette,
 | `#2A1F14` | Bandeau d'avertissement de l'éditeur |
 | `#DDBBA8` | Détail d'un agent en attente |
 | `#C99A90` | Repères dans la sortie d'erreur (ErrorCard) |
-| `#CDB8FF`, `#0E1A27`, `#1A2633` | Épopée Jira, fonds du tiroir Jira |
+| `#CDB8FF` | Épopée Jira |
 | `#1F8BFF`, `#FC6D26` | Logos Azure DevOps, GitLab |
 | `#4FA3E0`, `#7CC47C`, `#E3B341`, `#6FA0D0`, `#3CC39A`, `#E07A9B`, `#A8A29E` | Couleurs au choix (extensions, palette de projet) |
 | `#7FD1D9`, `#8DB4E8`, `#A8E3E8`, `#B3CDF0`, `#C9A6FF`, `#DCC5FF` | Palette ANSI du terminal |
@@ -274,6 +274,7 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 
 ### Dialogues
 Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-tête padding 20px 22px 6px, titre 18px 700, aide 13px `--text-dim`, fermer 32px `--surface-2`. Champs `.field`, chemins en mono. Boutons en bas à droite (Cancel `--surface-2`, action principale claire), séparés par un trait `--border`. Erreur de champ : `--err-text` avec icône, bouton principal désactivé.
+- **Tickets Jira** (`JiraDialog.svelte`, bouton Jira du Kanban ou `J`) : Dialog 1180px, hauteur `min(720px, 100vh − 150px)`. Sous le titre, projet et sprints en 13px `--text-dim` + rafraîchir 26px. Filtres à gauche sur 232px `--bg-sidebar` : sections en capitales 11px, lignes 30px 12,5px `--text-2` avec compteur mono 11px `--text-faint` ; projets en boutons (actif `--surface-4` blanc 600, section absente s'il n'y a qu'un projet Jira), le reste en cases 14px rayon 3px (contour `--border-focus`, cochée `--text` + coche `--ink`). À droite, recherche 32px `--surface-2` (`/`), « N of M » et « Reset filters », puis colonnes de statut de 288px alignées à gauche qui défilent en largeur (`--bg-sidebar`, rayon 8px, pastille `.jira-status`). Ticket `--surface-1` (`--surface-2` au survol), padding 10px 12px, rayon 6px : marques, titre 13px sur 2 lignes, « + Create a task » 24px `--surface-3` ou, s'il a déjà sa tâche, fond transparent + contour `--border` et la colonne de la tâche (pastille 8px du Kanban). Ticket ouvert : contour 2px `--border-focus`. Aucun résultat : message 15px 600 centré + « Reset filters » `.btn-secondary`.
 - **Ticket Jira** (`TicketDialog.svelte`) : Dialog plein écran, colonne principale (description, pièces jointes en grille `minmax(180px,1fr)` vignette 110px `--surface-1`, commentaires) + colonne 340px `--bg-sidebar` (champs, liens, « Open in Jira » `--ticket-*`), pied « Read only » + « Create a task ».
 - **Question d'une commande** (`AskpassDialog`) : 460px, voile, icône cadenas 32px `--accent` sur `--accent-soft`, agent et projet, commande en cours en mono sur `--surface-1`, question en mono `--text-muted`. Seulement Non (`.btn-secondary`) et Oui (`.btn-primary`) : aucun champ.
 - **Confirm** : 440px, icône 32px rayon 6px (`--surface-3`, avertissement `--wait-btn` / `--accent-soft`, erreur `--err-bg` / `--err`), titre 16px 700.
