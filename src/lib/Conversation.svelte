@@ -2,7 +2,7 @@
   import { copyText } from './clipboard'
   import { ticketBlocks } from './tickets.svelte'
   import { SvelteSet } from 'svelte/reactivity'
-  import { clock, forkPoint, VALUES } from './agents.svelte'
+  import { clock, forkPoint, SSH_KEY, SUDO, VALUES } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
   import Attachment from './Attachment.svelte'
   import CommentChip from './CommentChip.svelte'
@@ -24,6 +24,7 @@ import { fences } from './codepaste'
   import PlanCard from './PlanCard.svelte'
   import QuestionCard from './QuestionCard.svelte'
   import ValuesCard from './ValuesCard.svelte'
+  import SecretCard from './SecretCard.svelte'
   import { doing, INTERNAL, type Advice, type Agent, type Block, type Subagent, type ToolCall, workdir } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
@@ -514,6 +515,8 @@ import { fences } from './codepaste'
     <PlanCard {agent} {ask} />
   {:else if ask.tool_name === VALUES}
     <ValuesCard {agent} {ask} />
+  {:else if ask.tool_name === SUDO || ask.tool_name === SSH_KEY}
+    <SecretCard {agent} {ask} />
   {:else}
     <PermissionCard {agent} {ask} onlog={onsubagent} {onpreview} />
   {/if}

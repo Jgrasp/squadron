@@ -77,7 +77,7 @@ export type BackgroundTask = { id: string; toolUseId: string; name: string; star
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments', 'use_mcp'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments', 'use_mcp', 'run_sudo', 'add_ssh_key'].map((tool) => `mcp__squadron-pilot__${tool}`)
 
 export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number }
 
@@ -112,7 +112,7 @@ export type Entry =
   | { kind: 'compacted'; at: number; before: number; after: number }
   | { kind: 'cleared'; at: number }
   | { kind: 'note'; at: number; command: string; text: string }
-  | { kind: 'shell'; at: number; command: string; output: string; state: 'running' | 'done' | 'stopped'; code?: number | null; ms?: number; sent?: boolean; pty?: number }
+  | { kind: 'shell'; at: number; command: string; output: string; state: 'running' | 'done' | 'stopped'; code?: number | null; ms?: number; sent?: boolean; pty?: number; sudo?: number | true }
   | { kind: 'error'; at: number; message: string; login: boolean; missing: boolean }
   | {
       kind: 'decision'

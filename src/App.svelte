@@ -11,7 +11,7 @@
   import Spotlight from './lib/Spotlight.svelte'
   import Confirm from './lib/Confirm.svelte'
   import Viewer from './lib/Viewer.svelte'
-  import Password from './lib/Password.svelte'
+  import AskpassDialog from './lib/AskpassDialog.svelte'
   import { loadSettings, settings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, closeAll, create, find, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
@@ -242,7 +242,7 @@
 
 <Confirm />
 <Viewer />
-<Password />
+<AskpassDialog />
 <Splash />
 
 <style>
