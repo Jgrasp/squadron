@@ -1,13 +1,14 @@
 import { agentTypes, definition, models } from './catalogs.svelte'
 import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
+import { homeDir, join } from '@tauri-apps/api/path'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askSecret, askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
+import { archived, askSecret, askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, unarchive, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
 import { loadServers } from './ondemand.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
-import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
+import { defaultsFor, editProject, inspect, projects, set, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
 import { lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
@@ -142,6 +143,30 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     }
     await setCards(project.path, [...project.cards, card])
     return `Card ${card.id} added to the To do column of ${project.name}.`
+  },
+
+  add_project: async (_, args) => {
+    let path = String(args.path ?? '').trim().replace(/(.)\/+$/, '$1')
+    if (!path) throw new Error('The path is empty.')
+    if (path === '~' || path.startsWith('~/')) path = await join(await homeDir(), path.slice(2))
+    if (!path.startsWith('/')) throw new Error(`${path} is not an absolute path.`)
+    const info = await inspect(path)
+    if (info.taken_by && info.taken_archived) {
+      const shelved = projects.archived.find((p) => p.name === info.taken_by)!
+      await editProject(shelved.path, { archived: false })
+      for (const a of await archived()) if (a.withProject && a.project === shelved.path) await unarchive(a.id)
+      return `${shelved.name} (${shelved.path}) is back from the archive with its agents.`
+    }
+    if (info.taken_by) return `${path} is already the project ${info.taken_by}.`
+    if (!info.exists) throw new Error(`${path} does not exist. Create the folder or clone the repository first, then call add_project again.`)
+    const name = String(args.name ?? '').trim() || info.name
+    const same = [...projects.list, ...projects.archived].find((p) => p.name.toLowerCase() === name.toLowerCase())
+    if (same) throw new Error(`A project is already named ${same.name} (${same.path}). Pass another name.`)
+    set(await invoke<Project[]>('add_project', { path, name, color: null }))
+    const reach = settings.pilot_all
+      ? `Start agents there with start_agent and project “${name}”.`
+      : 'You can only start agents in your own project: the user starts them there, or allows every project in Settings › Preferences.'
+    return `Added the project ${name} at ${path}. ${reach}`
   },
 
   move_card: async (caller, args) => {
