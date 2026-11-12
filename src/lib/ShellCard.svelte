@@ -7,6 +7,7 @@
   import { duration } from './format'
   import { t } from './i18n/index.svelte'
   import { attach, detach, stop, type Shell } from './shells.svelte'
+  import { stopSudo } from './sudo.svelte'
 
   let { entry, onreplay, onterminal }: { entry: Shell; onreplay: (command: string) => void; onterminal: (command: string) => void } = $props()
 
@@ -60,15 +61,15 @@
   <div class="head">
     <button type="button" class="toggle" aria-expanded={open} onclick={() => (open = !open)}>
       <span class="chevron" aria-hidden="true">›</span>
-      <span class="command">{entry.command}</span>
+      <span class="command" class:sudo={entry.sudo}>{entry.command}</span>
     </button>
     <span class="time">{duration(elapsed)}</span>
     {#if running}
       <span class="spin" role="status" aria-label={t('shell.commandRunning')}></span>
-      <button type="button" class="icon stop" aria-label={t('shell.stopCommand')} title={t('shell.stopCommand')} onclick={() => stop(entry)}>
+      <button type="button" class="icon stop" aria-label={t('shell.stopCommand')} title={t('shell.stopCommand')} onclick={() => (entry.sudo ? stopSudo(entry) : stop(entry))}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="6" y="6" width="12" height="12" rx="2" fill="currentColor" stroke="none" /></svg>
       </button>
-    {:else}
+    {:else if !entry.sudo}
       <button type="button" class="icon" aria-label={t('shell.replayCommand')} title={t('shell.replayCommand')} onclick={() => onreplay(entry.command)}>
         <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.3-5.7" /><path d="M20 4v5h-5" /></svg>
       </button>
@@ -146,6 +147,10 @@
     content: '! ';
     color: var(--accent);
     font-weight: 700;
+  }
+
+  .command.sudo::before {
+    content: 'sudo ';
   }
 
   .time {

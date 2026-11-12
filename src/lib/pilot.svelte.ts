@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, useServer, waitingFor, type Elsewhere } from './agents.svelte'
+import { askSecret, askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
 import { loadServers } from './ondemand.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
@@ -16,6 +16,8 @@ import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
 import { ARTIFACT_MAX, ARTIFACT_KINDS, DOC_LINK, freeId, type ArtifactInfo } from './artifacts'
 import { refresh } from './artifacts.svelte'
+import { clip } from './shell'
+import { follow } from './sudo.svelte'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
@@ -422,6 +424,26 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Filled ${Object.keys(values).join(', ')} in ${path}.${left.length ? ` The user left ${left.join(', ')} empty.` : ''} Squadron wrote them straight into the file without returning them to you, so don't read them back from it, print them or copy them elsewhere.`
   },
 
+
+  run_sudo: async (caller, args) => {
+    const command = String(args.command ?? '').trim().replace(/^sudo\s+/, '')
+    if (!command) throw new Error('The command is empty.')
+    const outcome = await askSecret(caller, SUDO, { command, reason: String(args.reason ?? '').trim(), dir: workdir(caller) })
+    if (typeof outcome === 'string') return `The user refused to run it as root${outcome ? `, and wrote: ${outcome}` : ''}.`
+    if (outcome === true) throw new Error('sudo did not start.')
+    const entry = await follow(caller, outcome, command)
+    const status = entry.state === 'stopped' ? 'The user stopped the command.' : `Exit code ${entry.code ?? 'unknown'}.`
+    return `${status}\n${clip(entry.output) || '(no output)'}`
+  },
+
+  add_ssh_key: async (caller, args) => {
+    const path = String(args.path ?? '').trim()
+    if (!path) throw new Error('The path is empty.')
+    if ((await invoke<string>('ssh_key_state', { path })) === 'plain') return `${path} has no passphrase: ssh reads it as it is, there is nothing to load.`
+    const outcome = await askSecret(caller, SSH_KEY, { path })
+    if (typeof outcome === 'string') return `The user refused to load ${path}${outcome ? `, and wrote: ${outcome}` : ''}.`
+    return `${path} is loaded into the SSH agent until the user logs out. Run your command again.`
+  },
 
   get_layout: () =>
     (Object.keys(SLOTS) as Slot[]).map((slot) => ({

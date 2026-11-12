@@ -1,6 +1,7 @@
 import type { SettingsTab } from './actions.svelte'
 import { t, type Key } from './i18n/index.svelte'
 import type { Project } from './projects.svelte'
+import type { Pull } from './pulls.svelte'
 import type { Action } from './shortcuts'
 import type { Agent } from './stream'
 
@@ -69,7 +70,7 @@ export const VERBS: Verb[] = [
   ),
 ]
 
-export const STARTERS = ['pr', 'new', 'open', 'board', 'diff', 'term', 'set', 'arc']
+export const STARTERS = ['pr', 'review', 'new', 'chat', 'open', 'board', 'diff', 'term', 'set', 'arc']
 
 const LIMIT = 6
 
@@ -129,4 +130,115 @@ export function match(query: string, world: World): Row[] {
     }
   })
   return found.sort((a, b) => a.rank - b.rank || b.weight - a.weight).slice(0, LIMIT)
+}
+
+export type Focus =
+  | { kind: 'project'; project: Project }
+  | { kind: 'verb'; verb: Verb }
+  | { kind: 'agent'; agent: Agent }
+  | { kind: 'pull'; project: Project; pull: Pull }
+  | { kind: 'waiting' }
+
+export const SHOW: Verb = { id: 'show', words: ['show', 'open', 'go'], title: () => t('spotlight.show'), icon: 'jump', scope: 'agent' }
+
+const CHAT = ['chat', 'conversation', 'talk', 'ask']
+
+const fits = (verb: Verb, tokens: string[]) => {
+  const [first, ...rest] = tokens
+  if (!first) return true
+  const title = words(verb.title())
+  return reaches([...verb.words, title[0]], first) && rest.every((token) => reaches([...verb.words, ...title], token))
+}
+
+const exact = (verb: Verb, tokens: string[]) => Number(tokens.some((token) => verb.words.includes(token)))
+
+export function verbsOf(project: Project, query: string): Row[] {
+  const tokens = words(query)
+  return VERBS.filter((verb) => verb.scope === 'project' && (!verb.forProject || verb.forProject(project)) && fits(verb, tokens))
+    .sort((a, b) => exact(b, tokens) - exact(a, tokens))
+    .map((verb) => ({ key: `${verb.id}:${project.path}`, verb, title: verb.title(), project, complete: '' }))
+}
+
+export function projectsFor(verb: Verb, query: string, world: World): Row[] {
+  const tokens = words(query)
+  return world.projects
+    .filter((project) => (!verb.forProject || verb.forProject(project)) && tokens.every((token) => reaches(words(project.name), token)))
+    .map((project) => ({ project, weight: (project.path === world.current?.path ? 1000 : 0) + (world.priority?.(project) ?? 0) }))
+    .sort((a, b) => b.weight - a.weight)
+    .map(({ project }) => ({ key: `${verb.id}:${project.path}`, verb, title: verb.title(), project, complete: '' }))
+}
+
+export function verbsFor(agent: Agent, query: string, world: World): Row[] {
+  const tokens = words(query)
+  const project = world.projects.find((p) => p.path === agent.project)
+  return [SHOW, ...VERBS.filter((verb) => verb.scope === 'agent' && (!verb.forAgent || verb.forAgent(agent)))]
+    .filter((verb) => fits(verb, tokens))
+    .sort((a, b) => exact(b, tokens) - exact(a, tokens))
+    .map((verb) => ({ key: `${verb.id}:${agent.id}`, verb, title: verb.title(), project, agent, complete: '' }))
+}
+
+export function projectsNamed(query: string, world: World) {
+  const tokens = words(query)
+  if (!tokens.length || tokens[0].length < 2) return []
+  return world.projects.filter((project) => tokens.every((token) => reaches(words(project.name), token))).slice(0, 3)
+}
+
+export function chats(query: string) {
+  const tokens = words(query)
+  return tokens.length > 0 && tokens[0].length > 1 && tokens.every((token) => reaches(CHAT, token))
+}
+
+export function chains(row: Row, query: string) {
+  return row.verb.scope === 'project' && words(query).length === 1
+}
+
+export type Listed = { project: Project; pull: Pull }
+
+const number = (token: string) => /^\d+$/.test(token)
+
+const names = ({ project, pull }: Listed, token: string) =>
+  number(token) ? String(pull.number).startsWith(token) : reaches([...words(pull.title), ...words(project.name)], token)
+
+export function pullsNamed(query: string, listed: Listed[]) {
+  const tokens = words(query)
+  if (!tokens.length || tokens.some((token) => token.length < 3 && !number(token))) return []
+  return listed.filter((found) => !found.pull.draft && tokens.every((token) => names(found, token))).slice(0, 6)
+}
+
+export const pullsIn = (query: string, listed: Listed[]) => listed.filter((found) => words(query).every((token) => names(found, token)))
+
+const WAITING = ['review', 'reviews', 'waiting']
+
+export function waits(query: string) {
+  const tokens = words(query)
+  return tokens.length > 0 && tokens[0].length > 1 && tokens.every((token) => reaches([...WAITING, 'to', 'pull', 'pulls', 'requests'], token)) && tokens.some((token) => reaches(WAITING, token))
+}
+
+export type PullAct = 'review' | 'reviewer' | 'agent' | 'host' | 'approve' | 'changes' | 'merge'
+
+export const PULL_ACTS: Record<PullAct, { icon: string; words: string[] }> = {
+  review: { icon: 'eye', words: ['review', 'read', 'open'] },
+  reviewer: { icon: 'persona', words: ['agent', 'reviewer', 'conversation'] },
+  agent: { icon: 'persona', words: ['agent', 'ask', 'review'] },
+  host: { icon: 'jump', words: ['open', 'browser', 'host', 'github', 'bitbucket', 'gitlab', 'azure'] },
+  approve: { icon: 'tasks', words: ['approve', 'ok', 'accept'] },
+  changes: { icon: 'turns', words: ['request', 'changes', 'reject'] },
+  merge: { icon: 'pull', words: ['merge'] },
+}
+
+export type Allowed = { reviewer: boolean; approve: boolean; changes: boolean; merge: boolean }
+
+export function pullActs(query: string, allowed: Allowed, title: (act: PullAct) => string): PullAct[] {
+  const tokens = words(query)
+  const acts: PullAct[] = ['review', allowed.reviewer ? 'reviewer' : 'agent', 'host']
+  if (allowed.approve) acts.push('approve')
+  if (allowed.changes) acts.push('changes')
+  if (allowed.merge) acts.push('merge')
+  return acts.filter((act) => tokens.every((token) => reaches([...PULL_ACTS[act].words, ...words(title(act))], token)))
+}
+
+export function reachedBy(query: string, texts: string[]) {
+  const tokens = words(query)
+  const all = texts.flatMap(words)
+  return tokens.length > 0 && tokens[0].length > 1 && tokens.every((token) => reaches(all, token))
 }

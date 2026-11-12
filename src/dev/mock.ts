@@ -201,7 +201,7 @@ function goal(id: string, condition: string) {
 }
 
 function replay(id: string, text: string) {
-  if (text.includes('sudo')) setTimeout(() => emit('askpass-request', { id: String(askId++), agent: id, prompt: '[sudo] password for demo: ' }), 400)
+  if (text.includes('ssh')) setTimeout(() => emit('askpass-request', { id: String(askId++), agent: id, prompt: "The authenticity of host 'git.example.com' can't be established.\nED25519 key fingerprint is SHA256:d4Fq0nCp1vVfF1xGQm9cUqY3y8b1kz0rWbT9wq3E2gU.\nAre you sure you want to continue connecting (yes/no/[fingerprint])? ", command: 'ssh -T git@git.example.com' }), 400)
   if (text.startsWith('/goal ')) return goal(id, text.slice(6))
   if (text.startsWith('/config') || text.startsWith('/mcp')) {
     const out = text.startsWith('/mcp') ? '4 MCP server(s): 1 connected, 2 not connected, 1 disabled. Use `/mcp` in the terminal for details.' : text.includes('=') ? `Set ${text.slice(8).replace('=', ' to ')}` : configUsage
@@ -1012,6 +1012,12 @@ mockIPC(
             pull(2108, 'feat(segments): channel-aware segment resolver', 'Quentin Briais', 'feat/orbit', { approvals: 1, comments: 3, checks: 'passing', mergeable: true }),
             pull(2101, 'Faster price index rebuild', 'Quentin Briais', 'dev/T17', { changes_requested: true, checks: 'failing', comments: 5 }),
           ],
+          others: [
+            pull(2110, 'Retry failed Stripe webhooks', 'Lucas M.', 'fix/stripe-retry', { checks: 'passing' }),
+            pull(2104, 'Keep promotions after login', 'Amandine T.', 'fix/cart-promo', { changes_requested: true, conflicts: true, comments: 7 }),
+            pull(2097, 'Deployment checklist for Black Friday', 'Lucas M.', 'docs/bf-checklist', { reviewers: [{ name: 'Loris Marino', avatar: '', verdict: 'approved' }], approvals: 1 }),
+            pull(2095, 'Draft: rework the search facets', 'Amandine T.', 'wip/facets', { draft: true }),
+          ],
         }
       }
       case 'ticket_connections':
@@ -1322,6 +1328,23 @@ mockIPC(
         return
       case 'term_resize':
       case 'answer_askpass':
+        return
+      case 'sudo_needs_password':
+        return { needed: true, user: 'demo' }
+      case 'sudo_run': {
+        if (a.password !== 'demo') throw 'Wrong password.'
+        const run = askId++
+        const lines = ['Reading package lists...\n', 'Building dependency tree...\n', 'The following NEW packages will be installed:\n  libssl-dev\n', 'Setting up libssl-dev (3.5.5-1) ...\n']
+        lines.forEach((data, i) => setTimeout(() => emit('sudo-out', { id: run, data }), 500 * (i + 1)))
+        setTimeout(() => emit('sudo-exit', { id: run, code: 0 }), 500 * (lines.length + 1))
+        return run
+      }
+      case 'sudo_stop':
+        return
+      case 'ssh_key_state':
+        return 'encrypted'
+      case 'ssh_add_key':
+        if (a.passphrase !== 'demo') throw 'Wrong passphrase.'
         return
       case 'plugin:dialog|open':
         return '/home/demo/agence/hermes'

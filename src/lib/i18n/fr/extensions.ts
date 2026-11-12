@@ -19,6 +19,8 @@ export default {
   badSlot: 'Élément {item} : l’emplacement doit être l’un de {slots}.',
   noLabel: 'Élément {item} : le libellé demande au moins un texte anglais.',
   badHint: 'Élément {item} : l’aide doit être un texte comme { "en": "…" }.',
+  badWords: 'Élément {item} : words doit être une liste de textes d’une ligne.',
+  badSpotlight: 'Élément {item} : spotlight doit valoir true ou false.',
   badIcon: 'Élément {item} : l’icône doit être l’une de {icons}.',
   badAction: 'Élément {item} : l’action doit être terminal.run, prompt.insert, url.open, squadron, run ou panel.open, avec un texte.',
   needsAgent: 'Élément {item} : {action} demande un agent, il ne peut aller que dans agent.tools ou agent.menu.',

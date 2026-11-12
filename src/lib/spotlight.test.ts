@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
-import { match, words, type World } from './spotlight'
+import { chains, chats, match, projectsFor, projectsNamed, pullActs, pullsIn, pullsNamed, VERBS, verbsFor, verbsOf, waits, words, type Listed, type World } from './spotlight'
+import type { Pull } from './pulls.svelte'
 import type { Project } from './projects.svelte'
 import type { Agent } from './stream'
 
@@ -79,5 +80,80 @@ describe('spotlight actions', () => {
     expect(match('pr u', world())[0].complete).toBe('pr uh')
     expect(match('arc exp', world())[0].complete).toBe('arc export script')
     expect(match('set lay', world())[0].complete).toBe('set layout')
+  })
+})
+
+describe('spotlight chips', () => {
+  const keys = (rows: { key: string }[]) => rows.map((r) => r.key)
+  const verb = (id: string) => VERBS.find((v) => v.id === id)!
+
+  it('lists the actions of a project, the named one first', () => {
+    expect(keys(verbsOf(uh, 'pr'))).toEqual(['pulls:/p/uh'])
+    expect(keys(verbsOf(uh, 'kan'))).toEqual(['board:/p/uh'])
+    expect(keys(verbsOf(gone, ''))).toEqual(['open:/p/gone', 'pulls:/p/gone', 'board:/p/gone', 'archiveProject:/p/gone'])
+  })
+
+  it('lists the projects of an action, the current one first, then by priority', () => {
+    expect(keys(projectsFor(verb('pulls'), '', world({ priority: (p) => (p === bmc ? 3 : 0) })))).toEqual(['pulls:/p/squadron', 'pulls:/p/bmc - tmc', 'pulls:/p/uh', 'pulls:/p/gone'])
+    expect(keys(projectsFor(verb('new'), '', world()))).not.toContain('new:/p/gone')
+    expect(keys(projectsFor(verb('pulls'), 'bm', world()))).toEqual(['pulls:/p/bmc - tmc'])
+  })
+
+  it('lists what an agent can do', () => {
+    expect(keys(verbsFor(login, '', world()))).toEqual(['show:1', 'archive:1', 'fork:1', 'pin:1'])
+    expect(keys(verbsFor({ ...login, status: 'working' } as Agent, 'stop', world()))).toEqual(['interrupt:1'])
+  })
+
+  it('names projects and conversations without a folder', () => {
+    expect(projectsNamed('squ', world()).map((p) => p.name)).toEqual(['Squadron'])
+    expect(projectsNamed('s', world())).toEqual([])
+    expect(chats('chat')).toBe(true)
+    expect(chats('new conv')).toBe(false)
+    expect(chats('c')).toBe(false)
+  })
+
+  it('chains a project action typed alone', () => {
+    const [pr] = match('pr', world())
+    expect(chains(pr, 'pr')).toBe(true)
+    expect(chains(match('pr uh', world())[0], 'pr uh')).toBe(false)
+    expect(chains(match('set lay', world())[0], 'set')).toBe(false)
+  })
+})
+
+describe('spotlight pull requests', () => {
+  const pull = (number: number, title: string, extra: Partial<Pull> = {}) => ({ number, title, draft: false, ...extra }) as Pull
+  const listed: Listed[] = [
+    { project: squadron, pull: pull(412, 'Refactor the checkout steps') },
+    { project: uh, pull: pull(31, 'Push notification opt-in') },
+    { project: uh, pull: pull(4120, 'Draft checkout', { draft: true }) },
+  ]
+  const numbers = (found: Listed[]) => found.map((f) => f.pull.number)
+
+  it('finds a pull request by its title or its number, drafts left out', () => {
+    expect(numbers(pullsNamed('checkout', listed))).toEqual([412])
+    expect(numbers(pullsNamed('#41', listed))).toEqual([412])
+    expect(numbers(pullsNamed('31', listed))).toEqual([31])
+    expect(pullsNamed('ch', listed)).toEqual([])
+  })
+
+  it('narrows the pull requests waiting by project or title', () => {
+    expect(numbers(pullsIn('', listed))).toEqual([412, 31, 4120])
+    expect(numbers(pullsIn('uh push', listed))).toEqual([31])
+  })
+
+  it('reads the waiting list from its own words', () => {
+    expect(waits('review')).toBe(true)
+    expect(waits('to rev')).toBe(true)
+    expect(waits('pr')).toBe(false)
+    expect(waits('to')).toBe(false)
+  })
+
+  it('offers only what can be done with a pull request', () => {
+    const title = (act: string) => act
+    const all = { reviewer: false, approve: true, changes: true, merge: true }
+    expect(pullActs('', all, title)).toEqual(['review', 'agent', 'host', 'approve', 'changes', 'merge'])
+    expect(pullActs('', { reviewer: true, approve: false, changes: false, merge: false }, title)).toEqual(['review', 'reviewer', 'host'])
+    expect(pullActs('mer', all, title)).toEqual(['merge'])
+    expect(pullActs('app', all, title)).toEqual(['approve'])
   })
 })

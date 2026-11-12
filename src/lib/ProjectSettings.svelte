@@ -2,6 +2,7 @@
   import { untrack } from 'svelte'
   import { ui } from './actions.svelte'
   import { unshelve } from './agents.svelte'
+  import { ALWAYS } from './groups'
   import ProjectAgents from './ProjectAgents.svelte'
   import ProjectGeneral from './ProjectGeneral.svelte'
   import ProjectReview from './ProjectReview.svelte'
@@ -22,7 +23,7 @@
     ['review', 'settings.projectReview'],
     ['tickets', 'tickets.projectTickets'],
   ]
-  const HOURS = [1, 4, 12, 24, 0]
+  const HOURS = [1, 4, 12, 24, ALWAYS, 0]
   const STORE = 'squadron.project-section'
 
   let error = $state('')
@@ -48,7 +49,7 @@
     { value: 'name', label: t('common.name'), detail: t('settings.orderNameHint') },
     { value: 'activity', label: t('settings.orderActivity'), detail: t('settings.orderActivityHint') },
   ])
-  const delays = $derived<Option[]>(HOURS.map((hours) => ({ value: String(hours), label: hours ? t('settings.tabHoursOption', { count: hours }) : t('settings.tabHoursPinned') })))
+  const delays = $derived<Option[]>(HOURS.map((hours) => ({ value: String(hours), label: hours === ALWAYS ? t('settings.tabHoursAlways') : hours ? t('settings.tabHoursOption', { count: hours }) : t('settings.tabHoursPinned') })))
 
   async function act(work: () => Promise<unknown>) {
     error = ''

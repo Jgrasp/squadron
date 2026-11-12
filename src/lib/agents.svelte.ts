@@ -286,7 +286,7 @@ const shelvable = (agent: Agent) => {
     !agent.alive &&
     !onDisk.has(agent.id) &&
     agent.entries.length > 0 &&
-    !Object.values(agents.current).includes(agent.id) &&
+    !shown().has(agent.id) &&
     !timers.has(agent.id) &&
     !writes.has(agent.id) &&
     !loading.has(agent.id) &&
@@ -295,8 +295,11 @@ const shelvable = (agent: Agent) => {
   )
 }
 
+const shown = () =>
+  new Set([...Object.values(agents.current), ...projects.list.map((p) => selected(p.path)?.id).filter((id) => id !== undefined)])
+
 export function shelveHidden() {
-  for (const id of Object.values(agents.current)) seen.set(id, Date.now())
+  for (const id of shown()) seen.set(id, Date.now())
   for (const agent of agents.list)
     if (shelvable(agent))
       save(agent).then(() => {
@@ -406,6 +409,7 @@ function tidy(entries: Entry[]) {
     if (e.kind === 'shell' && e.state === 'running') {
       e.state = 'stopped'
       delete e.pty
+      if (e.sudo) e.sudo = true
     }
   return entries.flatMap((e): Entry[] => {
     if (e.kind !== 'user') return [e]
@@ -600,8 +604,40 @@ export function giveValues(agent: Agent, ask: Ask, values: Record<string, string
   filling.delete(ask.id)
 }
 
+export const SUDO = 'squadron:run_sudo'
+export const SSH_KEY = 'squadron:add_ssh_key'
+
+const unlocking = new Map<string, (outcome: number | true | string) => void>()
+
+export function askSecret(agent: Agent, tool: typeof SUDO | typeof SSH_KEY, input: Record<string, string>) {
+  const ask: Ask = { id: crypto.randomUUID(), agent: agent.id, tool_name: tool, input, tool_use_id: null }
+  agent.asks.push(ask)
+  waitFor(agent)
+  return new Promise<number | true | string>((resolve) => unlocking.set(ask.id, resolve))
+}
+
+export function settleSecret(agent: Agent, ask: Ask, outcome: number | true | string) {
+  agent.asks = agent.asks.filter((a) => a.id !== ask.id)
+  const sudo = ask.tool_name === SUDO
+  if (typeof outcome === 'string' || !sudo)
+    agent.entries.push({
+      kind: 'decision',
+      at: Date.now(),
+      tone: typeof outcome === 'string' ? 'bad' : 'ok',
+      title: typeof outcome === 'string' ? t(sudo ? 'shell.sudoRefused' : 'shell.sshKeyRefused') : t('shell.sshKeyLoaded'),
+      detail: sudo ? `sudo ${ask.input.command}` : ask.input.path,
+      note: typeof outcome === 'string' && outcome ? t('shell.withInstruction', { message: outcome }) : undefined,
+    })
+  waitFor(agent)
+  persist(agent)
+  unlocking.get(ask.id)?.(outcome)
+  unlocking.delete(ask.id)
+}
+
 export function waitingFor(ask: Ask, say = t) {
   if (ask.tool_name === VALUES) return say('shell.waitingValues')
+  if (ask.tool_name === SUDO) return say('shell.waitingSudo')
+  if (ask.tool_name === SSH_KEY) return say('shell.waitingPassphrase')
   if (ask.tool_name === 'AskUserQuestion') return say('shell.waitingAnswerQuestion')
   if (ask.tool_name === 'ExitPlanMode') return say('shell.waitingApprovalPlan')
   return say('shell.waitingApprovalTool', { tool: toolLabel(ask.tool_name).split(' · ')[0] })
@@ -611,7 +647,8 @@ export function waitingDetail(agent: Agent) {
   const ask = agent.asks[0]
   if (!ask) return ''
   if (ask.tool_name === 'AskUserQuestion') return String(ask.input.questions?.[0]?.question ?? '')
-  if (ask.tool_name === VALUES) return String(ask.input.path)
+  if (ask.tool_name === VALUES || ask.tool_name === SSH_KEY) return String(ask.input.path)
+  if (ask.tool_name === SUDO) return `sudo ${ask.input.command}`
   if (ask.tool_name === 'ExitPlanMode')
     return (String(ask.input.plan ?? '').split('\n').find((l) => l.trim()) ?? '').replace(/^#+\s*/, '')
   const sub = subagentOf(agent, ask.tool_use_id)
@@ -717,6 +754,7 @@ export function reply(agent: Agent, text: string) {
     for (const q of ask.input.questions ?? []) answers[q.question] = text
     answer(agent, ask, answers)
   } else if (ask.tool_name === VALUES) giveValues(agent, ask, text)
+  else if (ask.tool_name === SUDO || ask.tool_name === SSH_KEY) settleSecret(agent, ask, text)
   else if (ask.tool_name === 'ExitPlanMode') plan(agent, ask, 'continue', text)
   else deny(agent, ask, text)
   return true

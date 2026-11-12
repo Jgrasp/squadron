@@ -95,6 +95,8 @@ export async function perform({ verb, project, agent }: Row) {
       return project && shelve(project)
     case 'archive':
       return agent && archive(agent.id)
+    case 'show':
+      return agent && show(agent)
     case 'fork':
       if (!agent) return
       show(agent)

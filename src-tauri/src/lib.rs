@@ -20,7 +20,9 @@ pub mod preview;
 mod process;
 pub mod projects;
 pub mod sessions;
+pub mod ssh;
 pub mod stored;
+pub mod sudo;
 pub mod system;
 pub mod terminal;
 pub mod tickets;
@@ -298,12 +300,8 @@ fn cancel_permissions(gate: State<Gate>, askpass: State<Askpass>, agent: String)
 }
 
 #[tauri::command]
-fn answer_askpass(
-    askpass: State<Askpass>,
-    id: String,
-    secret: Option<String>,
-) -> Result<(), String> {
-    askpass.answer(&id, secret)
+fn answer_askpass(askpass: State<Askpass>, id: String, yes: bool) -> Result<(), String> {
+    askpass.answer(&id, yes)
 }
 
 #[tauri::command]
@@ -498,7 +496,7 @@ impl Settings {
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
         }
-        if config.tab_hours > 24 * 30 {
+        if config.tab_hours > 24 * 30 && config.tab_hours != u32::MAX {
             return Err(format!("Unknown tab delay: {}", config.tab_hours));
         }
         if config.compact_window != 0 && !(100_000..=1_000_000).contains(&config.compact_window) {
@@ -2336,6 +2334,7 @@ pub fn run() {
         .plugin(tauri_plugin_notification::init())
         .manage(Agents::default())
         .manage(Terminals::default())
+        .manage(sudo::Sudo::default())
         .manage(system::Cpu::default())
         .invoke_handler(tauri::generate_handler![
             agent_definition,
@@ -2371,6 +2370,11 @@ pub fn run() {
             delete_archived,
             list_archived,
             ondemand::mcp_servers,
+            sudo::sudo_needs_password,
+            sudo::sudo_run,
+            sudo::sudo_stop,
+            ssh::ssh_key_state,
+            ssh::ssh_add_key,
             ondemand::mcp_on_demand,
             ondemand::mcp_everywhere,
             ondemand::mcp_describe,
@@ -2628,6 +2632,7 @@ pub fn run() {
                 askpass.clone().router(),
             ))?;
             let helpers = app.path().app_data_dir()?.join("bin");
+            ssh::start_own_agent(&helpers);
             match std::env::current_exe().and_then(|exe| askpass::install(&helpers, &exe)) {
                 Ok(script) => {
                     let _ = askpass::HELPER.set((script, port, token.clone()));

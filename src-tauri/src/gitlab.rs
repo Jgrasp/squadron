@@ -256,7 +256,22 @@ pub async fn lists(slug: &str) -> Result<Lists, String> {
     }
     let mine = found.pop().unwrap_or_default();
     let review = found.pop().unwrap_or_default();
-    Ok(Lists { review, mine })
+    let query = [
+        ("state", "opened"),
+        ("order_by", "updated_at"),
+        ("per_page", "50"),
+    ];
+    let mut others = Vec::new();
+    for iid in list(slug, &query).await? {
+        if !review.iter().chain(&mine).any(|p| p.number == iid) {
+            others.push(full(slug, iid, &me).await?.0);
+        }
+    }
+    Ok(Lists {
+        review,
+        mine,
+        others,
+    })
 }
 
 async fn discussions(slug: &str, iid: u64) -> Result<Vec<Value>, String> {

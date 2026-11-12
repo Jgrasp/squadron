@@ -18,6 +18,8 @@ export default {
   badSlot: 'Item {item}: the slot must be one of {slots}.',
   noLabel: 'Item {item}: the label needs at least an English text.',
   badHint: 'Item {item}: the hint must be a text like { "en": "…" }.',
+  badWords: 'Item {item}: words must be a list of one-line texts.',
+  badSpotlight: 'Item {item}: spotlight must be true or false.',
   badIcon: 'Item {item}: the icon must be one of {icons}.',
   badAction: 'Item {item}: the action must be one of terminal.run, prompt.insert, url.open, squadron, run or panel.open, with a text.',
   needsAgent: 'Item {item}: {action} needs an agent, so it can only go in agent.tools or agent.menu.',

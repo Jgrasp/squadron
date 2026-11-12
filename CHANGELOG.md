@@ -1,5 +1,35 @@
 # Changelog
 
+## 0.43.0 · 2026-11-12
+
+### Pull requests
+
+- The Pull requests page lists every open pull request of the project: those you review, those your agents review without you, the others still in review (drafts left out), and yours.
+- The agent review button of a pull request says where its agent is, shows the start on itself while Review waits greyed, and turns into Review changes when commits came after the agent's review. Its buttons keep one width, so the rows stay aligned.
+
+### Spotlight
+
+- Tab keeps a project, an action or an agent as a chip and lists what you can do with it; chat starts a conversation without a folder.
+- The spotlight finds a pull request by its title or number and lists those waiting for you across projects; Tab on one offers review, an agent's review, the host page, approve, request changes and merge.
+- Extension items show up under their label with the extension's name, found by their optional words, unless they set spotlight to false.
+
+### Passwords
+
+- Squadron never hands a typed password to an agent: run_sudo runs a root command after you type the password in a card, asked again for every command, and add_ssh_key unlocks an SSH key inside Squadron and loads it into the SSH agent. The password helper left in the agent's environment only answers yes or no.
+
+### Jira
+
+- Tickets open in a dialog with the filters on the left and status columns of fixed width, so hiding a status no longer stretches the others.
+
+### Window
+
+- Quitting Squadron while agents are still working asks for confirmation.
+- The Projects in the tab bar setting offers Always, which keeps every project in the bar.
+
+### Fixes
+
+- The conversation on screen is no longer unloaded when its project has no current agent recorded.
+
 ## 0.42.0 · 2026-11-10
 
 ### Memory

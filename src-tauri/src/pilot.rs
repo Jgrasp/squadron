@@ -20,7 +20,8 @@ During a long task made of many items, show where you are on your card with set_
 To name a Kanban task in a reply, link it as [its code or title](squadron:task/<card id>), with the card id that overview or create_card gives: Squadron shows a chip the user clicks to see the task, or a card when the link opens a list item. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
 When you produce a document or a page the user will read, keep or iterate on, such as a report, a plan, a diagram, a mock-up or a clickable prototype, make it an artifact (a folder in $SQUADRON_ARTIFACTS, or publish_artifact for a single file) instead of only writing it in the conversation, and update it as it changes. \
-When the user must put values such as keys, tokens, secrets, passwords or personal data into a file, call ask_values without editing the file yourself: Squadron asks the user and writes the values into the file itself, without passing them back to you. Never ask for such values in the conversation.";
+When the user must put values such as keys, tokens, secrets, passwords or personal data into a file, call ask_values without editing the file yourself: Squadron asks the user and writes the values into the file itself, without passing them back to you. Never ask for such values in the conversation. \
+Squadron never hands you a password. To run a command as root, call run_sudo instead of sudo: the user types the password in Squadron, which runs the command. When ssh or git asks for the passphrase of a key, call add_ssh_key with the key's path, then run the command again. For anything else that asks for a password (an SSH host without a key, git over HTTPS), ask the user to run the command themselves in Squadron with !<command>.";
 
 #[derive(Clone, Debug, Serialize)]
 pub struct Call {
@@ -261,6 +262,22 @@ struct AskValues {
     path: String,
     /// The values to ask for, in the order the user fills them.
     fields: Vec<Field>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct RunSudo {
+    /// The command to run as root, without sudo in front, such as `apt-get install -y libssl-dev`. Squadron runs it with sh -c in your working folder. It must not wait for input: pass -y or the like.
+    command: String,
+    /// One short line telling the user why the command must run as root.
+    reason: String,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AddSshKey {
+    /// The private key file whose passphrase ssh or git asked for, such as ~/.ssh/id_ed25519.
+    path: String,
 }
 
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
@@ -518,6 +535,26 @@ impl Pilot {
         Parameters(args): Parameters<AskValues>,
     ) -> String {
         self.forward(&parts, "ask_values", json!(args)).await
+    }
+
+    /// Runs a command as root. Squadron shows it to the user, who types their password in Squadron and runs it, or refuses. Squadron runs sudo itself, so the password never reaches you; you get the output and the exit code. The password is asked again for every command.
+    #[tool]
+    async fn run_sudo(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<RunSudo>,
+    ) -> String {
+        self.forward(&parts, "run_sudo", json!(args)).await
+    }
+
+    /// Loads an SSH key into the SSH agent when ssh or git asks for its passphrase. The user types the passphrase in Squadron, which unlocks the key itself: the passphrase never reaches you. The key then stays loaded until the user logs out: run your command again.
+    #[tool]
+    async fn add_ssh_key(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<AddSshKey>,
+    ) -> String {
+        self.forward(&parts, "add_ssh_key", json!(args)).await
     }
 
     /// Returns Squadron's layout: each slot (a bar of buttons or a menu), its items and which are hidden.

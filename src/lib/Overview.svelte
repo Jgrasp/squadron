@@ -58,7 +58,7 @@
     projects.current = project
   }
 
-  const open_pulls = (project: string) => (lists[project] ? lists[project].review.length + lists[project].mine.length : 0)
+  const open_pulls = (project: string) => (lists[project] ? lists[project].review.length + lists[project].mine.length + lists[project].others.length : 0)
   const pullsWaiting = $derived(projects.list.reduce((n, p) => n + needsYou(p.path), 0))
 </script>
 

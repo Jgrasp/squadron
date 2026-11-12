@@ -11,7 +11,7 @@
   import Spotlight from './lib/Spotlight.svelte'
   import Confirm from './lib/Confirm.svelte'
   import Viewer from './lib/Viewer.svelte'
-  import Password from './lib/Password.svelte'
+  import AskpassDialog from './lib/AskpassDialog.svelte'
   import { loadSettings, settings, shortcut } from './lib/settings.svelte'
   import { agents, archiveIdle, closeAll, create, find, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
@@ -36,6 +36,7 @@
   import PullReview from './lib/PullReview.svelte'
   import SidePanel from './lib/SidePanel.svelte'
   import { t } from './lib/i18n/index.svelte'
+  import { ask } from './lib/asking.svelte'
   import PanelButtons from './lib/PanelButtons.svelte'
   import Splash from './lib/Splash.svelte'
   import { boot, finished } from './lib/boot.svelte'
@@ -125,8 +126,21 @@
 
   $effect(() => {
     const appWindow = getCurrentWindow()
+    let asking = false
     const unlisten = appWindow.onCloseRequested(async (event) => {
       event.preventDefault()
+      if (asking) return
+      const busy = agents.list.filter((a) => a.status === 'working')
+      asking = busy.length > 0
+      if (
+        busy.length &&
+        !(await ask(t('shell.quitAsk', { count: busy.length }), {
+          title: t('shell.quitTitle'),
+          kind: 'warning',
+          okLabel: t('shell.quit'),
+        }).finally(() => (asking = false)))
+      )
+        return
       await closeAll().catch(() => {})
       await appWindow.destroy()
     })
@@ -228,7 +242,7 @@
 
 <Confirm />
 <Viewer />
-<Password />
+<AskpassDialog />
 <Splash />
 
 <style>

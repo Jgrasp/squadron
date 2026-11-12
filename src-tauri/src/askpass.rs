@@ -22,7 +22,7 @@ pub struct Question {
     pub command: String,
 }
 
-type Pending = Arc<Mutex<HashMap<String, (String, oneshot::Sender<Option<String>>)>>>;
+type Pending = Arc<Mutex<HashMap<String, (String, oneshot::Sender<bool>)>>>;
 
 #[derive(Clone)]
 pub struct Askpass {
@@ -46,14 +46,14 @@ impl Askpass {
         axum::Router::new().route("/", post(ask)).with_state(self)
     }
 
-    pub fn answer(&self, id: &str, secret: Option<String>) -> Result<(), String> {
+    pub fn answer(&self, id: &str, yes: bool) -> Result<(), String> {
         let (_, tx) = self
             .pending
             .lock()
             .unwrap()
             .remove(id)
             .ok_or("This request no longer waits for an answer.")?;
-        let _ = tx.send(secret);
+        let _ = tx.send(yes);
         Ok(())
     }
 
@@ -77,7 +77,7 @@ async fn ask(
             .unwrap_or_default()
             .to_string()
     };
-    if header("x-squadron-token") != gate.token {
+    if header("x-squadron-token") != gate.token || !question(&prompt) {
         return (StatusCode::FORBIDDEN, String::new());
     }
     let agent = header("x-squadron-agent");
@@ -101,8 +101,33 @@ async fn ask(
         command,
     });
     match rx.await {
-        Ok(Some(secret)) => (StatusCode::OK, secret),
-        _ => (StatusCode::GONE, String::new()),
+        Ok(yes) => (StatusCode::OK, if yes { "yes" } else { "no" }.into()),
+        Err(_) => (StatusCode::GONE, String::new()),
+    }
+}
+
+fn question(prompt: &str) -> bool {
+    prompt.contains("(yes/no")
+}
+
+fn passphrase_for(prompt: &str) -> Option<&str> {
+    let rest = prompt.trim().strip_prefix("Enter passphrase for ")?;
+    let rest = rest
+        .strip_prefix("key ")
+        .unwrap_or(rest)
+        .trim_end_matches(':');
+    Some(rest.trim_matches('\''))
+}
+
+fn refusal(prompt: &str) -> String {
+    match passphrase_for(prompt) {
+        Some(path) => format!(
+            "Squadron does not hand passphrases to agents. Call the add_ssh_key tool of squadron-pilot with path {path}: \
+the user types the passphrase in Squadron, which loads the key into the SSH agent. Then run the command again."
+        ),
+        None => "Squadron does not hand passwords to agents. For a command that needs sudo, use the run_sudo tool of squadron-pilot. \
+For anything else, such as an SSH host that asks for a password or git over HTTPS, ask the user to run the command themselves in Squadron with !<command>."
+            .into(),
     }
 }
 
@@ -130,23 +155,30 @@ pub fn env(cmd: &mut Command, agent: &str) {
         return;
     };
     cmd.env(VARIABLE, format!("{port}:{token}:{agent}"))
-        .env("SUDO_ASKPASS", script)
         .env("SSH_ASKPASS", script)
         .env("SSH_ASKPASS_REQUIRE", "force")
-        .env("GIT_ASKPASS", script);
+        .env_remove("SUDO_ASKPASS")
+        .env_remove("GIT_ASKPASS");
+    if let Some(socket) = crate::ssh::OWN_AGENT.get() {
+        cmd.env("SSH_AUTH_SOCK", socket);
+    }
     if std::env::var_os("DISPLAY").is_none() {
         cmd.env("DISPLAY", ":0");
     }
 }
 
 pub fn client(prompt: &str) -> i32 {
-    let Some(secret) = std::env::var(VARIABLE)
+    if !question(prompt) {
+        eprintln!("{}", refusal(prompt));
+        return 1;
+    }
+    let Some(answer) = std::env::var(VARIABLE)
         .ok()
         .and_then(|v| request(&v, prompt))
     else {
         return 1;
     };
-    println!("{secret}");
+    println!("{answer}");
     0
 }
 
@@ -183,8 +215,10 @@ fn request(variable: &str, prompt: &str) -> Option<String> {
 mod tests {
     use super::*;
 
+    const HOST: &str = "Are you sure you want to continue connecting (yes/no/[fingerprint])? ";
+
     #[tokio::test(flavor = "multi_thread")]
-    async fn hands_the_answer_to_the_helper() {
+    async fn answers_only_yes_or_no() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = Askpass::new("secret-token".into(), move |q| tx.send(q).unwrap());
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
@@ -195,23 +229,43 @@ mod tests {
         tokio::spawn(async move {
             let q = rx.recv().await.unwrap();
             assert_eq!(q.agent, "agent-1");
-            assert_eq!(q.prompt, "[sudo] password for jgrasp: ");
+            assert_eq!(q.prompt, HOST);
             assert_eq!(q.command, caller());
-            answering.answer(&q.id, Some("hunter2".into())).unwrap();
+            answering.answer(&q.id, true).unwrap();
             let q = rx.recv().await.unwrap();
-            answering.answer(&q.id, None).unwrap();
+            answering.answer(&q.id, false).unwrap();
+            assert!(rx.recv().await.is_none());
         });
         let good = format!("{port}:secret-token:agent-1");
         let asked = tokio::task::spawn_blocking(move || {
             (
+                request(&good, HOST),
+                request(&good, HOST),
                 request(&good, "[sudo] password for jgrasp: "),
-                request(&good, "again"),
             )
         });
-        assert_eq!(asked.await.unwrap(), (Some("hunter2".into()), None));
+        assert_eq!(
+            asked.await.unwrap(),
+            (Some("yes".into()), Some("no".into()), None)
+        );
         let forged = format!("{port}:wrong:agent-1");
-        let refused = tokio::task::spawn_blocking(move || request(&forged, "x"));
+        let refused = tokio::task::spawn_blocking(move || request(&forged, HOST));
         assert_eq!(refused.await.unwrap(), None);
+    }
+
+    #[test]
+    fn sends_the_agent_to_the_right_tool() {
+        assert!(
+            refusal("Enter passphrase for key '/home/u/.ssh/id_ed25519': ")
+                .contains("add_ssh_key tool of squadron-pilot with path /home/u/.ssh/id_ed25519:")
+        );
+        assert!(
+            refusal("Enter passphrase for /home/u/.ssh/id_rsa: ")
+                .contains("path /home/u/.ssh/id_rsa:")
+        );
+        assert!(refusal("[sudo] password for jgrasp: ").contains("run_sudo"));
+        assert!(refusal("git@host's password: ").contains("!<command>"));
+        assert_eq!(client("Password for 'https://u@bitbucket.org': "), 1);
     }
 
     #[test]

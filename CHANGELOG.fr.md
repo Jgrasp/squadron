@@ -1,5 +1,35 @@
 # Nouveautés
 
+## 0.43.0 · 2026-11-12
+
+### Pull requests
+
+- La page Pull requests liste toutes les pull requests ouvertes du projet : celles que tu relis, celles que tes agents relisent sans toi, les autres en revue (sans les brouillons), et les tiennes.
+- Le bouton d’agent relecteur d’une pull request dit où en est son agent, affiche le démarrage sur lui-même pendant que « Review » attend grisé, et devient « Relire la suite » quand des commits sont arrivés après la relecture de l’agent. Ses boutons gardent une largeur fixe, les lignes restent alignées.
+
+### Spotlight
+
+- Tab garde un projet, une action ou un agent en puce et liste ce que tu peux en faire ; chat lance une conversation sans dossier.
+- Le spotlight trouve une pull request par son titre ou son numéro et liste celles qui t’attendent dans tous les projets ; Tab sur l’une d’elles propose la relecture, la relecture par un agent, la page de l’hébergeur, approuver, demander des changements et fusionner.
+- Les entrées des extensions apparaissent sous leur libellé avec le nom de l’extension, trouvées par leurs mots optionnels, sauf si elles mettent spotlight à false.
+
+### Mots de passe
+
+- Squadron ne transmet jamais un mot de passe tapé à un agent : run_sudo lance une commande root après que tu as tapé le mot de passe dans une carte, redemandé à chaque commande, et add_ssh_key déverrouille une clé SSH dans Squadron et la charge dans l’agent SSH. L’assistant de mot de passe laissé dans l’environnement de l’agent ne répond que oui ou non.
+
+### Jira
+
+- Les tickets s’ouvrent dans une fenêtre avec les filtres à gauche et des colonnes de statut de largeur fixe : masquer un statut n’élargit plus les autres.
+
+### Fenêtre
+
+- Quitter Squadron pendant que des agents travaillent demande confirmation.
+- Le réglage Projets dans la barre d’onglets propose Toujours, qui garde tous les projets dans la barre.
+
+### Corrections
+
+- La conversation affichée n’est plus déchargée quand son projet n’a pas d’agent courant enregistré.
+
 ## 0.42.0 · 2026-11-10
 
 ### Mémoire
@@ -15,7 +45,7 @@
 ### Conversation
 
 - Les notes d’un agent entre ses étapes s’affichent en blocs de réponse avec leur heure.
-- Une réponse plus haute qu’une fois et demie la conversation se termine par un bouton « Haut de page ».
+- Une réponse plus haute qu’une fois et demie la conversation se termine par un bouton « Revenir en haut ».
 - Le champ de réponse à la question d’un agent passe à la ligne et grandit avec le texte ; Maj+Entrée crée une nouvelle ligne.
 
 ### Archives
