@@ -87,7 +87,7 @@
 
   let menu = $state('')
 
-  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean; spinning?: boolean; icon?: string; status?: Agent['status'] }
+  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean; spinning?: boolean; again?: boolean; icon?: string; status?: Agent['status'] }
 
   const openOn = (pull: Pull): Choice => ({ label: t('review.openOn', { host: hostName(pull) }), run: () => invoke('open_link', { url: pull.url }) })
   const merging = (pull: Pull): Choice[] =>
@@ -296,21 +296,23 @@
   {@const reviewer = reviewerOf(project.path, pull)}
   {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
   {@const status = reviewer && (reviewer.attention && reviewer.status !== 'working' && reviewer.status !== 'error' ? 'waiting' : reviewer.status)}
+  {@const again = !!reviewer && moved(project.path, pull) && behind(reviewer, pull) && reviewer.status !== 'working'}
   {@const agentChoice = starting(pull)
     ? { label: t('review.starting'), icon: 'persona', spinning: true, run: () => {} }
-    : reviewer && status
-      ? { label: agentLabel(status), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status, run: () => show(reviewer) }
-      : asking(pull)}
-  {@const main = reviewer && moved(project.path, pull) && behind(reviewer, pull) && reviewer.status !== 'working' ? { label: t('review.reviewNewChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), run: () => askAgain(reviewer, pull) } : reviewing}
+    : reviewer && again
+      ? { label: t('review.agentButtonChanges'), title: t('review.reviewNewChangesTitle', { name: reviewer.name }), icon: 'persona', again: true, run: () => askAgain(reviewer, pull) }
+      : reviewer && status
+        ? { label: agentLabel(status), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status, run: () => show(reviewer) }
+        : asking(pull)}
   <article class:done>
     <span class="verdict {state[0]}">{state[1]}</span>
     {@render about(pull)}
     {@render split(
       `review-${pull.number}`,
-      main,
+      reviewing,
       primary,
-      [...(main === reviewing ? [] : [reviewing]), openOn(pull), ...approving(pull), ...requesting(pull)],
-      main === reviewing && opened?.number === pull.number,
+      [openOn(pull), ...approving(pull), ...requesting(pull), ...(reviewer && again ? [{ label: t('review.goToAgent', { name: reviewer.name }), run: () => show(reviewer) }] : [])],
+      opened?.number === pull.number,
       agentChoice,
       false,
       starting(pull),
@@ -325,6 +327,7 @@
         <button class="btn lead agent" class:starting={lead.spinning} title={lead.title ?? lead.label} disabled={lead.spinning || (!!busy && !lead.always)} onclick={() => ((menu = ''), lead.run())}>
           <span class="sign">
             {#if lead.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>
+            {:else if lead.again}<svg class="again" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
             {:else if lead.status}<StatusIcon status={lead.status} />
             {:else}<Icon name={lead.icon} />{/if}
           </span>
@@ -804,7 +807,15 @@
   }
 
   .split .agent ~ .main {
-    width: 152px;
+    width: 88px;
+  }
+
+  .again {
+    fill: none;
+    stroke: var(--remote-dot);
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .sign {
