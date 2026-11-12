@@ -286,7 +286,7 @@ const shelvable = (agent: Agent) => {
     !agent.alive &&
     !onDisk.has(agent.id) &&
     agent.entries.length > 0 &&
-    !Object.values(agents.current).includes(agent.id) &&
+    !shown().has(agent.id) &&
     !timers.has(agent.id) &&
     !writes.has(agent.id) &&
     !loading.has(agent.id) &&
@@ -295,8 +295,11 @@ const shelvable = (agent: Agent) => {
   )
 }
 
+const shown = () =>
+  new Set([...Object.values(agents.current), ...projects.list.map((p) => selected(p.path)?.id).filter((id) => id !== undefined)])
+
 export function shelveHidden() {
-  for (const id of Object.values(agents.current)) seen.set(id, Date.now())
+  for (const id of shown()) seen.set(id, Date.now())
   for (const agent of agents.list)
     if (shelvable(agent))
       save(agent).then(() => {
