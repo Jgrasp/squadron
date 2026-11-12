@@ -138,7 +138,6 @@
           title: t('shell.quitTitle'),
           kind: 'warning',
           okLabel: t('shell.quit'),
-          lines: busy.map((a) => a.name),
         }).finally(() => (asking = false)))
       )
         return
