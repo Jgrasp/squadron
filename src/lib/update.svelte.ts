@@ -42,6 +42,7 @@ export async function checkNow() {
   try {
     update.found = await check()
   } catch (e) {
+    if (String(e).includes('valid release JSON')) return message(t('settings.updatePending'), { title })
     return message(t('settings.updateUnreachable', { error: errorText(e) }), { title, kind: 'error' })
   } finally {
     update.checking = false

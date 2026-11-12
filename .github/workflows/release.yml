@@ -21,8 +21,8 @@ jobs:
         run: |
           version=${MESSAGE%%$'\n'*}
           tag=v${version#Squadron }
-          id=$(gh api repos/$GITHUB_REPOSITORY/releases/tags/$tag -q .id 2>/dev/null) \
-            || id=$(gh api repos/$GITHUB_REPOSITORY/releases -f tag_name=$tag -f name="Squadron $tag" -f body="$MESSAGE" -q .id)
+          id=$(gh api repos/$GITHUB_REPOSITORY/releases -q ".[] | select(.tag_name == \"$tag\") | .id" | head -1)
+          [ -n "$id" ] || id=$(gh api repos/$GITHUB_REPOSITORY/releases -f tag_name=$tag -f target_commitish=$GITHUB_SHA -f name="Squadron $tag" -f body="$MESSAGE" -F draft=true -q .id)
           echo "id=$id" >> "$GITHUB_OUTPUT"
 
   build:
@@ -81,3 +81,14 @@ jobs:
           releaseId: ${{ needs.release.outputs.id }}
           args: ${{ matrix.args }}
           includeUpdaterJson: true
+
+  publish:
+    needs: [release, build]
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - if: ${{ !env.ACT }}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: gh api -X PATCH repos/$GITHUB_REPOSITORY/releases/${{ needs.release.outputs.id }} -F draft=false -f make_latest=true

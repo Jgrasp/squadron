@@ -329,6 +329,7 @@ export default {
   modeAutoHint: 'Claude Code décide, et ne demande que pour les actions risquées',
   updateFromSources: 'Ce Squadron tourne depuis ses sources : les mises à jour arrivent dans l’application installée.',
   updateUnreachable: 'Squadron n’a pas pu joindre GitHub : {error}',
+  updatePending: 'GitHub n’a pas renvoyé la dernière version de Squadron. Réessayez dans quelques minutes.',
   upToDate: 'Squadron {version} est à jour.',
   updateAsk: 'Squadron {version} est disponible. L’installer maintenant ?',
   later: 'Plus tard',

@@ -327,6 +327,7 @@ export default {
   modeAutoHint: 'Claude Code decides, and only asks for risky actions',
   updateFromSources: 'This Squadron runs from its sources: updates come to the installed app.',
   updateUnreachable: 'Squadron could not reach GitHub: {error}',
+  updatePending: 'GitHub did not return the latest version of Squadron. Try again in a few minutes.',
   upToDate: 'Squadron {version} is up to date.',
   updateAsk: 'Squadron {version} is available. Install it now?',
   later: 'Later',
