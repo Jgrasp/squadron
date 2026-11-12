@@ -34,6 +34,7 @@
   let markdown = $state('')
   let frame = $state<HTMLIFrameElement>()
   let menu = $state(false)
+  let more = $state(false)
 
   const local = $derived(shelf.of[agent.id] ?? [])
   const docs = $derived(docsOf(agent, local.flatMap((a) => (a.link ? [a.link] : []))))
@@ -57,6 +58,7 @@
     void open?.id
     pointing = false
     menu = false
+    more = false
   })
 
   const destinations = $derived(shown('artifact.actions'))
@@ -206,7 +208,15 @@
   }
 </script>
 
-<svelte:window onmessage={message} onclick={(e) => menu && !(e.target as Element).closest?.('[data-share]') && (menu = false)} onkeydown={(e) => e.key === 'Escape' && menu && (menu = false)} />
+<svelte:window
+  onmessage={message}
+  onclick={(e) => {
+    const at = e.target as Element
+    if (menu && !at.closest?.('[data-share]')) menu = false
+    if (more && !at.closest?.('[data-more]')) more = false
+  }}
+  onkeydown={(e) => e.key === 'Escape' && ((menu = false), (more = false))}
+/>
 
 {#snippet shareMenu()}
   {#if open && destinations.length}
@@ -217,7 +227,7 @@
         aria-haspopup="menu"
         aria-expanded={menu}
         title={t('agent.artifactShareMenuOf', { title: open.title })}
-        onclick={() => (menu = !menu)}
+        onclick={() => ((menu = !menu), (more = false))}
       >
         {#if shared}<span class="dot" aria-hidden="true"></span>{/if}{t('agent.artifactShareMenu')}
         <svg class="chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
@@ -287,14 +297,44 @@
       {#if open.kind === 'html'}
         <button class="btn btn-ghost" aria-pressed={pointing} title={t('agent.artifactPointTitle')} onclick={() => aim(!pointing)}>{pointing ? t('agent.artifactPointing') : copied === 'point' ? t('agent.artifactPointSent', { name: agent.name }) : t('agent.artifactPoint')}</button>
       {/if}
-      <button class="btn btn-ghost" onclick={() => source(open)}>{copied === 'source' ? t('common.copied') : t('agent.artifactCopy')}</button>
       {@render shareMenu()}
-      {#if open.kind === 'html'}
-        <button class="btn btn-ghost" onclick={() => invoke('open_artifact_folder', { agent: agent.id, id: open.id }).catch((e) => ask(errorText(e), { kind: 'error' }))}>{t('agent.artifactFolder')}</button>
-      {:else}
-        <button class="btn btn-ghost" onclick={() => keep(open)}>{t('agent.artifactSave')}</button>
-      {/if}
-      <button class="btn btn-ghost danger" onclick={() => remove(open)}>{t('agent.artifactDelete')}</button>
+      <div class="anchor" data-more>
+        <button
+          class="btn btn-ghost square"
+          class:open={more}
+          aria-label={t('agent.artifactMore')}
+          title={t('agent.artifactMore')}
+          aria-haspopup="menu"
+          aria-expanded={more}
+          onclick={() => ((more = !more), (menu = false))}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true" fill="currentColor"><circle cx="5" cy="12" r="1.8" /><circle cx="12" cy="12" r="1.8" /><circle cx="19" cy="12" r="1.8" /></svg>
+        </button>
+        {#if more}
+          <div class="menu narrow" role="menu" aria-label={t('agent.artifactMore')}>
+            <button class="option" role="menuitem" onclick={() => source(open)}>
+              <span class="ico"><Icon name="copy" /></span>
+              <span class="text"><b>{copied === 'source' ? t('common.copied') : t('agent.artifactCopy')}</b><span>{t('agent.artifactCopyHint')}</span></span>
+            </button>
+            {#if open.kind === 'html'}
+              <button class="option" role="menuitem" onclick={() => ((more = false), invoke('open_artifact_folder', { agent: agent.id, id: open.id }).catch((e) => ask(errorText(e), { kind: 'error' })))}>
+                <span class="ico"><Icon name="folder" /></span>
+                <span class="text"><b>{t('agent.artifactFolder')}</b><span>{t('agent.artifactFolderHint')}</span></span>
+              </button>
+            {:else}
+              <button class="option" role="menuitem" onclick={() => ((more = false), keep(open))}>
+                <span class="ico"><Icon name="update" /></span>
+                <span class="text"><b>{t('agent.artifactSave')}</b><span>{t('agent.artifactSaveHint')}</span></span>
+              </button>
+            {/if}
+            <span class="sep" aria-hidden="true"></span>
+            <button class="option delete" role="menuitem" onclick={() => ((more = false), remove(open))}>
+              <span class="ico"><Icon name="trash" /></span>
+              <span class="text"><b>{t('agent.artifactDelete')}</b><span>{t('agent.artifactDeleteHint')}</span></span>
+            </button>
+          </div>
+        {/if}
+      </div>
     {/if}
     {#if !windowed}
       <button class="btn btn-ghost window" aria-label={t('conversation.openInWindow')} title={t('conversation.openInWindow')} onclick={popOut}>
@@ -425,6 +465,24 @@
     height: 6px;
     border-radius: 50%;
     background: var(--ok);
+  }
+
+  .square {
+    width: 32px;
+    padding: 0;
+  }
+
+  .square.open {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .menu.narrow {
+    width: 300px;
+  }
+
+  .option.delete .text b {
+    color: var(--err-text);
   }
 
   .menu {
