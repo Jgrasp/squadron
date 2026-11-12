@@ -69,7 +69,7 @@ export const VERBS: Verb[] = [
   ),
 ]
 
-export const STARTERS = ['pr', 'new', 'open', 'board', 'diff', 'term', 'set', 'arc']
+export const STARTERS = ['pr', 'new', 'chat', 'open', 'board', 'diff', 'term', 'set', 'arc']
 
 const LIMIT = 6
 
@@ -129,4 +129,59 @@ export function match(query: string, world: World): Row[] {
     }
   })
   return found.sort((a, b) => a.rank - b.rank || b.weight - a.weight).slice(0, LIMIT)
+}
+
+export type Focus = { kind: 'project'; project: Project } | { kind: 'verb'; verb: Verb } | { kind: 'agent'; agent: Agent }
+
+export const SHOW: Verb = { id: 'show', words: ['show', 'open', 'go'], title: () => t('spotlight.show'), icon: 'jump', scope: 'agent' }
+
+const CHAT = ['chat', 'conversation', 'talk', 'ask']
+
+const fits = (verb: Verb, tokens: string[]) => {
+  const [first, ...rest] = tokens
+  if (!first) return true
+  const title = words(verb.title())
+  return reaches([...verb.words, title[0]], first) && rest.every((token) => reaches([...verb.words, ...title], token))
+}
+
+const exact = (verb: Verb, tokens: string[]) => Number(tokens.some((token) => verb.words.includes(token)))
+
+export function verbsOf(project: Project, query: string): Row[] {
+  const tokens = words(query)
+  return VERBS.filter((verb) => verb.scope === 'project' && (!verb.forProject || verb.forProject(project)) && fits(verb, tokens))
+    .sort((a, b) => exact(b, tokens) - exact(a, tokens))
+    .map((verb) => ({ key: `${verb.id}:${project.path}`, verb, title: verb.title(), project, complete: '' }))
+}
+
+export function projectsFor(verb: Verb, query: string, world: World): Row[] {
+  const tokens = words(query)
+  return world.projects
+    .filter((project) => (!verb.forProject || verb.forProject(project)) && tokens.every((token) => reaches(words(project.name), token)))
+    .map((project) => ({ project, weight: (project.path === world.current?.path ? 1000 : 0) + (world.priority?.(project) ?? 0) }))
+    .sort((a, b) => b.weight - a.weight)
+    .map(({ project }) => ({ key: `${verb.id}:${project.path}`, verb, title: verb.title(), project, complete: '' }))
+}
+
+export function verbsFor(agent: Agent, query: string, world: World): Row[] {
+  const tokens = words(query)
+  const project = world.projects.find((p) => p.path === agent.project)
+  return [SHOW, ...VERBS.filter((verb) => verb.scope === 'agent' && (!verb.forAgent || verb.forAgent(agent)))]
+    .filter((verb) => fits(verb, tokens))
+    .sort((a, b) => exact(b, tokens) - exact(a, tokens))
+    .map((verb) => ({ key: `${verb.id}:${agent.id}`, verb, title: verb.title(), project, agent, complete: '' }))
+}
+
+export function projectsNamed(query: string, world: World) {
+  const tokens = words(query)
+  if (!tokens.length || tokens[0].length < 2) return []
+  return world.projects.filter((project) => tokens.every((token) => reaches(words(project.name), token))).slice(0, 3)
+}
+
+export function chats(query: string) {
+  const tokens = words(query)
+  return tokens.length > 0 && tokens[0].length > 1 && tokens.every((token) => reaches(CHAT, token))
+}
+
+export function chains(row: Row, query: string) {
+  return row.verb.scope === 'project' && words(query).length === 1
 }
