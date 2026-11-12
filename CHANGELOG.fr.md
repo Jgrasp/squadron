@@ -1,5 +1,18 @@
 # Nouveautés
 
+## 0.44.0 · 2026-11-12
+
+### Artifacts
+
+- Le panneau Artifacts a un menu Partager : Publier sur claude.ai en est la première destination, et les extensions ajoutent les leurs. Une fois partagée, une destination propose Ouvrir, Copier le lien, Mettre à jour quand l’artifact a changé depuis, et Arrêter le partage ; un bandeau s’affiche pendant le travail.
+- Copier la source, Ouvrir le dossier (ou Enregistrer dans un fichier) et Supprimer passent dans un menu ⋯, l’en-tête du panneau tient à sa largeur par défaut.
+
+### Extensions
+
+- Un élément du nouvel emplacement artifact.actions partage l’artifact ouvert avec artifact.share : une confirmation, puis des étapes écrites en prompt, menées par un agent dédié, ou en appel au WebAssembly de l’extension. Le premier clic demande les accès en attente de l’extension.
+- contributes.skills donne des skills à tes agents une fois que tu les autorises.
+- Chaque extension a un dossier de données gardé aux mises à jour (host::data_dir, API 1.2.0). Les extensions compilées en 1.1.0 se chargent toujours.
+
 ## 0.43.0 · 2026-11-12
 
 ### Pull requests

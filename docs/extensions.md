@@ -122,6 +122,7 @@ Elles sont déclarées dans le manifeste, montrées à l'installation et accept�
 
 - `exec` : les programmes que le WASM peut lancer, avec n'importe quels arguments, sans shell.
 - `network` : les noms d'hôte que `host::fetch` peut joindre, en HTTPS.
+- **Dossier de données** : `host::data-dir` (1.2.0) rend `<config>/extensions-data/<id>`, créé au premier appel, gardé aux mises à jour et à la désinstallation comme l'état. C'est là qu'une extension pose les fichiers sur lesquels travaillent ses commandes (`exec` avec ce dossier).
 - `agents` : `read` donne les agents ouverts et ce qu'ils font (`host::agents`), `archive` permet d'en archiver (`host::archive-agent`). *Fait en 1.1.0.*
 - `agents:send`, `cards:write`, `project:read` : prévus, pour les autres données et actions de Squadron.
 - `tools` : outils proposés aux agents.
@@ -142,7 +143,7 @@ Voir `extensions/examples/hello/extension.json`, et la référence complète dan
 
 - **Où** : `<config>/extensions/<dossier>/extension.json`, ou un dossier ajouté depuis Settings › Extensions (« Ajouter un dossier… »). Les dossiers ajoutés et les extensions désactivées sont dans `<config>/extensions.json`. Un changement de `extension.json` se recharge en moins d'une seconde.
 - **Manifeste** : `id` (minuscules, chiffres, tirets), `version`, `api: 1`, `name` et `description` en `{ "en": "…", "fr": "…" }`, l'anglais étant obligatoire.
-- **`contributes.items`** : `slot` parmi `agent.tools`, `agent.menu` et `menu.squadron`, `id`, `label`, `hint` facultatif, `icon` facultative, prise dans les icônes de Squadron, et une `action` parmi :
+- **`contributes.items`** : `slot` parmi `agent.tools`, `agent.menu`, `menu.squadron` et `artifact.actions` (le menu Share du panneau Artifacts, après « Publish on claude.ai », avec le nom de l'extension sous chaque destination), `id`, `label`, `hint` facultatif, `icon` facultative, prise dans les icônes de Squadron, et une `action` parmi :
   - `{ "terminal.run": "lando logs -f" }` : tape la commande dans le terminal de l'agent sans la lancer, l'utilisateur appuie sur Entrée. Une seule ligne ;
   - `{ "prompt.insert": "…" }` : ajoute le texte à la zone de saisie de l'agent ;
   - `{ "url.open": "https://…" }` : ouvre le lien dans le navigateur ;
@@ -197,10 +198,10 @@ Comment ça tourne :
 - `host::agents` et `host::archive-agent` interrogent la fenêtre principale, qui répond par `extensions_wasm_answer` en 10 s au plus. L'archivage suit la règle de l'archivage automatique (`archivable` dans `agents.svelte.ts`) : agent qui ne travaille pas, sans question en attente, ni épinglé, ni distant, ni affiché ;
 - `host::set-timer` envoie l'événement `timer` après 10 s au moins, depuis le fil de l'extension, sans fil en plus. Un nouvel appel remplace le minuteur en cours. Il survit à un plantage, pas au rechargement ni au redémarrage : l'extension le réarme sur `started`.
 
-Le contrat (`extensions/api/wit/squadron.wit`), en 1.1.0. On peut lui ajouter des imports sans casser les extensions déjà compilées : une extension compilée contre 1.0.0 se charge dans un Squadron 1.1.0, vérifié avec l'exemple `hello`. Une extension qui appelle une fonction 1.1.0 ne se charge pas dans un Squadron plus ancien. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
+Le contrat (`extensions/api/wit/squadron.wit`), en 1.2.0. On peut lui ajouter des imports sans casser les extensions déjà compilées : une extension compilée contre 1.0.0 se charge dans un Squadron 1.1.0, vérifié avec l'exemple `hello`. Une extension qui appelle une fonction 1.1.0 ne se charge pas dans un Squadron plus ancien. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
 
 ```wit
-package squadron:api@1.1.0;
+package squadron:api@1.2.0;
 
 interface types {
   /// The agent a call is about.
@@ -279,6 +280,8 @@ interface host {
   archive-agent: func(agent: string) -> result<_, string>;
   /// Sends the event `timer` in `seconds`, 10 at least, and replaces the one pending. Since 1.1.0.
   set-timer: func(seconds: u32);
+  /// A folder of the extension's own, made on the first call and kept across restarts and updates, for the files `exec` works on. Since 1.2.0.
+  data-dir: func() -> string;
 }
 
 world squadron-extension {
@@ -331,6 +334,34 @@ L'exemple `hello` le montre avec l'outil `github_user`, qui appelle `https://api
 - **Limite** : modifier la page ne recharge pas le panneau. Il faut le fermer et le rouvrir.
 
 L'exemple `hello` a un panneau qui affiche le compteur et l'augmente par un bouton, à travers son WASM.
+
+### Skills (`contributes.skills`)
+
+`"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.
+
+### Partager un artifact (`artifact.share`)
+
+Un élément de l'emplacement `artifact.actions` devient une destination de partage avec l'action `artifact.share` :
+
+```json
+{ "slot": "artifact.actions", "id": "team", "label": { "en": "Share with the team" },
+  "action": { "artifact.share": {
+    "confirm": { "en": "“{artifact.title}” becomes a Google web app for your team." },
+    "lines": ["Google Apps Script · access: example.com"],
+    "shared": { "en": "Shared with the team" },
+    "share": "Share the artifact {artifact.id} at {artifact.dir}, then call publish_artifact with id {artifact.id}, destination {destination} and its link.",
+    "update": { "tool": "deploy" },
+    "unshare": { "tool": "undeploy" },
+    "delete": { "en": "Also delete the Apps Script project" },
+    "deleteHint": { "en": "What the team entered is deleted with it." }
+} } }
+```
+
+- **Étapes** : `share` est obligatoire, `update` et `unshare` facultatifs. Chacune est un prompt, ou `{ "tool": "<nom>" }` qui appelle `call-tool` du module WASM sans passer par un agent. L'outil reçoit `{ verb, destination, artifact: { id, title, dir, entry }, link, delete, data }` et rend le lien pour `share` et `update`. Il n'a pas besoin de figurer dans `contributes.tools` : les agents ne le voient pas.
+- **Agent dédié** : un prompt ne va pas à l'agent de la conversation. Squadron lance un agent « <titre> · <libellé> » dans le même projet, avec les réglages par défaut du projet, et lui envoie les étapes suivantes du même artifact et de la même destination tant qu'il n'est pas archivé. Son `publish_artifact` vise l'artifact de l'agent d'origine.
+- **Variables** des prompts et de `confirm` : `{artifact.id}`, `{artifact.title}`, `{artifact.dir}` (dossier absolu de l'artifact), `{artifact.entry}`, `{agent}` (le nom de l'agent), `{agent.id}`, `{destination}` (la clé `<extension>.<élément>`), `{extension.data}` (le dossier de données de l'extension), `{link}` et `{delete}` (`true` si la case de suppression est cochée).
+- **Lien** : un prompt finit par `publish_artifact` avec `id`, `destination` et `link` (toute adresse `https://`), ou un `link` vide pour retirer le partage. Squadron garde un lien par destination dans le `.squadron.json` de l'artifact, avec l'heure du partage.
+- **Menu** : partagée, la destination montre Open, Copy link, Update quand l'artifact a changé depuis le partage et que `update` existe, Stop sharing si `unshare` existe. Stop sharing demande confirmation, avec la case `delete` quand elle est déclarée. Pendant une étape, un bandeau s'affiche sous l'en-tête du panneau.
 
 ### Distribution (étape 8)
 

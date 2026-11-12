@@ -1,4 +1,4 @@
-package squadron:api@1.1.0;
+package squadron:api@1.2.0;
 
 interface types {
   /// The agent a call is about.
@@ -77,6 +77,8 @@ interface host {
   archive-agent: func(agent: string) -> result<_, string>;
   /// Sends the event `timer` in `seconds`, 10 at least, and replaces the one pending. Since 1.1.0.
   set-timer: func(seconds: u32);
+  /// A folder of the extension's own, made on the first call and kept across restarts and updates, for the files `exec` works on. Since 1.2.0.
+  data-dir: func() -> string;
 }
 
 world squadron-extension {

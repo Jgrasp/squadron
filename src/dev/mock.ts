@@ -500,7 +500,7 @@ const replies = new Map<string, (result: string) => void>()
     emit('pilot-request', { id, agent, tool, args })
   })
 const files = new Map<string, string>()
-type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; content: string }
+type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; links?: Record<string, { link: string; at: number }>; content: string }
 const shelves = new Map<string, Shelved[]>(JSON.parse(localStorage.getItem('shelves') ?? '[]'))
 const shelve = () => localStorage.setItem('shelves', JSON.stringify([...shelves]))
 const ENTRY = { html: 'index.html', markdown: 'index.md', svg: 'index.svg' }
@@ -852,7 +852,7 @@ mockIPC(
       case 'write_artifact': {
         const list = (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id)
         const old = shelves.get(a.agent)?.find((x) => x.id === a.id)
-        shelves.set(a.agent, [...list, { id: a.id, kind: a.kind as Shelved['kind'], entry: ENTRY[a.kind as keyof typeof ENTRY], title: titled(a.kind, a.content, a.id), modified: Date.now(), link: old?.link ?? null, content: a.content }])
+        shelves.set(a.agent, [...list, { id: a.id, kind: a.kind as Shelved['kind'], entry: ENTRY[a.kind as keyof typeof ENTRY], title: titled(a.kind, a.content, a.id), modified: Date.now(), link: old?.link ?? null, links: old?.links, content: a.content }])
         shelve()
         return `/home/demo/.local/share/squadron/artifacts/${a.agent}/${a.id}/${ENTRY[a.kind as keyof typeof ENTRY]}`
       }
@@ -860,6 +860,20 @@ mockIPC(
         for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.link = a.link
         shelve()
         return null
+      case 'set_artifact_share':
+        for (const x of shelves.get(a.agent) ?? [])
+          if (x.id === a.id) {
+            const links = { ...x.links }
+            if (a.link) links[a.destination] = { link: a.link, at: Date.now() }
+            else delete links[a.destination]
+            x.links = links
+          }
+        shelve()
+        return null
+      case 'extension_data_dir':
+        return `/home/demo/.config/dev.squadron.desktop/extensions-data/${a.id}`
+      case 'extensions_wasm_tool':
+        return new Promise((r) => setTimeout(() => r(a.name === 'deploy' ? 'https://script.google.com/macros/s/AKfycbx4QmDemo/exec' : ''), 1500))
       case 'delete_artifact':
         shelves.set(a.agent, (shelves.get(a.agent) ?? []).filter((x) => x.id !== a.id))
         shelve()
@@ -1295,8 +1309,45 @@ mockIPC(
                     { slot: 'agent.tools', id: 'logs', label: { en: 'Logs', fr: 'Journaux' }, icon: 'terminal', action: { 'terminal.run': 'lando logs -f' } },
                     { slot: 'agent.menu', id: 'review', label: { en: 'Review the diff', fr: 'Relire le diff' }, hint: { en: 'Inserts a review prompt', fr: 'Insère un prompt de relecture' }, action: { 'prompt.insert': 'Review the diff and list the risks.' } },
                     { slot: 'menu.squadron', id: 'docs', label: { en: 'Lando docs', fr: 'Doc Lando' }, hint: { en: 'docs.lando.dev' }, action: { 'url.open': 'https://docs.lando.dev' } },
+                    { slot: 'artifact.actions', id: 'pdf', label: { en: 'Export as PDF', fr: 'Exporter en PDF' }, hint: { en: 'Prints the page to a file next to the artifact', fr: 'Imprime la page dans un fichier à côté de l’artifact' }, action: { 'prompt.insert': 'Export the open artifact as a PDF.' } },
                   ],
                   tools: [{ name: 'logs', description: 'Last 200 lines of the Lando logs', command: 'lando logs --tail 200' }],
+                },
+              },
+            },
+            {
+              dir: '/home/demo/.config/dev.squadron.desktop/extensions/team-share',
+              linked: false,
+              error: null,
+              manifest: {
+                id: 'team-share',
+                version: '0.1.0',
+                api: 1,
+                name: { en: 'Team share (Google)' },
+                wasm: 'team-share.wasm',
+                permissions: { exec: ['python3'] },
+                contributes: {
+                  skills: ['skills/share'],
+                  items: [
+                    {
+                      slot: 'artifact.actions',
+                      id: 'team',
+                      label: { en: 'Share with the team', fr: 'Partager avec l’équipe' },
+                      hint: { en: 'Google web app for example.com accounts', fr: 'App web Google pour les comptes example.com' },
+                      action: {
+                        'artifact.share': {
+                          confirm: { en: '“{artifact.title}” becomes a Google web app that only example.com accounts can open, deployed from your Google account.' },
+                          lines: ['Google Apps Script · access: example.com'],
+                          shared: { en: 'Shared with the team', fr: 'Partagé avec l’équipe' },
+                          share: 'Share the artifact {artifact.id} at {artifact.dir} with the team-share skill, then call publish_artifact with id {artifact.id}, destination {destination} and its /exec link.',
+                          update: { tool: 'deploy' },
+                          unshare: { tool: 'undeploy' },
+                          delete: { en: 'Also delete the Apps Script project', fr: 'Supprimer aussi le projet Apps Script' },
+                          deleteHint: { en: 'The statuses and notes the team entered are deleted with it.', fr: 'Les statuts et notes saisis par l’équipe sont supprimés avec lui.' },
+                        },
+                      },
+                    },
+                  ],
                 },
               },
             },
@@ -1311,6 +1362,8 @@ mockIPC(
       case 'extensions_set_tools':
       case 'extensions_wasm_event':
         return
+      case 'extensions_set_skills':
+        return []
       case 'extensions_wasm_sync':
         return {}
       case 'extensions_enable': {

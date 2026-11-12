@@ -4,7 +4,18 @@ import type { Slot } from './slots'
 
 export type Text = { en: string } & Partial<Record<Locale, string>>
 
-export type ExtensionAction = { 'terminal.run': string } | { 'prompt.insert': string } | { 'url.open': string } | { squadron: Action } | { run: string } | { 'panel.open': string }
+export type ShareStep = string | { tool: string }
+
+export type ShareAction = { confirm: Text; lines?: string[]; shared?: Text; share: ShareStep; update?: ShareStep; unshare?: ShareStep; delete?: Text; deleteHint?: Text }
+
+export type ExtensionAction =
+  | { 'terminal.run': string }
+  | { 'prompt.insert': string }
+  | { 'url.open': string }
+  | { squadron: Action }
+  | { run: string }
+  | { 'panel.open': string }
+  | { 'artifact.share': ShareAction }
 
 export type ExtensionItem = { slot: Slot; id: string; label: Text; hint?: Text; icon?: string; action: ExtensionAction; words?: string[]; spotlight?: boolean }
 
@@ -28,7 +39,7 @@ export type Manifest = {
   description?: Text
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -41,7 +52,7 @@ export type Item = ExtensionItem & { key: string; extension: string; allowed: bo
 
 export type Exposed = ExtensionTool & { extension: string; tool: string }
 
-export const EXTENSION_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squadron']
+export const EXTENSION_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squadron', 'artifact.actions']
 
 export const ICONS = ['editor', 'pull', 'terminal', 'diff', 'kanban', 'remote', 'subagents', 'artifact', 'branch', 'options', 'context', 'turns', 'tasks', 'persona', 'plus', 'copy', 'folder', 'archive', 'stop', 'pin', 'grid', 'jump', 'update', 'mcp']
 
@@ -66,9 +77,21 @@ export const text = (value: Text, locale: Locale) => value[locale] || value.en
 const inside = (path: unknown, extension: string) =>
   typeof path === 'string' && path.endsWith(extension) && !path.startsWith('/') && !path.split(/[\\/]/).some((p) => !p || p === '..')
 
+const stepOk = (step: unknown, wasm: boolean) => (typeof step === 'string' ? !!step.trim() : isObject(step) && typeof step.tool === 'string' && TOOL.test(step.tool) && wasm)
+
+function shareProblem(value: unknown, slot: Slot, wasm: boolean): Problem | null {
+  if (slot !== 'artifact.actions') return ['extensions.shareSlot']
+  if (!isObject(value) || !isText(value.confirm) || !stepOk(value.share, wasm)) return ['extensions.badShare']
+  if ([value.update, value.unshare].some((s) => s !== undefined && !stepOk(s, wasm))) return ['extensions.badShare']
+  if ([value.shared, value.delete, value.deleteHint].some((s) => s !== undefined && !isText(s))) return ['extensions.badShare']
+  if (value.lines !== undefined && !(Array.isArray(value.lines) && value.lines.every(oneLine))) return ['extensions.badShare']
+  return null
+}
+
 function actionProblem(action: unknown, slot: Slot, wasm: boolean, panels: string[]): Problem | null {
   if (!isObject(action) || Object.keys(action).length !== 1) return ['extensions.badAction']
   const [kind, value] = Object.entries(action)[0]
+  if (kind === 'artifact.share') return shareProblem(value, slot, wasm)
   if (typeof value !== 'string' || !value.trim()) return ['extensions.badAction']
   if (NEEDS_AGENT.includes(kind) && slot === 'menu.squadron') return ['extensions.needsAgent', { action: kind }]
   if (kind === 'terminal.run') return oneLine(value) ? null : ['extensions.badCommand']
@@ -104,6 +127,10 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
     const args = contributes.args ?? []
     if (!Array.isArray(args) || !args.every(oneLine) || (args.length && !args[0].startsWith('-'))) problems.push(['extensions.badArgs'])
     else for (const arg of args) if (RESERVED.includes(arg.split('=')[0])) problems.push(['extensions.reservedArg', { arg }])
+    const skills = contributes.skills ?? []
+    if (!Array.isArray(skills) || !skills.every((s) => typeof s === 'string' && !s.startsWith('/') && !s.split(/[\\/]/).some((p) => !p || p === '..' || p === '.')))
+      problems.push(['extensions.badSkills'])
+    else if (new Set(skills.map((s) => s.split(/[\\/]/).pop())).size < skills.length) problems.push(['extensions.badSkills'])
     const panels = contributes.panels ?? []
     if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html')))
       problems.push(['extensions.badPanels'])
@@ -163,6 +190,8 @@ export const ARGS = 'args:'
 
 export const AGENTS = 'agents:'
 
+export const SKILLS = 'skills:'
+
 export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
@@ -171,6 +200,7 @@ export const commandsOf = (manifest: Manifest) => [
     ...(manifest.permissions?.network ?? []).map((h) => NET + h),
     ...(manifest.permissions?.agents ?? []).map((a) => AGENTS + a),
     ...(manifest.contributes?.args?.length ? [ARGS + JSON.stringify(manifest.contributes.args)] : []),
+    ...(manifest.contributes?.skills?.length ? [SKILLS + JSON.stringify(manifest.contributes.skills)] : []),
   ]),
 ]
 
@@ -196,7 +226,10 @@ export const itemsOf = (extensions: Extension[], slot: Slot): Item[] =>
       .map((i) => ({ ...i, key: `${m.manifest.id}.${i.id}`, extension: m.manifest.id, allowed: !('terminal.run' in i.action) || !m.pending.includes(i.action['terminal.run']) })),
   )
 
-export const spotlightOf = (extensions: Extension[]): Item[] => EXTENSION_SLOTS.flatMap((slot) => itemsOf(extensions, slot)).filter((i) => i.spotlight !== false)
+export const spotlightOf = (extensions: Extension[]): Item[] =>
+  EXTENSION_SLOTS.filter((slot) => slot !== 'artifact.actions')
+    .flatMap((slot) => itemsOf(extensions, slot))
+    .filter((i) => i.spotlight !== false)
 
 export const needsAgent = (item: ExtensionItem) => NEEDS_AGENT.some((kind) => kind in item.action)
 
@@ -208,6 +241,9 @@ export const toolsOf = (extensions: Extension[]): Exposed[] =>
   )
 
 export const argsOf = (extensions: Extension[]) => active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(ARGS) && !m.pending.includes(c)) ? (m.manifest.contributes?.args ?? []) : []))
+
+export const skillsOf = (extensions: Extension[]) =>
+  active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(SKILLS) && !m.pending.includes(c)) ? [{ id: m.manifest.id, dir: m.dir, skills: m.manifest.contributes?.skills ?? [] }] : []))
 
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))

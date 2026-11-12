@@ -41,6 +41,8 @@
     <rect x="9" y="9" width="11" height="11" rx="2" /><path d="M5 15V5a1 1 0 0 1 1-1h9" />
   {:else if name === 'folder'}
     <path d="M3 7h6l2 2h10v10H3z" />
+  {:else if name === 'trash'}
+    <path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" />
   {:else if name === 'archive'}
     <path d="M3 4h18v4H3zM5 8v12h14V8M10 12h4" />
   {:else if name === 'stop'}

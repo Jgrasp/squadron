@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { argsOf, catalogOf, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { argsOf, catalogOf, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -33,6 +33,7 @@ describe('extensions', () => {
     const item = (extra: object) => keys({ ...lando, contributes: { items: [{ slot: 'agent.tools', id: 'a', label: { en: 'A' }, action: { squadron: 'kanban' }, ...extra }] } })
     expect(item({})).toEqual([])
     expect(item({ slot: 'agent.info' })).toEqual(['extensions.badSlot'])
+    expect(item({ slot: 'artifact.actions', action: { 'prompt.insert': 'Share it' } })).toEqual([])
     expect(item({ icon: 'rocket' })).toEqual(['extensions.badIcon'])
     expect(item({ action: { squadron: 'explode' } })).toEqual(['extensions.badSquadron'])
     expect(item({ action: { 'terminal.run': 'ls\nrm -rf ~' } })).toEqual(['extensions.badCommand'])
@@ -44,6 +45,27 @@ describe('extensions', () => {
     expect(item({ words: ['a\nb'] })).toEqual(['extensions.badWords'])
     expect(item({ spotlight: 'no' })).toEqual(['extensions.badSpotlight'])
     expect(keys({ ...lando, contributes: { items: [lando.contributes.items[0], lando.contributes.items[0]] } })).toEqual(['extensions.twiceItem'])
+  })
+
+  it('only takes a share action in the Share menu, with tool steps from a wasm module', () => {
+    const share = (action: object, slot = 'artifact.actions', wasm?: string) =>
+      keys({ ...lando, wasm, contributes: { items: [{ slot, id: 'team', label: { en: 'Team' }, action: { 'artifact.share': action } }] } })
+    const base = { confirm: { en: 'Share {artifact.title}?' }, share: 'Share {artifact.id}' }
+    expect(share(base)).toEqual([])
+    expect(share(base, 'agent.menu')).toEqual(['extensions.shareSlot'])
+    expect(share({ share: 'x' })).toEqual(['extensions.badShare'])
+    expect(share({ ...base, unshare: { tool: 'undeploy' } })).toEqual(['extensions.badShare'])
+    expect(share({ ...base, unshare: { tool: 'undeploy' } }, 'artifact.actions', 'share.wasm')).toEqual([])
+    expect(share({ ...base, lines: ['a\nb'] })).toEqual(['extensions.badShare'])
+  })
+
+  it('gives the skills of an extension only once the user allowed them', () => {
+    expect(keys({ ...lando, contributes: { skills: ['skills/share'] } })).toEqual([])
+    expect(keys({ ...lando, contributes: { skills: ['../share'] } })).toEqual(['extensions.badSkills'])
+    expect(keys({ ...lando, contributes: { skills: ['a/share', 'b/share'] } })).toEqual(['extensions.badSkills'])
+    const found = [{ dir: '/x/team', linked: false, error: null, manifest: { ...lando, id: 'team', contributes: { skills: ['skills/share'] } } }]
+    expect(skillsOf(load(found, []))).toEqual([])
+    expect(skillsOf(load(found, [], { team: ['skills:["skills/share"]'] }))).toEqual([{ id: 'team', dir: '/x/team', skills: ['skills/share'] }])
   })
 
   it('only lets colors into the theme', () => {
@@ -64,9 +86,9 @@ describe('extensions', () => {
     expect(itemsOf(load([found('/m/lando', lando)], ['lando']), 'agent.tools')).toEqual([])
   })
 
-  it('offers every item of every slot to the spotlight, unless it opts out', () => {
+  it('offers every item to the spotlight, unless it opts out or needs an open artifact', () => {
     const found = (dir: string, manifest: unknown) => ({ dir, linked: false, manifest, error: null })
-    const hidden = { ...lando, contributes: { items: [...lando.contributes.items, { slot: 'agent.menu', id: 'quiet', label: { en: 'Quiet' }, action: { squadron: 'kanban' }, spotlight: false }] } }
+    const hidden = { ...lando, contributes: { items: [...lando.contributes.items, { slot: 'agent.menu', id: 'quiet', label: { en: 'Quiet' }, action: { squadron: 'kanban' }, spotlight: false }, { slot: 'artifact.actions', id: 'share', label: { en: 'Share' }, action: { 'prompt.insert': 'Share it' } }] } }
     const items = spotlightOf(load([found('/m/lando', hidden)], []))
     expect(items.map((i) => i.key)).toEqual(['lando.logs', 'lando.docs'])
     expect(items.map(needsAgent)).toEqual([true, false])

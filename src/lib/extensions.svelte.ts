@@ -8,7 +8,7 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { AGENTS, argsOf, ARGS, catalogOf, EXEC, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
+import { AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -39,6 +39,8 @@ export const commandLine = (key: string) =>
       ? t('extensions.network', { host: key.slice(NET.length) })
       : key.startsWith(ARGS)
         ? t('extensions.claudeArgs', { args: (JSON.parse(key.slice(ARGS.length)) as string[]).join(' ') })
+        : key.startsWith(SKILLS)
+          ? t('extensions.claudeSkills', { skills: (JSON.parse(key.slice(SKILLS.length)) as string[]).map((s) => s.split(/[\\/]/).pop()).join(', ') })
         : key === `${AGENTS}read`
           ? t('extensions.agentsRead')
           : key === `${AGENTS}archive`
@@ -96,6 +98,9 @@ export const extensionItems = (slot: Slot) => itemsOf(extensions.list, slot)
 
 export const spotlightItems = () => spotlightOf(extensions.list)
 
+export const shareTool = (extension: string, tool: string, input: unknown, agent: Agent) =>
+  invoke<string>('extensions_wasm_tool', { id: extension, name: tool, input: JSON.stringify(input), agent: info(agent) })
+
 export const extensionItem = (slot: Slot, key: string) => extensionItems(slot).find((i) => i.key === key)
 
 export async function runItem(item: Item, { project, agent }: Context) {
@@ -109,7 +114,7 @@ export async function runItem(item: Item, { project, agent }: Context) {
   }
   if ('run' in action)
     return invoke('extensions_wasm_run', { id: item.extension, action: action.run, agent: agent && info(agent) }).catch((e) => message(errorText(e), { kind: 'error', title: item.extension }))
-  if (!agent) return
+  if (!agent || 'artifact.share' in action) return
   if ('prompt.insert' in action) pointed[agent.id] = [...(pointed[agent.id] ?? []), action['prompt.insert']]
   else {
     const extension = extensions.list.find((m) => m.id === item.extension)
@@ -181,6 +186,26 @@ export async function checkUpdates() {
     for (const c of fresh) sendNotification({ title: t('extensions.updateTitle'), body: t('extensions.updateBody', { name: text(c.name, locale()), version: c.version }) })
 }
 
+const syncSkills = (list: Extension[]) =>
+  invoke<string[]>('extensions_set_skills', { list: skillsOf(list) }).then((errors) => {
+    for (const error of errors) console.warn(error)
+  })
+
+const syncWasm = (list: Extension[]) =>
+  invoke<Record<string, string>>('extensions_wasm_sync', {
+    list: list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) })),
+  }).then((errors) => {
+    extensions.errors = errors
+  })
+
+export async function allowed(id: string) {
+  const extension = extensions.list.find((m) => m.id === id)
+  if (!extension?.pending.length) return !!extension
+  if (!(await requestApproval(extension))) return false
+  await Promise.all([syncSkills(extensions.list), syncWasm(extensions.list)])
+  return true
+}
+
 export const approve = (extension: Extension) => invoke('extensions_approve', { id: extension.id, commands: extension.commands }).then(loadExtensions)
 
 listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-host', async ({ payload: p }) => {
@@ -231,10 +256,11 @@ $effect.root(() => {
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return
-    const list = extensions.list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) }))
-    invoke<Record<string, string>>('extensions_wasm_sync', { list }).then((errors) => {
-      extensions.errors = errors
-    })
+    syncSkills(extensions.list)
+  })
+  $effect(() => {
+    if (getCurrentWindow().label !== 'main') return
+    syncWasm(extensions.list)
   })
   $effect(() => {
     if (getCurrentWindow().label !== 'main') return

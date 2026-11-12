@@ -820,6 +820,26 @@ fn set_artifact_link(agent: String, id: String, link: String) -> Result<(), Stri
 }
 
 #[tauri::command]
+fn set_artifact_share(
+    agent: String,
+    id: String,
+    destination: String,
+    link: Option<String>,
+) -> Result<(), String> {
+    let at = std::time::SystemTime::now()
+        .duration_since(std::time::UNIX_EPOCH)
+        .map_or(0, |d| d.as_millis() as u64);
+    artifacts::set_shared(
+        artifacts_root()?,
+        &agent,
+        &id,
+        &destination,
+        link.as_deref(),
+        at,
+    )
+}
+
+#[tauri::command]
 fn delete_artifact(agent: String, id: String) -> Result<(), String> {
     artifacts::remove(artifacts_root()?, &agent, &id)
 }
@@ -1530,6 +1550,17 @@ fn extensions_set_args(args: Vec<String>) {
 }
 
 #[tauri::command]
+fn extensions_set_skills(
+    extensions: State<extensions::Extensions>,
+    list: Vec<extensions::SkillSet>,
+) -> Vec<String> {
+    let root = extensions.file.with_file_name("extensions-plugins");
+    let (plugins, errors) = extensions::sync_skills(&root, &list);
+    *claude::EXTENSION_PLUGINS.lock().unwrap() = plugins;
+    errors
+}
+
+#[tauri::command]
 async fn extensions_set_tools(
     tools: State<'_, extension_tools::Tools>,
     list: Vec<extension_tools::ExtensionTool>,
@@ -1628,6 +1659,11 @@ fn extensions_wasm_answer(
     error: Option<String>,
 ) {
     runtime.answer(&reply, error.map_or(Ok(value.unwrap_or_default()), Err));
+}
+
+#[tauri::command]
+fn extension_data_dir(runtime: State<wasm::Runtime>, id: String) -> Result<PathBuf, String> {
+    runtime.data_dir(&id)
 }
 
 #[tauri::command]
@@ -2400,6 +2436,8 @@ pub fn run() {
             read_artifact,
             write_artifact,
             set_artifact_link,
+            set_artifact_share,
+            extension_data_dir,
             delete_artifact,
             open_artifact_folder,
             list_dir,
@@ -2486,6 +2524,7 @@ pub fn run() {
             extensions_wasm_event,
             extensions_wasm_answer,
             extensions_set_args,
+            extensions_set_skills,
             extensions_wasm_run,
             extensions_wasm_tool,
             open_extensions_folder,

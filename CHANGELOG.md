@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.44.0 · 2026-11-12
+
+### Artifacts
+
+- The Artifacts panel has a Share menu: Publish on claude.ai is its first destination, and extensions add theirs. Once shared, a destination gives Open, Copy link, Update when the artifact changed since, and Stop sharing; a band shows while it works.
+- Copy the source, Open the folder (or Save as a file) and Delete move into a ⋯ menu, so the panel's header fits at its default width.
+
+### Extensions
+
+- An item of the new artifact.actions slot shares the open artifact with artifact.share: a confirmation, then steps written as a prompt, carried out by an agent of its own, or as a call to the extension's WebAssembly. The first click asks for the extension's pending access.
+- contributes.skills gives skills to your agents once you allow them.
+- Each extension gets a data folder kept across updates (host::data_dir, API 1.2.0). Extensions built against 1.1.0 still load.
+
 ## 0.43.0 · 2026-11-12
 
 ### Pull requests

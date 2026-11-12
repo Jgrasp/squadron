@@ -85,6 +85,7 @@ pub struct Artifact {
     pub title: String,
     pub modified: u64,
     pub link: Option<String>,
+    pub links: serde_json::Map<String, serde_json::Value>,
 }
 
 fn name_ok(name: &str) -> bool {
@@ -127,6 +128,9 @@ fn scan(dir: &Path, newest: &mut u64, count: &mut u64) {
         return;
     };
     for item in read.flatten() {
+        if item.file_name() == META {
+            continue;
+        }
         let Ok(meta) = item.metadata() else { continue };
         *count += 1;
         *newest = (*newest).max(millis(&meta));
@@ -155,10 +159,22 @@ fn title_of(path: &Path, kind: &str) -> Option<String> {
     found.map(String::from)
 }
 
+fn meta_of(dir: &Path) -> serde_json::Map<String, serde_json::Value> {
+    std::fs::read_to_string(dir.join(META))
+        .ok()
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
 fn link_of(dir: &Path) -> Option<String> {
-    let text = std::fs::read_to_string(dir.join(META)).ok()?;
-    let meta: serde_json::Value = serde_json::from_str(&text).ok()?;
-    meta["link"].as_str().map(String::from)
+    meta_of(dir).get("link")?.as_str().map(String::from)
+}
+
+fn links_of(dir: &Path) -> serde_json::Map<String, serde_json::Value> {
+    match meta_of(dir).remove("links") {
+        Some(serde_json::Value::Object(links)) => links,
+        _ => Default::default(),
+    }
 }
 
 pub fn list(root: &Path, agent: &str) -> Result<Vec<Artifact>, String> {
@@ -183,6 +199,7 @@ pub fn list(root: &Path, agent: &str) -> Result<Vec<Artifact>, String> {
                 entry: entry.into(),
                 modified,
                 link: link_of(&dir),
+                links: links_of(&dir),
             })
         })
         .collect();
@@ -217,16 +234,52 @@ pub fn write(
     Ok(path)
 }
 
-pub fn set_link(root: &Path, agent: &str, id: &str, link: &str) -> Result<(), String> {
+fn change_meta(
+    root: &Path,
+    agent: &str,
+    id: &str,
+    change: impl FnOnce(&mut serde_json::Map<String, serde_json::Value>),
+) -> Result<(), String> {
     let dir = artifact_dir(root, agent, id)?;
     if entry_of(&dir).is_none() {
         return Err("The artifact is gone.".into());
     }
-    std::fs::write(
-        dir.join(META),
-        serde_json::json!({ "link": link }).to_string(),
-    )
-    .map_err(|e| e.to_string())
+    let mut meta = meta_of(&dir);
+    change(&mut meta);
+    std::fs::write(dir.join(META), serde_json::Value::Object(meta).to_string())
+        .map_err(|e| e.to_string())
+}
+
+pub fn set_link(root: &Path, agent: &str, id: &str, link: &str) -> Result<(), String> {
+    change_meta(root, agent, id, |meta| {
+        meta.insert("link".into(), link.into());
+    })
+}
+
+pub fn set_shared(
+    root: &Path,
+    agent: &str,
+    id: &str,
+    destination: &str,
+    link: Option<&str>,
+    at: u64,
+) -> Result<(), String> {
+    change_meta(root, agent, id, |meta| {
+        let mut links = match meta.remove("links") {
+            Some(serde_json::Value::Object(links)) => links,
+            _ => Default::default(),
+        };
+        match link {
+            Some(link) => links.insert(
+                destination.into(),
+                serde_json::json!({ "link": link, "at": at }),
+            ),
+            None => links.remove(destination),
+        };
+        if !links.is_empty() {
+            meta.insert("links".into(), links.into());
+        }
+    })
 }
 
 pub fn remove(root: &Path, agent: &str, id: &str) -> Result<(), String> {
@@ -504,6 +557,36 @@ mod tests {
         );
         remove(&root, "a1", "page").unwrap();
         assert_eq!(list(&root, "a1").unwrap().len(), 1);
+        std::fs::remove_dir_all(root).unwrap();
+    }
+
+    #[test]
+    fn keeps_a_link_per_destination_without_touching_the_edit_time() {
+        let root = root();
+        write(&root, "a1", "plan", "html", "<title>Plan</title>").unwrap();
+        let before = list(&root, "a1").unwrap()[0].modified;
+        std::thread::sleep(std::time::Duration::from_millis(20));
+        set_shared(
+            &root,
+            "a1",
+            "plan",
+            "team.share",
+            Some("https://script.google.com/x/exec"),
+            42,
+        )
+        .unwrap();
+        set_link(&root, "a1", "plan", "https://claude.ai/artifact/x").unwrap();
+        let found = &list(&root, "a1").unwrap()[0];
+        assert_eq!(found.modified, before);
+        assert_eq!(found.link.as_deref(), Some("https://claude.ai/artifact/x"));
+        assert_eq!(
+            found.links["team.share"],
+            serde_json::json!({ "link": "https://script.google.com/x/exec", "at": 42 })
+        );
+        set_shared(&root, "a1", "plan", "team.share", None, 43).unwrap();
+        let found = &list(&root, "a1").unwrap()[0];
+        assert!(found.links.is_empty());
+        assert_eq!(found.link.as_deref(), Some("https://claude.ai/artifact/x"));
         std::fs::remove_dir_all(root).unwrap();
     }
 

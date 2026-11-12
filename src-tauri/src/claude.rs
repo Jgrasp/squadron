@@ -10,6 +10,7 @@ use std::thread;
 pub static COMPACT_WINDOW: AtomicU32 = AtomicU32::new(0);
 pub static CAPTURES: OnceLock<PathBuf> = OnceLock::new();
 pub static EXTENSION_ARGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+pub static EXTENSION_PLUGINS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 pub static ON_DEMAND: Mutex<String> = Mutex::new(String::new());
 
 pub const TESTED_VERSION: &str = "2.1.304";
@@ -166,6 +167,9 @@ pub fn command(
         }
     }
     cmd.args(EXTENSION_ARGS.lock().unwrap().iter());
+    for plugin in EXTENSION_PLUGINS.lock().unwrap().iter() {
+        cmd.arg("--plugin-dir").arg(plugin);
+    }
     if let Some(config) = mcp {
         cmd.args([
             "--mcp-config",

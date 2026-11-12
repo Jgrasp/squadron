@@ -1,7 +1,8 @@
 import { calls, type Agent } from './stream'
 
 export type ArtifactKind = 'html' | 'markdown' | 'svg'
-export type ArtifactInfo = { id: string; kind: ArtifactKind; entry: string; title: string; modified: number; link: string | null }
+export type Shared = { link: string; at: number }
+export type ArtifactInfo = { id: string; kind: ArtifactKind; entry: string; title: string; modified: number; link: string | null; links?: Record<string, Shared> }
 export type Doc = { id: string; title: string; kind: 'doc'; link: string }
 
 export const ARTIFACT_MAX = 500_000
@@ -54,6 +55,8 @@ export function docsOf(agent: Agent, linked: string[] = []): Doc[] {
     return [{ id: link, title: String(create.name ?? '') || link, kind: 'doc' as const, link }]
   })
 }
+
+export const fillShare = (text: string, values: Record<string, string>) => text.replace(/\{(artifact\.(?:id|title|dir|entry)|extension\.data|agent\.id|agent|destination|link|delete)\}/g, (all, key: string) => values[key] ?? all)
 
 export const sharePrompt = (artifact: ArtifactInfo) =>
   `Publish the artifact ${artifact.id} “${artifact.title}” as a Claude Doc on claude.ai with the Claude Docs connector, keeping its content as it is. Then call publish_artifact with id ${artifact.id} and the doc's link, without content, so that I can share it from Squadron.`

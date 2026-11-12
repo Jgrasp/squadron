@@ -1,6 +1,6 @@
 import type { Key } from './i18n/index.svelte'
 
-export type Slot = 'agent.info' | 'agent.tools' | 'agent.menu' | 'menu.squadron'
+export type Slot = 'agent.info' | 'agent.tools' | 'agent.menu' | 'menu.squadron' | 'artifact.actions'
 
 export type Arrangement = { order?: string[]; hidden?: string[] }
 
@@ -56,6 +56,11 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
       ['about', 'settings.itemAbout', 'settings.itemAboutHint'],
     ],
     locked: ['settings'],
+  },
+  'artifact.actions': {
+    title: 'settings.slotArtifact',
+    hint: 'settings.slotArtifactHint',
+    items: [['claude', 'agent.artifactShare', 'settings.itemClaudeHint']],
   },
 }
 

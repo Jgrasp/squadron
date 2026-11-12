@@ -15,7 +15,8 @@ import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
 import { ARTIFACT_MAX, ARTIFACT_KINDS, DOC_LINK, freeId, type ArtifactInfo } from './artifacts'
-import { refresh } from './artifacts.svelte'
+import { refresh, working, workKey } from './artifacts.svelte'
+import { extensionItems } from './extensions.svelte'
 import { clip } from './shell'
 import { follow } from './sudo.svelte'
 
@@ -369,14 +370,29 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const id = String(args.id ?? '').trim()
     const content = String(args.content ?? '')
     const link = String(args.link ?? '').trim()
-    const list = await invoke<ArtifactInfo[]>('list_artifacts', { agent: caller.id })
+    const destination = String(args.destination ?? '').trim()
+    const owner = (destination && caller.sharing?.destination === destination && caller.sharing.artifact === id && find(caller.sharing.agent)) || caller
+    const list = await invoke<ArtifactInfo[]>('list_artifacts', { agent: owner.id })
     const found = id ? list.find((a) => a.id === id) : undefined
     if (id && !found) throw new Error(`You have no artifact ${id}. Your artifacts: ${list.map((a) => `${a.id} “${a.title}”`).join(', ') || 'none'}.`)
+    if (destination) {
+      const shares = extensionItems('artifact.actions').filter((i) => 'artifact.share' in i.action)
+      if (!shares.some((i) => i.key === destination))
+        throw new Error(`No Share menu destination ${destination}. Destinations: ${shares.map((i) => i.key).join(', ') || 'none'}.`)
+      if (!found) throw new Error('Give the id of the artifact the link is for.')
+      if (link && !/^https:\/\/\S+$/.test(link)) throw new Error(`${link} is not an https:// link.`)
+      if (content.trim()) throw new Error('Leave the content empty: a destination only takes the link.')
+      await invoke('set_artifact_share', { agent: owner.id, id, destination, link: link || null })
+      delete working[workKey(owner.id, id)]
+      await refresh(owner.id)
+      return link ? `Artifact ${id} is shared on ${destination} at ${link}: the user opens it and copies the link from the Share menu.` : `Artifact ${id} is no longer shared on ${destination}.`
+    }
     if (link && !DOC_LINK.test(link)) throw new Error(`${link} is not the link of a claude.ai doc.`)
     if (!content.trim()) {
       if (!found) throw new Error('The content is empty.')
       if (link) {
         await invoke('set_artifact_link', { agent: caller.id, id, link })
+        delete working[workKey(caller.id, id)]
         await refresh(caller.id)
         return `Artifact ${id} now links to ${link}: the user opens and shares it from the Artifacts panel.`
       }

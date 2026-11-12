@@ -1,6 +1,8 @@
 type Kind = 'info' | 'warning' | 'error'
 
-type Options = { title?: string; kind?: Kind; okLabel?: string; cancelLabel?: string; lines?: string[] }
+type Check = { label: string; hint?: string; onchange: (checked: boolean) => void }
+
+type Options = { title?: string; kind?: Kind; okLabel?: string; cancelLabel?: string; lines?: string[]; check?: Check; danger?: boolean }
 
 export type Question = Options & { text: string; choice: boolean; answer: (yes: boolean) => void }
 

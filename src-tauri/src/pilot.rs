@@ -240,6 +240,8 @@ struct Artifact {
     id: Option<String>,
     /// The claude.ai link of the Claude Doc you published this artifact as, when the user asked you to share it. With id and no content, only sets the link.
     link: Option<String>,
+    /// The Share menu destination the link is for, as named in the prompt that asked you to share the artifact, such as team-share.team. Then link is any https:// address, and an empty link with id and no content only removes that destination's link.
+    destination: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]

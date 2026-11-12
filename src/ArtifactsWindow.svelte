@@ -12,4 +12,11 @@
   refresh(agent.id)
 </script>
 
-<ArtifactsPanel {agent} windowed onpoint={relay('point')} onshare={relay('share')} onclose={() => getCurrentWindow().close()} />
+<ArtifactsPanel
+  {agent}
+  windowed
+  onpoint={relay('point')}
+  onshare={relay('share')}
+  ondelegate={(delegation) => void emitTo('main', 'artifact-do', { agent: agent.id, kind: 'delegate', text: '', delegation })}
+  onclose={() => getCurrentWindow().close()}
+/>

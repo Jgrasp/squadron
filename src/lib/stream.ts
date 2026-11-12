@@ -175,6 +175,7 @@ export type Agent = {
   infoPanel?: { html: string; height: number; hidden?: boolean }
   artifacts?: LegacyArtifact[]
   hiddenDocs?: string[]
+  sharing?: { agent: string; artifact: string; destination: string }
   guess?: string
   stored?: { count: number; created: number | null; users?: number }
   onDemand?: string[]
