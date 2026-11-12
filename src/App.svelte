@@ -130,7 +130,7 @@
     const unlisten = appWindow.onCloseRequested(async (event) => {
       event.preventDefault()
       if (asking) return
-      const busy = agents.list.filter((a) => a.status === 'working' || a.status === 'waiting')
+      const busy = agents.list.filter((a) => a.status === 'working')
       asking = busy.length > 0
       if (
         busy.length &&
