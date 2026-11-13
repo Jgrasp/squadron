@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.45.1 · 2026-11-13
+
+### Agents
+
+- An agent that goes on after a failed turn, by itself or from Retry, no longer shows as waiting for you, and only the last error card keeps its buttons, so an older one cannot send your message again.
+
+### Extensions
+
+- An installed extension with a newer version in the catalog shows an Update button on its card.
+
 ## 0.45.0 · 2026-11-13
 
 ### Artifacts

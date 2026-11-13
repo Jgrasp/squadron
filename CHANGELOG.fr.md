@@ -1,5 +1,15 @@
 # Nouveautés
 
+## 0.45.1 · 2026-11-13
+
+### Agents
+
+- Un agent qui repart après un tour en échec, de lui-même ou par Réessayer, ne s’affiche plus en attente de vous, et seule la dernière carte d’erreur garde ses boutons : une ancienne ne peut plus renvoyer votre message.
+
+### Extensions
+
+- Une extension installée dont le catalogue a une version plus récente montre un bouton Mettre à jour sur sa carte.
+
 ## 0.45.0 · 2026-11-13
 
 ### Artifacts
