@@ -200,8 +200,6 @@
     <span class="pill error">⚠ {t('extensions.error')}</span>
   {:else if c.pending.length}
     <span class="pill pending">{t('extensions.toAllow')}</span>
-  {:else if c.update}
-    <span class="pill update">↑ {c.update.version}</span>
   {/if}
 {/snippet}
 
@@ -261,7 +259,10 @@
       <div class="badges">{@render badges(c)}</div>
       <p class="desc">{c.description}</p>
       <div class="foot">
-        <small>{counts(c)}</small>
+        <small>{c.installed && c.update ? '' : counts(c)}</small>
+        {#if c.installed && c.update}
+          <button class="btn btn-primary" disabled={!!busy} title={t('extensions.update', { version: c.update.version })} onclick={() => attempt(() => install(c.update!), c.id)}>{busy === c.id ? t('extensions.updating') : t('extensions.updateNow')}</button>
+        {/if}
         {@render action(c)}
       </div>
     </article>
@@ -689,11 +690,6 @@
     background: var(--background-bg);
     box-shadow: inset 0 0 0 1px var(--background-line);
     color: var(--remote-text);
-  }
-
-  .pill.update {
-    background: var(--accent);
-    color: var(--ink);
   }
 
   .pill.pending {

@@ -78,6 +78,8 @@ export default {
   install: 'Install',
   installing: 'Installing…',
   update: 'Update to {version}',
+  updateNow: 'Update',
+  updating: 'Updating…',
   updateTitle: 'Extension update',
   updateBody: '{name} {version} is available in Settings › Extensions.',
   search: { one: 'Search {count} extension: name, tool, source…', other: 'Search {count} extensions: name, tool, source…' },
