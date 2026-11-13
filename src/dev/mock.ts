@@ -1249,7 +1249,13 @@ mockIPC(
                     fields: [
                       { id: 'site', label: { en: 'Site', fr: 'Site' }, kind: 'host', hint: { en: 'company.atlassian.net' } },
                       { id: 'email', label: { en: 'Email', fr: 'E-mail' } },
-                      { id: 'token', label: { en: 'API token', fr: 'Jeton d’API' }, kind: 'secret' },
+                      {
+                        id: 'token',
+                        label: { en: 'API token', fr: 'Jeton d’API' },
+                        kind: 'secret',
+                        hint: { en: 'Create API token (not “with scopes”)', fr: 'Create API token (pas « with scopes »)' },
+                        url: 'https://id.atlassian.com/manage-profile/security/api-tokens',
+                      },
                     ],
                   },
                 },

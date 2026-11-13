@@ -226,6 +226,9 @@ describe('extensions', () => {
       expect(keys({ ...base, permissions: { network } })).toEqual(['extensions.badNetwork'])
     expect(keys({ ...base, contributes: { secrets: [{ id: 'Token', label: { en: 'T' } }] } })).toEqual(['extensions.badSecrets'])
     expect(keys({ ...base, contributes: { secrets: [{ id: 't', label: { en: 'T' } }, { id: 't', label: { en: 'U' } }] } })).toEqual(['extensions.badSecrets'])
+    expect(keys({ ...base, contributes: { secrets: [{ id: 't', label: { en: 'T' }, url: 'https://github.com/settings/tokens' }] } })).toEqual([])
+    for (const url of ['http://github.com/settings/tokens', 'javascript:alert(1)', 'https://', 42])
+      expect(keys({ ...base, contributes: { secrets: [{ id: 't', label: { en: 'T' }, url }] } })).toEqual(['extensions.badSecrets'])
     const found = [{ dir: '/m/gh', linked: false, manifest: net, error: null }]
     expect(load(found, [], {})[0].pending).toEqual(['net:api.github.com'])
     expect(grantsOf(load(found, [], { gh: ['net:api.github.com'] })[0])).toEqual(['net:api.github.com'])
@@ -236,6 +239,8 @@ describe('extensions', () => {
     const field = (id: string, kind?: string) => ({ id, label: { en: id }, ...(kind ? { kind } : {}) })
     const with_ = (accounts: unknown) => keys({ ...base, contributes: { accounts } })
     expect(with_({ label: { en: 'Jira sites' }, fields: [field('site', 'host'), field('email'), field('token', 'secret')] })).toEqual([])
+    const tokens = 'https://id.atlassian.com/manage-profile/security/api-tokens'
+    expect(with_({ label: { en: 'Jira sites' }, fields: [{ ...field('token', 'secret'), url: tokens }] })).toEqual([])
     for (const bad of [
       { fields: [field('site', 'host')] },
       { label: { en: 'Sites' }, fields: [] },
@@ -243,6 +248,8 @@ describe('extensions', () => {
       { label: { en: 'Sites' }, fields: [field('a'), field('a')] },
       { label: { en: 'Sites' }, fields: [field('a', 'password')] },
       { label: { en: 'Sites' }, fields: [field('a', 'host'), field('b', 'host')] },
+      { label: { en: 'Sites' }, fields: [{ ...field('a', 'secret'), url: 'http://id.atlassian.com/manage-profile/security/api-tokens' }] },
+      { label: { en: 'Sites' }, fields: [{ ...field('a', 'secret'), url: 'https://id.atlassian.com/a b' }] },
       [field('a')],
     ])
       expect(with_(bad)).toEqual(['extensions.badAccounts'])
