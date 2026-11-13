@@ -6,7 +6,7 @@ export type Text = { en: string } & Partial<Record<Locale, string>>
 
 export type ShareStep = string | { tool: string }
 
-export type ShareAction = { confirm: Text; lines?: string[]; shared?: Text; share: ShareStep; update?: ShareStep; unshare?: ShareStep; delete?: Text; deleteHint?: Text }
+export type ShareAction = { confirm: Text; lines?: string[]; shared?: Text; share: ShareStep; update?: ShareStep; unshare?: ShareStep; delete?: Text; deleteHint?: Text; cleanup?: { days: number } }
 
 export type ExtensionAction =
   | { 'terminal.run': string }
@@ -22,6 +22,14 @@ export type ExtensionItem = { slot: Slot; id: string; label: Text; hint?: Text; 
 export type ExtensionTool = { name: string; description: string; command?: string; input?: Record<string, unknown> }
 
 export type ExtensionSecret = { id: string; label: Text; hint?: Text }
+
+export const FIELD_KINDS = ['text', 'host', 'secret'] as const
+
+export type AccountField = { id: string; label: Text; hint?: Text; kind?: (typeof FIELD_KINDS)[number] }
+
+export type Accounts = { label: Text; fields: AccountField[] }
+
+export type Account = { id: string; values: Record<string, string>; host: string | null; secrets: string[] }
 
 export type ManifestPanel = { id: string; title: Text; page: string }
 
@@ -39,7 +47,7 @@ export type Manifest = {
   description?: Text
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; panels?: ManifestPanel[]; theme?: Record<string, string> }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -85,6 +93,7 @@ function shareProblem(value: unknown, slot: Slot, wasm: boolean): Problem | null
   if ([value.update, value.unshare].some((s) => s !== undefined && !stepOk(s, wasm))) return ['extensions.badShare']
   if ([value.shared, value.delete, value.deleteHint].some((s) => s !== undefined && !isText(s))) return ['extensions.badShare']
   if (value.lines !== undefined && !(Array.isArray(value.lines) && value.lines.every(oneLine))) return ['extensions.badShare']
+  if (value.cleanup !== undefined && !(isObject(value.cleanup) && Number.isInteger(value.cleanup.days) && Number(value.cleanup.days) >= 0 && isObject(value.unshare))) return ['extensions.badCleanup']
   return null
 }
 
@@ -101,6 +110,14 @@ function actionProblem(action: unknown, slot: Slot, wasm: boolean, panels: strin
   if (kind === 'panel.open') return panels.includes(value) ? null : ['extensions.unknownPanel', { panel: value }]
   if (kind === 'squadron') return ACTIONS.some(([id]) => id === value) ? null : ['extensions.badSquadron', { action: value }]
   return ['extensions.badAction']
+}
+
+function accountsOk(value: unknown) {
+  if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length) return false
+  const fields = value.fields
+  if (!fields.every((f) => isObject(f) && typeof f.id === 'string' && ID.test(f.id) && isText(f.label) && (f.hint === undefined || isText(f.hint)) && (f.kind === undefined || (FIELD_KINDS as readonly unknown[]).includes(f.kind))))
+    return false
+  return new Set(fields.map((f) => f.id)).size === fields.length && fields.filter((f) => f.kind === 'host').length <= 1
 }
 
 export function validate(raw: unknown, taken: string[] = []): { manifest?: Manifest; problems: Problem[] } {
@@ -175,6 +192,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
     if (!Array.isArray(secrets) || !secrets.every((s) => isObject(s) && typeof s.id === 'string' && ID.test(s.id) && isText(s.label) && (s.hint === undefined || isText(s.hint))))
       problems.push(['extensions.badSecrets'])
     else if (new Set(secrets.map((s) => s.id)).size < secrets.length) problems.push(['extensions.badSecrets'])
+    if (contributes.accounts !== undefined && !accountsOk(contributes.accounts)) problems.push(['extensions.badAccounts'])
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))
       problems.push(['extensions.badTheme'])

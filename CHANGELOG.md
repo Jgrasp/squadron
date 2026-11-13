@@ -1,5 +1,27 @@
 # Changelog
 
+## 0.45.0 · 2026-11-13
+
+### Artifacts
+
+- Sharing with an extension happens in the artifact's own conversation: the extension's skill runs there as a subagent on its own model (Sonnet for Google Workspace). Its steps light up an animated band in the Artifacts panel, and its permission requests open inside its card in the conversation.
+- Artifacts left unchanged for a while are cleaned up: 30 days by default in Settings, longer for what an extension shares, and each artifact sets its own time, Never included, from its ⋯ menu. The share stops before its artifact goes, and deleting an artifact or an agent stops its shares too.
+
+### Extensions
+
+- API 1.3.0: accounts you add in Settings › Extensions, with a host the extension may reach and secrets kept in the keyring; {{account.field}} and {{base64:a:b}} in request headers for Basic auth; fetch-bytes, download and open-file; exec-input with Squadron's own Claude Code.
+- artifact.share takes cleanup.days, a share prompt goes to the artifact's conversation, and set_progress takes artifact.
+
+### Agents
+
+- add_project: an agent adds a folder as a project through the permission card, without switching your view; an archived project comes back with its agents.
+- A skill that runs as a forked subagent shows as one card in the conversation, its permission requests inside.
+
+### Updates
+
+- A failed update check says GitHub is not responding, with its logo, and releases stay drafts until every build is uploaded.
+- A link that would load a website inside a Squadron window opens in the browser.
+
 ## 0.44.0 · 2026-11-12
 
 ### Artifacts

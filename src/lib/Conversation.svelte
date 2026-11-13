@@ -25,9 +25,10 @@ import { fences } from './codepaste'
   import QuestionCard from './QuestionCard.svelte'
   import ValuesCard from './ValuesCard.svelte'
   import SecretCard from './SecretCard.svelte'
-  import { doing, INTERNAL, type Advice, type Agent, type Block, type Subagent, type ToolCall, workdir } from './stream'
+  import { calls, doing, INTERNAL, subagentOf, type Advice, type Agent, type Ask, type Block, type Subagent, type ToolCall, workdir } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
+  import ForkCard from './ForkCard.svelte'
   import BackgroundCard from './BackgroundCard.svelte'
   import ToolRow from './ToolRow.svelte'
   import FileChip from './FileChip.svelte'
@@ -124,12 +125,18 @@ import { fences } from './codepaste'
   type Segment =
     | { type: 'work'; ms: number | undefined; thinking: boolean; thought: string; calls: ToolCall[] }
     | { type: 'spawn'; calls: ToolCall[] }
+    | { type: 'fork'; sub: Subagent }
     | { type: 'plugin'; call: ToolCall; use: Use }
     | { type: 'advisor'; advice: Advice }
     | { type: 'ask' }
     | Extract<Block, { type: 'text' }>
 
   const ASKING = ['AskUserQuestion', 'ExitPlanMode']
+
+  function inFork(ask: Ask) {
+    const sub = subagentOf(agent, ask.tool_use_id)
+    return !!sub && calls(agent).some((c) => c.id === sub.id && c.name === 'Skill')
+  }
 
   function segments(blocks: Block[]) {
     const out: Segment[] = []
@@ -151,7 +158,9 @@ import { fences } from './codepaste'
       }
       for (const call of block.calls.filter((c) => !INTERNAL.includes(c.name))) {
         const use = settings.plugin_lines === 'off' ? null : useOf(agent.plugins ?? [], call)
-        if (ASKING.includes(call.name)) out.push({ type: 'ask' })
+        const fork = call.name === 'Skill' && agent.subagents.findLast((s) => s.id === call.id)
+        if (fork) out.push({ type: 'fork', sub: fork })
+        else if (ASKING.includes(call.name)) out.push({ type: 'ask' })
         else if (use && !(SPAWN.includes(call.name) && agent.subagents.some((s) => s.id === call.id))) out.push({ type: 'plugin', call, use })
         else if (!SPAWN.includes(call.name) || !agent.subagents.some((s) => s.id === call.id)) workOf(out).calls.push(call)
         else {
@@ -165,12 +174,12 @@ import { fences } from './codepaste'
   }
 
   function groups(blocks: Block[]) {
-    const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' | 'advisor' | 'plugin' }>)[] = []
+    const out: ({ type: 'box'; segments: Segment[] } | Extract<Segment, { type: 'spawn' | 'fork' | 'advisor' | 'plugin' }>)[] = []
     let asked = false
     for (const segment of segments(blocks)) {
       const last = out.at(-1)
       if (segment.type === 'ask') asked = true
-      else if (segment.type === 'spawn' || segment.type === 'advisor' || segment.type === 'plugin') out.push(segment)
+      else if (segment.type === 'spawn' || segment.type === 'fork' || segment.type === 'advisor' || segment.type === 'plugin') out.push(segment)
       else if (last?.type === 'box' && !asked) last.segments.push(segment)
       else out.push({ type: 'box', segments: [segment] })
       if (segment.type !== 'ask') asked = false
@@ -378,6 +387,8 @@ import { fences } from './codepaste'
     {#each reply as group, g (g)}
       {#if group.type === 'spawn'}
         <SubagentsCard {agent} ids={group.calls.map((c) => c.id)} onopen={onsubagent} onpanel={onsubagents} />
+      {:else if group.type === 'fork'}
+        <ForkCard {agent} sub={group.sub} />
       {:else if group.type === 'advisor'}
         <AdvisorCard advice={group.advice} model={agent.options.advisor} />
       {:else if group.type === 'plugin'}
@@ -508,7 +519,7 @@ import { fences } from './codepaste'
   {/if}
 {/each}
 
-{#each agent.asks as ask (ask.id)}
+{#each agent.asks.filter((a) => !inFork(a)) as ask (ask.id)}
   {#if ask.tool_name === 'AskUserQuestion'}
     <QuestionCard {agent} {ask} />
   {:else if ask.tool_name === 'ExitPlanMode'}

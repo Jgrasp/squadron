@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
@@ -21,6 +22,61 @@ pub struct Choices {
     pub sources: Vec<String>,
     #[serde(default)]
     pub origins: std::collections::BTreeMap<String, String>,
+    #[serde(default)]
+    pub accounts: BTreeMap<String, Vec<Account>>,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
+pub struct Account {
+    pub id: String,
+    #[serde(default)]
+    pub values: BTreeMap<String, String>,
+    #[serde(default)]
+    pub host: Option<String>,
+    #[serde(default)]
+    pub secrets: Vec<String>,
+}
+
+#[derive(PartialEq)]
+enum Kind {
+    Text,
+    Host,
+    Secret,
+}
+
+fn account_fields(manifest: &serde_json::Value) -> Vec<(String, Kind)> {
+    manifest["contributes"]["accounts"]["fields"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|f| {
+            let id = f["id"].as_str().filter(|id| valid_id(id))?;
+            let kind = match &f["kind"] {
+                serde_json::Value::Null => Kind::Text,
+                k if k == "text" => Kind::Text,
+                k if k == "host" => Kind::Host,
+                _ => Kind::Secret,
+            };
+            Some((id.to_string(), kind))
+        })
+        .collect()
+}
+
+pub fn host_of(input: &str) -> Option<String> {
+    let site = input.trim().trim_end_matches('/');
+    let site = site
+        .strip_prefix("https://")
+        .or_else(|| site.strip_prefix("http://"))
+        .unwrap_or(site);
+    let host = site.split('/').next()?.to_ascii_lowercase();
+    let label = |l: &str| {
+        !l.is_empty()
+            && l.len() <= 63
+            && !l.starts_with('-')
+            && !l.ends_with('-')
+            && l.bytes().all(|b| b.is_ascii_alphanumeric() || b == b'-')
+    };
+    (host.len() <= 253 && host.contains('.') && host.split('.').all(label)).then_some(host)
 }
 
 #[derive(Serialize, Debug)]
@@ -38,7 +94,10 @@ pub struct Listing {
     pub approved: std::collections::BTreeMap<String, Vec<String>>,
     pub sources: Vec<String>,
     pub origins: std::collections::BTreeMap<String, String>,
+    pub accounts: BTreeMap<String, Vec<Account>>,
 }
+
+pub type Keyring<'a> = &'a dyn Fn(&str, &str, Option<&str>) -> Result<(), String>;
 
 impl Extensions {
     pub fn choices(&self) -> Choices {
@@ -92,7 +151,112 @@ impl Extensions {
             approved: choices.approved,
             sources: choices.sources,
             origins: choices.origins,
+            accounts: choices.accounts,
         }
+    }
+
+    pub fn accounts(&self, id: &str) -> Vec<Account> {
+        self.choices().accounts.remove(id).unwrap_or_default()
+    }
+
+    fn manifest(&self, id: &str) -> Option<serde_json::Value> {
+        self.list()
+            .extensions
+            .into_iter()
+            .filter_map(|f| f.manifest)
+            .find(|m| m["id"].as_str() == Some(id))
+    }
+
+    pub fn save_account(
+        &self,
+        id: &str,
+        account: Option<&str>,
+        input: &BTreeMap<String, String>,
+        keyring: Keyring,
+    ) -> Result<String, String> {
+        let fields = self
+            .manifest(id)
+            .map(|m| account_fields(&m))
+            .filter(|f| !f.is_empty())
+            .ok_or("This extension has no accounts.")?;
+        let mut choices = self.choices();
+        let list = choices.accounts.entry(id.to_string()).or_default();
+        let old = match account {
+            Some(account) => Some(
+                list.iter()
+                    .find(|a| a.id == account)
+                    .cloned()
+                    .ok_or("This account no longer exists.")?,
+            ),
+            None => None,
+        };
+        let mut next = Account {
+            id: old.as_ref().map_or_else(
+                || uuid::Uuid::new_v4().simple().to_string()[..8].to_string(),
+                |o| o.id.clone(),
+            ),
+            ..Default::default()
+        };
+        let mut secrets = Vec::new();
+        for (field, kind) in &fields {
+            let value = input.get(field).map(|v| v.trim()).unwrap_or_default();
+            match kind {
+                Kind::Secret if value.is_empty() => {
+                    if !old.as_ref().is_some_and(|o| o.secrets.contains(field)) {
+                        return Err(format!("Fill in the field {field}."));
+                    }
+                    next.secrets.push(field.clone());
+                }
+                Kind::Secret => {
+                    secrets.push((field.clone(), value.to_string()));
+                    next.secrets.push(field.clone());
+                }
+                _ if value.is_empty() => return Err(format!("Fill in the field {field}.")),
+                Kind::Host => {
+                    let host =
+                        host_of(value).ok_or_else(|| format!("{value} is not a site address."))?;
+                    if next.host.is_some() {
+                        return Err("An account has one host field at most.".into());
+                    }
+                    next.values.insert(field.clone(), host.clone());
+                    next.host = Some(host);
+                }
+                Kind::Text => {
+                    next.values.insert(field.clone(), value.to_string());
+                }
+            }
+        }
+        for (field, value) in &secrets {
+            keyring(&next.id, field, Some(value))?;
+        }
+        for gone in old.iter().flat_map(|o| &o.secrets) {
+            if !next.secrets.contains(gone) {
+                keyring(&next.id, gone, None)?;
+            }
+        }
+        let account = next.id.clone();
+        match list.iter_mut().find(|a| a.id == account) {
+            Some(slot) => *slot = next,
+            None => list.push(next),
+        }
+        self.save(&choices)?;
+        Ok(account)
+    }
+
+    pub fn remove_account(&self, id: &str, account: &str, keyring: Keyring) -> Result<(), String> {
+        let mut choices = self.choices();
+        let list = choices.accounts.entry(id.to_string()).or_default();
+        let Some(at) = list.iter().position(|a| a.id == account) else {
+            return Ok(());
+        };
+        for field in &list[at].secrets {
+            keyring(account, field, None)?;
+        }
+        list.remove(at);
+        if list.is_empty() {
+            choices.accounts.remove(id);
+        }
+        self.save(&choices)
     }
 
     pub fn link(&self, path: &str) -> Result<(), String> {
@@ -409,10 +573,13 @@ impl Extensions {
         self.save(&choices)
     }
 
-    pub fn uninstall(&self, id: &str) -> Result<(), String> {
+    pub fn uninstall(&self, id: &str, keyring: Keyring) -> Result<(), String> {
         let target = self.dir.join(id);
         if !valid_id(id) || target.is_symlink() || !target.is_dir() {
             return Err(format!("{id} is not an installed extension."));
+        }
+        for account in self.accounts(id) {
+            self.remove_account(id, &account.id, keyring)?;
         }
         std::fs::remove_dir_all(&target).map_err(|e| e.to_string())?;
         let mut choices = self.choices();
@@ -624,12 +791,100 @@ mod tests {
 
         assert_eq!(m.list().origins["hello"], "o/r");
         m.approve("hello", vec!["exec:git".into()]).unwrap();
-        m.uninstall("hello").unwrap();
+        m.uninstall("hello", &|_, _, _| Ok(())).unwrap();
         assert!(!m.list().origins.contains_key("hello"));
         assert!(!m.dir.join("hello").exists());
         assert!(!m.list().approved.contains_key("hello"));
-        assert!(m.uninstall("hello").is_err());
-        assert!(m.uninstall("..").is_err());
+        assert!(m.uninstall("hello", &|_, _, _| Ok(())).is_err());
+        assert!(m.uninstall("..", &|_, _, _| Ok(())).is_err());
+    }
+
+    #[test]
+    fn keeps_account_secrets_in_the_keyring_and_the_rest_in_the_file() {
+        use std::sync::Mutex;
+        let m = extensions();
+        std::fs::create_dir_all(m.dir.join("jira")).unwrap();
+        std::fs::write(
+            m.dir.join("jira/extension.json"),
+            r#"{"id":"jira","contributes":{"accounts":{"fields":[
+                {"id":"site","kind":"host"},{"id":"email"},{"id":"token","kind":"secret"},{"id":"pin","kind":"Secret"}]}}}"#,
+        )
+        .unwrap();
+        let ring = Mutex::new(BTreeMap::<String, String>::new());
+        let keyring = |account: &str, field: &str, value: Option<&str>| {
+            let mut ring = ring.lock().unwrap();
+            match value {
+                Some(v) => ring.insert(format!("{account}.{field}"), v.to_string()),
+                None => ring.remove(&format!("{account}.{field}")),
+            };
+            Ok(())
+        };
+        let input = |pairs: &[(&str, &str)]| {
+            pairs
+                .iter()
+                .map(|(k, v)| (k.to_string(), v.to_string()))
+                .collect::<BTreeMap<_, _>>()
+        };
+        let full = input(&[
+            ("site", "https://Acme.atlassian.net/jira/"),
+            ("email", "me@acme.com"),
+            ("token", "t0k"),
+            ("pin", "1234"),
+        ]);
+        let a = m.save_account("jira", None, &full, &keyring).unwrap();
+        let file = std::fs::read_to_string(&m.file).unwrap();
+        assert!(!file.contains("t0k") && !file.contains("1234"));
+        let saved = &m.accounts("jira")[0];
+        assert_eq!(saved.host.as_deref(), Some("acme.atlassian.net"));
+        assert_eq!(saved.values["email"], "me@acme.com");
+        assert_eq!(ring.lock().unwrap()[&format!("{a}.token")], "t0k");
+
+        let edit = input(&[("site", "acme.atlassian.net"), ("email", "you@acme.com")]);
+        m.save_account("jira", Some(&a), &edit, &keyring).unwrap();
+        assert_eq!(m.accounts("jira")[0].values["email"], "you@acme.com");
+        assert_eq!(ring.lock().unwrap()[&format!("{a}.token")], "t0k");
+        assert!(m.save_account("jira", None, &edit, &keyring).is_err());
+        let bad = input(&[
+            ("site", "not a host"),
+            ("email", "x"),
+            ("token", "t"),
+            ("pin", "p"),
+        ]);
+        assert!(m.save_account("jira", None, &bad, &keyring).is_err());
+        assert!(m.save_account("other", None, &full, &keyring).is_err());
+
+        let b = m.save_account("jira", None, &full, &keyring).unwrap();
+        m.remove_account("jira", &b, &keyring).unwrap();
+        assert_eq!(m.accounts("jira").len(), 1);
+        m.uninstall("jira", &|account, field, value| {
+            keyring(account, field, value)
+        })
+        .unwrap();
+        assert!(ring.lock().unwrap().is_empty());
+        assert!(m.list().accounts.is_empty());
+    }
+
+    #[test]
+    fn reads_a_host_from_what_the_user_typed() {
+        assert_eq!(
+            host_of(" https://Acme.atlassian.net/ ").as_deref(),
+            Some("acme.atlassian.net")
+        );
+        assert_eq!(
+            host_of("jira.acme.com/secure").as_deref(),
+            Some("jira.acme.com")
+        );
+        for bad in [
+            "",
+            "localhost",
+            "a b.com",
+            "-x.com",
+            "x..com",
+            "acme.com:8443",
+            "user@acme.com",
+        ] {
+            assert_eq!(host_of(bad), None, "{bad}");
+        }
     }
 
     #[test]

@@ -9,7 +9,7 @@ pub mod bindings {
 }
 
 pub use bindings::squadron::api::host;
-pub use bindings::squadron::api::types::{AgentState, Output, Request, Response};
+pub use bindings::squadron::api::types::{Account, AgentState, BytesResponse, Output, Request, Response, SavedFile};
 pub use bindings::{Agent, Guest};
 
 pub trait Extension {

@@ -16,6 +16,7 @@ When the user asks to change Squadron (move or hide a button, add a card, start 
 You can prepare and start new agents as the user would, and send an instruction to another agent with message_agent: the user approves each message. You never answer another agent's questions or permission requests in the user's place. \
 When your task moves into a git worktree that you made yourself (a script, git worktree add), call set_worktree so Squadron shows its branch. Going into another agent's worktree to look at it, or cd for a command, is not working there: leave your worktree as it is. \
 To start an agent in a worktree a script made, pass its path to start_agent. \
+When a task needs a folder that is not yet a Squadron project, add it with add_project. \
 During a long task made of many items, show where you are on your card with set_progress. \
 To name a Kanban task in a reply, link it as [its code or title](squadron:task/<card id>), with the card id that overview or create_card gives: Squadron shows a chip the user clicks to see the task, or a card when the link opens a list item. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
@@ -76,6 +77,15 @@ struct CreateCard {
     done_when: Option<String>,
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct AddProject {
+    /// The folder of the project, absolute or starting with ~/. It must exist: create it or clone it first.
+    path: String,
+    /// The project name shown in the tab bar. The folder name when left empty.
+    name: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -216,6 +226,8 @@ struct SetProgress {
     message: Option<String>,
     /// above or below: where the message goes, above the bar by default.
     place: Option<String>,
+    /// The id of one of your artifacts that the Share menu is sharing: the bar and the message then show in the Artifacts panel instead of on your card.
+    artifact: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -377,6 +389,16 @@ impl Pilot {
         self.forward(&parts, "create_card", json!(args)).await
     }
 
+    /// Adds a folder to Squadron as a new project, as the user does with the + of the tab bar, without leaving the project they are looking at. A folder already in Squadron's archive comes back as it was.
+    #[tool]
+    async fn add_project(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<AddProject>,
+    ) -> String {
+        self.forward(&parts, "add_project", json!(args)).await
+    }
+
     /// Moves a Kanban card to another column.
     #[tool]
     async fn move_card(
@@ -427,7 +449,7 @@ impl Pilot {
         self.forward(&parts, "set_title", json!(args)).await
     }
 
-    /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps.
+    /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps. With artifact, the bar shows in the Artifacts panel for a share of that artifact under way.
     #[tool]
     async fn set_progress(
         &self,
@@ -733,6 +755,30 @@ mod tests {
                 .stdout
                 .iter()
                 .any(|_| true)
+        );
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_adds_a_folder_as_a_project() {
+        let calls = drive(
+            "haiku",
+            "Add ~/Projects/squadron-extensions to Squadron as a project.",
+            |call| match call.tool.as_str() {
+                "add_project" => "Added the project squadron-extensions at /home/me/Projects/squadron-extensions.".to_string(),
+                _ => "[]".to_string(),
+            },
+        )
+        .await;
+        let added = calls
+            .iter()
+            .find(|c| c.tool == "add_project")
+            .expect("add_project called");
+        assert!(
+            added.args["path"]
+                .as_str()
+                .unwrap()
+                .ends_with("Projects/squadron-extensions")
         );
     }
 

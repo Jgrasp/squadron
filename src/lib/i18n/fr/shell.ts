@@ -27,7 +27,7 @@ export default {
   projectSettings: 'Réglages du projet…',
   archiveProjectEllipsis: 'Archiver le projet…',
 
-  deleteAgentAsk: 'Supprimer « {name} » ? Sa conversation quitte Squadron pour de bon ; elle ne pourra pas être restaurée comme un agent archivé.',
+  deleteAgentAsk: 'Supprimer « {name} » ? Sa conversation quitte Squadron pour de bon ; elle ne pourra pas être restaurée comme un agent archivé. Ses artifacts sont supprimés aussi, et leurs partages arrêtés.',
   deleteAgentTitle: 'Supprimer l’agent',
   sortByHand: 'À la main',
   sortLastActivity: 'Dernière activité',

@@ -1,6 +1,10 @@
 import type { Catalog } from '../index.svelte'
 
 export default {
+  forkTag: 'Sous-agent',
+  forkAsks: '{name} vous demande',
+  forkFrom: 'Lancé par {what}',
+  forkWorking: 'Au travail…',
   starting: 'Démarrage…',
   runningCommand: 'Exécution d’une commande',
   readingFile: 'Lecture de {file}',

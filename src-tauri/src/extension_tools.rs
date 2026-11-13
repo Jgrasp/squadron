@@ -213,13 +213,29 @@ pub struct Captured {
     pub stderr: String,
 }
 
-pub fn capture(mut cmd: std::process::Command) -> Result<Captured, String> {
-    cmd.stdin(std::process::Stdio::null())
-        .stdout(std::process::Stdio::piped())
-        .stderr(std::process::Stdio::piped());
+pub fn capture(cmd: std::process::Command) -> Result<Captured, String> {
+    capture_input(cmd, None)
+}
+
+pub fn capture_input(
+    mut cmd: std::process::Command,
+    input: Option<Vec<u8>>,
+) -> Result<Captured, String> {
+    cmd.stdin(if input.is_some() {
+        std::process::Stdio::piped()
+    } else {
+        std::process::Stdio::null()
+    })
+    .stdout(std::process::Stdio::piped())
+    .stderr(std::process::Stdio::piped());
     #[cfg(unix)]
     std::os::unix::process::CommandExt::process_group(&mut cmd, 0);
     let mut child = cmd.spawn().map_err(|e| e.to_string())?;
+    if let (Some(mut stdin), Some(input)) = (child.stdin.take(), input) {
+        std::thread::spawn(move || {
+            let _ = std::io::Write::write_all(&mut stdin, &input);
+        });
+    }
     let read = |pipe: Option<Box<dyn Read + Send>>| {
         std::thread::spawn(move || {
             let mut out = Vec::new();

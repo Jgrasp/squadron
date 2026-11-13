@@ -57,6 +57,11 @@ describe('extensions', () => {
     expect(share({ ...base, unshare: { tool: 'undeploy' } })).toEqual(['extensions.badShare'])
     expect(share({ ...base, unshare: { tool: 'undeploy' } }, 'artifact.actions', 'share.wasm')).toEqual([])
     expect(share({ ...base, lines: ['a\nb'] })).toEqual(['extensions.badShare'])
+    const tool = { ...base, unshare: { tool: 'undeploy' } }
+    expect(share({ ...tool, cleanup: { days: 90 } }, 'artifact.actions', 'share.wasm')).toEqual([])
+    expect(share({ ...tool, cleanup: { days: 0 } }, 'artifact.actions', 'share.wasm')).toEqual([])
+    expect(share({ ...tool, cleanup: { days: 1.5 } }, 'artifact.actions', 'share.wasm')).toEqual(['extensions.badCleanup'])
+    expect(share({ ...base, unshare: 'Stop it', cleanup: { days: 90 } })).toEqual(['extensions.badCleanup'])
   })
 
   it('gives the skills of an extension only once the user allowed them', () => {
@@ -204,6 +209,24 @@ describe('extensions', () => {
     const found = [{ dir: '/m/gh', linked: false, manifest: net, error: null }]
     expect(load(found, [], {})[0].pending).toEqual(['net:api.github.com'])
     expect(grantsOf(load(found, [], { gh: ['net:api.github.com'] })[0])).toEqual(['net:api.github.com'])
+  })
+
+  it('checks the accounts the user adds', () => {
+    const base = { id: 'jira', version: '1.0.0', api: 1, name: { en: 'Jira' } }
+    const field = (id: string, kind?: string) => ({ id, label: { en: id }, ...(kind ? { kind } : {}) })
+    const with_ = (accounts: unknown) => keys({ ...base, contributes: { accounts } })
+    expect(with_({ label: { en: 'Jira sites' }, fields: [field('site', 'host'), field('email'), field('token', 'secret')] })).toEqual([])
+    for (const bad of [
+      { fields: [field('site', 'host')] },
+      { label: { en: 'Sites' }, fields: [] },
+      { label: { en: 'Sites' }, fields: [field('Site')] },
+      { label: { en: 'Sites' }, fields: [field('a'), field('a')] },
+      { label: { en: 'Sites' }, fields: [field('a', 'password')] },
+      { label: { en: 'Sites' }, fields: [field('a', 'host'), field('b', 'host')] },
+      [field('a')],
+    ])
+      expect(with_(bad)).toEqual(['extensions.badAccounts'])
+    expect(load([{ dir: '/m/jira', linked: false, manifest: { ...base, contributes: { accounts: { label: { en: 'S' }, fields: [field('s', 'host')] } } }, error: null }], [])[0].pending).toEqual([])
   })
 
   it('asks to see and archive agents', () => {

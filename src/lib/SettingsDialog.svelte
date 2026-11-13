@@ -148,6 +148,7 @@
     [7, 'settings.archiveWeek'],
     [30, 'settings.archiveMonth'],
     [90, 'settings.archiveDays'],
+    [365, 'settings.archiveYear'],
   ]
   let keys = $state<Record<string, string>>({ ...settings.keys })
   let editors = $state<App[]>(settings.editors.map((e) => ({ ...e })))

@@ -7,6 +7,8 @@ import tools from '../../src-tauri/tests/fixtures/tools.jsonl?raw'
 import twoturns from '../../src-tauri/tests/fixtures/twoturns.jsonl?raw'
 import subagents from '../../src-tauri/tests/fixtures/subagents.jsonl?raw'
 import background from '../../src-tauri/tests/fixtures/background.jsonl?raw'
+import forkCommand from '../../src-tauri/tests/fixtures/fork_command.jsonl?raw'
+import forkSkill from '../../src-tauri/tests/fixtures/fork_skill.jsonl?raw'
 import backgroundInterrupt from '../../src-tauri/tests/fixtures/background_interrupt.jsonl?raw'
 import backgroundBash from '../../src-tauri/tests/fixtures/background_bash.jsonl?raw'
 import thinking from '../../src-tauri/tests/fixtures/thinking.jsonl?raw'
@@ -340,6 +342,21 @@ describe('stream', () => {
     expect(second.log.some((b) => b.type === 'tools' && b.calls[0].result)).toBe(true)
     expect(calls(agent).map((c) => c.id)).toContain(bash.id)
     expect(agent.status).toBe('done')
+  })
+
+  it('follows a skill that runs as a forked subagent, typed or called with the Skill tool', () => {
+    const typed = fresh()
+    replay(typed, forkCommand)
+    replay(typed, forkCommand)
+    expect(typed.subagents.map((s) => [s.id, s.name, s.status])).toEqual([['forked-command-probeext:probe', '/probeext:probe', 'done']])
+    expect(typed.subagents[0].log.some((b) => b.type === 'tools' && b.calls[0].name === 'Bash')).toBe(true)
+
+    const called = fresh()
+    replay(called, forkSkill)
+    const [sub] = called.subagents
+    const bash = sub.log.flatMap((b) => (b.type === 'tools' ? b.calls : []))[0]
+    expect(sub.id).toBe(called.entries.flatMap((e) => (e.kind === 'agent' ? e.blocks.flatMap((b) => (b.type === 'tools' ? b.calls : [])) : [])).find((c) => c.name === 'Skill')?.id)
+    expect(subagentOf(called, bash.id)).toBe(sub)
   })
 
   it('keeps the agent working while a background subagent runs after its turn', () => {

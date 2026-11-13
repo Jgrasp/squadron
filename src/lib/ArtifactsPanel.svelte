@@ -3,9 +3,10 @@
   import { invoke } from '@tauri-apps/api/core'
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { save } from '@tauri-apps/plugin-dialog'
-  import { agents, persist, send, show } from './agents.svelte'
+  import { persist, send } from './agents.svelte'
   import { artifactUrl, docsOf, fileName, fillShare, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
-  import { delegate, refresh, shelf, working, workKey, type Delegation, type Work } from './artifacts.svelte'
+  import { answer, bands, finish, refresh, setWork, shelf, workKey, type Work } from './artifacts.svelte'
+  import { cleanupErrors, dueAt, extensionName, keepLabel, release, ruleOf } from './cleanup.svelte'
   import { ask, message as tell } from './asking.svelte'
   import { time } from './format'
   import { text, type Item, type Text } from './extensions'
@@ -14,7 +15,6 @@
   import Icon from './Icon.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
   import Markdown from './Markdown.svelte'
-  import StatusIcon from './StatusIcon.svelte'
   import Select from './Select.svelte'
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
@@ -23,10 +23,10 @@
     agent,
     windowed = false,
     onpoint,
-    onshare = (text) => send(agent.id, text),
-    ondelegate = delegate,
+    onshare = (text, hint) => send(agent.id, text, [], [], '', hint),
+    onanswer = () => answer(agent),
     onclose,
-  }: { agent: Agent; windowed?: boolean; onpoint: (text: string) => void; onshare?: (text: string) => void; ondelegate?: (delegation: Delegation) => Promise<string | undefined> | void; onclose: () => void } = $props()
+  }: { agent: Agent; windowed?: boolean; onpoint: (text: string) => void; onshare?: (text: string, hint?: string) => void; onanswer?: () => void; onclose: () => void } = $props()
 
   let selected = $state<{ id: string; at: number } | null>(null)
   let copied = $state('')
@@ -54,8 +54,10 @@
       .catch(() => (markdown = ''))
   })
 
+  const openId = $derived(open?.id)
+
   $effect(() => {
-    void open?.id
+    void openId
     pointing = false
     menu = false
     more = false
@@ -64,14 +66,21 @@
   const destinations = $derived(shown('artifact.actions'))
   const link = $derived(open?.link ?? null)
   const local_ = $derived(open && open.kind !== 'doc' ? open : undefined)
-  const busy = $derived.by(() => {
-    const work = local_ && working[workKey(agent.id, local_.id)]
-    if (!work || work.destination === 'claude') return work
-    const now = local_.links?.[work.destination]
-    return (work.verb === 'unshare' ? !now : !!now && now.at > work.since) ? undefined : work
-  })
-  const helper = $derived(busy?.helper ? agents.list.find((a) => a.id === busy.helper) : undefined)
+  const band = $derived(local_ ? bands[workKey(agent.id, local_.id)] : undefined)
+  const busy = $derived(band?.state === 'work' || band?.state === 'wait')
+  const steps = $derived(band?.progress ? Array.from({ length: band.progress.total }, (_, i) => (i < band.progress!.done ? 'on' : i === band.progress!.done ? 'now' : '')) : band?.state === 'work' ? ['now'] : [])
+  const bandLink = $derived(band && local_?.links?.[band.destination]?.link)
   const shared = $derived(!!link || !!Object.keys(local_?.links ?? {}).length)
+  const rule = $derived(local_ && ruleOf(local_))
+  const due = $derived(local_ ? dueAt(local_) : null)
+  const left = $derived(due === null ? null : Math.max(0, Math.ceil((due - Date.now()) / 86_400_000)))
+  const KEEPS: (number | null)[] = [null, 30, 365, 0]
+
+  async function setKeep(keep: number | null) {
+    if (!local_) return
+    await invoke('set_artifact_keep', { agent: agent.id, id: local_.id, keep }).catch((e) => tell(errorText(e), { kind: 'error' }))
+    await refresh(agent.id)
+  }
   const shareOf = (item?: Item) => (item && 'artifact.share' in item.action ? item.action['artifact.share'] : undefined)
   const tr = (value?: Text) => (value ? text(value, locale()) : '')
   const madeBy = (extension: string) => {
@@ -115,25 +124,22 @@
     if (verb === 'unshare' && !(await ask(t('agent.artifactStopAsk'), { title: t('agent.artifactStopTitle'), kind: 'warning', okLabel: t('agent.artifactStop'), danger: true, check }))) return
     const key = workKey(agent.id, artifact.id)
     const values = valuesOf(artifact, item.key, data, remove)
-    const name = `${artifact.title} · ${label}`
     if (typeof how === 'string') {
-      const known = agents.list.find((a) => a.sharing?.agent === agent.id && a.sharing.artifact === artifact.id && a.sharing.destination === item.key)
-      working[key] = { destination: item.key, verb, by: known?.name ?? name, since: Date.now(), helper: known?.id }
-      const id = await ondelegate({ agent: agent.id, artifact: artifact.id, destination: item.key, name, text: fillShare(how, values) })
-      if (id && working[key]) working[key] = { ...working[key], helper: id, by: agents.list.find((a) => a.id === id)?.name ?? name }
+      setWork(key, { destination: item.key, verb, by: agent.name, since: Date.now(), extension: item.extension })
+      onshare(label, fillShare(how, values))
       return
     }
-    working[key] = { destination: item.key, verb, by: madeBy(item.extension), since: Date.now() }
+    setWork(key, { destination: item.key, verb, by: madeBy(item.extension), since: Date.now() })
     try {
       const input = { verb, destination: item.key, artifact: { id: artifact.id, title: artifact.title, dir: values['artifact.dir'], entry: artifact.entry }, link: values.link, delete: remove, data }
       const out = (await shareTool(item.extension, how.tool, input, agent)).trim()
       if (verb !== 'unshare' && !/^https:\/\/\S+$/.test(out)) throw new Error(t('agent.artifactNoLink', { tool: how.tool }))
       await invoke('set_artifact_share', { agent: agent.id, id: artifact.id, destination: item.key, link: verb === 'unshare' ? null : out })
       await refresh(agent.id)
+      finish(key)
     } catch (e) {
+      setWork(key, null)
       tell(errorText(e), { kind: 'error', title: label })
-    } finally {
-      delete working[key]
     }
   }
 
@@ -175,7 +181,7 @@
 
   async function share(artifact: ArtifactInfo) {
     if (!(await ask(t('agent.artifactShareAsk', { title: artifact.title, name: agent.name }), { title: t('agent.artifactShareTitle'), okLabel: t('agent.artifactShare') }))) return
-    working[workKey(agent.id, artifact.id)] = { destination: 'claude', verb: 'share', by: agent.name, since: Date.now() }
+    setWork(workKey(agent.id, artifact.id), { destination: 'claude', verb: 'share', by: agent.name, since: Date.now() })
     onshare(sharePrompt(artifact))
   }
 
@@ -200,7 +206,14 @@
       agent.hiddenDocs = [...(agent.hiddenDocs ?? []), item.link]
       persist(agent)
     } else {
-      if (!(await ask(t('agent.artifactDeleteAsk', { title: item.title }), { title: t('agent.artifactDeleteTitle'), kind: 'warning', okLabel: t('agent.artifactDelete') }))) return
+      const sharing = !!Object.keys(item.links ?? {}).length
+      if (!(await ask(t(sharing ? 'agent.artifactDeleteShared' : 'agent.artifactDeleteAsk', { title: item.title }), { title: t('agent.artifactDeleteTitle'), kind: 'warning', okLabel: t('agent.artifactDelete'), danger: sharing }))) return
+      try {
+        await release(agent.id, item)
+      } catch (e) {
+        await refresh(agent.id)
+        if (!(await ask(t('agent.artifactDeleteAnyway', { error: errorText(e) }), { title: t('agent.artifactDeleteTitle'), kind: 'error', okLabel: t('agent.artifactDelete'), danger: true }))) return
+      }
       await invoke('delete_artifact', { agent: agent.id, id: item.id }).catch((e) => ask(errorText(e), { kind: 'error' }))
       await refresh(agent.id)
     }
@@ -328,9 +341,28 @@
               </button>
             {/if}
             <span class="sep" aria-hidden="true"></span>
+            {#if rule}
+              {@const error = cleanupErrors[workKey(agent.id, open.id)]}
+              <div class="entry">
+                <div class="option">
+                  <span class="ico"><Icon name="clock" /></span>
+                  <span class="text">
+                    <b>{left === null ? t('agent.artifactKeptForever') : left === 0 ? t('agent.artifactDeletedSoon') : t('agent.artifactDeletedIn', { count: left })}</b>
+                    <span>{rule.from === 'artifact' ? t('agent.artifactRuleOwn') : rule.from === 'extension' ? t('agent.artifactRuleExtension', { name: extensionName(rule.extension ?? '') }) : t('agent.artifactRuleSquadron')}</span>
+                    {#if error}<span class="failed">{error}</span>{/if}
+                  </span>
+                </div>
+                <div class="segments" role="group" aria-label={t('agent.artifactKeepRule')}>
+                  {#each KEEPS as keep (keep)}
+                    <button aria-pressed={(open.keep ?? null) === keep} onclick={() => setKeep(keep)}>{keep === null ? t('agent.artifactKeepRule') : keepLabel(keep)}</button>
+                  {/each}
+                </div>
+              </div>
+              <span class="sep" aria-hidden="true"></span>
+            {/if}
             <button class="option delete" role="menuitem" onclick={() => ((more = false), remove(open))}>
               <span class="ico"><Icon name="trash" /></span>
-              <span class="text"><b>{t('agent.artifactDelete')}</b><span>{t('agent.artifactDeleteHint')}</span></span>
+              <span class="text"><b>{t('agent.artifactDelete')}</b><span>{Object.keys(open.links ?? {}).length ? t('agent.artifactDeleteSharedHint') : t('agent.artifactDeleteHint')}</span></span>
             </button>
           </div>
         {/if}
@@ -354,14 +386,46 @@
     </div>
   {/if}
 
-  {#if busy}
-    <div class="band" role="status">
-      <StatusIcon status="background" />
-      {#if busy.destination === 'claude'}
-        <span>{t('agent.artifactSharing', { name: agent.name })}</span>
+  {#if band}
+    {@const title = labelOf('artifact.actions', band.destination)}
+    {@const p = band.progress}
+    {@const count = p ? `${Math.min(p.done + 1, p.total)}/${p.total}` : ''}
+    {@const label =
+      band.state === 'wait'
+        ? t('agent.artifactAsksHint')
+        : band.state === 'done'
+          ? (bandLink ?? '')
+          : band.state === 'err'
+            ? band.reason?.split('\n').find((l) => l.trim()) || t(band.extension && !band.reason ? 'agent.artifactNotStarted' : 'agent.artifactStoppedHint')
+            : p?.message || (band.queued ? t('agent.artifactQueued') : band.destination === 'claude' ? t('agent.artifactSharing', { name: agent.name }) : t(band.verb === 'share' ? 'agent.artifactBusyShare' : band.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: band.by }))}
+    <div class="band {band.state}" role="status">
+      {#if band.state === 'done'}
+        <span class="badge" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" /></svg></span>
+      {:else if band.state === 'err'}
+        <span class="badge" aria-hidden="true"><svg width="11" height="11" viewBox="0 0 24 24"><path d="M5 5l14 14M19 5 5 19" /></svg></span>
       {:else}
-        <span class="busy"><b>{labelOf('artifact.actions', busy.destination)}</b> · {busy.helper ? t('agent.artifactBusyHelper') : t(busy.verb === 'share' ? 'agent.artifactBusyShare' : busy.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: busy.by })}</span>
-        {#if helper && !windowed}<button class="btn btn-ghost" onclick={() => show(helper)}>{t('agent.artifactViewAgent')}</button>{/if}
+        <span class="orb" aria-hidden="true"></span>
+      {/if}
+      <span class="words">
+        <span>
+          {#if band.state === 'wait'}<b>{t('agent.artifactAsks', { name: band.asker ?? title })}</b>
+          {:else if band.state === 'done'}<b>{(band.verb === 'share' && tr(shareOf(extensionItem('artifact.actions', band.destination))?.shared)) || t(band.verb === 'share' ? 'agent.artifactDoneShare' : band.verb === 'update' ? 'agent.artifactDoneUpdate' : 'agent.artifactDoneUnshare', { what: title })}</b>
+          {:else if band.state === 'err'}<b>{title}</b> {count ? t('agent.artifactStoppedAt', { step: count }) : t('agent.artifactStopped')}
+          {:else}<b>{title}</b>{/if}
+          {#if count && band.state !== 'err' && band.state !== 'done'} · <span class="count">{count}</span>{/if}
+        </span>
+        {#key label}<span class="label" class:mono={band.state === 'done'}><span>{label}</span></span>{/key}
+      </span>
+      {#if band.state === 'wait'}
+        <button class="btn answer" onclick={onanswer}>{t('agent.artifactAnswer')}</button>
+      {:else if band.state === 'done' && bandLink}
+        <button class="btn btn-ghost" onclick={() => invoke('open_link', { url: bandLink })}>{t('agent.artifactOpen')}</button>
+        <button class="btn btn-ghost" onclick={() => copy('band', bandLink)}>{copied === 'band' ? t('common.copied') : t('agent.artifactCopyLink')}</button>
+      {:else if band.state === 'err'}
+        <button class="btn close" onclick={() => setWork(workKey(agent.id, local_!.id), null)}>{t('common.close')}</button>
+      {/if}
+      {#if steps.length || band.state === 'done'}
+        <span class="segs" aria-hidden="true">{#each band.state === 'done' ? ['on'] : steps as cell, c (c)}<i class={cell}></i>{/each}</span>
       {/if}
     </div>
   {/if}
@@ -424,15 +488,265 @@
   }
 
   .band {
+    --tone: var(--background);
+    position: relative;
     flex: none;
+    overflow: hidden;
     display: flex;
     align-items: center;
-    gap: 10px;
-    padding: 8px 12px 8px 20px;
+    gap: 12px;
+    min-height: 52px;
+    padding: 0 12px 4px 18px;
     border-bottom: 1px solid var(--background-line);
     background: var(--background-bg);
     font-size: 12.5px;
     color: var(--text-2);
+    transition:
+      background 0.4s,
+      border-color 0.4s;
+  }
+
+  .band::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(100deg, transparent 30%, color-mix(in srgb, var(--tone) 14%, transparent) 50%, transparent 70%) 0 0 / 220% 100%;
+    animation: sweep 2.6s linear infinite;
+    pointer-events: none;
+  }
+
+  .band.wait {
+    --tone: var(--accent);
+    border-color: var(--wait-border);
+    background: var(--wait-bg);
+    color: var(--wait-text-2);
+  }
+
+  .band.wait::before {
+    animation-duration: 3.6s;
+  }
+
+  .band.done {
+    --tone: var(--ok);
+    border-color: color-mix(in srgb, var(--ok) 35%, transparent);
+    background: color-mix(in srgb, var(--ok) 9%, var(--bg-sidebar));
+  }
+
+  .band.done::before {
+    animation: sweep 1.2s ease-out 1 forwards;
+  }
+
+  .band.err {
+    --tone: var(--err);
+    border-color: var(--err-border);
+    background: var(--err-bg);
+    color: var(--err-muted);
+  }
+
+  .band.err::before {
+    display: none;
+  }
+
+  .orb {
+    position: relative;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+  }
+
+  .orb::before {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 50%;
+    background: conic-gradient(from 0deg, transparent 0 55%, var(--tone));
+    mask: radial-gradient(circle, transparent 7.5px, black 8px);
+    animation: spin 1.1s linear infinite;
+  }
+
+  .orb::after {
+    content: '';
+    width: 6px;
+    height: 6px;
+    border-radius: 50%;
+    background: var(--tone);
+    box-shadow: 0 0 10px 1px var(--tone);
+  }
+
+  .wait .orb::before {
+    opacity: 0.5;
+    background: var(--tone);
+    mask: none;
+    animation: ping 1.6s ease-out infinite;
+  }
+
+  .wait .orb::after {
+    width: 9px;
+    height: 9px;
+  }
+
+  .badge {
+    position: relative;
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: var(--tone);
+    color: var(--ink);
+    animation: pop 0.5s cubic-bezier(0.3, 1.6, 0.5, 1) both;
+  }
+
+  .err .badge {
+    color: var(--err-ink);
+    animation: none;
+  }
+
+  .badge svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 3.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .words {
+    position: relative;
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .wait .words b {
+    color: var(--wait-text);
+  }
+
+  .label {
+    position: relative;
+    display: block;
+    height: 18px;
+    overflow: hidden;
+  }
+
+  .label span {
+    position: absolute;
+    inset: 0 0 auto;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    animation: rise 0.45s cubic-bezier(0.2, 0.8, 0.2, 1) both;
+  }
+
+  .label.mono {
+    font: 11.5px var(--mono);
+    color: var(--text-dim);
+  }
+
+  .count {
+    font: 600 11.5px var(--mono);
+    color: var(--tone);
+  }
+
+  .wait .count {
+    color: var(--accent-soft);
+  }
+
+  .segs {
+    position: absolute;
+    inset: auto 0 0;
+    display: flex;
+    gap: 3px;
+    height: 3px;
+  }
+
+  .segs i {
+    position: relative;
+    flex: 1;
+    overflow: hidden;
+    background: color-mix(in srgb, var(--tone) 16%, transparent);
+    transition: background 0.4s;
+  }
+
+  .segs i.on {
+    background: var(--tone);
+  }
+
+  .segs i.now {
+    background: color-mix(in srgb, var(--tone) 30%, transparent);
+    box-shadow: 0 0 8px color-mix(in srgb, var(--tone) 70%, transparent);
+  }
+
+  .segs i.now::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    background: linear-gradient(90deg, transparent, var(--tone), color-mix(in srgb, var(--tone) 40%, white), var(--tone), transparent) 0 0 / 50% 100% no-repeat;
+    animation: run 1.3s ease-in-out infinite;
+  }
+
+  .wait .segs i.now::after {
+    background: var(--tone);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  .band .answer {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
+    animation: ring 2.4s ease-in-out infinite;
+  }
+
+  .band .close {
+    background: #3a2420;
+    color: #f8d5cc;
+    font-weight: 700;
+  }
+
+  @keyframes sweep {
+    from {
+      background-position: 160% 0;
+    }
+    to {
+      background-position: -60% 0;
+    }
+  }
+
+  @keyframes run {
+    from {
+      background-position: -100% 0;
+    }
+    to {
+      background-position: 200% 0;
+    }
+  }
+
+  @keyframes rise {
+    from {
+      opacity: 0;
+      filter: blur(2px);
+      transform: translateY(70%);
+    }
+    to {
+      opacity: 1;
+      filter: none;
+      transform: none;
+    }
+  }
+
+  @keyframes pop {
+    from {
+      opacity: 0;
+      transform: scale(0.3);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
   }
 
   .anchor {
@@ -582,13 +896,11 @@
     flex: 1;
   }
 
-  .band .busy {
-    flex: 1;
-    min-width: 0;
-  }
-
   .band .btn {
+    position: relative;
+    flex: none;
     height: 28px;
+    padding: 0 10px;
     font-size: 12.5px;
   }
 
@@ -601,6 +913,34 @@
     height: 28px;
     padding: 0 10px;
     font-size: 12.5px;
+  }
+
+  .segments {
+    display: flex;
+    align-self: flex-start;
+    gap: 2px;
+    margin-left: 42px;
+    padding: 3px;
+    border-radius: 4px;
+    background: var(--surface-2);
+  }
+
+  .segments button {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 3px;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .segments button[aria-pressed='true'] {
+    background: var(--text);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .text .failed {
+    color: var(--err-text);
   }
 
   .sep {

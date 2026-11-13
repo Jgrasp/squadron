@@ -25,7 +25,7 @@ export default {
   projectSettings: 'Project settings…',
   archiveProjectEllipsis: 'Archive project…',
 
-  deleteAgentAsk: 'Delete “{name}”? Its conversation leaves Squadron for good; it cannot be restored like an archived agent.',
+  deleteAgentAsk: 'Delete “{name}”? Its conversation leaves Squadron for good; it cannot be restored like an archived agent. Its artifacts are deleted too, and their shares stopped.',
   deleteAgentTitle: 'Delete agent',
   sortByHand: 'By hand',
   sortLastActivity: 'Last activity',

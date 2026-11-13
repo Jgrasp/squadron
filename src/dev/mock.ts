@@ -209,7 +209,7 @@ function replay(id: string, text: string) {
     emit('agent-line', { id, line: JSON.stringify({ type: 'result', is_error: false, num_turns: 0, total_cost_usd: 0, usage: {}, duration_ms: 20 }) })
     return
   }
-  const key = Object.keys(asks).find((k) => text.includes(k))
+  const key = !text.includes('team-share:') && Object.keys(asks).find((k) => text.includes(k))
   if (key) {
     const [tool_name, input] = asks[key]
     const ask = String(askId++)
@@ -274,8 +274,35 @@ function replay(id: string, text: string) {
       })
       .join('\n')
   }
+  const forkShare = () => {
+    const artifact = /args: artifact (\S+)/.exec(text)?.[1] ?? 'artifact'
+    const destination = /destination (\S+?)\.\s/.exec(text)?.[1] ?? 'team'
+    const steps = ['Reading the artifact', 'Copying the kit', 'Writing the sync layer', 'Checking the page', 'Creating the Apps Script', 'Deploying the web app']
+    const say = (content: unknown[], parent: string | null, model = 'claude-sonnet-5-5') => ({ type: 'assistant', parent_tool_use_id: parent, message: { id: crypto.randomUUID(), model, role: 'assistant', content } })
+    const result = (id: string, content: string, parent: string | null) => ({ type: 'user', parent_tool_use_id: parent, message: { role: 'user', content: [{ type: 'tool_result', tool_use_id: id, content }] } })
+    const link = 'https://script.google.com/a/macros/example.com/s/AKfycbxDemo/exec'
+    const out: unknown[] = [
+      say([{ type: 'tool_use', id: 'toolu_fork', name: 'Skill', input: { skill: 'team-share:share-artifact', args: artifact } }], null, 'claude-opus-5-5'),
+      { type: 'system', subtype: 'task_started', task_type: 'local_agent', task_id: 'tfork', tool_use_id: 'toolu_fork', description: '/team-share:share-artifact', subagent_type: 'general-purpose', prompt: artifact },
+    ]
+    steps.forEach((message, done) => {
+      out.push({ type: 'mock_pilot', tool: 'set_progress', args: { artifact, done, total: steps.length, message } })
+      const id = `toolu_step${done}`
+      const call = done === 5 ? { type: 'tool_use', id, name: 'Bash', input: { command: `python3 share.py deploy W "${artifact}"`, description: 'Deploys the page as a web app from your Google account' } } : { type: 'tool_use', id, name: 'Read', input: { file_path: `/work/${artifact}/step${done}.txt` } }
+      out.push(say([call], 'toolu_fork'), result(id, 'ok', 'toolu_fork'))
+    })
+    out.push(
+      { type: 'mock_pilot', tool: 'publish_artifact', args: { id: artifact, destination, link } },
+      say([{ type: 'text', text: `Shared with the team at ${link}` }], 'toolu_fork'),
+      { type: 'system', subtype: 'task_notification', task_id: 'tfork', status: 'completed', summary: '/team-share:share-artifact' },
+      result('toolu_fork', `Shared with the team at ${link}`, null),
+      say([{ type: 'text', text: 'The artifact is shared with the team.' }], null, 'claude-opus-5-5'),
+      { type: 'result', subtype: 'success', is_error: false, result: 'The artifact is shared with the team.', total_cost_usd: 0.04, usage: { input_tokens: 10, output_tokens: 20 } },
+    )
+    return out.map((d) => JSON.stringify(d)).join('\n')
+  }
   const links = 'J\'ai poussé la correction et ouvert la PR :\\n\\nhttps://bitbucket.org/orbit/orbit/pull-requests/2108\\n\\nLa PR https://github.com/agence/nova/pull/57 dont elle dépend est fusionnée, et [celle-ci](https://github.com/agence/nova/pull/61) bloque encore.\\n\\nhttps://github.com/autre-org/prive/pull/12\\n\\nJe surveille la CI.'
-  const stream = text.includes('plugins') ? pluginRun() : text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('inlinepath') ? hello.replaceAll('"Bonjour"', JSON.stringify('J’ai mis à jour `config/services.yaml` et `src/Segmentation/SegmentRepository.php:12`, puis relu `config/services.yaml` et `absent.md`.')) : text.includes('filecard') ? hello.replaceAll('"Bonjour"', JSON.stringify('Voici l’archive :\n\n[squadron-claude-design.zip](</home/demo/Téléchargements/squadron-claude-design.zip>)\n\nEt la liste des URL :\n\n[neogeofanatic-urls.csv](</home/demo/Documents/neogeofanatic-urls.csv>)')) : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
+  const stream = text.includes('team-share:share-artifact') ? forkShare() : text.includes('plugins') ? pluginRun() : text.includes('advisorplain') ? advisorPlain : text.includes('advisor') ? advisorRedacted : text.includes('inlinepath') ? hello.replaceAll('"Bonjour"', JSON.stringify('J’ai mis à jour `config/services.yaml` et `src/Segmentation/SegmentRepository.php:12`, puis relu `config/services.yaml` et `absent.md`.')) : text.includes('filecard') ? hello.replaceAll('"Bonjour"', JSON.stringify('Voici l’archive :\n\n[squadron-claude-design.zip](</home/demo/Téléchargements/squadron-claude-design.zip>)\n\nEt la liste des URL :\n\n[neogeofanatic-urls.csv](</home/demo/Documents/neogeofanatic-urls.csv>)')) : text.includes('bashblock') ? hello.replaceAll('"Bonjour"', JSON.stringify('Il reste à recharger nginx :\n\n```bash\nsudo nginx -t && sudo systemctl reload nginx\n```')) : text.includes('links') ? hello.replaceAll('"Bonjour"', `"${links}"`) : text.includes('shots') ? shots() : text.includes('claudedoc') ? claudeDoc() : text.includes('capture') ? hello.replaceAll('"Bonjour"', `"${shot}"`) : text.includes('think') ? thinking : text.includes('swarm') ? swarm() : text.includes('subagents') ? subagents : text.includes('bgshell') ? backgroundBash : text.includes('background') ? background : text.includes('tasks') ? taskList : text.includes('tool') ? tools : text.includes('logout') ? nologin : text.includes('long') ? sigint : hello
   const lines = stream
     .trim()
     .split('\n')
@@ -290,6 +317,11 @@ function replay(id: string, text: string) {
     }
     if (i >= lines.length) return timers.delete(id)
     const line = lines[i++]
+    if (line.startsWith('{"type":"mock_pilot"')) {
+      const { tool, args } = JSON.parse(line)
+      ;(window as unknown as { __pilot: (agent: string, tool: string, args: unknown) => Promise<unknown> }).__pilot(id, tool, args).finally(() => timers.set(id, window.setTimeout(next, 700)))
+      return
+    }
     emit('agent-line', { id, line: line.replaceAll('/project', projectOf.get(id) ?? '/project') })
     const sub = JSON.parse(line)
     const call = sub.type === 'assistant' && sub.parent_tool_use_id && sub.message.content.find((c: { name?: string }) => c.name === 'Bash')
@@ -300,7 +332,7 @@ function replay(id: string, text: string) {
       return
     }
     if (text.includes('bgshell') && sub.type === 'result' && i < lines.length) return timers.set(id, window.setTimeout(next, 20_000))
-    timers.set(id, window.setTimeout(next, lines[i]?.includes('"type":"advisor_tool_result"') ? 5000 : text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : 60))
+    timers.set(id, window.setTimeout(next, lines[i]?.includes('"type":"advisor_tool_result"') ? 5000 : text.includes('long') || text.includes('tasks') || text.includes('subagents') || text.includes('background') ? 150 : text.includes('swarm') ? 8 : text.includes('team-share:') ? 500 : 60))
   }
   next()
 }
@@ -500,7 +532,7 @@ const replies = new Map<string, (result: string) => void>()
     emit('pilot-request', { id, agent, tool, args })
   })
 const files = new Map<string, string>()
-type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; links?: Record<string, { link: string; at: number }>; content: string }
+type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; links?: Record<string, { link: string; at: number }>; keep?: number | null; content: string }
 const shelves = new Map<string, Shelved[]>(JSON.parse(localStorage.getItem('shelves') ?? '[]'))
 const shelve = () => localStorage.setItem('shelves', JSON.stringify([...shelves]))
 const ENTRY = { html: 'index.html', markdown: 'index.md', svg: 'index.svg' }
@@ -563,6 +595,8 @@ const orbitPull = () => ({
             })
 
 mockWindows(label)
+const DEMO_ACCOUNTS = '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]}]}'
+
 mockIPC(
   (cmd, args) => {
     const a = args as Record<string, string>
@@ -856,6 +890,12 @@ mockIPC(
         shelve()
         return `/home/demo/.local/share/squadron/artifacts/${a.agent}/${a.id}/${ENTRY[a.kind as keyof typeof ENTRY]}`
       }
+      case 'set_artifact_keep':
+        for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.keep = (a as unknown as { keep: number | null }).keep
+        shelve()
+        return null
+      case 'artifact_owners':
+        return [...shelves.keys()]
       case 'set_artifact_link':
         for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.link = a.link
         shelve()
@@ -1293,7 +1333,34 @@ mockIPC(
         return {
           disabled: JSON.parse(localStorage.getItem('extensions-disabled') ?? '[]'),
           approved: JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'),
+          sources: [],
+          origins: { jira: 'Jgrasp/squadron-extensions', lando: 'Jgrasp/squadron-extensions', 'team-share': 'Jgrasp/squadron-extensions' },
+          accounts: JSON.parse(localStorage.getItem('extensions-accounts') ?? DEMO_ACCOUNTS),
           extensions: [
+            {
+              dir: '/home/demo/.config/dev.squadron.desktop/extensions/jira',
+              linked: false,
+              error: null,
+              manifest: {
+                id: 'jira',
+                version: '0.1.0',
+                api: 1,
+                name: { en: 'Jira' },
+                description: { en: 'Your sprint and tickets next to your agents', fr: 'Votre sprint et vos tickets à côté de vos agents' },
+                wasm: 'jira.wasm',
+                permissions: { exec: ['claude'], network: ['api.media.atlassian.com'] },
+                contributes: {
+                  accounts: {
+                    label: { en: 'Jira sites', fr: 'Sites Jira' },
+                    fields: [
+                      { id: 'site', label: { en: 'Site', fr: 'Site' }, kind: 'host', hint: { en: 'company.atlassian.net' } },
+                      { id: 'email', label: { en: 'Email', fr: 'E-mail' } },
+                      { id: 'token', label: { en: 'API token', fr: 'Jeton d’API' }, kind: 'secret' },
+                    ],
+                  },
+                },
+              },
+            },
             {
               dir: '/home/demo/.config/dev.squadron.desktop/extensions/lando',
               linked: false,
@@ -1339,9 +1406,10 @@ mockIPC(
                           confirm: { en: '“{artifact.title}” becomes a Google web app that only example.com accounts can open, deployed from your Google account.' },
                           lines: ['Google Apps Script · access: example.com'],
                           shared: { en: 'Shared with the team', fr: 'Partagé avec l’équipe' },
-                          share: 'Share the artifact {artifact.id} at {artifact.dir} with the team-share skill, then call publish_artifact with id {artifact.id}, destination {destination} and its /exec link.',
+                          share: 'Call the Skill tool with skill team-share:share-artifact and args: artifact {artifact.id} at {artifact.dir}, destination {destination}. Do nothing else.',
                           update: { tool: 'deploy' },
                           unshare: { tool: 'undeploy' },
+                          cleanup: { days: 90 },
                           delete: { en: 'Also delete the Apps Script project', fr: 'Supprimer aussi le projet Apps Script' },
                           deleteHint: { en: 'The statuses and notes the team entered are deleted with it.', fr: 'Les statuts et notes saisis par l’équipe sont supprimés avec lui.' },
                         },
@@ -1359,6 +1427,23 @@ mockIPC(
         localStorage.setItem('extensions-approved', JSON.stringify({ ...JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'), [id]: commands }))
         return
       }
+      case 'extensions_account_save':
+      case 'extensions_account_remove': {
+        const { id, account, values } = args as { id: string; account: string | null; values?: Record<string, string> }
+        const all = JSON.parse(localStorage.getItem('extensions-accounts') ?? DEMO_ACCOUNTS)
+        const list: { id: string; values: Record<string, string>; host: string | null; secrets: string[] }[] = all[id] ?? []
+        const kept = list.filter((a) => a.id !== account)
+        const fresh = account ?? Math.random().toString(16).slice(2, 10)
+        if (values) {
+          const site = values.site?.trim().replace(/^https?:\/\//, '').split('/')[0].toLowerCase() ?? null
+          const old = list.find((a) => a.id === account)
+          kept.push({ id: fresh, values: { site, email: values.email.trim() }, host: site, secrets: values.token?.trim() || old ? ['token'] : [] })
+        }
+        localStorage.setItem('extensions-accounts', JSON.stringify({ ...all, [id]: kept }))
+        return fresh
+      }
+      case 'extensions_secrets':
+        return []
       case 'extensions_set_tools':
       case 'extensions_wasm_event':
         return

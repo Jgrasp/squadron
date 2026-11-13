@@ -12,6 +12,7 @@ pub mod extensions;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
+mod links;
 mod ondemand;
 pub mod permissions;
 pub mod pilot;
@@ -407,6 +408,8 @@ struct Config {
     pilot_all: bool,
     archive_after_days: u32,
     artifacts_after_days: u32,
+    artifacts_since: u64,
+    artifacts_extensions: std::collections::BTreeMap<String, i64>,
     compact_window: u32,
     steps: String,
     thinking: String,
@@ -446,6 +449,8 @@ impl Default for Config {
             pilot_all: false,
             archive_after_days: 0,
             artifacts_after_days: 30,
+            artifacts_since: 0,
+            artifacts_extensions: Default::default(),
             compact_window: 0,
             steps: "grouped".into(),
             thinking: "duration".into(),
@@ -541,15 +546,7 @@ fn set_settings(
     if config.compact_window != window {
         agents.refresh_all();
     }
-    let days = config.artifacts_after_days;
     settings.save(config)?;
-    if let Some(root) = artifacts::ROOT.get() {
-        artifacts::expire(
-            root,
-            &settings.file.with_file_name("agents").join("archived"),
-            days,
-        );
-    }
     Ok(())
 }
 
@@ -817,6 +814,16 @@ fn write_artifact(
 #[tauri::command]
 fn set_artifact_link(agent: String, id: String, link: String) -> Result<(), String> {
     artifacts::set_link(artifacts_root()?, &agent, &id, &link)
+}
+
+#[tauri::command]
+fn set_artifact_keep(agent: String, id: String, keep: Option<u32>) -> Result<(), String> {
+    artifacts::set_keep(artifacts_root()?, &agent, &id, keep)
+}
+
+#[tauri::command]
+fn artifact_owners() -> Result<Vec<String>, String> {
+    Ok(artifacts::owners(artifacts_root()?))
 }
 
 #[tauri::command]
@@ -1742,12 +1749,60 @@ async fn extensions_install(
     .map_err(|e| e.to_string())?
 }
 
+fn account_keyring(id: &str) -> impl Fn(&str, &str, Option<&str>) -> Result<(), String> + '_ {
+    move |account, field, value| forge::write_secret(&wasm::account_key(id, account, field)?, value)
+}
+
 #[tauri::command]
-fn extensions_uninstall(
-    extensions: State<extensions::Extensions>,
+async fn extensions_uninstall(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<extensions::Extensions>()
+            .uninstall(&id, &account_keyring(&id))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_account_save(
+    app: AppHandle,
     id: String,
+    account: Option<String>,
+    values: std::collections::BTreeMap<String, String>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let saved = app.state::<extensions::Extensions>().save_account(
+            &id,
+            account.as_deref(),
+            &values,
+            &account_keyring(&id),
+        )?;
+        app.state::<wasm::Runtime>()
+            .event(Some(&id), "accounts.changed", None, "{}");
+        Ok(saved)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_account_remove(
+    app: AppHandle,
+    id: String,
+    account: String,
 ) -> Result<(), String> {
-    extensions.uninstall(&id)
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<extensions::Extensions>().remove_account(
+            &id,
+            &account,
+            &account_keyring(&id),
+        )?;
+        app.state::<wasm::Runtime>()
+            .event(Some(&id), "accounts.changed", None, "{}");
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2365,6 +2420,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
+        .plugin(links::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
@@ -2437,6 +2493,8 @@ pub fn run() {
             write_artifact,
             set_artifact_link,
             set_artifact_share,
+            set_artifact_keep,
+            artifact_owners,
             extension_data_dir,
             delete_artifact,
             open_artifact_folder,
@@ -2520,6 +2578,8 @@ pub fn run() {
             extension_exec,
             extensions_secrets,
             extensions_secret_set,
+            extensions_account_save,
+            extensions_account_remove,
             extensions_wasm_sync,
             extensions_wasm_event,
             extensions_wasm_answer,
@@ -2604,13 +2664,6 @@ pub fn run() {
             let keep = ids(agents.clone()).into_iter().chain(ids(agents.join("archived"))).collect();
             artifacts::sweep(&root, &keep);
             let _ = artifacts::ROOT.set(root.clone());
-            let (handle, archived) = (app.handle().clone(), agents.join("archived"));
-            let expiring = root.clone();
-            std::thread::spawn(move || loop {
-                let days = handle.state::<Settings>().config.lock().unwrap().artifacts_after_days;
-                artifacts::expire(&expiring, &archived, days);
-                std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
-            });
             let handle = app.handle().clone();
             artifacts::watch(root, move |agent| {
                 let _ = handle.emit("artifacts-changed", agent);
@@ -2644,9 +2697,16 @@ pub fn run() {
             });
             app.manage(extensions::Extensions { dir: extensions_dir, file: config.join("extensions.json") });
             let handle = app.handle().clone();
-            app.manage(wasm::Runtime::new(config.join("extensions-state"), move |message| {
-                let _ = handle.emit_to("main", "extensions-host", message);
-            })?);
+            let (claude, accounts) = (app.handle().clone(), app.handle().clone());
+            app.manage(
+                wasm::Runtime::new(config.join("extensions-state"), move |message| {
+                    let _ = handle.emit_to("main", "extensions-host", message);
+                })?
+                .with_hooks(wasm::Hooks {
+                    claude: std::sync::Arc::new(move || claude.state::<Settings>().claude()),
+                    accounts: std::sync::Arc::new(move |id| accounts.state::<extensions::Extensions>().accounts(id)),
+                }),
+            );
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {

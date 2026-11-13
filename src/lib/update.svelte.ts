@@ -41,8 +41,8 @@ export async function checkNow() {
   update.checking = true
   try {
     update.found = await check()
-  } catch (e) {
-    return message(t('settings.updateUnreachable', { error: errorText(e) }), { title, kind: 'error' })
+  } catch {
+    return message(t('settings.updateFailed'), { title: t('settings.updateFailedTitle'), icon: 'github' })
   } finally {
     update.checking = false
   }

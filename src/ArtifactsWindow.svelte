@@ -7,7 +7,7 @@
 
   const query = new URLSearchParams(location.search)
   const agent = $state({ id: query.get('agent') ?? '', name: query.get('name') ?? '', entries: [], subagents: [] } as unknown as Agent)
-  const relay = (kind: 'point' | 'share') => (text: string) => emitTo('main', 'artifact-do', { agent: agent.id, kind, text })
+  const relay = (kind: 'point' | 'share') => (text: string, hint?: string) => emitTo('main', 'artifact-do', { agent: agent.id, kind, text, hint })
 
   refresh(agent.id)
 </script>
@@ -17,6 +17,6 @@
   windowed
   onpoint={relay('point')}
   onshare={relay('share')}
-  ondelegate={(delegation) => void emitTo('main', 'artifact-do', { agent: agent.id, kind: 'delegate', text: '', delegation })}
+  onanswer={() => void emitTo('main', 'artifact-do', { agent: agent.id, kind: 'show', text: '' })}
   onclose={() => getCurrentWindow().close()}
 />

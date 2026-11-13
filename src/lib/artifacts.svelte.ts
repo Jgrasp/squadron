@@ -1,10 +1,9 @@
 import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { emit, emitTo, listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { agents, create, find, persist, send } from './agents.svelte'
-import { defaultsFor } from './projects.svelte'
+import { find, send, show } from './agents.svelte'
 import type { ArtifactInfo } from './artifacts'
-import type { Agent } from './stream'
+import { subagentOf, type Agent, type Subagent } from './stream'
 
 export const shelf = $state<{ root: string; of: Record<string, ArtifactInfo[]> }>({ root: '', of: {} })
 
@@ -20,33 +19,92 @@ listen<string>('artifacts-changed', ({ payload }) => refresh(payload))
 
 export const pointed = $state<Record<string, string[]>>({})
 
-export type Work = { destination: string; verb: 'share' | 'update' | 'unshare'; by: string; since: number; helper?: string }
+export type Progress = { done: number; total: number; message: string }
+
+export type Work = { destination: string; verb: 'share' | 'update' | 'unshare'; by: string; since: number; extension?: string; progress?: Progress; done?: number; after?: number }
+
+export type Band = Work & { state: 'work' | 'wait' | 'done' | 'err'; reason?: string; asker?: string; queued?: boolean }
 
 export const working = $state<Record<string, Work>>({})
 
+export const bands = $state<Record<string, Band>>({})
+
 export const workKey = (agent: string, artifact: string) => `${agent}/${artifact}`
 
-export type Delegation = { agent: string; artifact: string; destination: string; name: string; text: string }
+const main = () => getCurrentWindow().label === 'main'
 
-export async function delegate({ agent, artifact, destination, name, text }: Delegation) {
-  const owner = find(agent)
-  if (!owner) return
-  const helper = agents.list.find((a) => a.sharing?.agent === agent && a.sharing.artifact === artifact && a.sharing.destination === destination)
-  if (helper) return send(helper.id, text), helper.id
-  const id = await create(owner.project, name, defaultsFor(owner.project), text, { from: { by: owner.name }, dir: owner.worktree?.path })
-  const made = find(id)
-  if (!made) return
-  made.sharing = { agent, artifact, destination }
-  persist(made)
-  return id
+export function setWork(key: string, work: Work | null) {
+  if (!main()) return void emitTo('main', 'artifact-work', { key, work })
+  const agent = find(key.slice(0, key.indexOf('/')))
+  if (work?.extension && work.after === undefined && agent) work = { ...work, after: agent.turns + (agent.status === 'working' || agent.status === 'waiting' ? 1 : 0) }
+  if (work) working[key] = work
+  else delete working[key]
 }
 
-listen<{ agent: string; kind: 'point' | 'share' | 'delegate'; text: string; delegation?: Delegation }>('artifact-do', ({ payload: { agent, kind, text, delegation } }) => {
-  if (getCurrentWindow().label !== 'main') return
-  if (kind === 'delegate' && delegation) delegate(delegation)
-  else if (kind === 'share') send(agent, text)
+export function finish(key: string) {
+  if (!main()) return void emitTo('main', 'artifact-finish', key)
+  const work = working[key]
+  if (!work) return
+  const done = Date.now()
+  working[key] = { ...work, done }
+  setTimeout(() => working[key]?.done === done && delete working[key], 5000)
+}
+
+export function shareFork(agent: Agent, work: Work): Subagent | undefined {
+  if (!work.extension || work.verb !== 'share') return
+  return agent.subagents.findLast((s) => s.started >= work.since - 2000 && s.name.startsWith(`/${work.extension}:`))
+}
+
+export function workOf(agent: Agent, sub: Subagent): [string, Work] | undefined {
+  return Object.entries(working).find(([key, work]) => key.startsWith(`${agent.id}/`) && shareFork(agent, work) === sub)
+}
+
+const lastText = (sub: Subagent) => sub.log.findLast((b) => b.type === 'text')?.text.trim() ?? ''
+
+function bandOf(key: string, work: Work): Band {
+  if (work.done) return { ...work, state: 'done' }
+  const agent = find(key.slice(0, key.indexOf('/')))
+  if (!agent || !work.extension || work.verb !== 'share') return { ...work, state: 'work' }
+  const sub = shareFork(agent, work)
+  if (sub && agent.asks.some((a) => subagentOf(agent, a.tool_use_id) === sub)) return { ...work, state: 'wait', asker: sub.name.slice(sub.name.lastIndexOf(':') + 1) }
+  if (sub && sub.status !== 'running') return { ...work, state: 'err', reason: lastText(sub) }
+  if (!sub && work.after !== undefined && agent.turns > work.after) return { ...work, state: 'err' }
+  return { ...work, state: 'work', queued: !sub && work.after !== undefined && agent.turns < work.after }
+}
+
+function replace(next: Record<string, Band>) {
+  for (const key of Object.keys(bands)) if (!(key in next)) delete bands[key]
+  Object.assign(bands, next)
+}
+
+if (main()) {
+  listen<{ key: string; work: Work | null }>('artifact-work', ({ payload }) => setWork(payload.key, payload.work))
+  listen<string>('artifact-finish', ({ payload }) => finish(payload))
+  listen('artifact-bands-wanted', () => emit('artifact-bands', $state.snapshot(bands)))
+  $effect.root(() => {
+    $effect(() => {
+      replace(Object.fromEntries(Object.entries(working).map(([key, work]) => [key, bandOf(key, work)])))
+      emit('artifact-bands', $state.snapshot(bands))
+    })
+  })
+} else {
+  listen<Record<string, Band>>('artifact-bands', ({ payload }) => replace(payload))
+  emitTo('main', 'artifact-bands-wanted')
+}
+
+listen<{ agent: string; kind: 'point' | 'share' | 'show'; text: string; hint?: string }>('artifact-do', ({ payload: { agent, kind, text, hint } }) => {
+  if (!main()) return
+  const found = find(agent)
+  if (kind === 'show' && found) answer(found)
+  else if (kind === 'share') send(agent, text, [], [], '', hint)
   else pointed[agent] = [...(pointed[agent] ?? []), text]
 })
+
+export function answer(agent: Agent) {
+  show(agent)
+  getCurrentWindow().setFocus()
+  requestAnimationFrame(() => document.querySelector('[data-fork-ask]')?.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+}
 
 export async function migrate(agent: Agent) {
   for (const a of agent.artifacts ?? []) {

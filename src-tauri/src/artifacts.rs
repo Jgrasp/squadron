@@ -86,6 +86,7 @@ pub struct Artifact {
     pub modified: u64,
     pub link: Option<String>,
     pub links: serde_json::Map<String, serde_json::Value>,
+    pub keep: Option<u32>,
 }
 
 fn name_ok(name: &str) -> bool {
@@ -200,6 +201,10 @@ pub fn list(root: &Path, agent: &str) -> Result<Vec<Artifact>, String> {
                 modified,
                 link: link_of(&dir),
                 links: links_of(&dir),
+                keep: meta_of(&dir)
+                    .get("keep")
+                    .and_then(|k| k.as_u64())
+                    .map(|k| k as u32),
             })
         })
         .collect();
@@ -282,6 +287,36 @@ pub fn set_shared(
     })
 }
 
+pub fn set_keep(root: &Path, agent: &str, id: &str, keep: Option<u32>) -> Result<(), String> {
+    change_meta(root, agent, id, |meta| match keep {
+        Some(days) => {
+            meta.insert("keep".into(), days.into());
+        }
+        None => {
+            meta.remove("keep");
+        }
+    })
+}
+
+pub fn owners(root: &Path) -> Vec<String> {
+    std::fs::read_dir(root)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .filter(|item| item.path().is_dir())
+        .filter_map(|item| item.file_name().to_str().map(String::from))
+        .filter(|name| name_ok(name))
+        .collect()
+}
+
+fn shared(dir: &Path) -> bool {
+    std::fs::read_dir(dir)
+        .into_iter()
+        .flatten()
+        .flatten()
+        .any(|item| !links_of(&item.path()).is_empty())
+}
+
 pub fn remove(root: &Path, agent: &str, id: &str) -> Result<(), String> {
     match std::fs::remove_dir_all(artifact_dir(root, agent, id)?) {
         Err(e) if e.kind() != std::io::ErrorKind::NotFound => Err(e.to_string()),
@@ -290,9 +325,15 @@ pub fn remove(root: &Path, agent: &str, id: &str) -> Result<(), String> {
 }
 
 pub fn forget(root: &Path, agent: &str) {
-    if let Ok(dir) = agent_dir(root, agent) {
-        let _ = std::fs::remove_dir_all(dir);
+    let Ok(dir) = agent_dir(root, agent) else {
+        return;
+    };
+    for item in std::fs::read_dir(&dir).into_iter().flatten().flatten() {
+        if links_of(&item.path()).is_empty() {
+            let _ = std::fs::remove_dir_all(item.path());
+        }
     }
+    let _ = std::fs::remove_dir(dir);
 }
 
 pub fn sweep(root: &Path, keep: &HashSet<String>) {
@@ -301,32 +342,8 @@ pub fn sweep(root: &Path, keep: &HashSet<String>) {
     };
     for item in read.flatten() {
         let name = item.file_name().to_string_lossy().to_string();
-        if !keep.contains(&name) {
+        if !keep.contains(&name) && !shared(&item.path()) {
             let _ = std::fs::remove_dir_all(item.path());
-        }
-    }
-}
-
-pub fn expire(root: &Path, archived: &Path, days: u32) {
-    if days == 0 {
-        return;
-    }
-    let now = std::time::SystemTime::now()
-        .duration_since(UNIX_EPOCH)
-        .map_or(0, |d| d.as_millis() as u64);
-    let limit = now.saturating_sub(u64::from(days) * 86_400_000);
-    for item in std::fs::read_dir(archived).into_iter().flatten().flatten() {
-        let name = item.file_name().to_string_lossy().to_string();
-        let Some(id) = name.strip_suffix(".json") else {
-            continue;
-        };
-        let since = std::fs::read_to_string(item.path())
-            .ok()
-            .and_then(|text| serde_json::from_str::<serde_json::Value>(&text).ok())
-            .and_then(|data| data["archived"].as_u64())
-            .or_else(|| item.metadata().ok().map(|m| millis(&m)));
-        if since.is_some_and(|at| at < limit) {
-            forget(root, id);
         }
     }
 }
@@ -633,32 +650,15 @@ mod tests {
     }
 
     #[test]
-    fn deletes_the_artifacts_of_agents_archived_for_too_long() {
+    fn keeps_its_own_cleanup_time_and_lists_the_agent_folders() {
         let root = root();
-        let archived = root.join("archived-agents");
-        std::fs::create_dir_all(&archived).unwrap();
-        let day = 86_400_000u64;
-        let now = std::time::SystemTime::now()
-            .duration_since(UNIX_EPOCH)
-            .unwrap()
-            .as_millis() as u64;
-        for (id, since) in [("old", now - 31 * day), ("recent", now - 2 * day)] {
-            write(&root, id, "a", "markdown", "x").unwrap();
-            std::fs::write(
-                archived.join(format!("{id}.json")),
-                format!("{{\"archived\":{since}}}"),
-            )
-            .unwrap();
-        }
-        write(&root, "active", "a", "markdown", "x").unwrap();
-        expire(&root, &archived, 0);
-        assert!(root.join("old").exists());
-        expire(&root, &archived, 30);
-        assert!(
-            !root.join("old").exists()
-                && root.join("recent").exists()
-                && root.join("active").exists()
-        );
+        write(&root, "agent", "a", "markdown", "x").unwrap();
+        assert_eq!(list(&root, "agent").unwrap()[0].keep, None);
+        set_keep(&root, "agent", "a", Some(0)).unwrap();
+        assert_eq!(list(&root, "agent").unwrap()[0].keep, Some(0));
+        set_keep(&root, "agent", "a", None).unwrap();
+        assert_eq!(list(&root, "agent").unwrap()[0].keep, None);
+        assert_eq!(owners(&root), vec!["agent".to_string()]);
         std::fs::remove_dir_all(root).unwrap();
     }
 
@@ -667,10 +667,16 @@ mod tests {
         let root = root();
         write(&root, "kept", "a", "markdown", "x").unwrap();
         write(&root, "gone", "a", "markdown", "x").unwrap();
+        write(&root, "shared", "a", "markdown", "x").unwrap();
+        set_shared(&root, "shared", "a", "ext.team", Some("https://x.test"), 1).unwrap();
         sweep(&root, &HashSet::from(["kept".to_string()]));
         assert!(root.join("kept").exists() && !root.join("gone").exists());
+        assert!(root.join("shared").exists());
         forget(&root, "kept");
         assert!(!root.join("kept").exists());
+        write(&root, "shared", "b", "markdown", "x").unwrap();
+        forget(&root, "shared");
+        assert!(root.join("shared").join("a").exists() && !root.join("shared").join("b").exists());
         std::fs::remove_dir_all(root).unwrap();
     }
 }

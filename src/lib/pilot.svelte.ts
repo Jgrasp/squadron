@@ -1,13 +1,14 @@
 import { agentTypes, definition, models } from './catalogs.svelte'
 import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
+import { homeDir, join } from '@tauri-apps/api/path'
 import { listen } from '@tauri-apps/api/event'
 import { ask } from './asking.svelte'
-import { askSecret, askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
+import { archived, askSecret, askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, unarchive, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
 import { loadServers } from './ondemand.svelte'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
-import { defaultsFor, editProject, projects, setCards, type Project } from './projects.svelte'
+import { defaultsFor, editProject, inspect, projects, set, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
 import { lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
@@ -15,7 +16,7 @@ import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
 import { ARTIFACT_MAX, ARTIFACT_KINDS, DOC_LINK, freeId, type ArtifactInfo } from './artifacts'
-import { refresh, working, workKey } from './artifacts.svelte'
+import { finish, refresh, working, workKey } from './artifacts.svelte'
 import { extensionItems } from './extensions.svelte'
 import { clip } from './shell'
 import { follow } from './sudo.svelte'
@@ -144,6 +145,30 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return `Card ${card.id} added to the To do column of ${project.name}.`
   },
 
+  add_project: async (_, args) => {
+    let path = String(args.path ?? '').trim().replace(/(.)\/+$/, '$1')
+    if (!path) throw new Error('The path is empty.')
+    if (path === '~' || path.startsWith('~/')) path = await join(await homeDir(), path.slice(2))
+    if (!path.startsWith('/')) throw new Error(`${path} is not an absolute path.`)
+    const info = await inspect(path)
+    if (info.taken_by && info.taken_archived) {
+      const shelved = projects.archived.find((p) => p.name === info.taken_by)!
+      await editProject(shelved.path, { archived: false })
+      for (const a of await archived()) if (a.withProject && a.project === shelved.path) await unarchive(a.id)
+      return `${shelved.name} (${shelved.path}) is back from the archive with its agents.`
+    }
+    if (info.taken_by) return `${path} is already the project ${info.taken_by}.`
+    if (!info.exists) throw new Error(`${path} does not exist. Create the folder or clone the repository first, then call add_project again.`)
+    const name = String(args.name ?? '').trim() || info.name
+    const same = [...projects.list, ...projects.archived].find((p) => p.name.toLowerCase() === name.toLowerCase())
+    if (same) throw new Error(`A project is already named ${same.name} (${same.path}). Pass another name.`)
+    set(await invoke<Project[]>('add_project', { path, name, color: null }))
+    const reach = settings.pilot_all
+      ? `Start agents there with start_agent and project “${name}”.`
+      : 'You can only start agents in your own project: the user starts them there, or allows every project in Settings › Preferences.'
+    return `Added the project ${name} at ${path}. ${reach}`
+  },
+
   move_card: async (caller, args) => {
     const column = pick<Column>(args.column, COLUMNS, 'todo', 'column')
     const project = projects.list.find((p) => p.cards.some((c) => c.id === args.card))
@@ -207,6 +232,18 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
   },
 
   set_progress: (caller, args) => {
+    const artifact = String(args.artifact ?? '').trim()
+    if (artifact) {
+      const key = workKey(caller.id, artifact)
+      const work = working[key]
+      if (!work) throw new Error(`No share of the artifact ${artifact} is under way.`)
+      const total = Number(args.total)
+      const done = Number(args.done ?? 0)
+      if (!Number.isFinite(total) || total <= 0) throw new Error('total must be a number above 0.')
+      if (!Number.isFinite(done) || done < 0 || done > total) throw new Error(`done must be between 0 and ${total}.`)
+      working[key] = { ...work, progress: { done, total, message: String(args.message ?? '').trim() } }
+      return `The Artifacts panel shows ${done}/${total} for ${artifact}.`
+    }
     if (args.total === null || args.total === undefined) {
       caller.progress = null
       persist(caller)
@@ -371,8 +408,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const content = String(args.content ?? '')
     const link = String(args.link ?? '').trim()
     const destination = String(args.destination ?? '').trim()
-    const owner = (destination && caller.sharing?.destination === destination && caller.sharing.artifact === id && find(caller.sharing.agent)) || caller
-    const list = await invoke<ArtifactInfo[]>('list_artifacts', { agent: owner.id })
+    const list = await invoke<ArtifactInfo[]>('list_artifacts', { agent: caller.id })
     const found = id ? list.find((a) => a.id === id) : undefined
     if (id && !found) throw new Error(`You have no artifact ${id}. Your artifacts: ${list.map((a) => `${a.id} “${a.title}”`).join(', ') || 'none'}.`)
     if (destination) {
@@ -382,9 +418,9 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       if (!found) throw new Error('Give the id of the artifact the link is for.')
       if (link && !/^https:\/\/\S+$/.test(link)) throw new Error(`${link} is not an https:// link.`)
       if (content.trim()) throw new Error('Leave the content empty: a destination only takes the link.')
-      await invoke('set_artifact_share', { agent: owner.id, id, destination, link: link || null })
-      delete working[workKey(owner.id, id)]
-      await refresh(owner.id)
+      await invoke('set_artifact_share', { agent: caller.id, id, destination, link: link || null })
+      finish(workKey(caller.id, id))
+      await refresh(caller.id)
       return link ? `Artifact ${id} is shared on ${destination} at ${link}: the user opens it and copies the link from the Share menu.` : `Artifact ${id} is no longer shared on ${destination}.`
     }
     if (link && !DOC_LINK.test(link)) throw new Error(`${link} is not the link of a claude.ai doc.`)
@@ -392,7 +428,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       if (!found) throw new Error('The content is empty.')
       if (link) {
         await invoke('set_artifact_link', { agent: caller.id, id, link })
-        delete working[workKey(caller.id, id)]
+        finish(workKey(caller.id, id))
         await refresh(caller.id)
         return `Artifact ${id} now links to ${link}: the user opens and shares it from the Artifacts panel.`
       }

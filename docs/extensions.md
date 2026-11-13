@@ -198,10 +198,10 @@ Comment ça tourne :
 - `host::agents` et `host::archive-agent` interrogent la fenêtre principale, qui répond par `extensions_wasm_answer` en 10 s au plus. L'archivage suit la règle de l'archivage automatique (`archivable` dans `agents.svelte.ts`) : agent qui ne travaille pas, sans question en attente, ni épinglé, ni distant, ni affiché ;
 - `host::set-timer` envoie l'événement `timer` après 10 s au moins, depuis le fil de l'extension, sans fil en plus. Un nouvel appel remplace le minuteur en cours. Il survit à un plantage, pas au rechargement ni au redémarrage : l'extension le réarme sur `started`.
 
-Le contrat (`extensions/api/wit/squadron.wit`), en 1.2.0. On peut lui ajouter des imports sans casser les extensions déjà compilées : une extension compilée contre 1.0.0 se charge dans un Squadron 1.1.0, vérifié avec l'exemple `hello`. Une extension qui appelle une fonction 1.1.0 ne se charge pas dans un Squadron plus ancien. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
+Le contrat (`extensions/api/wit/squadron.wit`), en 1.3.0. On peut lui ajouter des imports sans casser les extensions déjà compilées : une extension compilée contre 1.0.0 se charge dans un Squadron 1.1.0, et une compilée contre 1.2.0 dans un Squadron 1.3.0, vérifié avec l'exemple `hello`. Une extension qui appelle une fonction 1.1.0 ne se charge pas dans un Squadron plus ancien. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
 
 ```wit
-package squadron:api@1.2.0;
+package squadron:api@1.3.0;
 
 interface types {
   /// The agent a call is about.
@@ -240,7 +240,7 @@ interface types {
   record request {
     method: string,
     url: string,
-    /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads.
+    /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads, `{{<account>.<field>}}` by a field of one of its accounts, and `{{base64:<a>:<b>}}` by the base64 of the values of `a` and `b` joined by `:`, as HTTP Basic auth wants.
     headers: list<tuple<string, string>>,
     body: option<string>,
   }
@@ -250,10 +250,33 @@ interface types {
     headers: list<tuple<string, string>>,
     body: string,
   }
+
+  /// A response whose body is kept as bytes, for images and files. Since 1.3.0.
+  record bytes-response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+
+  /// A response whose body went to a file of the extension's data folder. Since 1.3.0.
+  record saved-file {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    /// The absolute path of the file.
+    path: string,
+    size: u64,
+  }
+
+  /// An account the user added in Settings › Extensions, without its secret fields. Since 1.3.0.
+  record account {
+    id: string,
+    /// The fields of kind `text` and `host`, by their id in the manifest.
+    fields: list<tuple<string, string>>,
+  }
 }
 
 interface host {
-  use types.{agent-state, output, request, response};
+  use types.{account, agent-state, bytes-response, output, request, response, saved-file};
 
   /// Writes a line to Squadron's log.
   log: func(message: string);
@@ -270,7 +293,7 @@ interface host {
   state-set: func(key: string, value: option<string>);
   /// Runs a program the user allowed in `permissions.exec`, without a shell, for at most 120 s.
   exec: func(program: string, args: list<string>, dir: option<string>) -> result<output, string>;
-  /// Sends an HTTPS request to a host the user allowed in `permissions.network`, for at most 30 s and 8 MB.
+  /// Sends an HTTPS request to a host the user allowed in `permissions.network`, or to the `host` field of one of its accounts, for at most 30 s and 8 MB.
   fetch: func(request: request) -> result<response, string>;
   /// Sends a JSON message to one of the extension's open panels, which receives it in `squadron.on`.
   panel-post: func(panel: string, message: string);
@@ -282,13 +305,23 @@ interface host {
   set-timer: func(seconds: u32);
   /// A folder of the extension's own, made on the first call and kept across restarts and updates, for the files `exec` works on. Since 1.2.0.
   data-dir: func() -> string;
+  /// The accounts the user added for the extension. Since 1.3.0.
+  accounts: func() -> list<account>;
+  /// Like `fetch`, with the body as bytes. Since 1.3.0.
+  fetch-bytes: func(request: request) -> result<bytes-response, string>;
+  /// Like `fetch`, writing the body to `name` in the extension's data folder, for at most 120 s and 200 MB. `name` is a relative path made of plain names. Since 1.3.0.
+  download: func(request: request, name: string) -> result<saved-file, string>;
+  /// Opens a document or an image of the extension's data folder in the user's app for it. Programs are refused. Since 1.3.0.
+  open-file: func(path: string) -> result<_, string>;
+  /// Like `exec`, writing `input` to the program's standard input. Since 1.3.0.
+  exec-input: func(program: string, args: list<string>, dir: option<string>, input: string) -> result<output, string>;
 }
 
 world squadron-extension {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;
@@ -313,6 +346,31 @@ world squadron-extension {
 - **Pas de jeton pour `terminal.run`** : la commande est tapée dans le terminal de l'agent, déjà lancé.
 
 L'exemple `hello` le montre avec l'outil `github_user`, qui appelle `https://api.github.com/user` avec le jeton.
+
+### Comptes, octets, fichiers et entrée standard (API 1.3)
+
+Pour qu'une extension parle à un service dont l'adresse dépend de l'utilisateur (Jira Cloud ou Server, GitLab auto-hébergé…), avec plusieurs comptes.
+
+```json
+"contributes": { "accounts": {
+  "label": { "en": "Jira sites", "fr": "Sites Jira" },
+  "fields": [
+    { "id": "site", "label": { "en": "Site" }, "kind": "host", "hint": { "en": "company.atlassian.net" } },
+    { "id": "email", "label": { "en": "Email" } },
+    { "id": "token", "label": { "en": "API token" }, "kind": "secret" }
+  ]
+} },
+"permissions": { "exec": ["claude"], "network": ["api.media.atlassian.com"] }
+```
+
+- **Comptes** : Settings › Extensions liste les comptes de l'extension, avec Ajouter, Modifier et Retirer (confirmé). Chaque champ a un `kind` : `text` (par défaut), `host` (un seul par compte) ou `secret`. Les valeurs `text` et `host` vont dans `accounts` de `extensions.json`, les `secret` dans le trousseau (`extension.<id>.<compte>.<champ>`). Squadron range dans le trousseau tout champ dont le `kind` n'est ni `text` ni `host`. Un secret laissé vide en modification garde l'ancien. Désinstaller retire les comptes et leurs secrets ; retirer un dossier local les garde.
+- **`host::accounts`** : les comptes, avec leur `id` et leurs champs `text` et `host`, jamais les secrets. L'événement `accounts.changed` part à chaque ajout, modification ou retrait.
+- **Hôte saisi** : un champ `host` accepte `https://acme.atlassian.net/…` et garde `acme.atlassian.net`. Les requêtes et les redirections peuvent viser cet hôte sans entrée dans `permissions.network` : l'utilisateur l'a tapé lui-même.
+- **Champs dans les en-têtes** : `{{<compte>.<champ>}}` donne la valeur d'un champ, secret ou non. Les champs d'un compte qui a un `host` ne partent que vers cet hôte : sinon la requête est refusée. `{{base64:<a>:<b>}}` donne le base64 des valeurs de `a` et `b` jointes par `:`, ce qu'attend l'authentification Basic : `("Authorization", "Basic {{base64:3f9a1c2e.email:3f9a1c2e.token}}")`. Les secrets et leur encodage sont remplacés par `[secret]` dans la réponse ; un champ non secret, comme l'e-mail, ne l'est pas. reqwest retire `Authorization` d'une redirection vers un autre hôte (vérifié par un test réseau) : un jeton passé dans un autre en-tête suit la redirection.
+- **`host::fetch-bytes`** : comme `fetch`, corps en octets, pour une image ou un avatar à passer au panneau en `data:` (la CSP du panneau les accepte).
+- **`host::download`** : écrit le corps dans le dossier de données (`name` relatif, sans `..` ni nom caché), 120 s et 200 Mo au plus, et rend son chemin et sa taille.
+- **`host::open-file`** : ouvre un fichier du dossier de données dans l'application de l'utilisateur, avec la règle des pièces jointes : documents et images seulement, jamais un programme.
+- **`host::exec-input`** : comme `exec`, avec une entrée standard écrite depuis un fil à part, de taille libre. `"claude"` dans `permissions.exec` lance le Claude Code réglé dans Squadron, pas celui du `PATH`.
 
 ### Panneaux (étape 7)
 
@@ -349,18 +407,21 @@ Un élément de l'emplacement `artifact.actions` devient une destination de part
     "confirm": { "en": "“{artifact.title}” becomes a Google web app for your team." },
     "lines": ["Google Apps Script · access: example.com"],
     "shared": { "en": "Shared with the team" },
-    "share": "Share the artifact {artifact.id} at {artifact.dir}, then call publish_artifact with id {artifact.id}, destination {destination} and its link.",
+    "share": "Call the Skill tool with skill team-share:share-artifact and args: artifact {artifact.id} at {artifact.dir}, destination {destination}. Do nothing else.",
     "update": { "tool": "deploy" },
     "unshare": { "tool": "undeploy" },
     "delete": { "en": "Also delete the Apps Script project" },
-    "deleteHint": { "en": "What the team entered is deleted with it." }
+    "deleteHint": { "en": "What the team entered is deleted with it." },
+    "cleanup": { "days": 90 }
 } } }
 ```
 
 - **Étapes** : `share` est obligatoire, `update` et `unshare` facultatifs. Chacune est un prompt, ou `{ "tool": "<nom>" }` qui appelle `call-tool` du module WASM sans passer par un agent. L'outil reçoit `{ verb, destination, artifact: { id, title, dir, entry }, link, delete, data }` et rend le lien pour `share` et `update`. Il n'a pas besoin de figurer dans `contributes.tools` : les agents ne le voient pas.
-- **Agent dédié** : un prompt ne va pas à l'agent de la conversation. Squadron lance un agent « <titre> · <libellé> » dans le même projet, avec les réglages par défaut du projet, et lui envoie les étapes suivantes du même artifact et de la même destination tant qu'il n'est pas archivé. Son `publish_artifact` vise l'artifact de l'agent d'origine.
+- **Prompt** : il part dans la conversation de l'artifact, sous le libellé de la destination (« Share with the team ») ; l'agent reçoit le prompt complet. Pour que le travail ne coûte pas le modèle de la conversation, le prompt fait appeler à l'agent un skill de l'extension marqué `context: fork` et `model: sonnet` : Claude Code le lance en sous-agent sur ce modèle. Appelé par l'outil Skill, ce sous-agent fait passer ses demandes de permission par Squadron ; tapé en commande `/`, il ne le peut pas et Claude Code les refuse.
+- **Suivi** : le sous-agent appelle `set_progress` avec `artifact`, `done` (étapes finies), `total` et `message` (l'étape en cours) ; le bandeau du panneau et sa carte dans la conversation les affichent. Ses demandes de permission s'affichent dans sa carte. S'il finit sans `publish_artifact`, le bandeau passe en erreur avec sa dernière phrase.
 - **Variables** des prompts et de `confirm` : `{artifact.id}`, `{artifact.title}`, `{artifact.dir}` (dossier absolu de l'artifact), `{artifact.entry}`, `{agent}` (le nom de l'agent), `{agent.id}`, `{destination}` (la clé `<extension>.<élément>`), `{extension.data}` (le dossier de données de l'extension), `{link}` et `{delete}` (`true` si la case de suppression est cochée).
 - **Lien** : un prompt finit par `publish_artifact` avec `id`, `destination` et `link` (toute adresse `https://`), ou un `link` vide pour retirer le partage. Squadron garde un lien par destination dans le `.squadron.json` de l'artifact, avec l'heure du partage.
+- **Nettoyage** (`cleanup`, facultatif) : Squadron supprime un artifact resté sans changement pendant le délai de Settings (30 jours par défaut, « Never » possible). `cleanup.days` fixe celui des artifacts que l'extension partage (0 : jamais) ; il demande un `unshare` qui est un `tool`. Avant de supprimer l'artifact, Squadron appelle cet outil avec `delete: true`, sans agent ni question ; s'il échoue, ou si l'extension est désactivée ou attend un accord, l'artifact reste et l'erreur s'affiche dans son menu ⋯. L'utilisateur peut changer le délai de l'extension (Settings › Extensions) et celui de chaque artifact (menu ⋯), « Never » compris. Le plus précis l'emporte : artifact, puis extension (le plus long si plusieurs), puis Squadron. Le délai part du dernier changement de l'artifact ou de son dernier partage, et jamais avant la mise à jour qui a introduit la règle. Supprimer un artifact ou son agent arrête aussi ses partages de la même façon.
 - **Menu** : partagée, la destination montre Open, Copy link, Update quand l'artifact a changé depuis le partage et que `update` existe, Stop sharing si `unshare` existe. Stop sharing demande confirmation, avec la case `delete` quand elle est déclarée. Pendant une étape, un bandeau s'affiche sous l'en-tête du panneau.
 
 ### Distribution (étape 8)
