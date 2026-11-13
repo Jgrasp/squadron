@@ -12,6 +12,7 @@ pub mod extensions;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
+mod links;
 mod ondemand;
 pub mod permissions;
 pub mod pilot;
@@ -2365,6 +2366,7 @@ pub fn run() {
         })
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
+        .plugin(links::init())
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
