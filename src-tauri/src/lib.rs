@@ -1743,12 +1743,60 @@ async fn extensions_install(
     .map_err(|e| e.to_string())?
 }
 
+fn account_keyring(id: &str) -> impl Fn(&str, &str, Option<&str>) -> Result<(), String> + '_ {
+    move |account, field, value| forge::write_secret(&wasm::account_key(id, account, field)?, value)
+}
+
 #[tauri::command]
-fn extensions_uninstall(
-    extensions: State<extensions::Extensions>,
+async fn extensions_uninstall(app: AppHandle, id: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<extensions::Extensions>()
+            .uninstall(&id, &account_keyring(&id))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_account_save(
+    app: AppHandle,
     id: String,
+    account: Option<String>,
+    values: std::collections::BTreeMap<String, String>,
+) -> Result<String, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let saved = app.state::<extensions::Extensions>().save_account(
+            &id,
+            account.as_deref(),
+            &values,
+            &account_keyring(&id),
+        )?;
+        app.state::<wasm::Runtime>()
+            .event(Some(&id), "accounts.changed", None, "{}");
+        Ok(saved)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+async fn extensions_account_remove(
+    app: AppHandle,
+    id: String,
+    account: String,
 ) -> Result<(), String> {
-    extensions.uninstall(&id)
+    tauri::async_runtime::spawn_blocking(move || {
+        app.state::<extensions::Extensions>().remove_account(
+            &id,
+            &account,
+            &account_keyring(&id),
+        )?;
+        app.state::<wasm::Runtime>()
+            .event(Some(&id), "accounts.changed", None, "{}");
+        Ok(())
+    })
+    .await
+    .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]
@@ -2522,6 +2570,8 @@ pub fn run() {
             extension_exec,
             extensions_secrets,
             extensions_secret_set,
+            extensions_account_save,
+            extensions_account_remove,
             extensions_wasm_sync,
             extensions_wasm_event,
             extensions_wasm_answer,
@@ -2646,9 +2696,16 @@ pub fn run() {
             });
             app.manage(extensions::Extensions { dir: extensions_dir, file: config.join("extensions.json") });
             let handle = app.handle().clone();
-            app.manage(wasm::Runtime::new(config.join("extensions-state"), move |message| {
-                let _ = handle.emit_to("main", "extensions-host", message);
-            })?);
+            let (claude, accounts) = (app.handle().clone(), app.handle().clone());
+            app.manage(
+                wasm::Runtime::new(config.join("extensions-state"), move |message| {
+                    let _ = handle.emit_to("main", "extensions-host", message);
+                })?
+                .with_hooks(wasm::Hooks {
+                    claude: std::sync::Arc::new(move || claude.state::<Settings>().claude()),
+                    accounts: std::sync::Arc::new(move |id| accounts.state::<extensions::Extensions>().accounts(id)),
+                }),
+            );
             let handle = app.handle().clone();
             let token = uuid::Uuid::new_v4().simple().to_string();
             let gate = Gate::new(token.clone(), move |ask| {

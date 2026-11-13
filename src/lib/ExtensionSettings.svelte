@@ -5,8 +5,8 @@
   import Dialog from './Dialog.svelte'
   import { ask } from './asking.svelte'
   import { errorText, locale, t } from './i18n/index.svelte'
-  import { OFFICIAL, shownOf, text, updatesOf, type CatalogEntry, type Extension, type Source, type Text } from './extensions'
-  import { addSource, approve, asks, catalog, commandLine, install, loadCatalog, loadExtensions, extensions, removeSource, uninstall } from './extensions.svelte'
+  import { OFFICIAL, shownOf, text, updatesOf, type Account, type CatalogEntry, type Extension, type Source, type Text } from './extensions'
+  import { addSource, approve, asks, catalog, commandLine, install, loadCatalog, loadExtensions, extensions, removeAccount, removeSource, saveAccount, uninstall } from './extensions.svelte'
   import { home } from './projects.svelte'
 
   type From = 'official' | 'imported' | 'local'
@@ -45,6 +45,7 @@
   let source = $state('')
   let set = $state<Record<string, string[]>>({})
   let typed = $state<Record<string, string>>({})
+  let draft = $state<{ extension: string; account: string | null; values: Record<string, string> } | null>(null)
 
   const named = (value: Text | undefined) => (value ? text(value, locale()) : '')
   const color = (id: string) => COLORS[[...id].reduce((sum, c) => sum + c.charCodeAt(0), 0) % COLORS.length]
@@ -141,6 +142,40 @@
       set[e.id] = value === null ? (set[e.id] ?? []).filter((n) => n !== name) : [...new Set([...(set[e.id] ?? []), name])]
       typed[`${e.id}.${name}`] = ''
     }
+  }
+
+  const summary = (e: Extension, a: Account) =>
+    (e.manifest?.contributes?.accounts?.fields ?? [])
+      .filter((f) => f.kind !== 'secret')
+      .map((f) => a.values[f.id])
+      .filter(Boolean)
+      .join(' · ')
+
+  const blank = (extension: string) => ({ extension, account: null, values: {} })
+
+  $effect(() => {
+    const e = detail?.installed
+    if (e?.manifest?.contributes?.accounts && draft?.extension !== e.id) draft = blank(e.id)
+  })
+
+  const complete = (e: Extension) => {
+    const values = draft?.extension === e.id ? draft.values : {}
+    const kept = draft?.account ? (extensions.accounts[e.id]?.find((a) => a.id === draft!.account)?.secrets ?? []) : []
+    return (e.manifest?.contributes?.accounts?.fields ?? []).every((f) => values[f.id]?.trim() || kept.includes(f.id))
+  }
+
+  async function keepAccount(event: SubmitEvent, e: Extension) {
+    event.preventDefault()
+    if (!draft || draft.extension !== e.id) return
+    const { account, values } = $state.snapshot(draft)
+    await attempt(() => saveAccount(e.id, account, values))
+    if (!error) draft = blank(e.id)
+  }
+
+  async function dropAccount(e: Extension, a: Account, name: string) {
+    if (!(await ask(t('extensions.accountRemoveText', { name }), { title: t('extensions.accountRemoveTitle'), kind: 'warning', okLabel: t('common.remove') }))) return
+    if (draft?.account === a.id) draft = blank(e.id)
+    attempt(() => removeAccount(e.id, a.id))
   }
 
   const counts = (c: Card) =>
@@ -268,6 +303,46 @@
               </form>
               <p class="line muted">{s.hint ? `${text(s.hint, locale())} ` : ''}{t('extensions.secretHint')}</p>
             {/each}
+            {@const accounts = detail.installed.manifest?.contributes?.accounts}
+            {#if accounts && draft?.extension === detail.id}
+              {@const e = detail.installed}
+              {@const form = draft}
+              {@const kept = form.account ? (extensions.accounts[e.id]?.find((a) => a.id === form.account)?.secrets ?? []) : []}
+              <h4>{text(accounts.label, locale())}</h4>
+              <ul class="accounts">
+                {#each extensions.accounts[e.id] ?? [] as a (a.id)}
+                  {@const name = summary(e, a) || a.id}
+                  <li class:editing={form.account === a.id}>
+                    <span class="mono">{name}</span>
+                    <button class="btn btn-secondary" onclick={() => (draft = { extension: e.id, account: a.id, values: { ...a.values } })}>{t('common.edit')}</button>
+                    <button class="btn danger" onclick={() => dropAccount(e, a, name)}>{t('common.remove')}</button>
+                  </li>
+                {:else}
+                  <li class="muted">{t('extensions.accountsNone')}</li>
+                {/each}
+              </ul>
+              <form class="account" onsubmit={(event) => keepAccount(event, e)}>
+                {#each accounts.fields as f (f.id)}
+                  {@const label = text(f.label, locale())}
+                  <input
+                    class="field"
+                    class:mono={f.kind !== 'text' && f.kind !== undefined}
+                    type={f.kind === 'secret' ? 'password' : 'text'}
+                    autocomplete="off"
+                    spellcheck="false"
+                    placeholder={kept.includes(f.id) ? t('extensions.accountKept', { label }) : label}
+                    aria-label={label}
+                    title={f.hint ? text(f.hint, locale()) : null}
+                    bind:value={form.values[f.id]}
+                  />
+                {/each}
+                <div class="row">
+                  <button class="btn btn-secondary" disabled={!complete(e) || !!busy}>{form.account ? t('common.save') : t('extensions.accountAdd')}</button>
+                  {#if form.account}<button type="button" class="btn btn-ghost" onclick={() => (draft = blank(e.id))}>{t('common.cancel')}</button>{/if}
+                </div>
+              </form>
+              <p class="line muted">{t('extensions.accountsHint')}</p>
+            {/if}
           {/if}
           {#if detail.installed}
             <h4>{t('extensions.location')}</h4>
@@ -736,6 +811,49 @@
     flex: 1;
     height: 30px;
     padding: 0 10px;
+  }
+
+  .accounts {
+    margin: 0 0 8px;
+    padding: 0;
+    list-style: none;
+  }
+
+  .accounts li {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 4px 0;
+    font-size: 12.5px;
+  }
+
+  .accounts li .mono {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .accounts li.editing .mono {
+    color: var(--text-strong);
+  }
+
+  .account {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    margin-bottom: 6px;
+  }
+
+  .account .field {
+    height: 30px;
+    padding: 0 10px;
+  }
+
+  .account .row {
+    display: flex;
+    gap: 6px;
   }
 
   .ways {

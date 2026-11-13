@@ -1,4 +1,4 @@
-package squadron:api@1.2.0;
+package squadron:api@1.3.0;
 
 interface types {
   /// The agent a call is about.
@@ -37,7 +37,7 @@ interface types {
   record request {
     method: string,
     url: string,
-    /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads.
+    /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads, `{{<account>.<field>}}` by a field of one of its accounts, and `{{base64:<a>:<b>}}` by the base64 of the values of `a` and `b` joined by `:`, as HTTP Basic auth wants.
     headers: list<tuple<string, string>>,
     body: option<string>,
   }
@@ -47,10 +47,33 @@ interface types {
     headers: list<tuple<string, string>>,
     body: string,
   }
+
+  /// A response whose body is kept as bytes, for images and files. Since 1.3.0.
+  record bytes-response {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    body: list<u8>,
+  }
+
+  /// A response whose body went to a file of the extension's data folder. Since 1.3.0.
+  record saved-file {
+    status: u16,
+    headers: list<tuple<string, string>>,
+    /// The absolute path of the file.
+    path: string,
+    size: u64,
+  }
+
+  /// An account the user added in Settings › Extensions, without its secret fields. Since 1.3.0.
+  record account {
+    id: string,
+    /// The fields of kind `text` and `host`, by their id in the manifest.
+    fields: list<tuple<string, string>>,
+  }
 }
 
 interface host {
-  use types.{agent-state, output, request, response};
+  use types.{account, agent-state, bytes-response, output, request, response, saved-file};
 
   /// Writes a line to Squadron's log.
   log: func(message: string);
@@ -67,7 +90,7 @@ interface host {
   state-set: func(key: string, value: option<string>);
   /// Runs a program the user allowed in `permissions.exec`, without a shell, for at most 120 s.
   exec: func(program: string, args: list<string>, dir: option<string>) -> result<output, string>;
-  /// Sends an HTTPS request to a host the user allowed in `permissions.network`, for at most 30 s and 8 MB.
+  /// Sends an HTTPS request to a host the user allowed in `permissions.network`, or to the `host` field of one of its accounts, for at most 30 s and 8 MB.
   fetch: func(request: request) -> result<response, string>;
   /// Sends a JSON message to one of the extension's open panels, which receives it in `squadron.on`.
   panel-post: func(panel: string, message: string);
@@ -79,13 +102,23 @@ interface host {
   set-timer: func(seconds: u32);
   /// A folder of the extension's own, made on the first call and kept across restarts and updates, for the files `exec` works on. Since 1.2.0.
   data-dir: func() -> string;
+  /// The accounts the user added for the extension. Since 1.3.0.
+  accounts: func() -> list<account>;
+  /// Like `fetch`, with the body as bytes. Since 1.3.0.
+  fetch-bytes: func(request: request) -> result<bytes-response, string>;
+  /// Like `fetch`, writing the body to `name` in the extension's data folder, for at most 120 s and 200 MB. `name` is a relative path made of plain names. Since 1.3.0.
+  download: func(request: request, name: string) -> result<saved-file, string>;
+  /// Opens a document or an image of the extension's data folder in the user's app for it. Programs are refused. Since 1.3.0.
+  open-file: func(path: string) -> result<_, string>;
+  /// Like `exec`, writing `input` to the program's standard input. Since 1.3.0.
+  exec-input: func(program: string, args: list<string>, dir: option<string>, input: string) -> result<output, string>;
 }
 
 world squadron-extension {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;

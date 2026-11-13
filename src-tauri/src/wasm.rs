@@ -12,7 +12,10 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
 wasmtime::component::bindgen!({ path: "../extensions/api/wit", world: "squadron-extension" });
 
-use squadron::api::types::{AgentState, Output, Request, Response};
+use crate::extensions::Account as Stored;
+use squadron::api::types::{
+    Account, AgentState, BytesResponse, Output, Request, Response, SavedFile,
+};
 
 pub const READ_AGENTS: &str = "agents:read";
 pub const ARCHIVE_AGENTS: &str = "agents:archive";
@@ -23,10 +26,29 @@ const MAX_STATE: usize = 1 << 20;
 const ANSWER: Duration = Duration::from_secs(150);
 const FETCH: Duration = Duration::from_secs(30);
 const MAX_BODY: usize = 8 << 20;
+const DOWNLOAD: Duration = Duration::from_secs(120);
+const MAX_DOWNLOAD: usize = 200 << 20;
 const WINDOW: Duration = Duration::from_secs(10);
 const MIN_TIMER: u32 = 10;
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
+
+type AccountsOf = Arc<dyn Fn(&str) -> Vec<Stored> + Send + Sync>;
+
+#[derive(Clone)]
+pub struct Hooks {
+    pub claude: Arc<dyn Fn() -> String + Send + Sync>,
+    pub accounts: AccountsOf,
+}
+
+impl Default for Hooks {
+    fn default() -> Self {
+        Self {
+            claude: Arc::new(|| "claude".into()),
+            accounts: Arc::new(|_| Vec::new()),
+        }
+    }
+}
 
 type Answers = Arc<Mutex<HashMap<String, mpsc::Sender<Result<Value, String>>>>>;
 
@@ -116,6 +138,7 @@ struct Host {
     emit: Emit,
     answers: Answers,
     timer: Option<Instant>,
+    hooks: Hooks,
 }
 
 impl WasiView for Host {
@@ -155,6 +178,51 @@ impl Host {
         let answer = rx.recv_timeout(WINDOW);
         self.answers.lock().unwrap().remove(&id);
         answer.map_err(|_| "Squadron did not answer.".to_string())?
+    }
+
+    fn launch(
+        &self,
+        program: String,
+        args: Vec<String>,
+        dir: Option<String>,
+        input: Option<String>,
+    ) -> Result<Output, String> {
+        if !self.allowed.contains(&format!("exec:{program}")) {
+            return Err(format!(
+                "{program} is not allowed. List it in permissions.exec; the user then allows it."
+            ));
+        }
+        let program = if program == "claude" {
+            (self.hooks.claude)()
+        } else {
+            program
+        };
+        let mut cmd = crate::process::command(&program);
+        cmd.args(&args);
+        if let Some(dir) = dir
+            .map(PathBuf::from)
+            .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
+        {
+            cmd.current_dir(dir);
+        }
+        let out = extension_tools::capture_input(cmd, input.map(String::into_bytes))?;
+        Ok(Output {
+            code: out.status.and_then(|s| s.code()).unwrap_or(-1),
+            stdout: out.stdout,
+            stderr: out.stderr,
+        })
+    }
+
+    fn send(&self, request: Request, max: usize, timeout: Duration) -> Result<Sent, String> {
+        let id = self.id.clone();
+        let accounts = (self.hooks.accounts)(&self.id);
+        send(&self.allowed, &accounts, request, max, timeout, |key| {
+            let key = match key.split_once('.') {
+                Some((account, field)) => account_key(&id, account, field)?,
+                None => secret_key(&id, key)?,
+            };
+            crate::forge::read_secret(&key)
+        })
     }
 }
 
@@ -216,25 +284,17 @@ impl squadron::api::host::Host for Host {
         args: Vec<String>,
         dir: Option<String>,
     ) -> Result<Output, String> {
-        if !self.allowed.contains(&format!("exec:{program}")) {
-            return Err(format!(
-                "{program} is not allowed. List it in permissions.exec; the user then allows it."
-            ));
-        }
-        let mut cmd = crate::process::command(&program);
-        cmd.args(&args);
-        if let Some(dir) = dir
-            .map(PathBuf::from)
-            .or_else(|| std::env::var_os("HOME").map(PathBuf::from))
-        {
-            cmd.current_dir(dir);
-        }
-        let out = extension_tools::capture(cmd)?;
-        Ok(Output {
-            code: out.status.and_then(|s| s.code()).unwrap_or(-1),
-            stdout: out.stdout,
-            stderr: out.stderr,
-        })
+        self.launch(program, args, dir, None)
+    }
+
+    fn exec_input(
+        &mut self,
+        program: String,
+        args: Vec<String>,
+        dir: Option<String>,
+        input: String,
+    ) -> Result<Output, String> {
+        self.launch(program, args, dir, Some(input))
     }
 
     fn panel_post(&mut self, panel: String, message: String) {
@@ -242,10 +302,57 @@ impl squadron::api::host::Host for Host {
     }
 
     fn fetch(&mut self, request: Request) -> Result<Response, String> {
-        let id = self.id.clone();
-        fetch(&self.allowed, request, |name| {
-            crate::forge::read_secret(&secret_key(&id, name)?)
+        let sent = self.send(request, MAX_BODY, FETCH)?;
+        Ok(Response {
+            status: sent.status,
+            headers: sent.headers,
+            body: scrub(String::from_utf8_lossy(&sent.body).into_owned(), &sent.used),
         })
+    }
+
+    fn fetch_bytes(&mut self, request: Request) -> Result<BytesResponse, String> {
+        let sent = self.send(request, MAX_BODY, FETCH)?;
+        Ok(BytesResponse {
+            status: sent.status,
+            headers: sent.headers,
+            body: scrub_bytes(sent.body, &sent.used),
+        })
+    }
+
+    fn download(&mut self, request: Request, name: String) -> Result<SavedFile, String> {
+        let file = data_file(&self.data, &name)?;
+        let sent = self.send(request, MAX_DOWNLOAD, DOWNLOAD)?;
+        let body = scrub_bytes(sent.body, &sent.used);
+        let dir = file.parent().ok_or("No data folder.")?;
+        std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
+        let part = dir.join(format!(".{}.part", uuid::Uuid::new_v4().simple()));
+        std::fs::write(&part, &body)
+            .and_then(|_| std::fs::rename(&part, &file))
+            .map_err(|e| {
+                let _ = std::fs::remove_file(&part);
+                e.to_string()
+            })?;
+        Ok(SavedFile {
+            status: sent.status,
+            headers: sent.headers,
+            path: file.to_string_lossy().into_owned(),
+            size: body.len() as u64,
+        })
+    }
+
+    fn open_file(&mut self, path: String) -> Result<(), String> {
+        let file = inside_data(&self.data, Path::new(&path))?;
+        crate::open_attachment(file)
+    }
+
+    fn accounts(&mut self) -> Vec<Account> {
+        (self.hooks.accounts)(&self.id)
+            .into_iter()
+            .map(|a| Account {
+                id: a.id,
+                fields: a.values.into_iter().collect(),
+            })
+            .collect()
     }
 
     fn agents(&mut self) -> Result<Vec<AgentState>, String> {
@@ -297,6 +404,11 @@ pub fn secret_key(id: &str, name: &str) -> Result<String, String> {
     }
 }
 
+pub fn account_key(id: &str, account: &str, field: &str) -> Result<String, String> {
+    secret_key(id, field)?;
+    Ok(format!("{}.{field}", secret_key(id, account)?))
+}
+
 fn checked(raw: &str, allowed: &[String]) -> Result<reqwest::Url, String> {
     let url = reqwest::Url::parse(raw).map_err(|e| format!("{raw}: {e}"))?;
     if url.scheme() != "https" {
@@ -311,9 +423,67 @@ fn checked(raw: &str, allowed: &[String]) -> Result<reqwest::Url, String> {
     Ok(url)
 }
 
+fn data_file(data: &Path, name: &str) -> Result<PathBuf, String> {
+    use std::path::Component;
+    let path = Path::new(name);
+    let plain = !name.is_empty()
+        && !name.contains(['\\', '\0'])
+        && path
+            .components()
+            .all(|c| matches!(c, Component::Normal(p) if !p.to_string_lossy().starts_with('.')));
+    if !plain {
+        return Err(format!("{name} is not a file name inside the data folder."));
+    }
+    Ok(data.join(path))
+}
+
+fn inside_data(data: &Path, path: &Path) -> Result<PathBuf, String> {
+    let root = data
+        .canonicalize()
+        .map_err(|_| "The data folder is empty.")?;
+    let file = path.canonicalize().map_err(|_| "The file is gone.")?;
+    if !file.starts_with(&root) {
+        return Err("Only the files of the extension's data folder open from here.".into());
+    }
+    Ok(file)
+}
+
+fn lookup(
+    name: &str,
+    host: &str,
+    accounts: &[Stored],
+    secret: &impl Fn(&str) -> Result<Option<String>, String>,
+) -> Result<(String, bool), String> {
+    let Some((account, field)) = name.split_once('.') else {
+        secret_key("x", name)?;
+        return secret(name)?.map(|v| (v, true)).ok_or_else(|| {
+            format!("The secret {name} is not set. Set it in Settings › Extensions.")
+        });
+    };
+    let found = accounts
+        .iter()
+        .find(|a| a.id == account)
+        .ok_or_else(|| format!("The account {account} no longer exists."))?;
+    if let Some(bound) = found.host.as_deref().filter(|h| *h != host) {
+        return Err(format!(
+            "The fields of the account {account} only go to {bound}."
+        ));
+    }
+    if let Some(value) = found.values.get(field) {
+        return Ok((value.clone(), false));
+    }
+    if !found.secrets.iter().any(|s| s == field) {
+        return Err(format!("The account {account} has no field {field}."));
+    }
+    secret_key("x", field)?;
+    secret(&format!("{account}.{field}"))?
+        .map(|v| (v, true))
+        .ok_or_else(|| format!("The field {field} of the account {account} is not set."))
+}
+
 fn fill(
     value: &str,
-    secret: &impl Fn(&str) -> Result<Option<String>, String>,
+    resolve: &impl Fn(&str) -> Result<(String, bool), String>,
     used: &mut Vec<String>,
 ) -> Result<String, String> {
     let (mut out, mut rest) = (String::new(), value);
@@ -322,12 +492,31 @@ fn fill(
             break;
         };
         let name = &rest[start + 2..start + 2 + len];
-        let found = secret(name)?.ok_or_else(|| {
-            format!("The secret {name} is not set. Set it in Settings › Extensions.")
-        })?;
+        let (found, secret) = match name.strip_prefix("base64:") {
+            Some(parts) => {
+                let mut joined = Vec::new();
+                let mut secret = false;
+                for part in parts.split(':') {
+                    let (value, hidden) = resolve(part)?;
+                    if hidden {
+                        used.push(value.clone());
+                    }
+                    joined.push(value);
+                    secret |= hidden;
+                }
+                let encoded = base64::Engine::encode(
+                    &base64::engine::general_purpose::STANDARD,
+                    joined.join(":"),
+                );
+                (encoded, secret)
+            }
+            None => resolve(name)?,
+        };
         out.push_str(&rest[..start]);
         out.push_str(&found);
-        used.push(found);
+        if secret {
+            used.push(found);
+        }
         rest = &rest[start + 4 + len..];
     }
     out.push_str(rest);
@@ -338,6 +527,26 @@ fn scrub(text: String, used: &[String]) -> String {
     used.iter()
         .filter(|u| !u.is_empty())
         .fold(text, |text, u| text.replace(u.as_str(), "[secret]"))
+}
+
+fn scrub_bytes(mut body: Vec<u8>, used: &[String]) -> Vec<u8> {
+    for needle in used.iter().map(|u| u.as_bytes()).filter(|u| !u.is_empty()) {
+        if !body.windows(needle.len()).any(|w| w == needle) {
+            continue;
+        }
+        let (mut out, mut i) = (Vec::with_capacity(body.len()), 0);
+        while i < body.len() {
+            if body[i..].starts_with(needle) {
+                out.extend_from_slice(b"[secret]");
+                i += needle.len();
+            } else {
+                out.push(body[i]);
+                i += 1;
+            }
+        }
+        body = out;
+    }
+    body
 }
 
 fn why(e: reqwest::Error) -> String {
@@ -351,28 +560,48 @@ fn why(e: reqwest::Error) -> String {
     text
 }
 
-fn fetch(
+struct Sent {
+    status: u16,
+    headers: Vec<(String, String)>,
+    body: Vec<u8>,
+    used: Vec<String>,
+}
+
+fn send(
     allowed: &[String],
+    accounts: &[Stored],
     request: Request,
+    max: usize,
+    timeout: Duration,
     secret: impl Fn(&str) -> Result<Option<String>, String>,
-) -> Result<Response, String> {
-    let url = checked(&request.url, allowed)?;
+) -> Result<Sent, String> {
+    let hosts: Vec<String> = allowed
+        .iter()
+        .cloned()
+        .chain(
+            accounts
+                .iter()
+                .filter_map(|a| a.host.as_ref().map(|h| format!("net:{h}"))),
+        )
+        .collect();
+    let url = checked(&request.url, &hosts)?;
+    let host = url.host_str().unwrap_or_default().to_string();
     let method = reqwest::Method::from_bytes(request.method.to_uppercase().as_bytes())
         .map_err(|_| format!("{} is not an HTTP method.", request.method))?;
+    let resolve = |name: &str| lookup(name, &host, accounts, &secret);
     let mut used = Vec::new();
     let mut headers = reqwest::header::HeaderMap::new();
     for (name, value) in &request.headers {
-        let value = fill(value, &secret, &mut used)?;
+        let value = fill(value, &resolve, &mut used)?;
         let bad = || format!("The header {name} is not valid.");
         headers.append(
             reqwest::header::HeaderName::from_bytes(name.as_bytes()).map_err(|_| bad())?,
             reqwest::header::HeaderValue::from_str(&value).map_err(|_| bad())?,
         );
     }
-    let hosts = allowed.to_vec();
     let _ = rustls::crypto::ring::default_provider().install_default();
     let client = reqwest::Client::builder()
-        .timeout(FETCH)
+        .timeout(timeout)
         .redirect(reqwest::redirect::Policy::custom(move |attempt| {
             if attempt.previous().len() >= 5 {
                 attempt.error("Too many redirects.")
@@ -400,15 +629,16 @@ fn fetch(
             .collect();
         let mut body = Vec::new();
         while let Some(chunk) = answer.chunk().await.map_err(why)? {
-            if body.len() + chunk.len() > MAX_BODY {
-                return Err("The response is larger than 8 MB.".into());
+            if body.len() + chunk.len() > max {
+                return Err(format!("The response is larger than {} MB.", max >> 20));
             }
             body.extend_from_slice(&chunk);
         }
-        Ok(Response {
+        Ok(Sent {
             status: answer.status().as_u16(),
             headers,
-            body: scrub(String::from_utf8_lossy(&body).into_owned(), &used),
+            body,
+            used,
         })
     })
 }
@@ -434,6 +664,7 @@ pub struct Runtime {
     states: PathBuf,
     emit: Emit,
     answers: Answers,
+    hooks: Hooks,
 }
 
 fn resolve(dir: &str, wasm: &str) -> Result<PathBuf, String> {
@@ -465,7 +696,13 @@ impl Runtime {
             states,
             emit: Arc::new(emit),
             answers: Default::default(),
+            hooks: Hooks::default(),
         })
+    }
+
+    pub fn with_hooks(mut self, hooks: Hooks) -> Self {
+        self.hooks = hooks;
+        self
     }
 
     fn data_of(&self, id: &str) -> PathBuf {
@@ -524,12 +761,13 @@ impl Runtime {
     fn start(&self, spec: &Spec, path: &Path) -> Result<mpsc::Sender<Job>, String> {
         let component = Component::from_file(&self.engine, path).map_err(|e| format!("{e:#}"))?;
         let engine = self.engine.clone();
-        let (id, emit, answers, file, data) = (
+        let (id, emit, answers, file, data, hooks) = (
             spec.id.clone(),
             self.emit.clone(),
             self.answers.clone(),
             self.states.join(format!("{}.json", spec.id)),
             self.data_of(&spec.id),
+            self.hooks.clone(),
         );
         let mut allowed = spec.allowed.clone();
         let host = move |allowed: &Vec<String>| Host {
@@ -547,6 +785,7 @@ impl Runtime {
             emit: emit.clone(),
             answers: answers.clone(),
             timer: None,
+            hooks: hooks.clone(),
         };
         let (ready_tx, ready_rx) = mpsc::channel();
         let (tx, rx) = mpsc::channel::<Job>();
@@ -825,6 +1064,7 @@ mod tests {
             }),
             answers,
             timer: None,
+            hooks: Hooks::default(),
         };
         (host, told)
     }
@@ -930,29 +1170,101 @@ mod tests {
         };
         let none = |_: &str| Ok(None);
         assert!(
-            fetch(&allowed, request("https://evil.com/"), none)
-                .unwrap_err()
-                .contains("permissions.network")
+            send(
+                &allowed,
+                &[],
+                request("https://evil.com/"),
+                MAX_BODY,
+                FETCH,
+                none
+            )
+            .err()
+            .unwrap()
+            .contains("permissions.network")
         );
+        let site = account("a1", Some("jira.acme.com"));
+        assert!(
+            send(
+                &allowed,
+                &[site],
+                request("https://jira.acme.com.evil.com/"),
+                MAX_BODY,
+                FETCH,
+                none
+            )
+            .err()
+            .unwrap()
+            .contains("permissions.network")
+        );
+    }
+
+    fn account(id: &str, host: Option<&str>) -> Stored {
+        Stored {
+            id: id.into(),
+            values: [("email".to_string(), "me@acme.com".to_string())]
+                .into_iter()
+                .chain(host.map(|h| ("site".to_string(), h.to_string())))
+                .collect(),
+            host: host.map(str::to_string),
+            secrets: vec!["token".into()],
+        }
     }
 
     #[test]
     fn fills_secrets_in_headers_and_hides_them_in_answers() {
-        let secret = |name: &str| Ok((name == "token").then(|| "s3cr3t".to_string()));
+        let keys = |key: &str| {
+            Ok(match key {
+                "token" => Some("s3cr3t".to_string()),
+                "a1.token" => Some("t0k".to_string()),
+                _ => None,
+            })
+        };
+        let accounts = [account("a1", Some("jira.acme.com")), account("b2", None)];
+        let resolve = |name: &str| lookup(name, "jira.acme.com", &accounts, &keys);
         let mut used = vec![];
         assert_eq!(
-            fill("Bearer {{token}}", &secret, &mut used).unwrap(),
+            fill("Bearer {{token}}", &resolve, &mut used).unwrap(),
             "Bearer s3cr3t"
         );
-        assert_eq!(fill("plain {{", &secret, &mut used).unwrap(), "plain {{");
+        assert_eq!(fill("plain {{", &resolve, &mut used).unwrap(), "plain {{");
         assert!(
-            fill("{{other}}", &secret, &mut used)
+            fill("{{other}}", &resolve, &mut used)
                 .unwrap_err()
                 .contains("Settings › Extensions")
         );
         assert_eq!(
-            scrub("echo: Bearer s3cr3t".into(), &used),
-            "echo: Bearer [secret]"
+            fill("Basic {{base64:a1.email:a1.token}}", &resolve, &mut used).unwrap(),
+            "Basic bWVAYWNtZS5jb206dDBr"
+        );
+        assert_eq!(
+            fill("{{a1.email}}", &resolve, &mut used).unwrap(),
+            "me@acme.com"
+        );
+        assert_eq!(used, ["s3cr3t", "t0k", "bWVAYWNtZS5jb206dDBr"]);
+        assert!(fill("{{a1.nope}}", &resolve, &mut used).is_err());
+        assert!(fill("{{zz.token}}", &resolve, &mut used).is_err());
+        assert!(fill("{{../x}}", &resolve, &mut used).is_err());
+        assert!(
+            fill("{{b2.token}}", &resolve, &mut used)
+                .unwrap_err()
+                .contains("is not set")
+        );
+
+        let elsewhere = |name: &str| lookup(name, "api.github.com", &accounts, &keys);
+        assert!(
+            fill("{{base64:a1.email:a1.token}}", &elsewhere, &mut vec![])
+                .unwrap_err()
+                .contains("only go to jira.acme.com")
+        );
+        assert!(fill("{{token}}", &elsewhere, &mut vec![]).is_ok());
+
+        assert_eq!(
+            scrub("echo: Bearer s3cr3t from me@acme.com".into(), &used),
+            "echo: Bearer [secret] from me@acme.com"
+        );
+        assert_eq!(
+            scrub_bytes(b"\x00t0k\xfft0".to_vec(), &used),
+            b"\x00[secret]\xfft0".to_vec()
         );
         assert_eq!(
             secret_key("hello", "token").unwrap(),
@@ -963,21 +1275,99 @@ mod tests {
     }
 
     #[test]
+    fn keeps_downloads_and_opened_files_inside_the_data_folder() {
+        let data = std::env::temp_dir().join(format!("squadron-data-{}", uuid::Uuid::new_v4()));
+        assert_eq!(
+            data_file(&data, "jira/12/shot.png").unwrap(),
+            data.join("jira/12/shot.png")
+        );
+        for bad in [
+            "",
+            "../x",
+            "/etc/passwd",
+            "a/../../x",
+            ".hidden",
+            "a/.git/x",
+            "a\\b",
+            "./a",
+        ] {
+            assert!(data_file(&data, bad).is_err(), "{bad}");
+        }
+        std::fs::create_dir_all(&data).unwrap();
+        std::fs::write(data.join("doc.txt"), "x").unwrap();
+        let outside = data.with_extension("txt");
+        std::fs::write(&outside, "x").unwrap();
+        assert!(inside_data(&data, &data.join("doc.txt")).is_ok());
+        assert!(inside_data(&data, &data.join("../").join(outside.file_name().unwrap())).is_err());
+        assert!(inside_data(&data, &outside).is_err());
+        assert!(inside_data(&data, &data.join("gone.txt")).is_err());
+    }
+
+    #[test]
+    fn feeds_the_standard_input_and_runs_squadron_s_claude() {
+        let (mut host, _) = self::host(&["exec:wc", "exec:claude"], |_, _| Ok(Value::Null));
+        use squadron::api::host::Host as _;
+        let input = "x".repeat(5 << 20);
+        let out = host
+            .exec_input("wc".into(), vec!["-c".into()], None, input)
+            .unwrap();
+        assert_eq!(out.stdout.trim(), (5 << 20).to_string());
+        assert!(
+            host.exec_input("cat".into(), vec![], None, "x".into())
+                .is_err()
+        );
+        host.hooks.claude = Arc::new(|| "echo".into());
+        let out = host.exec("claude".into(), vec!["hi".into()], None).unwrap();
+        assert_eq!(out.stdout.trim(), "hi");
+    }
+
+    #[test]
     #[ignore = "needs the network"]
     fn fetches_a_real_page() {
-        let answer = fetch(
+        let answer = send(
             &["net:api.github.com".into()],
+            &[],
             Request {
                 method: "get".into(),
                 url: "https://api.github.com/zen".into(),
                 headers: vec![("User-Agent".into(), "squadron-test".into())],
                 body: None,
             },
+            MAX_BODY,
+            FETCH,
             |_| Ok(None),
         )
         .unwrap();
-        assert_eq!(answer.status, 200, "{}", answer.body);
+        assert_eq!(answer.status, 200);
         assert!(!answer.body.is_empty());
+    }
+
+    #[test]
+    #[ignore = "needs the network"]
+    fn drops_the_authorization_on_a_redirect_to_another_host() {
+        let answer = send(
+            &["net:postman-echo.com".into(), "net:httpbingo.org".into()],
+            &[],
+            Request {
+                method: "GET".into(),
+                url:
+                    "https://postman-echo.com/redirect-to?url=https%3A%2F%2Fhttpbingo.org%2Fheaders"
+                        .into(),
+                headers: vec![
+                    ("Authorization".into(), "Bearer {{token}}".into()),
+                    ("User-Agent".into(), "squadron-test".into()),
+                ],
+                body: None,
+            },
+            MAX_BODY,
+            FETCH,
+            |k| Ok((k == "token").then(|| "s3cr3t".to_string())),
+        )
+        .unwrap();
+        let body = String::from_utf8_lossy(&answer.body);
+        assert_eq!(answer.status, 200, "{body}");
+        assert!(body.contains("squadron-test"), "{body}");
+        assert!(!body.to_lowercase().contains("authorization"), "{body}");
     }
 
     #[test]

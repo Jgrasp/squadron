@@ -563,6 +563,8 @@ const orbitPull = () => ({
             })
 
 mockWindows(label)
+const DEMO_ACCOUNTS = '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]}]}'
+
 mockIPC(
   (cmd, args) => {
     const a = args as Record<string, string>
@@ -1293,7 +1295,34 @@ mockIPC(
         return {
           disabled: JSON.parse(localStorage.getItem('extensions-disabled') ?? '[]'),
           approved: JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'),
+          sources: [],
+          origins: { jira: 'Jgrasp/squadron-extensions', lando: 'Jgrasp/squadron-extensions', 'team-share': 'Jgrasp/squadron-extensions' },
+          accounts: JSON.parse(localStorage.getItem('extensions-accounts') ?? DEMO_ACCOUNTS),
           extensions: [
+            {
+              dir: '/home/demo/.config/dev.squadron.desktop/extensions/jira',
+              linked: false,
+              error: null,
+              manifest: {
+                id: 'jira',
+                version: '0.1.0',
+                api: 1,
+                name: { en: 'Jira' },
+                description: { en: 'Your sprint and tickets next to your agents', fr: 'Votre sprint et vos tickets à côté de vos agents' },
+                wasm: 'jira.wasm',
+                permissions: { exec: ['claude'], network: ['api.media.atlassian.com'] },
+                contributes: {
+                  accounts: {
+                    label: { en: 'Jira sites', fr: 'Sites Jira' },
+                    fields: [
+                      { id: 'site', label: { en: 'Site', fr: 'Site' }, kind: 'host', hint: { en: 'company.atlassian.net' } },
+                      { id: 'email', label: { en: 'Email', fr: 'E-mail' } },
+                      { id: 'token', label: { en: 'API token', fr: 'Jeton d’API' }, kind: 'secret' },
+                    ],
+                  },
+                },
+              },
+            },
             {
               dir: '/home/demo/.config/dev.squadron.desktop/extensions/lando',
               linked: false,
@@ -1359,6 +1388,23 @@ mockIPC(
         localStorage.setItem('extensions-approved', JSON.stringify({ ...JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'), [id]: commands }))
         return
       }
+      case 'extensions_account_save':
+      case 'extensions_account_remove': {
+        const { id, account, values } = args as { id: string; account: string | null; values?: Record<string, string> }
+        const all = JSON.parse(localStorage.getItem('extensions-accounts') ?? DEMO_ACCOUNTS)
+        const list: { id: string; values: Record<string, string>; host: string | null; secrets: string[] }[] = all[id] ?? []
+        const kept = list.filter((a) => a.id !== account)
+        const fresh = account ?? Math.random().toString(16).slice(2, 10)
+        if (values) {
+          const site = values.site?.trim().replace(/^https?:\/\//, '').split('/')[0].toLowerCase() ?? null
+          const old = list.find((a) => a.id === account)
+          kept.push({ id: fresh, values: { site, email: values.email.trim() }, host: site, secrets: values.token?.trim() || old ? ['token'] : [] })
+        }
+        localStorage.setItem('extensions-accounts', JSON.stringify({ ...all, [id]: kept }))
+        return fresh
+      }
+      case 'extensions_secrets':
+        return []
       case 'extensions_set_tools':
       case 'extensions_wasm_event':
         return
