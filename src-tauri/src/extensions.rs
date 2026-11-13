@@ -275,6 +275,19 @@ impl Extensions {
             .find(|m| m["id"].as_str() == Some(id))
     }
 
+    pub fn field_url(&self, id: &str, field: &str) -> Option<String> {
+        let manifest = self.manifest(id)?;
+        let contributes = &manifest["contributes"];
+        let fields = contributes["accounts"]["fields"]
+            .as_array()
+            .into_iter()
+            .flatten();
+        let secrets = contributes["secrets"].as_array().into_iter().flatten();
+        let url = fields.chain(secrets).find(|f| f["id"] == field)?["url"].as_str()?;
+        let rest = url.strip_prefix("https://")?;
+        (!rest.is_empty() && !url.contains(char::is_whitespace)).then(|| url.to_string())
+    }
+
     pub fn save_account(
         &self,
         id: &str,
@@ -1019,6 +1032,37 @@ mod tests {
         .unwrap();
         assert!(ring.lock().unwrap().is_empty());
         assert!(m.list().accounts.is_empty());
+    }
+
+    #[test]
+    fn opens_only_the_https_link_a_field_declares() {
+        let m = extensions();
+        std::fs::create_dir_all(m.dir.join("jira")).unwrap();
+        std::fs::write(
+            m.dir.join("jira/extension.json"),
+            r#"{"id":"jira","contributes":{
+                "accounts":{"fields":[
+                    {"id":"token","kind":"secret","url":"https://id.atlassian.com/manage-profile/security/api-tokens"},
+                    {"id":"email","url":"http://id.atlassian.com/manage-profile/security/api-tokens"},
+                    {"id":"site","url":"https://"},
+                    {"id":"pin","url":"https://a.b/x y"},
+                    {"id":"code","url":"javascript:alert(1)"},
+                    {"id":"name"}]},
+                "secrets":[{"id":"key","url":"https://github.com/settings/tokens"},{"id":"old","url":"http://github.com/settings/tokens"}]}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            m.field_url("jira", "token").as_deref(),
+            Some("https://id.atlassian.com/manage-profile/security/api-tokens")
+        );
+        assert_eq!(
+            m.field_url("jira", "key").as_deref(),
+            Some("https://github.com/settings/tokens")
+        );
+        for field in ["email", "site", "pin", "code", "name", "old", "missing"] {
+            assert_eq!(m.field_url("jira", field), None, "{field}");
+        }
+        assert_eq!(m.field_url("other", "token"), None);
     }
 
     #[test]

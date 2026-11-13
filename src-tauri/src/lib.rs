@@ -492,7 +492,10 @@ impl Settings {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
         }
         if !["snake", "bar", "pulse"].contains(&config.projects_effect.as_str()) {
-            return Err(format!("Unknown projects effect: {}", config.projects_effect));
+            return Err(format!(
+                "Unknown projects effect: {}",
+                config.projects_effect
+            ));
         }
         if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));
@@ -1406,10 +1409,10 @@ struct FoundCache(Mutex<HashMap<PathBuf, (std::time::SystemTime, stored::Found)>
 impl FoundCache {
     fn get(&self, path: &Path) -> Option<stored::Found> {
         let modified = std::fs::metadata(path).and_then(|m| m.modified()).ok()?;
-        if let Some((at, found)) = self.0.lock().unwrap().get(path) {
-            if *at == modified {
-                return Some(found.clone());
-            }
+        if let Some((at, found)) = self.0.lock().unwrap().get(path)
+            && *at == modified
+        {
+            return Some(found.clone());
         }
         let found = stored::found(&std::fs::read_to_string(path).ok()?)?;
         self.0
@@ -1752,6 +1755,20 @@ async fn extensions_option_set(
     })
     .await
     .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
+fn extensions_field_link(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    id: String,
+    field: String,
+) -> Result<(), String> {
+    let url = app
+        .state::<extensions::Extensions>()
+        .field_url(&id, &field)
+        .ok_or("This field has no https:// link.")?;
+    open_link(window, url)
 }
 
 #[tauri::command]
@@ -2576,6 +2593,7 @@ pub fn run() {
             }
             let groups_file = config.join("groups.json");
             app.manage(Projects {
+            extensions_field_link,
                 list: Mutex::new(list),
                 file,
                 groups: Mutex::new(projects::load_groups(&groups_file)),

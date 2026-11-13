@@ -740,7 +740,7 @@
         comments = message.comments ?? []
         show(message.text)
       })
-    } else if (event.key === 'ArrowUp' && !text.slice(0, area.from).includes('\n') && recall < sent.length - 1) {
+    } else if (event.key === 'ArrowUp' && text === (recall === -1 ? '' : sent[sent.length - 1 - recall]) && !text.slice(0, area.from).includes('\n') && recall < sent.length - 1) {
       event.preventDefault()
       if (recall === -1) draft = text
       recall++

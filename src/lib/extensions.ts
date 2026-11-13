@@ -21,11 +21,11 @@ export type ExtensionItem = { slot: Slot; id: string; label: Text; hint?: Text; 
 
 export type ExtensionTool = { name: string; description: string; command?: string; input?: Record<string, unknown> }
 
-export type ExtensionSecret = { id: string; label: Text; hint?: Text }
+export type ExtensionSecret = { id: string; label: Text; hint?: Text; url?: string }
 
 export const FIELD_KINDS = ['text', 'host', 'secret'] as const
 
-export type AccountField = { id: string; label: Text; hint?: Text; kind?: (typeof FIELD_KINDS)[number] }
+export type AccountField = { id: string; label: Text; hint?: Text; url?: string; kind?: (typeof FIELD_KINDS)[number] }
 
 export type Accounts = { label: Text; fields: AccountField[] }
 
@@ -108,6 +108,8 @@ function shareProblem(value: unknown, slot: Slot, wasm: boolean): Problem | null
   return null
 }
 
+const isHttps = (value: unknown) => typeof value === 'string' && /^https:\/\/\S+$/.test(value)
+
 function actionProblem(action: unknown, slot: Slot, wasm: boolean, panels: string[]): Problem | null {
   if (!isObject(action) || Object.keys(action).length !== 1) return ['extensions.badAction']
   const [kind, value] = Object.entries(action)[0]
@@ -116,7 +118,7 @@ function actionProblem(action: unknown, slot: Slot, wasm: boolean, panels: strin
   if (NEEDS_AGENT.includes(kind) && slot === 'menu.squadron') return ['extensions.needsAgent', { action: kind }]
   if (kind === 'terminal.run') return oneLine(value) ? null : ['extensions.badCommand']
   if (kind === 'prompt.insert') return null
-  if (kind === 'url.open') return /^https:\/\/\S+$/.test(value) ? null : ['extensions.badUrl']
+  if (kind === 'url.open') return isHttps(value) ? null : ['extensions.badUrl']
   if (kind === 'run') return wasm ? null : ['extensions.needsWasm']
   if (kind === 'panel.open') return panels.includes(value) ? null : ['extensions.unknownPanel', { panel: value }]
   if (kind === 'squadron') return ACTIONS.some(([id]) => id === value) ? null : ['extensions.badSquadron', { action: value }]
@@ -153,10 +155,12 @@ function settingsProblems(value: unknown): Problem[] {
 }
 
 
+const helpOk = (f: Record<string, unknown>) => (f.hint === undefined || isText(f.hint)) && (f.url === undefined || isHttps(f.url))
+
 function accountsOk(value: unknown) {
   if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length) return false
   const fields = value.fields
-  if (!fields.every((f) => isObject(f) && typeof f.id === 'string' && ID.test(f.id) && isText(f.label) && (f.hint === undefined || isText(f.hint)) && (f.kind === undefined || (FIELD_KINDS as readonly unknown[]).includes(f.kind))))
+  if (!fields.every((f) => isObject(f) && typeof f.id === 'string' && ID.test(f.id) && isText(f.label) && helpOk(f) && (f.kind === undefined || (FIELD_KINDS as readonly unknown[]).includes(f.kind))))
     return false
   return new Set(fields.map((f) => f.id)).size === fields.length && fields.filter((f) => f.kind === 'host').length <= 1
 }
@@ -231,7 +235,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
       })
     }
     const secrets = contributes.secrets ?? []
-    if (!Array.isArray(secrets) || !secrets.every((s) => isObject(s) && typeof s.id === 'string' && ID.test(s.id) && isText(s.label) && (s.hint === undefined || isText(s.hint))))
+    if (!Array.isArray(secrets) || !secrets.every((s) => isObject(s) && typeof s.id === 'string' && ID.test(s.id) && isText(s.label) && helpOk(s)))
       problems.push(['extensions.badSecrets'])
     else if (new Set(secrets.map((s) => s.id)).size < secrets.length) problems.push(['extensions.badSecrets'])
     if (contributes.accounts !== undefined && !accountsOk(contributes.accounts)) problems.push(['extensions.badAccounts'])
@@ -346,7 +350,7 @@ const entryOf = (e: unknown): e is Published =>
 
 const pickOf = (e: Published & { versions?: unknown }, app: string) => {
   const { id, name, description, repository } = e
-  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v) => ({ name, description, repository, ...v, id })).filter(entryOf) : [e]
+  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v): unknown => ({ name, description, repository, ...v, id })).filter(entryOf) : [e]
   return list.sort((x, y) => (newer(x.version, y.version) ? -1 : 1)).find((r) => fits(r.squadron, app))
 }
 

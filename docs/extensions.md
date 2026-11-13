@@ -361,13 +361,15 @@ Pour qu'une extension parle à un service dont l'adresse dépend de l'utilisateu
   "fields": [
     { "id": "site", "label": { "en": "Site" }, "kind": "host", "hint": { "en": "company.atlassian.net" } },
     { "id": "email", "label": { "en": "Email" } },
-    { "id": "token", "label": { "en": "API token" }, "kind": "secret" }
+    { "id": "token", "label": { "en": "API token" }, "kind": "secret",
+      "hint": { "en": "Create API token (not “with scopes”)" }, "url": "https://id.atlassian.com/manage-profile/security/api-tokens" }
   ]
 } },
 "permissions": { "exec": ["claude"], "network": ["api.media.atlassian.com"] }
 ```
 
 - **Comptes** : Settings › Extensions liste les comptes de l'extension, avec Ajouter, Modifier et Retirer (confirmé). Chaque champ a un `kind` : `text` (par défaut), `host` (un seul par compte) ou `secret`. Les valeurs `text` et `host` vont dans `accounts` de `extensions.json`, les `secret` dans le trousseau (`extension.<id>.<compte>.<champ>`). Squadron range dans le trousseau tout champ dont le `kind` n'est ni `text` ni `host`. Un secret laissé vide en modification garde l'ancien. Désinstaller retire les comptes et leurs secrets ; retirer un dossier local les garde.
+- **Lien sous un champ** : `url` facultatif, en `https://`, ouvert dans le navigateur comme `url.open`. Le texte de `hint` devient le lien, ou « Create one » / « En créer un » sans `hint`. Même chose pour un `contributes.secrets`.
 - **`host::accounts`** : les comptes, avec leur `id` et leurs champs `text` et `host`, jamais les secrets. L'événement `accounts.changed` part à chaque ajout, modification ou retrait.
 - **Hôte saisi** : un champ `host` accepte `https://acme.atlassian.net/…` et garde `acme.atlassian.net`. Les requêtes et les redirections peuvent viser cet hôte sans entrée dans `permissions.network` : l'utilisateur l'a tapé lui-même.
 - **Champs dans les en-têtes** : `{{<compte>.<champ>}}` donne la valeur d'un champ, secret ou non. Les champs d'un compte qui a un `host` ne partent que vers cet hôte : sinon la requête est refusée. `{{base64:<a>:<b>}}` donne le base64 des valeurs de `a` et `b` jointes par `:`, ce qu'attend l'authentification Basic : `("Authorization", "Basic {{base64:3f9a1c2e.email:3f9a1c2e.token}}")`. Les secrets et leur encodage sont remplacés par `[secret]` dans la réponse ; un champ non secret, comme l'e-mail, ne l'est pas. reqwest retire `Authorization` d'une redirection vers un autre hôte (vérifié par un test réseau) : un jeton passé dans un autre en-tête suit la redirection.

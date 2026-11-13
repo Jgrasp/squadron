@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.46.1 · 2026-11-13
+
+### Mises à jour
+
+- Une nouvelle version arrive sur Linux, macOS et Windows dès que leur build est prêt, sans attendre le plus lent.
+
 ## 0.46.0 · 2026-11-13
 
 ### Extensions

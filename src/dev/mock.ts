@@ -538,6 +538,8 @@ const orbitPull = () => ({
             })
 
 mockWindows(label)
+const JIRA_TOKENS = 'https://id.atlassian.com/manage-profile/security/api-tokens'
+
 const DEMO_ACCOUNTS = '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]}]}'
 
 mockIPC(
@@ -635,6 +637,9 @@ mockIPC(
       }
       case 'open_link':
         window.open(a.url, '_blank')
+        return
+      case 'extensions_field_link':
+        window.open(JIRA_TOKENS, '_blank')
         return
       case 'link_preview':
         return a.url.includes('github.com')
@@ -1099,7 +1104,7 @@ mockIPC(
           ? `diff --git a/${a.path} b/${a.path}\nnew file mode 100644\n--- /dev/null\n+++ b/${a.path}\n@@ -0,0 +1,4 @@\n+<?php\n+\n+final class ResolverTest extends TestCase\n+{\n`
           : `diff --git a/${a.path} b/${a.path}\nindex 3f2a91c..${a.now.slice(0, 7)} 100644\n--- a/${a.path}\n+++ b/${a.path}\n@@ -10,6 +10,11 @@ final class ChannelSegmentResolver\n {\n-    public function resolve(CustomerInterface $customer): array\n+    public function resolve(\n+        CustomerInterface $customer,\n+        ?ChannelInterface $channel = null,\n+    ): array\n     {\n-        return [];\n+        $channel ??= $this->channelContext->getChannel();\n+\n+        return $this->repository->findForCustomer($customer, $channel);\n     }\n }\n`
       case 'existing_files':
-        return a.paths.filter((p: string) => ['config/services.yaml', 'src/Segmentation/SegmentRepository.php'].includes(p))
+        return (args as { paths: string[] }).paths.filter((p) => ['config/services.yaml', 'src/Segmentation/SegmentRepository.php'].includes(p))
       case 'project_files':
         return ['composer.json', 'composer.lock', 'config/', 'config/services.yaml', 'resume.txt', 'src/', 'src/Segmentation/', 'src/Segmentation/ChannelSegmentResolver.php', 'src/Segmentation/SegmentRepository.php', 'tests/', 'tests/ResolverTest.php']
       case 'project_grep':
@@ -1249,7 +1254,13 @@ mockIPC(
                     fields: [
                       { id: 'site', label: { en: 'Site', fr: 'Site' }, kind: 'host', hint: { en: 'company.atlassian.net' } },
                       { id: 'email', label: { en: 'Email', fr: 'E-mail' } },
-                      { id: 'token', label: { en: 'API token', fr: 'Jeton d’API' }, kind: 'secret' },
+                      {
+                        id: 'token',
+                        label: { en: 'API token', fr: 'Jeton d’API' },
+                        kind: 'secret',
+                        hint: { en: 'Create API token (not “with scopes”)', fr: 'Create API token (pas « with scopes »)' },
+                        url: JIRA_TOKENS,
+                      },
                     ],
                   },
                 },
