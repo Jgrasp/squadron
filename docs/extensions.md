@@ -443,6 +443,8 @@ host::update_new_agent(&draft, &json!({ "text": text, "goal": goal, "status": { 
 - **`host::update-new-agent(id, draft)`** : remplit le brouillon ouvert. `name`, `text` et `goal` ne sont remplacés que si l'utilisateur ne les a pas modifiés ; `context`, `link`, `choices` et `status` le sont toujours. Sans effet une fois la fenêtre fermée ou le lien retiré.
 - **Événements** : `new-agent.regenerate` avec `{ "draft": "…", "choices": ["…"] }` (ids cochés) quand l'utilisateur clique Regenerate, ou change les cases sans avoir touché au premier message ; Squadron vide alors le premier message et remet le bandeau en `running`. `new-agent.started` avec `{ "draft": "…" }` et l'agent lancé. `new-agent.closed` quand la fenêtre se ferme sans lancer d'agent, ou que l'utilisateur délie.
 
+- **Version** : une extension qui appelle ces fonctions ne se charge pas dans un Squadron plus ancien ; elle déclare `"squadron"` à partir de la première version qui a l'API 1.5.
+
 L'exemple `hello` le montre avec l'entrée « New agent from Hello » du menu de l'agent.
 
 ### Skills (`contributes.skills`)
