@@ -229,6 +229,37 @@ describe('extensions', () => {
     expect(load([{ dir: '/m/jira', linked: false, manifest: { ...base, contributes: { accounts: { label: { en: 'S' }, fields: [field('s', 'host')] } } }, error: null }], [])[0].pending).toEqual([])
   })
 
+  it('checks the options and the settings page an extension declares', () => {
+    const base = { id: 'jira', version: '1.0.0', api: 1, name: { en: 'Jira' } }
+    const with_ = (settings: unknown) => keys({ ...base, contributes: { settings } })
+    const choice = (value: string) => ({ value, label: { en: value } })
+    expect(
+      with_({
+        title: { en: 'Sharing' },
+        page: 'settings/index.html',
+        options: [
+          { id: 'sprint', label: { en: 'Sprint' }, kind: 'select', default: 'open', choices: [choice('open'), choice('next')] },
+          { id: 'chips', label: { en: 'Chips' }, kind: 'toggle', default: true },
+          { id: 'limit', label: { en: 'Limit' }, kind: 'number', min: 1, default: 50, max: 100 },
+          { id: 'folder', label: { en: 'Folder' }, hint: { en: 'Where' }, kind: 'text' },
+        ],
+      }),
+    ).toEqual([])
+    expect(with_({ page: '../outside.html' })).toEqual(['extensions.badSettingsPage'])
+    expect(with_([])).toEqual(['extensions.badSettings'])
+    for (const bad of [
+      { id: 'a', label: { en: 'A' }, kind: 'color' },
+      { id: 'a', label: { en: 'A' }, kind: 'toggle', default: 'yes' },
+      { id: 'a', label: { en: 'A' }, kind: 'number', min: 10, default: 5 },
+      { id: 'a', label: { en: 'A' }, kind: 'select', choices: [] },
+      { id: 'a', label: { en: 'A' }, kind: 'select', default: 'z', choices: [choice('x')] },
+      { id: 'A', label: { en: 'A' }, kind: 'text' },
+    ])
+      expect(with_({ options: [bad] })).toEqual(['extensions.badOption'])
+    const twice = { id: 'a', label: { en: 'A' }, kind: 'text' }
+    expect(with_({ options: [twice, twice] })).toEqual(['extensions.twiceOption'])
+  })
+
   it('asks to see and archive agents', () => {
     const base = { id: 'jira', version: '1.0.0', api: 1, name: { en: 'Jira' } }
     const both = { ...base, permissions: { agents: ['read', 'archive'] } }

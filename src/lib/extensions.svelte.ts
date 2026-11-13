@@ -8,12 +8,12 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type Found, type Item, type Extension, type Panel } from './extensions'
+import { AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
 
-export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
+export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
 
 export const shownLabel = (key: string) => extensions.shown[key]?.label
 
@@ -48,11 +48,12 @@ export const commandLine = (key: string) =>
             : key
 
 export async function loadExtensions() {
-  const listing = await invoke<{ extensions: Found[]; disabled: string[]; approved: Record<string, string[]>; sources: string[]; origins: Record<string, string>; accounts?: Record<string, Account[]> }>('extensions_list')
+  const listing = await invoke<{ extensions: Found[]; disabled: string[]; approved: Record<string, string[]>; sources: string[]; origins: Record<string, string>; accounts?: Record<string, Account[]>; options?: Record<string, Record<string, OptionValue>> }>('extensions_list')
   extensions.list = load(listing.extensions, listing.disabled, listing.approved)
   extensions.sources = listing.sources
   extensions.origins = listing.origins
   extensions.accounts = listing.accounts ?? {}
+  extensions.options = listing.options ?? {}
   for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('extension:') && !panelsOf(extensions.list).some((p) => p.key === kind)) setPanel(project, null)
   for (const extension of extensions.list) {
     const key = `${extension.id}\n${extension.pending.join('\n')}`
@@ -146,6 +147,15 @@ export function onPanelPost(extension: string, panel: string, deliver: (message:
 export const panelMessage = (panel: Panel, agent: Agent, message: unknown) =>
   invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: info(agent), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
 
+export const SETTINGS_PAGE = ':settings'
+
+export const settingsMessage = (extension: string, message: unknown) =>
+  invoke('extensions_wasm_event', { id: extension, name: 'settings.message', agent: null, data: JSON.stringify({ message: message ?? null }) })
+
+export async function setOption(extension: string, option: string, value: OptionValue | null) {
+  extensions.options[extension] = await invoke<Record<string, OptionValue>>('extensions_option_set', { id: extension, option, value })
+}
+
 export const extensionPanel = (kind: string | null) => panelsOf(extensions.list).find((p) => p.key === kind)
 
 export const catalog = $state({ entries: null as CatalogEntry[] | null, sources: [] as Source[], error: '' })
@@ -220,6 +230,7 @@ export const approve = (extension: Extension) => invoke('extensions_approve', { 
 listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-host', async ({ payload: p }) => {
   if (p.call === 'error') extensions.errors[p.extension] = String(p.error)
   if (p.call === 'panel-post') for (const post of posts) post({ extension: p.extension, panel: String(p.panel), message: String(p.message) })
+  if (p.call === 'settings-post') for (const post of posts) post({ extension: p.extension, panel: SETTINGS_PAGE, message: String(p.message) })
   if (p.call === 'set-badge' || p.call === 'set-label') {
     const key = `${p.extension}.${p.item}`
     extensions.shown[key] = { ...extensions.shown[key], [p.call === 'set-badge' ? 'badge' : 'label']: (p.value as string | null) ?? null }

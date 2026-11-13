@@ -198,10 +198,10 @@ Comment ça tourne :
 - `host::agents` et `host::archive-agent` interrogent la fenêtre principale, qui répond par `extensions_wasm_answer` en 10 s au plus. L'archivage suit la règle de l'archivage automatique (`archivable` dans `agents.svelte.ts`) : agent qui ne travaille pas, sans question en attente, ni épinglé, ni distant, ni affiché ;
 - `host::set-timer` envoie l'événement `timer` après 10 s au moins, depuis le fil de l'extension, sans fil en plus. Un nouvel appel remplace le minuteur en cours. Il survit à un plantage, pas au rechargement ni au redémarrage : l'extension le réarme sur `started`.
 
-Le contrat (`extensions/api/wit/squadron.wit`), en 1.3.0. On peut lui ajouter des imports sans casser les extensions déjà compilées : une extension compilée contre 1.0.0 se charge dans un Squadron 1.1.0, et une compilée contre 1.2.0 dans un Squadron 1.3.0, vérifié avec l'exemple `hello`. Une extension qui appelle une fonction 1.1.0 ne se charge pas dans un Squadron plus ancien. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
+Le contrat (`extensions/api/wit/squadron.wit`), en 1.4.0. On peut lui ajouter des imports sans casser les extensions déjà compilées : une extension compilée contre 1.0.0 se charge dans un Squadron 1.1.0, et une compilée contre 1.2.0 dans un Squadron 1.3.0, vérifié avec l'exemple `hello`. Une extension qui appelle une fonction 1.1.0 ne se charge pas dans un Squadron plus ancien. Ajouter des exports, en revanche, les casserait : les événements passent donc par un nom et du JSON.
 
 ```wit
-package squadron:api@1.3.0;
+package squadron:api@1.4.0;
 
 interface types {
   /// The agent a call is about.
@@ -315,13 +315,17 @@ interface host {
   open-file: func(path: string) -> result<_, string>;
   /// Like `exec`, writing `input` to the program's standard input. Since 1.3.0.
   exec-input: func(program: string, args: list<string>, dir: option<string>, input: string) -> result<output, string>;
+  /// The values of the options of `contributes.settings`, as a JSON object by option id, the manifest's default for those the user left alone. Since 1.4.0.
+  options: func() -> string;
+  /// Sends a JSON message to the extension's settings page while it is open, which receives it in `squadron.on`. Since 1.4.0.
+  settings-post: func(message: string);
 }
 
 world squadron-extension {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;
@@ -388,10 +392,35 @@ Pour qu'une extension parle à un service dont l'adresse dépend de l'utilisateu
   - `squadron.send(valeur)` : le WASM de l'extension reçoit l'événement `panel.message` avec `{ "panel": "<id>", "message": <valeur> }`.
   - `squadron.on(fonction)` : reçoit ce que le WASM envoie par `host::panel_post("<id>", "<json>")`.
   - Un message envoyé avant le chargement de la page se perd : la page envoie d'abord (`ready`), le WASM répond.
+  - `squadron.options(fonction)` : reçoit les valeurs des options de l'extension au chargement puis à chaque changement ; `squadron.setOption(id, valeur)` en change une.
 - **Thème** : Squadron pousse dans la page les variables `--bg-main`, `--surface-1` à `--surface-3`, `--border`, `--border-focus`, `--text`, `--text-strong`, `--text-muted`, `--text-dim`, `--ink`, `--accent`, `--accent-link`, `--ok-text`, `--err-text`, `--sans` et `--mono`, au chargement et à chaque changement de thème. C'est la liste garantie par l'API. `/_squadron/kit.css`, facultative, s'en sert pour le fond, le texte, les boutons (`button`, `button.primary`) et les champs.
 - **Limite** : modifier la page ne recharge pas le panneau. Il faut le fermer et le rouvrir.
 
 L'exemple `hello` a un panneau qui affiche le compteur et l'augmente par un bouton, à travers son WASM.
+
+### Réglages (API 1.4)
+
+```json
+"contributes": { "settings": {
+  "options": [
+    { "id": "sprint", "label": { "en": "Tickets in the panel" }, "hint": { "en": "…" }, "kind": "select", "default": "open",
+      "choices": [{ "value": "open", "label": { "en": "Open sprint" } }, { "value": "next", "label": { "en": "Open and next sprints" } }] },
+    { "id": "chips", "label": { "en": "Ticket keys in messages" }, "kind": "toggle", "default": true },
+    { "id": "limit", "label": { "en": "Tickets per search" }, "kind": "number", "min": 1, "max": 100, "default": 50 },
+    { "id": "folder", "label": { "en": "Download folder" }, "kind": "text" }
+  ],
+  "page": "settings/index.html",
+  "title": { "en": "Sharing" }
+} }
+```
+
+- **Options déclarées** : Squadron les dessine dans la page de l'extension (Settings › Extensions), une ligne par option : interrupteur (`toggle`), liste (`select`, avec `choices`), champ (`text`, une ligne) ou nombre (`number`, `min` et `max` facultatifs). `default` doit être du type de l'option. Sans `default` : faux, `min` ou 0, le premier choix, texte vide.
+- **Stockage** : les valeurs changées vont dans `options` de `extensions.json`, validées contre le manifeste. Une valeur qui ne convient plus après une mise à jour du manifeste retombe sur le défaut. Désinstaller les efface ; retirer un dossier local les garde.
+- **`host::options`** : un objet JSON de toutes les options, par id, défauts compris. L'événement `options.changed` part à chaque changement, avec les mêmes valeurs.
+- **Page de réglages** : `page`, un fichier `.html` du dossier de l'extension, s'affiche dans la page de l'extension sous les options, avec `title` en titre (« Ses réglages » sinon), seulement quand l'extension est activée. Même service, même isolement, même thème et même pont que les panneaux. `squadron.send` envoie l'événement `settings.message` avec `{ "message": … }` au WASM, qui répond par `host::settings-post("<json>")`. `squadron.options` et `squadron.setOption` y marchent sans WASM. La page grandit avec son contenu (2000 px au plus).
+- Les panneaux reçoivent aussi `squadron.options` et `squadron.setOption`.
+
+L'exemple `hello` a deux options (`greeting`, `tone`), son outil `options` et une page de réglages qui remet le compteur à zéro.
 
 ### Skills (`contributes.skills`)
 

@@ -165,4 +165,10 @@ export default {
   nothingToSet: 'Nothing to set up. About lists what it adds to Squadron.',
   accountNew: 'Add an account',
   on: 'On',
+  options: 'Options',
+  settingsPage: 'Its settings',
+  badSettings: 'contributes.settings must be { "options": […], "page": "settings/index.html", "title": { "en": "…" } }, each part optional.',
+  badSettingsPage: 'contributes.settings.page must be an .html file inside the extension folder.',
+  badOption: 'Option {option}: it needs an id, a label { "en": "…" } and a kind among toggle, select, text and number, with a default of that kind; a select needs choices [{ "value": "…", "label": { "en": "…" } }], each value once.',
+  twiceOption: 'Two options of contributes.settings have the same id.',
 }

@@ -33,6 +33,16 @@ export type Account = { id: string; values: Record<string, string>; host: string
 
 export type ManifestPanel = { id: string; title: Text; page: string }
 
+export const PAGE_THEME = ['bg-main', 'surface-1', 'surface-2', 'surface-3', 'border', 'border-focus', 'text', 'text-strong', 'text-muted', 'text-dim', 'ink', 'accent', 'accent-link', 'ok-text', 'err-text', 'sans', 'mono']
+
+export const OPTION_KINDS = ['toggle', 'select', 'text', 'number'] as const
+
+export type OptionValue = string | number | boolean
+
+export type ExtensionOption = { id: string; label: Text; hint?: Text; kind: (typeof OPTION_KINDS)[number]; default?: OptionValue; choices?: { value: string; label: Text }[]; min?: number; max?: number }
+
+export type Settings = { options?: ExtensionOption[]; page?: string; title?: Text }
+
 export type Panel = ManifestPanel & { key: `extension:${string}`; extension: string }
 
 export const AGENT_ACCESS = ['read', 'archive'] as const
@@ -47,7 +57,7 @@ export type Manifest = {
   description?: Text
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; theme?: Record<string, string> }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -111,6 +121,36 @@ function actionProblem(action: unknown, slot: Slot, wasm: boolean, panels: strin
   if (kind === 'squadron') return ACTIONS.some(([id]) => id === value) ? null : ['extensions.badSquadron', { action: value }]
   return ['extensions.badAction']
 }
+
+function optionOk(o: unknown) {
+  if (!isObject(o) || typeof o.id !== 'string' || !ID.test(o.id) || !isText(o.label) || (o.hint !== undefined && !isText(o.hint))) return false
+  if (!(OPTION_KINDS as readonly unknown[]).includes(o.kind)) return false
+  if (o.kind === 'toggle') return o.default === undefined || typeof o.default === 'boolean'
+  if (o.kind === 'text') return o.default === undefined || (typeof o.default === 'string' && !/[\x00-\x1f\x7f]/.test(o.default))
+  if (o.kind === 'number') {
+    const bound = (v: unknown) => v === undefined || (typeof v === 'number' && Number.isFinite(v))
+    if (!bound(o.min) || !bound(o.max) || !bound(o.default)) return false
+    return [o.min, o.default, o.max].filter((v) => v !== undefined).every((v, i, all) => !i || (v as number) >= (all[i - 1] as number))
+  }
+  const choices = o.choices
+  if (!Array.isArray(choices) || !choices.length || !choices.every((c) => isObject(c) && oneLine(c.value) && isText(c.label))) return false
+  return new Set(choices.map((c) => c.value)).size === choices.length && (o.default === undefined || choices.some((c) => c.value === o.default))
+}
+
+function settingsProblems(value: unknown): Problem[] {
+  if (!isObject(value)) return [['extensions.badSettings']]
+  const problems: Problem[] = []
+  if (value.page !== undefined && !inside(value.page, '.html')) problems.push(['extensions.badSettingsPage'])
+  if (value.title !== undefined && !isText(value.title)) problems.push(['extensions.badSettings'])
+  const options = value.options ?? []
+  if (!Array.isArray(options)) return [...problems, ['extensions.badSettings']]
+  options.forEach((o, index) => {
+    if (!optionOk(o)) problems.push(['extensions.badOption', { option: isObject(o) && typeof o.id === 'string' ? o.id : `#${index + 1}` }])
+  })
+  if (new Set(options.map((o, i) => (isObject(o) ? o.id : i))).size < options.length) problems.push(['extensions.twiceOption'])
+  return problems
+}
+
 
 function accountsOk(value: unknown) {
   if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length) return false
@@ -193,6 +233,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
       problems.push(['extensions.badSecrets'])
     else if (new Set(secrets.map((s) => s.id)).size < secrets.length) problems.push(['extensions.badSecrets'])
     if (contributes.accounts !== undefined && !accountsOk(contributes.accounts)) problems.push(['extensions.badAccounts'])
+    if (contributes.settings !== undefined) problems.push(...settingsProblems(contributes.settings))
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))
       problems.push(['extensions.badTheme'])

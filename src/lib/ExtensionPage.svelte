@@ -2,13 +2,14 @@
   import { invoke } from '@tauri-apps/api/core'
   import Dialog from './Dialog.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
+  import ExtensionSettingsFrame from './ExtensionSettingsFrame.svelte'
   import Icon from './Icon.svelte'
   import { ui } from './actions.svelte'
   import { ask } from './asking.svelte'
   import { keepLabel } from './cleanup.svelte'
   import { errorText, t } from './i18n/index.svelte'
-  import type { Account, Extension } from './extensions'
-  import { approve, commandLine, extensions, install, removeAccount, saveAccount, uninstall } from './extensions.svelte'
+  import type { Account, Extension, ExtensionOption, OptionValue } from './extensions'
+  import { approve, commandLine, extensions, install, removeAccount, saveAccount, setOption, uninstall } from './extensions.svelte'
   import { attempt, fromOf, named, nameOf, originOf, pendingOf, problemOf, updateOf, work } from './extension-pages.svelte'
   import { home } from './projects.svelte'
   import { saveSettings, settings } from './settings.svelte'
@@ -19,7 +20,12 @@
   const update = $derived(e && updateOf(e))
   const contributes = $derived(e?.manifest?.contributes)
   const cleanup = $derived(contributes?.items?.flatMap((i) => ('artifact.share' in i.action && i.action['artifact.share'].cleanup ? [i.action['artifact.share'].cleanup.days] : []))[0])
-  const empty = $derived(!contributes?.secrets?.length && !contributes?.accounts && cleanup === undefined)
+  const options = $derived(contributes?.settings?.options ?? [])
+  const page = $derived(contributes?.settings?.page)
+  const values = $derived(extensions.options[id] ?? {})
+  const empty = $derived(!contributes?.secrets?.length && !contributes?.accounts && cleanup === undefined && !options.length && !page)
+
+  const change = (o: ExtensionOption, value: OptionValue) => (typeof value === 'number' && Number.isNaN(value) ? undefined : attempt(() => setOption(id, o.id, value)))
 
   let about = $state(false)
   let saved = $state<string[]>([])
@@ -209,8 +215,27 @@
       <p class="hint">{t('extensions.accountsHint')}</p>
     {/if}
 
-    {#if cleanup !== undefined}
+    {#if options.length || cleanup !== undefined}
+      <h3>{t('extensions.options')}</h3>
       <div class="options">
+        {#each options as o (o.id)}
+          {@const value = values[o.id]}
+          <label class="option">
+            <span class="label"><strong>{named(o.label)}</strong>{#if o.hint}<small>{named(o.hint)}</small>{/if}</span>
+            {#if o.kind === 'toggle'}
+              <input class="switch" type="checkbox" role="switch" checked={value === true} onchange={(event) => change(o, event.currentTarget.checked)} />
+            {:else if o.kind === 'select'}
+              <select class="field" value={String(value ?? '')} onchange={(event) => change(o, event.currentTarget.value)}>
+                {#each o.choices ?? [] as c (c.value)}<option value={c.value}>{named(c.label)}</option>{/each}
+              </select>
+            {:else if o.kind === 'number'}
+              <input class="field mono" type="number" min={o.min} max={o.max} value={value ?? ''} onchange={(event) => change(o, event.currentTarget.valueAsNumber)} />
+            {:else}
+              <input class="field" value={value ?? ''} spellcheck="false" autocomplete="off" onchange={(event) => change(o, event.currentTarget.value)} />
+            {/if}
+          </label>
+        {/each}
+        {#if cleanup !== undefined}
         <label class="option">
           <span class="label"><strong>{t('settings.extensionCleanup')}</strong><small>{t('settings.extensionCleanupHint')}</small></span>
           <select class="field" value={String(settings.artifacts_extensions?.[id] ?? 'own')} onchange={(event) => setCleanup(event.currentTarget.value)}>
@@ -219,7 +244,13 @@
             {#each [30, 90, 365, 0] as days (days)}<option value={String(days)}>{keepLabel(days)}</option>{/each}
           </select>
         </label>
+        {/if}
       </div>
+    {/if}
+
+    {#if page && e.enabled}
+      <h3>{contributes?.settings?.title ? named(contributes.settings.title) : t('extensions.settingsPage')}</h3>
+      <ExtensionSettingsFrame extension={id} {page} title={nameOf(e)} />
     {/if}
 
     {#if empty}
@@ -594,7 +625,6 @@
   }
 
   .options {
-    margin-top: 24px;
     border-radius: 6px;
     background: var(--surface-1);
     box-shadow: inset 0 0 0 1px var(--border);
@@ -606,6 +636,10 @@
     gap: 14px;
     min-height: 52px;
     padding: 8px 14px;
+  }
+
+  .option + .option {
+    border-top: 1px solid var(--border);
   }
 
   .option .label {

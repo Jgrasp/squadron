@@ -1786,6 +1786,29 @@ async fn extensions_account_save(
 }
 
 #[tauri::command]
+async fn extensions_option_set(
+    app: AppHandle,
+    id: String,
+    option: String,
+    value: Option<Value>,
+) -> Result<serde_json::Map<String, Value>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let values = app
+            .state::<extensions::Extensions>()
+            .set_option(&id, &option, value)?;
+        app.state::<wasm::Runtime>().event(
+            Some(&id),
+            "options.changed",
+            None,
+            &Value::Object(values.clone()).to_string(),
+        );
+        Ok(values)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn extensions_account_remove(
     app: AppHandle,
     id: String,
@@ -2578,6 +2601,7 @@ pub fn run() {
             extension_exec,
             extensions_secrets,
             extensions_secret_set,
+            extensions_option_set,
             extensions_account_save,
             extensions_account_remove,
             extensions_wasm_sync,
@@ -2697,7 +2721,7 @@ pub fn run() {
             });
             app.manage(extensions::Extensions { dir: extensions_dir, file: config.join("extensions.json") });
             let handle = app.handle().clone();
-            let (claude, accounts) = (app.handle().clone(), app.handle().clone());
+            let (claude, accounts, options) = (app.handle().clone(), app.handle().clone(), app.handle().clone());
             app.manage(
                 wasm::Runtime::new(config.join("extensions-state"), move |message| {
                     let _ = handle.emit_to("main", "extensions-host", message);
@@ -2705,6 +2729,7 @@ pub fn run() {
                 .with_hooks(wasm::Hooks {
                     claude: std::sync::Arc::new(move || claude.state::<Settings>().claude()),
                     accounts: std::sync::Arc::new(move |id| accounts.state::<extensions::Extensions>().accounts(id)),
+                    options: std::sync::Arc::new(move |id| Value::Object(options.state::<extensions::Extensions>().options(id))),
                 }),
             );
             let handle = app.handle().clone();

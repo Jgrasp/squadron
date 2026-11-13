@@ -166,4 +166,10 @@ export default {
   nothingToSet: 'Rien à régler. À propos liste ce qu’elle ajoute à Squadron.',
   accountNew: 'Ajouter un compte',
   on: 'Activée',
+  options: 'Options',
+  settingsPage: 'Ses réglages',
+  badSettings: 'contributes.settings doit être { "options": […], "page": "settings/index.html", "title": { "en": "…" } }, chaque partie facultative.',
+  badSettingsPage: 'contributes.settings.page doit être un fichier .html dans le dossier de l’extension.',
+  badOption: 'Option {option} : il lui faut un id, un libellé { "en": "…" } et un type parmi toggle, select, text et number, avec une valeur par défaut de ce type ; un select demande des choix [{ "value": "…", "label": { "en": "…" } }], chaque valeur une fois.',
+  twiceOption: 'Deux options de contributes.settings ont le même id.',
 } satisfies Catalog['extensions']

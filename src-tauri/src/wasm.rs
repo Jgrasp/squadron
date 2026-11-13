@@ -35,10 +35,13 @@ pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
 
 type AccountsOf = Arc<dyn Fn(&str) -> Vec<Stored> + Send + Sync>;
 
+type OptionsOf = Arc<dyn Fn(&str) -> Value + Send + Sync>;
+
 #[derive(Clone)]
 pub struct Hooks {
     pub claude: Arc<dyn Fn() -> String + Send + Sync>,
     pub accounts: AccountsOf,
+    pub options: OptionsOf,
 }
 
 impl Default for Hooks {
@@ -46,6 +49,7 @@ impl Default for Hooks {
         Self {
             claude: Arc::new(|| "claude".into()),
             accounts: Arc::new(|_| Vec::new()),
+            options: Arc::new(|_| json!({})),
         }
     }
 }
@@ -373,6 +377,14 @@ impl squadron::api::host::Host for Host {
             log::warn!("extension {}: no data folder: {e}", self.id);
         }
         self.data.to_string_lossy().into_owned()
+    }
+
+    fn options(&mut self) -> String {
+        (self.hooks.options)(&self.id).to_string()
+    }
+
+    fn settings_post(&mut self, message: String) {
+        self.tell("settings-post", json!({"message": message}));
     }
 
     fn set_timer(&mut self, seconds: u32) {
@@ -991,6 +1003,7 @@ mod tests {
         let changed = runtime.tool("hello", "changed_files", "{}", Some(agent.clone()));
         assert!(changed.is_ok(), "{changed:?}");
         runtime.event(Some("other"), "agent.done", Some(agent.clone()), "{}");
+        let ada = agent.clone();
         runtime.event(None, "agent.done", Some(agent), "{}");
         runtime.run("hello", "count", None).unwrap();
         runtime.event(
@@ -1036,6 +1049,40 @@ mod tests {
         assert_eq!(
             restarted.tool("hello", "clicks", "{}", None).unwrap(),
             "The Count button was clicked 4 times."
+        );
+
+        let told = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let record = told.clone();
+        let set = Runtime::new(
+            std::env::temp_dir().join(format!("squadron-wasm-{}", uuid::Uuid::new_v4())),
+            move |v| record.lock().unwrap().push(v),
+        )
+        .unwrap()
+        .with_hooks(Hooks {
+            options: Arc::new(|_| json!({"greeting": "Bonjour", "tone": "plain"})),
+            ..Hooks::default()
+        });
+        assert!(set.sync(vec![spec(vec![])]).is_empty());
+        assert_eq!(
+            set.tool("hello", "options", "{}", None).unwrap(),
+            r#"{"greeting":"Bonjour","tone":"plain"}"#
+        );
+        set.run("hello", "greet", Some(ada)).unwrap();
+        set.event(
+            Some("hello"),
+            "settings.message",
+            None,
+            r#"{"message":{"type":"ready"}}"#,
+        );
+        set.run("hello", "nope", None).unwrap_err();
+        let told = told.lock().unwrap().clone();
+        assert!(
+            told.iter()
+                .any(|v| v["text"] == "Bonjour Ada, what are you working on?")
+        );
+        assert!(
+            told.iter()
+                .any(|v| v["call"] == "settings-post" && v["message"] == r#"{"count":0}"#)
         );
     }
 
