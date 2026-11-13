@@ -25,6 +25,8 @@ export type SettingsTab =
   | 'layout'
   | 'panels'
   | 'extensions'
+  | 'discover'
+  | `ext:${string}`
   | 'changelog'
   | 'about'
 
