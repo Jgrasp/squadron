@@ -1,5 +1,27 @@
 # Nouveautés
 
+## 0.45.0 · 2026-11-13
+
+### Artifacts
+
+- Le partage par une extension se fait dans la conversation de l’artifact : le skill de l’extension y tourne en sous-agent sur son propre modèle (Sonnet pour Google Workspace). Ses étapes animent un bandeau dans le panneau Artifacts, et ses demandes de permission s’ouvrent dans sa carte de la conversation.
+- Les artifacts restés sans changement sont nettoyés : 30 jours par défaut dans Settings, plus longtemps pour ce qu’une extension partage, et chaque artifact fixe son propre délai, Jamais compris, depuis son menu ⋯. Le partage s’arrête avant que l’artifact parte, et supprimer un artifact ou un agent arrête aussi ses partages.
+
+### Extensions
+
+- API 1.3.0 : des comptes que vous ajoutez dans Settings › Extensions, avec un hôte que l’extension peut joindre et des secrets gardés dans le trousseau ; {{account.field}} et {{base64:a:b}} dans les en-têtes de requête pour l’authentification Basic ; fetch-bytes, download et open-file ; exec-input avec le Claude Code de Squadron.
+- artifact.share prend cleanup.days, un prompt de partage va dans la conversation de l’artifact, et set_progress prend artifact.
+
+### Agents
+
+- add_project : un agent ajoute un dossier comme projet par la carte de permission, sans changer votre vue ; un projet archivé revient avec ses agents.
+- Un skill lancé en sous-agent forké s’affiche en une seule carte dans la conversation, ses demandes de permission dedans.
+
+### Mises à jour
+
+- Une vérification des mises à jour qui échoue dit que GitHub ne répond pas, avec son logo, et les releases restent en brouillon tant que toutes les versions ne sont pas envoyées.
+- Un lien qui chargerait un site dans une fenêtre de Squadron s’ouvre dans le navigateur.
+
 ## 0.44.0 · 2026-11-12
 
 ### Artifacts
