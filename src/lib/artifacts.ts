@@ -2,7 +2,7 @@ import { calls, type Agent } from './stream'
 
 export type ArtifactKind = 'html' | 'markdown' | 'svg'
 export type Shared = { link: string; at: number }
-export type ArtifactInfo = { id: string; kind: ArtifactKind; entry: string; title: string; modified: number; link: string | null; links?: Record<string, Shared> }
+export type ArtifactInfo = { id: string; kind: ArtifactKind; entry: string; title: string; modified: number; link: string | null; links?: Record<string, Shared>; keep?: number | null }
 export type Doc = { id: string; title: string; kind: 'doc'; link: string }
 
 export const ARTIFACT_MAX = 500_000

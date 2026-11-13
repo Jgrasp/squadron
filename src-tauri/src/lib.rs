@@ -408,6 +408,8 @@ struct Config {
     pilot_all: bool,
     archive_after_days: u32,
     artifacts_after_days: u32,
+    artifacts_since: u64,
+    artifacts_extensions: std::collections::BTreeMap<String, i64>,
     compact_window: u32,
     steps: String,
     thinking: String,
@@ -447,6 +449,8 @@ impl Default for Config {
             pilot_all: false,
             archive_after_days: 0,
             artifacts_after_days: 30,
+            artifacts_since: 0,
+            artifacts_extensions: Default::default(),
             compact_window: 0,
             steps: "grouped".into(),
             thinking: "duration".into(),
@@ -542,15 +546,7 @@ fn set_settings(
     if config.compact_window != window {
         agents.refresh_all();
     }
-    let days = config.artifacts_after_days;
     settings.save(config)?;
-    if let Some(root) = artifacts::ROOT.get() {
-        artifacts::expire(
-            root,
-            &settings.file.with_file_name("agents").join("archived"),
-            days,
-        );
-    }
     Ok(())
 }
 
@@ -818,6 +814,16 @@ fn write_artifact(
 #[tauri::command]
 fn set_artifact_link(agent: String, id: String, link: String) -> Result<(), String> {
     artifacts::set_link(artifacts_root()?, &agent, &id, &link)
+}
+
+#[tauri::command]
+fn set_artifact_keep(agent: String, id: String, keep: Option<u32>) -> Result<(), String> {
+    artifacts::set_keep(artifacts_root()?, &agent, &id, keep)
+}
+
+#[tauri::command]
+fn artifact_owners() -> Result<Vec<String>, String> {
+    Ok(artifacts::owners(artifacts_root()?))
 }
 
 #[tauri::command]
@@ -2487,6 +2493,8 @@ pub fn run() {
             write_artifact,
             set_artifact_link,
             set_artifact_share,
+            set_artifact_keep,
+            artifact_owners,
             extension_data_dir,
             delete_artifact,
             open_artifact_folder,
@@ -2656,13 +2664,6 @@ pub fn run() {
             let keep = ids(agents.clone()).into_iter().chain(ids(agents.join("archived"))).collect();
             artifacts::sweep(&root, &keep);
             let _ = artifacts::ROOT.set(root.clone());
-            let (handle, archived) = (app.handle().clone(), agents.join("archived"));
-            let expiring = root.clone();
-            std::thread::spawn(move || loop {
-                let days = handle.state::<Settings>().config.lock().unwrap().artifacts_after_days;
-                artifacts::expire(&expiring, &archived, days);
-                std::thread::sleep(std::time::Duration::from_secs(6 * 3600));
-            });
             let handle = app.handle().clone();
             artifacts::watch(root, move |agent| {
                 let _ = handle.emit("artifacts-changed", agent);

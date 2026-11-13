@@ -532,7 +532,7 @@ const replies = new Map<string, (result: string) => void>()
     emit('pilot-request', { id, agent, tool, args })
   })
 const files = new Map<string, string>()
-type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; links?: Record<string, { link: string; at: number }>; content: string }
+type Shelved = { id: string; kind: 'html' | 'markdown' | 'svg'; entry: string; title: string; modified: number; link: string | null; links?: Record<string, { link: string; at: number }>; keep?: number | null; content: string }
 const shelves = new Map<string, Shelved[]>(JSON.parse(localStorage.getItem('shelves') ?? '[]'))
 const shelve = () => localStorage.setItem('shelves', JSON.stringify([...shelves]))
 const ENTRY = { html: 'index.html', markdown: 'index.md', svg: 'index.svg' }
@@ -890,6 +890,12 @@ mockIPC(
         shelve()
         return `/home/demo/.local/share/squadron/artifacts/${a.agent}/${a.id}/${ENTRY[a.kind as keyof typeof ENTRY]}`
       }
+      case 'set_artifact_keep':
+        for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.keep = (a as unknown as { keep: number | null }).keep
+        shelve()
+        return null
+      case 'artifact_owners':
+        return [...shelves.keys()]
       case 'set_artifact_link':
         for (const x of shelves.get(a.agent) ?? []) if (x.id === a.id) x.link = a.link
         shelve()
@@ -1403,6 +1409,7 @@ mockIPC(
                           share: 'Call the Skill tool with skill team-share:share-artifact and args: artifact {artifact.id} at {artifact.dir}, destination {destination}. Do nothing else.',
                           update: { tool: 'deploy' },
                           unshare: { tool: 'undeploy' },
+                          cleanup: { days: 90 },
                           delete: { en: 'Also delete the Apps Script project', fr: 'Supprimer aussi le projet Apps Script' },
                           deleteHint: { en: 'The statuses and notes the team entered are deleted with it.', fr: 'Les statuts et notes saisis par l’équipe sont supprimés avec lui.' },
                         },

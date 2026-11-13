@@ -6,7 +6,7 @@ export type Text = { en: string } & Partial<Record<Locale, string>>
 
 export type ShareStep = string | { tool: string }
 
-export type ShareAction = { confirm: Text; lines?: string[]; shared?: Text; share: ShareStep; update?: ShareStep; unshare?: ShareStep; delete?: Text; deleteHint?: Text }
+export type ShareAction = { confirm: Text; lines?: string[]; shared?: Text; share: ShareStep; update?: ShareStep; unshare?: ShareStep; delete?: Text; deleteHint?: Text; cleanup?: { days: number } }
 
 export type ExtensionAction =
   | { 'terminal.run': string }
@@ -93,6 +93,7 @@ function shareProblem(value: unknown, slot: Slot, wasm: boolean): Problem | null
   if ([value.update, value.unshare].some((s) => s !== undefined && !stepOk(s, wasm))) return ['extensions.badShare']
   if ([value.shared, value.delete, value.deleteHint].some((s) => s !== undefined && !isText(s))) return ['extensions.badShare']
   if (value.lines !== undefined && !(Array.isArray(value.lines) && value.lines.every(oneLine))) return ['extensions.badShare']
+  if (value.cleanup !== undefined && !(isObject(value.cleanup) && Number.isInteger(value.cleanup.days) && Number(value.cleanup.days) >= 0 && isObject(value.unshare))) return ['extensions.badCleanup']
   return null
 }
 

@@ -18,6 +18,7 @@
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
   import { checkUpdates, loadExtensions } from './lib/extensions.svelte'
+  import { sweep } from './lib/cleanup.svelte'
   import { layout, setPanel } from './lib/layout.svelte'
   import { trackHistory } from './lib/history.svelte'
   import './lib/pilot.svelte'
@@ -108,6 +109,8 @@
   loadLayout()
   loadExtensions().then(checkUpdates)
   setInterval(checkUpdates, 6 * 3600_000)
+  setTimeout(sweep, 60_000)
+  setInterval(sweep, 6 * 3600_000)
   load()
     .then(() => ((boot.projects = true), restore()))
     .then(() => {

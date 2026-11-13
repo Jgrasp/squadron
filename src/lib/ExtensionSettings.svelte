@@ -8,6 +8,8 @@
   import { OFFICIAL, shownOf, text, updatesOf, type Account, type CatalogEntry, type Extension, type Source, type Text } from './extensions'
   import { addSource, approve, asks, catalog, commandLine, install, loadCatalog, loadExtensions, extensions, removeAccount, removeSource, saveAccount, uninstall } from './extensions.svelte'
   import { home } from './projects.svelte'
+  import { saveSettings, settings } from './settings.svelte'
+  import { keepLabel } from './cleanup.svelte'
 
   type From = 'official' | 'imported' | 'local'
   type Card = {
@@ -35,6 +37,14 @@
     ['local', 'extensions.filterLocal'],
   ] as const
   const COLORS = ['#e08a5b', '#4fa3e0', '#a78bfa', '#7cc47c', '#e3b341', '#6fa0d0', '#3cc39a', '#e07a9b']
+
+  const cleanupOf = (extension?: Extension) =>
+    extension?.manifest?.contributes?.items?.flatMap((i) => ('artifact.share' in i.action && i.action['artifact.share'].cleanup ? [i.action['artifact.share'].cleanup.days] : []))[0]
+
+  function setCleanup(id: string, value: string) {
+    const { [id]: _, ...rest } = settings.artifacts_extensions
+    saveSettings({ ...$state.snapshot(settings), artifacts_extensions: value === 'own' ? rest : { ...rest, [id]: Number(value) } }).catch((e) => (error = errorText(e)))
+  }
 
   let error = $state('')
   let busy = $state('')
@@ -343,6 +353,16 @@
               </form>
               <p class="line muted">{t('extensions.accountsHint')}</p>
             {/if}
+          {/if}
+          {#if detail.installed?.enabled && cleanupOf(detail.installed) !== undefined}
+            {@const cleanup = cleanupOf(detail.installed)!}
+            <h4>{t('settings.extensionCleanup')}</h4>
+            <select class="field" aria-label={t('settings.extensionCleanup')} value={String(settings.artifacts_extensions?.[detail.id] ?? "own")} onchange={(e) => setCleanup(detail.id, e.currentTarget.value)}>
+              <option value="own">{t('settings.extensionCleanupOwn', { time: keepLabel(cleanup) })}</option>
+              <option value="-1">{t('settings.extensionCleanupRule', { time: keepLabel(settings.artifacts_after_days) })}</option>
+              {#each [30, 90, 365, 0] as days (days)}<option value={String(days)}>{keepLabel(days)}</option>{/each}
+            </select>
+            <p class="line muted">{t('settings.extensionCleanupHint')}</p>
           {/if}
           {#if detail.installed}
             <h4>{t('extensions.location')}</h4>

@@ -6,6 +6,7 @@
   import { persist, send } from './agents.svelte'
   import { artifactUrl, docsOf, fileName, fillShare, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
   import { answer, bands, finish, refresh, setWork, shelf, workKey, type Work } from './artifacts.svelte'
+  import { cleanupErrors, dueAt, extensionName, keepLabel, release, ruleOf } from './cleanup.svelte'
   import { ask, message as tell } from './asking.svelte'
   import { time } from './format'
   import { text, type Item, type Text } from './extensions'
@@ -53,8 +54,10 @@
       .catch(() => (markdown = ''))
   })
 
+  const openId = $derived(open?.id)
+
   $effect(() => {
-    void open?.id
+    void openId
     pointing = false
     menu = false
     more = false
@@ -68,6 +71,16 @@
   const steps = $derived(band?.progress ? Array.from({ length: band.progress.total }, (_, i) => (i < band.progress!.done ? 'on' : i === band.progress!.done ? 'now' : '')) : band?.state === 'work' ? ['now'] : [])
   const bandLink = $derived(band && local_?.links?.[band.destination]?.link)
   const shared = $derived(!!link || !!Object.keys(local_?.links ?? {}).length)
+  const rule = $derived(local_ && ruleOf(local_))
+  const due = $derived(local_ ? dueAt(local_) : null)
+  const left = $derived(due === null ? null : Math.max(0, Math.ceil((due - Date.now()) / 86_400_000)))
+  const KEEPS: (number | null)[] = [null, 30, 365, 0]
+
+  async function setKeep(keep: number | null) {
+    if (!local_) return
+    await invoke('set_artifact_keep', { agent: agent.id, id: local_.id, keep }).catch((e) => tell(errorText(e), { kind: 'error' }))
+    await refresh(agent.id)
+  }
   const shareOf = (item?: Item) => (item && 'artifact.share' in item.action ? item.action['artifact.share'] : undefined)
   const tr = (value?: Text) => (value ? text(value, locale()) : '')
   const madeBy = (extension: string) => {
@@ -193,7 +206,14 @@
       agent.hiddenDocs = [...(agent.hiddenDocs ?? []), item.link]
       persist(agent)
     } else {
-      if (!(await ask(t('agent.artifactDeleteAsk', { title: item.title }), { title: t('agent.artifactDeleteTitle'), kind: 'warning', okLabel: t('agent.artifactDelete') }))) return
+      const sharing = !!Object.keys(item.links ?? {}).length
+      if (!(await ask(t(sharing ? 'agent.artifactDeleteShared' : 'agent.artifactDeleteAsk', { title: item.title }), { title: t('agent.artifactDeleteTitle'), kind: 'warning', okLabel: t('agent.artifactDelete'), danger: sharing }))) return
+      try {
+        await release(agent.id, item)
+      } catch (e) {
+        await refresh(agent.id)
+        return tell(errorText(e), { kind: 'error', title: t('agent.artifactDeleteTitle') })
+      }
       await invoke('delete_artifact', { agent: agent.id, id: item.id }).catch((e) => ask(errorText(e), { kind: 'error' }))
       await refresh(agent.id)
     }
@@ -321,9 +341,28 @@
               </button>
             {/if}
             <span class="sep" aria-hidden="true"></span>
+            {#if rule}
+              {@const error = cleanupErrors[workKey(agent.id, open.id)]}
+              <div class="entry">
+                <div class="option">
+                  <span class="ico"><Icon name="clock" /></span>
+                  <span class="text">
+                    <b>{left === null ? t('agent.artifactKeptForever') : left === 0 ? t('agent.artifactDeletedSoon') : t('agent.artifactDeletedIn', { count: left })}</b>
+                    <span>{rule.from === 'artifact' ? t('agent.artifactRuleOwn') : rule.from === 'extension' ? t('agent.artifactRuleExtension', { name: extensionName(rule.extension ?? '') }) : t('agent.artifactRuleSquadron')}</span>
+                    {#if error}<span class="failed">{error}</span>{/if}
+                  </span>
+                </div>
+                <div class="segments" role="group" aria-label={t('agent.artifactKeepRule')}>
+                  {#each KEEPS as keep (keep)}
+                    <button aria-pressed={(open.keep ?? null) === keep} onclick={() => setKeep(keep)}>{keep === null ? t('agent.artifactKeepRule') : keepLabel(keep)}</button>
+                  {/each}
+                </div>
+              </div>
+              <span class="sep" aria-hidden="true"></span>
+            {/if}
             <button class="option delete" role="menuitem" onclick={() => ((more = false), remove(open))}>
               <span class="ico"><Icon name="trash" /></span>
-              <span class="text"><b>{t('agent.artifactDelete')}</b><span>{t('agent.artifactDeleteHint')}</span></span>
+              <span class="text"><b>{t('agent.artifactDelete')}</b><span>{Object.keys(open.links ?? {}).length ? t('agent.artifactDeleteSharedHint') : t('agent.artifactDeleteHint')}</span></span>
             </button>
           </div>
         {/if}
@@ -874,6 +913,34 @@
     height: 28px;
     padding: 0 10px;
     font-size: 12.5px;
+  }
+
+  .segments {
+    display: flex;
+    align-self: flex-start;
+    gap: 2px;
+    margin-left: 42px;
+    padding: 3px;
+    border-radius: 4px;
+    background: var(--surface-2);
+  }
+
+  .segments button {
+    height: 24px;
+    padding: 0 10px;
+    border-radius: 3px;
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .segments button[aria-pressed='true'] {
+    background: var(--text);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .text .failed {
+    color: var(--err-text);
   }
 
   .sep {

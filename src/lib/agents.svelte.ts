@@ -6,6 +6,7 @@ import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
 import { migrate, shelf } from './artifacts.svelte'
+import { releaseAgent } from './cleanup.svelte'
 import { addRule, defaultsFor, editProject, projects, type Project } from './projects.svelte'
 import { ask } from './asking.svelte'
 import { matches, ruleFor, ruleLabel } from './rules'
@@ -1037,6 +1038,7 @@ export async function remove(id: string) {
   await invoke('archive_agent', { id })
   await invoke('cancel_permissions', { agent: id })
   await writes.get(id)?.catch(() => {})
+  await releaseAgent(id)
   await invoke('delete_agent_file', { id })
   agents.list = agents.list.filter((a) => a.id !== id)
 }

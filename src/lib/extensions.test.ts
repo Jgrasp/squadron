@@ -57,6 +57,11 @@ describe('extensions', () => {
     expect(share({ ...base, unshare: { tool: 'undeploy' } })).toEqual(['extensions.badShare'])
     expect(share({ ...base, unshare: { tool: 'undeploy' } }, 'artifact.actions', 'share.wasm')).toEqual([])
     expect(share({ ...base, lines: ['a\nb'] })).toEqual(['extensions.badShare'])
+    const tool = { ...base, unshare: { tool: 'undeploy' } }
+    expect(share({ ...tool, cleanup: { days: 90 } }, 'artifact.actions', 'share.wasm')).toEqual([])
+    expect(share({ ...tool, cleanup: { days: 0 } }, 'artifact.actions', 'share.wasm')).toEqual([])
+    expect(share({ ...tool, cleanup: { days: 1.5 } }, 'artifact.actions', 'share.wasm')).toEqual(['extensions.badCleanup'])
+    expect(share({ ...base, unshare: 'Stop it', cleanup: { days: 90 } })).toEqual(['extensions.badCleanup'])
   })
 
   it('gives the skills of an extension only once the user allowed them', () => {

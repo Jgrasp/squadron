@@ -411,7 +411,8 @@ Un élément de l'emplacement `artifact.actions` devient une destination de part
     "update": { "tool": "deploy" },
     "unshare": { "tool": "undeploy" },
     "delete": { "en": "Also delete the Apps Script project" },
-    "deleteHint": { "en": "What the team entered is deleted with it." }
+    "deleteHint": { "en": "What the team entered is deleted with it." },
+    "cleanup": { "days": 90 }
 } } }
 ```
 
@@ -420,6 +421,7 @@ Un élément de l'emplacement `artifact.actions` devient une destination de part
 - **Suivi** : le sous-agent appelle `set_progress` avec `artifact`, `done` (étapes finies), `total` et `message` (l'étape en cours) ; le bandeau du panneau et sa carte dans la conversation les affichent. Ses demandes de permission s'affichent dans sa carte. S'il finit sans `publish_artifact`, le bandeau passe en erreur avec sa dernière phrase.
 - **Variables** des prompts et de `confirm` : `{artifact.id}`, `{artifact.title}`, `{artifact.dir}` (dossier absolu de l'artifact), `{artifact.entry}`, `{agent}` (le nom de l'agent), `{agent.id}`, `{destination}` (la clé `<extension>.<élément>`), `{extension.data}` (le dossier de données de l'extension), `{link}` et `{delete}` (`true` si la case de suppression est cochée).
 - **Lien** : un prompt finit par `publish_artifact` avec `id`, `destination` et `link` (toute adresse `https://`), ou un `link` vide pour retirer le partage. Squadron garde un lien par destination dans le `.squadron.json` de l'artifact, avec l'heure du partage.
+- **Nettoyage** (`cleanup`, facultatif) : Squadron supprime un artifact resté sans changement pendant le délai de Settings (30 jours par défaut, « Never » possible). `cleanup.days` fixe celui des artifacts que l'extension partage (0 : jamais) ; il demande un `unshare` qui est un `tool`. Avant de supprimer l'artifact, Squadron appelle cet outil avec `delete: true`, sans agent ni question ; s'il échoue, ou si l'extension est désactivée ou attend un accord, l'artifact reste et l'erreur s'affiche dans son menu ⋯. L'utilisateur peut changer le délai de l'extension (Settings › Extensions) et celui de chaque artifact (menu ⋯), « Never » compris. Le plus précis l'emporte : artifact, puis extension (le plus long si plusieurs), puis Squadron. Le délai part du dernier changement de l'artifact ou de son dernier partage, et jamais avant la mise à jour qui a introduit la règle. Supprimer un artifact ou son agent arrête aussi ses partages de la même façon.
 - **Menu** : partagée, la destination montre Open, Copy link, Update quand l'artifact a changé depuis le partage et que `update` existe, Stop sharing si `unshare` existe. Stop sharing demande confirmation, avec la case `delete` quand elle est déclarée. Pendant une étape, un bandeau s'affiche sous l'en-tête du panneau.
 
 ### Distribution (étape 8)

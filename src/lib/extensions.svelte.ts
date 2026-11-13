@@ -102,6 +102,9 @@ export const spotlightItems = () => spotlightOf(extensions.list)
 export const shareTool = (extension: string, tool: string, input: unknown, agent: Agent) =>
   invoke<string>('extensions_wasm_tool', { id: extension, name: tool, input: JSON.stringify(input), agent: info(agent) })
 
+export const releaseTool = (extension: string, tool: string, input: unknown, agent: string) =>
+  invoke<string>('extensions_wasm_tool', { id: extension, name: tool, input: JSON.stringify(input), agent: { id: agent, name: '', project: '', dir: '' } })
+
 export const extensionItem = (slot: Slot, key: string) => extensionItems(slot).find((i) => i.key === key)
 
 export async function runItem(item: Item, { project, agent }: Context) {
