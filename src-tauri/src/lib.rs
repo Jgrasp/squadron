@@ -2532,6 +2532,7 @@ pub fn run() {
             extensions_option_set,
             extensions_account_save,
             extensions_account_remove,
+            extensions_field_link,
             extensions_wasm_sync,
             extensions_wasm_event,
             extensions_wasm_answer,
@@ -2593,7 +2594,6 @@ pub fn run() {
             }
             let groups_file = config.join("groups.json");
             app.manage(Projects {
-            extensions_field_link,
                 list: Mutex::new(list),
                 file,
                 groups: Mutex::new(projects::load_groups(&groups_file)),

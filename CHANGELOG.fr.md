@@ -1,5 +1,19 @@
 # Nouveautés
 
+## 0.46.2 · 2026-11-13
+
+### Extensions
+
+- Un champ d’un compte ou d’un secret d’extension peut pointer vers la page où on le crée, affichée sous le champ et ouverte dans le navigateur.
+
+### Conversation
+
+- La flèche du haut ne ramène un message précédent que si la zone de saisie est vide ou montre encore celui rappelé.
+
+### Mises à jour
+
+- La 0.46.1 n’a pas pu être construite : cette version reprend ses changements.
+
 ## 0.46.1 · 2026-11-13
 
 ### Mises à jour
