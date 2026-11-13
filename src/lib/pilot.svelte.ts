@@ -60,9 +60,11 @@ const waitingOf = (a: Agent) => (a.asks[0] ? waitingFor(a.asks[0], english) : a.
 const goalOf = (a: Agent) =>
   a.goal ? { done_when: a.goal.condition, state: a.goal.state, relaunches: a.goal.relaunches || undefined, last_reason: a.goal.reason || undefined } : undefined
 
+const visible = (caller: Agent) => projects.list.filter((p) => settings.pilot_all || p.path === caller.project)
+
 const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknown> = {
-  overview: () =>
-    projects.list.map((p) => ({
+  overview: (caller) =>
+    visible(caller).map((p) => ({
       project: p.name,
       path: p.path,
       agents: ofProject(p.path).map((a) => ({
@@ -81,11 +83,11 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       cards: p.cards.map((c) => ({ id: c.id, title: c.title, prompt: c.prompt || undefined, goal: c.goal || undefined, column: c.column, agent: c.agent ?? undefined })),
     })),
 
-  read_agent: async (_, args) => {
+  read_agent: async (caller, args) => {
     const agent = find(String(args.agent))
-    if (!agent) throw new Error(`No agent with id ${args.agent}. Call overview to list them.`)
+    if (!agent || !visible(caller).some((p) => p.path === agent.project)) throw new Error(`No agent with id ${args.agent} in the projects you can see. Call overview to list them.`)
     await ensureLoaded(agent)
-    return { name: agent.name, status: agent.status, waiting_for_user: waitingOf(agent), goal: goalOf(agent), messages: text(agent, Number(args.last) || 10) }
+    return { name: agent.name, status: agent.status, waiting_for_user: waitingOf(agent), goal: goalOf(agent), messages: text(agent, Math.min(Number(args.last) || 10, 100)) }
   },
 
   start_agent: async (caller, args) => {

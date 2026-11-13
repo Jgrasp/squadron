@@ -28,7 +28,7 @@ struct Agent {
 #[derive(Default)]
 pub struct Agents {
     list: Mutex<HashMap<String, Agent>>,
-    endpoint: Mutex<Option<(u16, String, PathBuf)>>,
+    endpoint: Mutex<Option<(u16, PathBuf)>>,
     pilot: AtomicBool,
 }
 
@@ -55,12 +55,13 @@ fn write_private(path: &std::path::Path, text: &str) -> std::io::Result<PathBuf>
 }
 
 impl Agents {
-    pub fn endpoint(&self, port: u16, token: String, dir: PathBuf) {
-        *self.endpoint.lock().unwrap() = Some((port, token, dir));
+    pub fn endpoint(&self, port: u16, dir: PathBuf) {
+        *self.endpoint.lock().unwrap() = Some((port, dir));
     }
 
     pub fn set_pilot(&self, on: bool) {
         self.pilot.store(on, Ordering::Relaxed);
+        crate::keys::KEYS.set_pilot(on);
     }
 
     pub fn refresh_all(&self) {
@@ -71,9 +72,8 @@ impl Agents {
 
     fn mcp(&self, id: &str) -> Option<String> {
         let endpoint = self.endpoint.lock().unwrap();
-        let (port, token, dir) = endpoint.as_ref()?;
-        let config =
-            crate::permissions::mcp_config(*port, token, id, self.pilot.load(Ordering::Relaxed));
+        let (port, dir) = endpoint.as_ref()?;
+        let config = crate::permissions::mcp_config(*port, id, self.pilot.load(Ordering::Relaxed));
         match write_private(&dir.join(format!("{id}.json")), &config) {
             Ok(path) => Some(path.to_string_lossy().into_owned()),
             Err(e) => {
@@ -137,7 +137,12 @@ impl Agents {
                 continue;
             }
             agent.project = to.to_path_buf();
-            if let Some(dir) = agent.dir.as_ref().and_then(|d| d.strip_prefix(from).ok()).map(|rest| to.join(rest)) {
+            if let Some(dir) = agent
+                .dir
+                .as_ref()
+                .and_then(|d| d.strip_prefix(from).ok())
+                .map(|rest| to.join(rest))
+            {
                 agent.dir = Some(dir);
             }
         }
@@ -541,10 +546,11 @@ mod tests {
     fn keeps_the_mcp_token_in_a_private_file() {
         let dir = std::env::temp_dir().join(format!("squadron-mcp-{}", uuid::Uuid::new_v4()));
         let agents = Agents::default();
-        agents.endpoint(4242, "secret".into(), dir.clone());
+        agents.endpoint(4242, dir.clone());
         let path = PathBuf::from(agents.mcp("a1").unwrap());
         assert_eq!(path, dir.join("a1.json"));
-        assert!(std::fs::read_to_string(&path).unwrap().contains("secret"));
+        let token = crate::keys::KEYS.issue("a1", crate::keys::Route::Gate);
+        assert!(std::fs::read_to_string(&path).unwrap().contains(&token));
         #[cfg(unix)]
         {
             use std::os::unix::fs::PermissionsExt;

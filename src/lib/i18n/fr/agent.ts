@@ -23,6 +23,7 @@ export default {
   alwaysTool: 'Les agents du projet {project} appelleront {tool} sans demander.',
   valuesTitle: { one: '{count} valeur à renseigner', other: '{count} valeurs à renseigner' },
   valuesSave: 'Enregistrer dans le fichier',
+  valueLine: 'Ajoute la ligne',
   valuesHint: 'Squadron les écrit dans le fichier : {agent} ne les voit jamais.',
   valuesSkip: 'Répondre à {agent} sans renseigner les valeurs…',
   valueShow: 'Afficher',

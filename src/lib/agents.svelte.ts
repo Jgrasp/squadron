@@ -578,7 +578,7 @@ function waitFor(agent: Agent) {
 
 export const VALUES = 'squadron:ask_values'
 
-export type ValueField = { key: string; hint?: string; secret?: boolean }
+export type ValueField = { key: string; hint?: string; secret?: boolean; line?: string }
 
 const filling = new Map<string, (values: Record<string, string> | string) => void>()
 
@@ -754,7 +754,7 @@ export function plan(agent: Agent, ask: Ask, choice: 'auto' | 'edits' | 'ask' | 
     tone: 'ok',
     title: t('shell.planApproved'),
     detail: choice === 'auto' ? t('shell.startedAuto') : choice === 'edits' ? t('shell.startedAcceptEdits') : t('shell.startedAsking'),
-  })
+  }).then(() => invoke('set_agent_options', { id: agent.id, options: agent.options }).catch((e) => fail(agent, String(e))))
   arm(agent)
   return approved
 }

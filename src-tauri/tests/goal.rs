@@ -46,7 +46,7 @@ impl Agent {
     async fn start_with(name: &str, mode: &str, env: Vec<(&'static str, &'static str)>) -> Self {
         let (tx, seen) = unbounded_channel();
         let asks = tx.clone();
-        let gate = Gate::new("token".into(), move |ask| {
+        let gate = Gate::new(move |ask| {
             let _ = asks.send(Seen::Ask(ask));
         });
         let port = gate.clone().serve().await.unwrap();
@@ -77,7 +77,7 @@ impl Agent {
             agent: None,
             advisor: None,
         };
-        let config = mcp_config(self.port, "token", "agent-1", false);
+        let config = mcp_config(self.port, "agent-1", false);
         let mut cmd = command(
             "claude",
             &self.dir,

@@ -42,6 +42,9 @@
           <span class="key">{field.key}</span>
           {#if field.hint}<span class="hint">{field.hint}</span>{/if}
         </span>
+        {#if field.line}
+          <span class="line">{t('agent.valueLine')} <code>{field.line.split(`{{squadron:${field.key}}}`).join(`‹${field.key}›`)}</code></span>
+        {/if}
         <span class="input">
           <input
             type={field.secret && !shown[field.key] ? 'password' : 'text'}
@@ -142,6 +145,18 @@
   .hint {
     font-size: 12px;
     color: var(--wait-muted);
+  }
+
+  .line {
+    font-size: 12px;
+    color: var(--wait-muted);
+  }
+
+  .line code {
+    font: 12px var(--mono);
+    color: var(--wait-text-2);
+    white-space: pre-wrap;
+    overflow-wrap: anywhere;
   }
 
   .input {

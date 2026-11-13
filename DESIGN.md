@@ -246,7 +246,7 @@ Fond `--wait-bg`, contour `--wait-border`, padding 16–18px, rayon 6px, espacem
 - **Permission** : « Run a command? », « Edit a file? » (diff 200px max), « Use a tool? » (clé/valeur). Boutons 36–38px : Allow (`--accent`), Always (`--wait-btn`), Deny (`--surface-3`). Encart `--wait-note` qui dit ce que « Always » autorise.
 - **Question** : options pleine largeur (`--option`, touche numérotée 22px, titre 600, description `--wait-muted`, badge « Recommended »). Plusieurs questions : un groupe `--wait-note` par question, celui en cours `--option` + contour `#A55E37`.
 - **Plan** : Markdown dans un encart `--bg-main`, contour `#4A2E29`, trois boutons de lancement.
-- **ValuesCard** : champs 36px mono 13px sur `--option-off`, anneau 2px `--accent-soft` au focus. Enregistrer `--accent` ; désactivé `--wait-btn` / `#D9B6A3`.
+- **ValuesCard** : champs 36px mono 13px sur `--option-off`, anneau 2px `--accent-soft` au focus. La ligne que l'agent fera écrire s'affiche sous la clé, 12px `--wait-muted`, la ligne elle-même en mono `--wait-text-2` avec `‹clé›` à la place de la valeur. Enregistrer `--accent` ; désactivé `--wait-btn` / `#D9B6A3`.
 - **SecretCard** (`run_sudo`, `add_ssh_key`) : icône cadenas, dossier ou chemin de clé en mono. Pour sudo, raison de l'agent en `--wait-muted` puis encart `--bg-app` contour `#4A2E29` qui montre la commande entière (`sudo` en `--accent-soft`). Libellé du champ à gauche, « va à sudo, jamais à Claude » à droite en `--wait-muted` ; champ masqué comme ValuesCard sur la même ligne que Lancer (`--accent`) et Refuser (`--surface-3`). Erreur : anneau 2px `--err`, texte `--err-text` avec icône. Sans mot de passe exigé par sudo, seulement les deux boutons.
 
 ### Carte d'erreur

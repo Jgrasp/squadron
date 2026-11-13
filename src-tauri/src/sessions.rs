@@ -43,9 +43,17 @@ pub fn carry(from: &Path, to: &Path) {
 fn carry_in(root: &Path, from: &Path, to: &Path) {
     let (old, new) = (encode(from), encode(to));
     for dir in folders(root, from) {
-        let name = dir.file_name().unwrap_or_default().to_string_lossy().into_owned();
+        let name = dir
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
         let target = root.join(format!("{new}{}", &name[old.len()..]));
-        let moved = if target.exists() { merge(&dir, &target) } else { fs::rename(&dir, &target) };
+        let moved = if target.exists() {
+            merge(&dir, &target)
+        } else {
+            fs::rename(&dir, &target)
+        };
         if let Err(e) = moved {
             log::warn!("{} not carried to {}: {e}", dir.display(), target.display());
         }
@@ -274,10 +282,18 @@ mod tests {
         fs::write(worktree.join("b.jsonl"), "b").unwrap();
         fs::write(other.join("c.jsonl"), "c").unwrap();
         fs::write(landed.join("d.jsonl"), "d").unwrap();
-        carry_in(&root, Path::new("/home/me/old/app"), Path::new("/home/me/new/app"));
+        carry_in(
+            &root,
+            Path::new("/home/me/old/app"),
+            Path::new("/home/me/new/app"),
+        );
         assert_eq!(fs::read_to_string(landed.join("a.jsonl")).unwrap(), "a");
         assert_eq!(fs::read_to_string(landed.join("d.jsonl")).unwrap(), "d");
-        assert_eq!(fs::read_to_string(root.join("-home-me-new-app--claude-worktrees-T70/b.jsonl")).unwrap(), "b");
+        assert_eq!(
+            fs::read_to_string(root.join("-home-me-new-app--claude-worktrees-T70/b.jsonl"))
+                .unwrap(),
+            "b"
+        );
         assert!(!worktree.exists());
         assert!(other.join("c.jsonl").exists());
         assert!(!root.join("-home-me-new-app2").exists());

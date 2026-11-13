@@ -12,6 +12,7 @@ pub mod extensions;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
+pub mod keys;
 mod links;
 mod ondemand;
 pub mod permissions;
@@ -591,12 +592,33 @@ fn mcp_request(
     agents.request(&id, &request_id, request)
 }
 
+fn scratch(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?
+        .join("scratch");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(dir)
+}
+
 #[tauri::command]
-async fn claude_config(settings: State<'_, Settings>, setting: String) -> Result<String, String> {
+async fn claude_config(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+    setting: String,
+) -> Result<String, String> {
     let program = settings.claude();
+    let dir = scratch(&app)?;
     let output = tauri::async_runtime::spawn_blocking(move || {
         process::command(program)
-            .current_dir(std::env::temp_dir())
+            .current_dir(dir)
             .args([
                 "-p",
                 "--output-format",
@@ -700,12 +722,17 @@ fn set_claude_path(settings: State<Settings>, path: String) -> Result<(), String
 }
 
 #[tauri::command]
-async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<String, String> {
+async fn suggest_title(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+    text: String,
+) -> Result<String, String> {
     let program = settings.claude();
     let task: String = text.chars().take(2000).collect();
+    let dir = scratch(&app)?;
     let output = tauri::async_runtime::spawn_blocking(move || {
         process::command(program)
-            .current_dir(std::env::temp_dir())
+            .current_dir(dir)
             .args([
                 "-p",
                 "--model",
@@ -2012,40 +2039,17 @@ async fn read_session(project: PathBuf, id: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
-#[cfg(windows)]
-const RUNNABLE: &[&str] = &[
-    "appref-ms",
-    "bat",
-    "chm",
-    "cmd",
-    "com",
-    "cpl",
-    "exe",
-    "hta",
-    "inf",
-    "jar",
-    "js",
-    "jse",
-    "lnk",
-    "msc",
-    "msi",
-    "msix",
-    "msp",
-    "pif",
-    "ps1",
-    "psm1",
-    "reg",
-    "scf",
-    "scr",
-    "url",
-    "vb",
-    "vbe",
-    "vbs",
-    "ws",
-    "wsc",
-    "wsf",
-    "wsh",
+const DOCUMENTS: &[&str] = &[
+    "avif", "bmp", "csv", "doc", "docx", "gif", "heic", "jpeg", "jpg", "json", "key", "log", "m4a",
+    "md", "mov", "mp3", "mp4", "numbers", "odg", "odp", "ods", "odt", "ogg", "pages", "pdf", "png",
+    "ppt", "pptx", "rtf", "tif", "tiff", "tsv", "txt", "wav", "webm", "webp", "xls", "xlsx",
 ];
+
+fn document(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| DOCUMENTS.contains(&e.to_ascii_lowercase().as_str()))
+}
 
 #[tauri::command]
 fn open_attachment(path: PathBuf) -> Result<(), String> {
@@ -2053,14 +2057,11 @@ fn open_attachment(path: PathBuf) -> Result<(), String> {
     #[cfg(unix)]
     let runs = {
         use std::os::unix::fs::PermissionsExt;
-        meta.permissions().mode() & 0o111 != 0 || path.extension().is_some_and(|e| e == "desktop")
+        meta.permissions().mode() & 0o111 != 0
     };
-    #[cfg(windows)]
-    let runs = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| RUNNABLE.contains(&e.to_ascii_lowercase().as_str()));
-    if !meta.is_file() || runs {
+    #[cfg(not(unix))]
+    let runs = false;
+    if !meta.is_file() || runs || !document(&path) {
         return Err("Squadron only opens documents and images from here.".into());
     }
     open_path(&path)
@@ -2177,7 +2178,8 @@ fn reload_agent(
 
 #[tauri::command]
 fn archive_agent(agents: State<Agents>, id: String) {
-    agents.archive(&id)
+    agents.archive(&id);
+    keys::KEYS.revoke(&id);
 }
 
 #[tauri::command]
@@ -2642,20 +2644,19 @@ pub fn run() {
                 }),
             );
             let handle = app.handle().clone();
-            let token = uuid::Uuid::new_v4().simple().to_string();
-            let gate = Gate::new(token.clone(), move |ask| {
+            let gate = Gate::new(move |ask| {
                 let _ = handle.emit("permission-request", ask);
             });
             let handle = app.handle().clone();
-            let pilot = Pilot::new(token.clone(), move |call| {
+            let pilot = Pilot::new(move |call| {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });
             let handle = app.handle().clone();
-            let extension_tools = extension_tools::Tools::new(token.clone(), move |call| {
+            let extension_tools = extension_tools::Tools::new(move |call| {
                 let _ = handle.emit_to("main", "extensions-tool", call);
             });
             let handle = app.handle().clone();
-            let askpass = Askpass::new(token.clone(), move |question| {
+            let askpass = Askpass::new(move |question| {
                 let _ = handle.emit("askpass-request", question);
             });
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
@@ -2668,13 +2669,13 @@ pub fn run() {
             ssh::start_own_agent(&helpers);
             match std::env::current_exe().and_then(|exe| askpass::install(&helpers, &exe)) {
                 Ok(script) => {
-                    let _ = askpass::HELPER.set((script, port, token.clone()));
+                    let _ = askpass::HELPER.set((script, port));
                 }
                 Err(e) => log::warn!("password helper not installed: {e}"),
             }
             app.manage(askpass);
             let agents = app.state::<Agents>();
-            agents.endpoint(port, token, app.path().app_data_dir()?.join("mcp"));
+            agents.endpoint(port, app.path().app_data_dir()?.join("mcp"));
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);

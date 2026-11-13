@@ -30,7 +30,6 @@ pub struct ExtensionTool {
 
 #[derive(Clone)]
 pub struct Tools {
-    token: String,
     list: Arc<Mutex<Vec<ExtensionTool>>>,
     peers: Arc<Mutex<Vec<Peer<RoleServer>>>>,
     sinks: Arc<Mutex<Vec<SubscriptionSink>>>,
@@ -40,9 +39,8 @@ pub struct Tools {
 }
 
 impl Tools {
-    pub fn new(token: String, notify: impl Fn(Call) + Send + Sync + 'static) -> Self {
+    pub fn new(notify: impl Fn(Call) + Send + Sync + 'static) -> Self {
         Self {
-            token,
             list: Default::default(),
             peers: Default::default(),
             sinks: Default::default(),
@@ -147,30 +145,25 @@ impl ServerHandler for Tools {
         request: CallToolRequestParams,
         context: RequestContext<RoleServer>,
     ) -> Result<CallToolResponse, ErrorData> {
-        let header = |name: &str| {
-            context
-                .extensions
-                .get::<http::request::Parts>()
-                .and_then(|p| p.headers.get(name))
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or_default()
-                .to_string()
-        };
-        let (ok, text) = if header("x-squadron-token") != self.token {
-            (false, "Refused: invalid Squadron token.".into())
-        } else {
-            let id = self.next.fetch_add(1, Ordering::SeqCst).to_string();
-            let (tx, rx) = oneshot::channel();
-            self.pending.lock().unwrap().insert(id.clone(), tx);
-            (self.notify)(Call {
-                id,
-                agent: header("x-squadron-agent"),
-                tool: request.name.to_string(),
-                args: Value::Object(request.arguments.unwrap_or_default()),
-            });
-            rx.await
-                .unwrap_or_else(|_| (false, "Squadron did not answer.".into()))
-        };
+        let agent = context
+            .extensions
+            .get::<http::request::Parts>()
+            .and_then(|p| p.headers.get("x-squadron-agent"))
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
+        let id = self.next.fetch_add(1, Ordering::SeqCst).to_string();
+        let (tx, rx) = oneshot::channel();
+        self.pending.lock().unwrap().insert(id.clone(), tx);
+        (self.notify)(Call {
+            id,
+            agent,
+            tool: request.name.to_string(),
+            args: Value::Object(request.arguments.unwrap_or_default()),
+        });
+        let (ok, text) = rx
+            .await
+            .unwrap_or_else(|_| (false, "Squadron did not answer.".into()));
         let content = vec![ContentBlock::text(text)];
         Ok(if ok {
             CallToolResult::success(content)
@@ -341,10 +334,10 @@ mod tests {
         use crate::permissions::{Gate, mcp_config, serve_with_pilot};
         use serde_json::json;
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel();
-        let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
+        let gate = Gate::new(move |ask| asks_tx.send(ask).unwrap());
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
-        let tools = Tools::new("token".into(), move |call| calls_tx.send(call).unwrap());
-        let pilot = crate::pilot::Pilot::new("token".into(), |_| {});
+        let tools = Tools::new(move |call| calls_tx.send(call).unwrap());
+        let pilot = crate::pilot::Pilot::new(|_| {});
         let port = serve_with_pilot(gate.clone(), pilot, tools.clone(), axum::Router::new())
             .await
             .unwrap();
@@ -378,7 +371,7 @@ mod tests {
             agent: None,
             advisor: None,
         };
-        let config = mcp_config(port, "token", "agent-3", false);
+        let config = mcp_config(port, "agent-3", false);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(

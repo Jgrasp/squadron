@@ -22,6 +22,7 @@ export default {
   agentQuestion: 'Agent question',
   valuesTitle: { one: '{count} value to fill in', other: '{count} values to fill in' },
   valuesSave: 'Save to the file',
+  valueLine: 'Adds the line',
   valuesHint: 'Squadron writes them into the file: {agent} never sees them.',
   valuesSkip: 'Reply to {agent} without filling the values…',
   valueShow: 'Show',
