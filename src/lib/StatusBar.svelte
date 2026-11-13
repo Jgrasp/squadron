@@ -6,11 +6,17 @@
   import { time } from './format'
   import { install, update } from './update.svelte'
   import { date, number, t, type Key } from './i18n/index.svelte'
+  import ExtensionUpdates from './ExtensionUpdates.svelte'
+  import { updatesOf } from './extensions'
+  import { catalog, extensions } from './extensions.svelte'
 
   type Load = { cpu: number; used: number; total: number }
 
   let load = $state<Load | null>(null)
   let version = $state('')
+  let updating = $state(false)
+
+  const extensionUpdates = $derived(updatesOf(extensions.list, catalog.entries ?? [], extensions.origins).length)
 
   onMount(() => {
     getVersion()
@@ -65,6 +71,9 @@
       {/if}
     </button>
   {/if}
+  {#if extensionUpdates}
+    <button class="update" onclick={() => (updating = true)}>{t('shell.extensionUpdates', { count: extensionUpdates })}</button>
+  {/if}
   <span class="spacer"></span>
   {#each windows as [label, hint, limit] (label)}
     {@const at = limit.resetsAt * 1000}
@@ -81,6 +90,8 @@
     <span class="item reset">{t('shell.planUsageEmpty')}</span>
   {/each}
 </footer>
+
+{#if updating}<ExtensionUpdates onclose={() => (updating = false)} />{/if}
 
 <style>
   .status {

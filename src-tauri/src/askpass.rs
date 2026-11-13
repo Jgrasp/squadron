@@ -10,7 +10,7 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex, OnceLock};
 use tokio::sync::oneshot;
 
-pub static HELPER: OnceLock<(PathBuf, u16, String)> = OnceLock::new();
+pub static HELPER: OnceLock<(PathBuf, u16)> = OnceLock::new();
 
 const VARIABLE: &str = "SQUADRON_ASKPASS";
 
@@ -26,16 +26,14 @@ type Pending = Arc<Mutex<HashMap<String, (String, oneshot::Sender<bool>)>>>;
 
 #[derive(Clone)]
 pub struct Askpass {
-    token: String,
     pending: Pending,
     next: Arc<AtomicU64>,
     notify: Arc<dyn Fn(Question) + Send + Sync>,
 }
 
 impl Askpass {
-    pub fn new(token: String, notify: impl Fn(Question) + Send + Sync + 'static) -> Self {
+    pub fn new(notify: impl Fn(Question) + Send + Sync + 'static) -> Self {
         Self {
-            token,
             pending: Default::default(),
             next: Default::default(),
             notify: Arc::new(notify),
@@ -43,7 +41,10 @@ impl Askpass {
     }
 
     pub fn router(self) -> axum::Router {
-        axum::Router::new().route("/", post(ask)).with_state(self)
+        crate::keys::guarded(
+            axum::Router::new().route("/", post(ask)).with_state(self),
+            crate::keys::Route::Askpass,
+        )
     }
 
     pub fn answer(&self, id: &str, yes: bool) -> Result<(), String> {
@@ -77,7 +78,7 @@ async fn ask(
             .unwrap_or_default()
             .to_string()
     };
-    if header("x-squadron-token") != gate.token || !question(&prompt) {
+    if !question(&prompt) {
         return (StatusCode::FORBIDDEN, String::new());
     }
     let agent = header("x-squadron-agent");
@@ -151,9 +152,10 @@ pub fn install(dir: &Path, exe: &Path) -> std::io::Result<PathBuf> {
 }
 
 pub fn env(cmd: &mut Command, agent: &str) {
-    let Some((script, port, token)) = HELPER.get() else {
+    let Some((script, port)) = HELPER.get() else {
         return;
     };
+    let token = crate::keys::KEYS.issue(agent, crate::keys::Route::Askpass);
     cmd.env(VARIABLE, format!("{port}:{token}:{agent}"))
         .env("SSH_ASKPASS", script)
         .env("SSH_ASKPASS_REQUIRE", "force")
@@ -220,7 +222,9 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn answers_only_yes_or_no() {
         let (tx, mut rx) = tokio::sync::mpsc::unbounded_channel();
-        let gate = Askpass::new("secret-token".into(), move |q| tx.send(q).unwrap());
+        let gate = Askpass::new(move |q| tx.send(q).unwrap());
+        let token = crate::keys::KEYS.issue("agent-1", crate::keys::Route::Askpass);
+        let other = crate::keys::KEYS.issue("agent-2", crate::keys::Route::Gate);
         let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
         let port = listener.local_addr().unwrap().port();
         let router = axum::Router::new().nest_service("/askpass", gate.clone().router());
@@ -236,7 +240,7 @@ mod tests {
             answering.answer(&q.id, false).unwrap();
             assert!(rx.recv().await.is_none());
         });
-        let good = format!("{port}:secret-token:agent-1");
+        let good = format!("{port}:{token}:agent-2");
         let asked = tokio::task::spawn_blocking(move || {
             (
                 request(&good, HOST),
@@ -249,8 +253,11 @@ mod tests {
             (Some("yes".into()), Some("no".into()), None)
         );
         let forged = format!("{port}:wrong:agent-1");
-        let refused = tokio::task::spawn_blocking(move || request(&forged, HOST));
-        assert_eq!(refused.await.unwrap(), None);
+        let elsewhere = format!("{port}:{other}:agent-2");
+        let refused = tokio::task::spawn_blocking(move || {
+            (request(&forged, HOST), request(&elsewhere, HOST))
+        });
+        assert_eq!(refused.await.unwrap(), (None, None));
     }
 
     #[test]

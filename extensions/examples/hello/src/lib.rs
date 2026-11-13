@@ -11,6 +11,18 @@ fn show(count: u32) {
     host::panel_post("main", &format!(r#"{{"count":{count}}}"#));
 }
 
+fn option(name: &str) -> Option<String> {
+    let options = host::options();
+    let rest = &options[options.find(&format!(r#""{name}":""#))? + name.len() + 4..];
+    Some(rest[..rest.find('"')?].to_string())
+}
+
+fn reset() {
+    host::state_set("count", None);
+    show(0);
+    host::settings_post(r#"{"count":0}"#);
+}
+
 fn add() {
     let next = count() + 1;
     host::state_set("count", Some(&next.to_string()));
@@ -23,6 +35,8 @@ impl Extension for Hello {
             ("started", _) => host::set_badge("count", Some(&count().to_string())),
             ("panel.message", _) if data.contains(r#""type":"count""#) => add(),
             ("panel.message", _) => show(count()),
+            ("settings.message", _) if data.contains(r#""type":"reset""#) => reset(),
+            ("settings.message", _) => host::settings_post(&format!(r#"{{"count":{}}}"#, count())),
             ("agent.done", Some(agent)) => host::notify("Hello", &format!("{} finished its turn.", agent.name)),
             _ => {}
         }
@@ -36,7 +50,9 @@ impl Extension for Hello {
             }
             "greet" => {
                 let agent = agent.ok_or("No agent to greet.")?;
-                host::insert_prompt(&agent.id, &format!("Hello {}, what are you working on?", agent.name));
+                let greeting = option("greeting").unwrap_or_else(|| "Hello".into());
+                let end = if option("tone").as_deref() == Some("warm") { " 🙂" } else { "" };
+                host::insert_prompt(&agent.id, &format!("{greeting} {}, what are you working on?{end}", agent.name));
                 Ok(())
             }
             _ => Err(format!("Unknown action {action}.")),
@@ -54,6 +70,7 @@ impl Extension for Hello {
                 Ok(if out.stdout.is_empty() { "No changed file.".into() } else { out.stdout })
             }
             "clicks" => Ok(format!("The Count button was clicked {} times.", count())),
+            "options" => Ok(host::options()),
             "github_user" => {
                 let answer = host::fetch(&Request {
                     method: "GET".into(),

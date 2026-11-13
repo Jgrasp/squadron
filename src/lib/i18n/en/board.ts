@@ -97,7 +97,6 @@ export default {
   taskDescription: 'Description',
   taskFiles: 'Attachments',
   taskColumn: 'Column',
-  taskTicket: 'Jira ticket',
   taskAgent: 'Agent',
   taskNoAgent: 'No agent yet',
   taskPull: 'Pull request',

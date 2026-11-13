@@ -11,7 +11,9 @@ export default {
   allow: 'Autoriser',
   deny: 'Refuser',
   seeInDiffPanel: 'Voir dans le panneau Diff',
-  alwaysEdit: '{agent} modifiera les fichiers du projet sans demander jusqu’à la fin de sa session. Les commandes Bash demanderont toujours l’autorisation.',
+  alwaysEdit: '{agent} modifiera les fichiers de son dossier sans demander, sauf .git, .claude et .mcp.json, jusqu’à ce que vous le retiriez dans ses options ou que Squadron redémarre. Les commandes Bash demanderont toujours l’autorisation.',
+  editsAllowed: 'Modifie les fichiers de son dossier sans demander',
+  askEditsAgain: 'Redemander',
   alwaysBash: 'Autorise {rule} dans {project}, pour tous ses agents.',
   alwaysBashOthers: {
     one: 'Autorise {rule} dans {project}, pour tous ses agents, y compris l’autre sous-agent en cours. Il pourrait demander la même chose.',
@@ -21,6 +23,7 @@ export default {
   alwaysTool: 'Les agents du projet {project} appelleront {tool} sans demander.',
   valuesTitle: { one: '{count} valeur à renseigner', other: '{count} valeurs à renseigner' },
   valuesSave: 'Enregistrer dans le fichier',
+  valueLine: 'Ajoute la ligne',
   valuesHint: 'Squadron les écrit dans le fichier : {agent} ne les voit jamais.',
   valuesSkip: 'Répondre à {agent} sans renseigner les valeurs…',
   valueShow: 'Afficher',

@@ -1,0 +1,18 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <link rel="stylesheet" href="/_squadron/kit.css" />
+  </head>
+  <body>
+    <p class="muted">This page is the extension’s own. It talks to its WebAssembly through Squadron, and reads the options above.</p>
+    <p>Count: <strong id="count">…</strong> · Greeting: <strong id="greeting">…</strong></p>
+    <button id="reset">Reset the count</button>
+    <script>
+      squadron.on((message) => (document.getElementById('count').textContent = message.count))
+      squadron.options((values) => (document.getElementById('greeting').textContent = values.greeting))
+      document.getElementById('reset').onclick = () => squadron.send({ type: 'reset' })
+      squadron.send({ type: 'ready' })
+    </script>
+  </body>
+</html>

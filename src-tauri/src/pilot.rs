@@ -298,7 +298,6 @@ type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<String>>>>;
 
 #[derive(Clone)]
 pub struct Pilot {
-    token: String,
     pending: Pending,
     next: Arc<AtomicU64>,
     notify: Arc<dyn Fn(Call) + Send + Sync>,
@@ -307,9 +306,8 @@ pub struct Pilot {
 
 #[tool_router]
 impl Pilot {
-    pub fn new(token: String, notify: impl Fn(Call) + Send + Sync + 'static) -> Self {
+    pub fn new(notify: impl Fn(Call) + Send + Sync + 'static) -> Self {
         Self {
-            token,
             pending: Default::default(),
             next: Default::default(),
             notify: Arc::new(notify),
@@ -318,23 +316,18 @@ impl Pilot {
     }
 
     async fn forward(&self, parts: &http::request::Parts, tool: &str, args: Value) -> String {
-        let header = |name: &str| {
-            parts
-                .headers
-                .get(name)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or_default()
-                .to_string()
-        };
-        if header("x-squadron-token") != self.token {
-            return "Refused: invalid Squadron token.".into();
-        }
+        let agent = parts
+            .headers
+            .get("x-squadron-agent")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
         let id = self.next.fetch_add(1, Ordering::SeqCst).to_string();
         let (tx, rx) = oneshot::channel();
         self.pending.lock().unwrap().insert(id.clone(), tx);
         (self.notify)(Call {
             id,
-            agent: header("x-squadron-agent"),
+            agent,
             tool: tool.into(),
             args,
         });
@@ -624,13 +617,13 @@ mod tests {
         setup: fn(&std::path::Path),
     ) -> Vec<Call> {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel();
-        let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
+        let gate = Gate::new(move |ask| asks_tx.send(ask).unwrap());
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
-        let pilot = Pilot::new("token".into(), move |call| calls_tx.send(call).unwrap());
+        let pilot = Pilot::new(move |call| calls_tx.send(call).unwrap());
         let port = serve_with_pilot(
             gate.clone(),
             pilot.clone(),
-            crate::extension_tools::Tools::new("token".into(), |_| {}),
+            crate::extension_tools::Tools::new(|_| {}),
             axum::Router::new(),
         )
         .await
@@ -666,7 +659,8 @@ mod tests {
             agent: None,
             advisor: None,
         };
-        let config = mcp_config(port, "token", "agent-7", true);
+        crate::keys::KEYS.set_pilot(true);
+        let config = mcp_config(port, "agent-7", true);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start(

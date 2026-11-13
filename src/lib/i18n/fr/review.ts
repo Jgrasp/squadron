@@ -141,6 +141,7 @@ export default {
   posting: 'Publication…',
   postOn: 'Publier sur {host}',
   sendTo: 'Envoyer à {agent}',
+  theConversation: 'la conversation',
   verdict: 'Verdict',
   verdictComment: 'Commenter',
   verdictApprove: 'Approuver',

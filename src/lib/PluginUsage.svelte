@@ -179,6 +179,7 @@
   }
 
   .back {
+    flex: none;
     margin-left: 8px;
     padding: 2px 8px;
     border-radius: 4px;

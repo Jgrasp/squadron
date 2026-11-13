@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use serde_json::{Map, Value};
 use std::collections::BTreeMap;
 use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
@@ -24,6 +25,8 @@ pub struct Choices {
     pub origins: std::collections::BTreeMap<String, String>,
     #[serde(default)]
     pub accounts: BTreeMap<String, Vec<Account>>,
+    #[serde(default)]
+    pub options: BTreeMap<String, BTreeMap<String, Value>>,
 }
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug, PartialEq)]
@@ -62,6 +65,57 @@ fn account_fields(manifest: &serde_json::Value) -> Vec<(String, Kind)> {
         .collect()
 }
 
+fn option_specs(manifest: &Value) -> impl Iterator<Item = (&str, &Value)> {
+    manifest["contributes"]["settings"]["options"]
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(|o| Some((o["id"].as_str().filter(|id| valid_id(id))?, o)))
+}
+
+fn fits(spec: &Value, value: &Value) -> bool {
+    match spec["kind"].as_str() {
+        Some("toggle") => value.is_boolean(),
+        Some("number") => value.as_f64().is_some_and(|n| {
+            spec["min"].as_f64().is_none_or(|min| n >= min)
+                && spec["max"].as_f64().is_none_or(|max| n <= max)
+        }),
+        Some("select") => spec["choices"]
+            .as_array()
+            .is_some_and(|choices| choices.iter().any(|c| c["value"] == *value)),
+        Some("text") => value
+            .as_str()
+            .is_some_and(|t| t.len() <= 4096 && !t.chars().any(char::is_control)),
+        _ => false,
+    }
+}
+
+fn fallback(spec: &Value) -> Value {
+    if fits(spec, &spec["default"]) {
+        return spec["default"].clone();
+    }
+    match spec["kind"].as_str() {
+        Some("toggle") => Value::Bool(false),
+        Some("number") if spec["min"].is_number() => spec["min"].clone(),
+        Some("number") => Value::from(0),
+        Some("select") => spec["choices"][0]["value"].clone(),
+        _ => Value::from(""),
+    }
+}
+
+pub fn options_of(manifest: &Value, stored: &BTreeMap<String, Value>) -> Map<String, Value> {
+    option_specs(manifest)
+        .map(|(id, spec)| {
+            let value = stored
+                .get(id)
+                .filter(|v| fits(spec, v))
+                .cloned()
+                .unwrap_or_else(|| fallback(spec));
+            (id.to_string(), value)
+        })
+        .collect()
+}
+
 pub fn host_of(input: &str) -> Option<String> {
     let site = input.trim().trim_end_matches('/');
     let site = site
@@ -95,6 +149,7 @@ pub struct Listing {
     pub sources: Vec<String>,
     pub origins: std::collections::BTreeMap<String, String>,
     pub accounts: BTreeMap<String, Vec<Account>>,
+    pub options: BTreeMap<String, Map<String, Value>>,
 }
 
 pub type Keyring<'a> = &'a dyn Fn(&str, &str, Option<&str>) -> Result<(), String>;
@@ -141,18 +196,71 @@ impl Extensions {
 
     pub fn list(&self) -> Listing {
         let choices = self.choices();
+        let extensions: Vec<Found> = self
+            .folders(&choices)
+            .into_iter()
+            .map(|(dir, linked)| read(&dir, linked))
+            .collect();
+        let none = BTreeMap::new();
+        let options = extensions
+            .iter()
+            .filter_map(|f| {
+                let manifest = f.manifest.as_ref()?;
+                let id = manifest["id"].as_str()?;
+                let values = options_of(manifest, choices.options.get(id).unwrap_or(&none));
+                (!values.is_empty()).then(|| (id.to_string(), values))
+            })
+            .collect();
         Listing {
-            extensions: self
-                .folders(&choices)
-                .into_iter()
-                .map(|(dir, linked)| read(&dir, linked))
-                .collect(),
+            extensions,
             disabled: choices.disabled,
             approved: choices.approved,
             sources: choices.sources,
             origins: choices.origins,
             accounts: choices.accounts,
+            options,
         }
+    }
+
+    pub fn options(&self, id: &str) -> Map<String, Value> {
+        let stored = self.choices().options.remove(id).unwrap_or_default();
+        self.manifest(id)
+            .map(|m| options_of(&m, &stored))
+            .unwrap_or_default()
+    }
+
+    pub fn set_option(
+        &self,
+        id: &str,
+        option: &str,
+        value: Option<Value>,
+    ) -> Result<Map<String, Value>, String> {
+        let manifest = self
+            .manifest(id)
+            .ok_or_else(|| format!("{id} is not an extension of Squadron."))?;
+        let spec = option_specs(&manifest)
+            .find(|(o, _)| *o == option)
+            .map(|(_, spec)| spec.clone())
+            .ok_or_else(|| format!("This extension has no option {option}."))?;
+        let mut choices = self.choices();
+        let stored = choices.options.entry(id.to_string()).or_default();
+        match value {
+            Some(v) if !fits(&spec, &v) => {
+                return Err(format!("This value does not fit the option {option}."));
+            }
+            Some(v) => {
+                stored.insert(option.to_string(), v);
+            }
+            None => {
+                stored.remove(option);
+            }
+        }
+        let values = options_of(&manifest, stored);
+        if stored.is_empty() {
+            choices.options.remove(id);
+        }
+        self.save(&choices)?;
+        Ok(values)
     }
 
     pub fn accounts(&self, id: &str) -> Vec<Account> {
@@ -586,6 +694,7 @@ impl Extensions {
         choices.disabled.retain(|d| d != id);
         choices.approved.remove(id);
         choices.origins.remove(id);
+        choices.options.remove(id);
         self.save(&choices)
     }
 }
@@ -797,6 +906,54 @@ mod tests {
         assert!(!m.list().approved.contains_key("hello"));
         assert!(m.uninstall("hello", &|_, _, _| Ok(())).is_err());
         assert!(m.uninstall("..", &|_, _, _| Ok(())).is_err());
+    }
+
+    #[test]
+    fn keeps_option_values_that_fit_and_falls_back_on_the_defaults() {
+        let m = extensions();
+        std::fs::create_dir_all(m.dir.join("jira")).unwrap();
+        std::fs::write(
+            m.dir.join("jira/extension.json"),
+            r#"{"id":"jira","contributes":{"settings":{"options":[
+                {"id":"sprint","kind":"select","default":"open","choices":[{"value":"open"},{"value":"next"}]},
+                {"id":"chips","kind":"toggle","default":true},
+                {"id":"limit","kind":"number","min":1,"max":100},
+                {"id":"folder","kind":"text","default":"Shared"}]}}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            Value::Object(m.options("jira")),
+            serde_json::json!({"sprint": "open", "chips": true, "limit": 1, "folder": "Shared"})
+        );
+        let values = m
+            .set_option("jira", "sprint", Some(Value::from("next")))
+            .unwrap();
+        assert_eq!(values["sprint"], "next");
+        assert!(
+            m.set_option("jira", "sprint", Some(Value::from("later")))
+                .is_err()
+        );
+        assert!(
+            m.set_option("jira", "limit", Some(Value::from(500)))
+                .is_err()
+        );
+        assert!(
+            m.set_option("jira", "chips", Some(Value::from("yes")))
+                .is_err()
+        );
+        assert!(
+            m.set_option("jira", "missing", Some(Value::from(1)))
+                .is_err()
+        );
+        m.set_option("jira", "limit", Some(Value::from(20)))
+            .unwrap();
+        assert_eq!(m.options("jira")["limit"], 20);
+        assert_eq!(m.list().options["jira"]["limit"], 20);
+        assert_eq!(m.choices().options["jira"].len(), 2);
+        m.set_option("jira", "sprint", None).unwrap();
+        m.set_option("jira", "limit", None).unwrap();
+        assert_eq!(m.options("jira")["sprint"], "open");
+        assert!(!m.choices().options.contains_key("jira"));
     }
 
     #[test]

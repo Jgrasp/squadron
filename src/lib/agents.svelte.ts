@@ -9,7 +9,7 @@ import { migrate, shelf } from './artifacts.svelte'
 import { releaseAgent } from './cleanup.svelte'
 import { addRule, defaultsFor, editProject, projects, type Project } from './projects.svelte'
 import { ask } from './asking.svelte'
-import { matches, ruleFor, ruleLabel } from './rules'
+import { editable, matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
 import { deliver, take } from './shells.svelte'
@@ -40,6 +40,7 @@ import {
   starting,
   userMessage,
   waitingOn,
+  workdir,
   type Agent,
   type Ask,
   type Comment,
@@ -370,8 +371,7 @@ async function adoptSaved() {
   const adopting: Promise<void>[] = []
   for (const data of saved) {
     if (find(data.id)) continue
-    if (!known.has(data.project)) invoke('delete_agent_file', { id: data.id })
-    else
+    if (known.has(data.project))
       adopting.push(
         adopt(data).then(() => {
           if (data.status === 'working' && (data.resumes ?? 0) < 3 && Date.now() - data.since < 86_400_000) cut.push(find(data.id)!)
@@ -432,6 +432,7 @@ async function adopt(data: Agent) {
     asks: [],
     background: [],
     alive: false,
+    allowEdits: false,
     remote: wanted ? { state: 'connecting', url: wanted.url } : null,
   }
   if (agent.status === 'working' || agent.status === 'waiting') {
@@ -548,7 +549,7 @@ listen<Ask>('permission-request', ({ payload: ask }) => {
   if (
     INTERNAL.includes(ask.tool_name) ||
     (READ_ONLY.includes(ask.tool_name) && !(ask.tool_name.endsWith('__set_worktree') && ask.input.agent && ask.input.agent !== agent.id)) ||
-    (agent.allowEdits && EDITS.includes(ask.tool_name)) ||
+    (agent.allowEdits && EDITS.includes(ask.tool_name) && editable(workdir(agent), ask.input.file_path ?? ask.input.notebook_path)) ||
     (EDITS.includes(ask.tool_name) && insideArtifacts(shelf.root, agent.id, ask.input.file_path ?? ask.input.notebook_path)) ||
     rules.some((r) => matches(r, ask.tool_name, ask.input))
   )
@@ -577,7 +578,7 @@ function waitFor(agent: Agent) {
 
 export const VALUES = 'squadron:ask_values'
 
-export type ValueField = { key: string; hint?: string; secret?: boolean }
+export type ValueField = { key: string; hint?: string; secret?: boolean; line?: string }
 
 const filling = new Map<string, (values: Record<string, string> | string) => void>()
 
@@ -672,6 +673,25 @@ function settle(agent: Agent, ask: Ask, decision: Record<string, unknown>, entry
 const detailOf = (agent: Agent, ask: Ask) =>
   `${toolLabel(ask.tool_name)} · ${argument(agent, { name: ask.tool_name, input: ask.input })}`.replace(/ · $/, '')
 
+export function rehome(from: string, to: string) {
+  if (agents.current[from]) agents.current[to] = agents.current[from]
+  delete agents.current[from]
+  for (const agent of agents.list)
+    if (agent.project === from) {
+      agent.project = to
+      const dir = agent.worktree?.path
+      if (dir?.startsWith(from) && /[\\/]/.test(dir[from.length] ?? '')) agent.worktree!.path = to + dir.slice(from.length)
+      persist(agent)
+    }
+}
+
+export function askEdits(id: string) {
+  const agent = find(id)
+  if (!agent) return
+  agent.allowEdits = false
+  persist(agent)
+}
+
 export async function allow(agent: Agent, ask: Ask, always = false) {
   let note: string | undefined
   if (always && EDITS.includes(ask.tool_name)) {
@@ -734,7 +754,7 @@ export function plan(agent: Agent, ask: Ask, choice: 'auto' | 'edits' | 'ask' | 
     tone: 'ok',
     title: t('shell.planApproved'),
     detail: choice === 'auto' ? t('shell.startedAuto') : choice === 'edits' ? t('shell.startedAcceptEdits') : t('shell.startedAsking'),
-  })
+  }).then(() => invoke('set_agent_options', { id: agent.id, options: agent.options }).catch((e) => fail(agent, String(e))))
   arm(agent)
   return approved
 }

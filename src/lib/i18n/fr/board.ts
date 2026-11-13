@@ -99,7 +99,6 @@ export default {
   taskDescription: 'Description',
   taskFiles: 'Pièces jointes',
   taskColumn: 'Colonne',
-  taskTicket: 'Ticket JIRA',
   taskAgent: 'Agent',
   taskNoAgent: 'Aucun agent',
   taskPull: 'Pull request',

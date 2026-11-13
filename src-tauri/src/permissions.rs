@@ -12,6 +12,8 @@ use std::sync::atomic::{AtomicU64, Ordering};
 use std::sync::{Arc, Mutex};
 use tokio::sync::oneshot;
 
+use crate::keys::{KEYS, Route, guarded};
+
 pub const TOOL: &str = "mcp__squadron__permission";
 
 #[derive(Clone, Debug, Serialize)]
@@ -37,7 +39,6 @@ type Pending = Arc<Mutex<HashMap<String, (String, oneshot::Sender<Value>)>>>;
 
 #[derive(Clone)]
 pub struct Gate {
-    token: String,
     pending: Pending,
     next: Arc<AtomicU64>,
     notify: Arc<dyn Fn(Ask) + Send + Sync>,
@@ -46,9 +47,8 @@ pub struct Gate {
 
 #[tool_router]
 impl Gate {
-    pub fn new(token: String, notify: impl Fn(Ask) + Send + Sync + 'static) -> Self {
+    pub fn new(notify: impl Fn(Ask) + Send + Sync + 'static) -> Self {
         Self {
-            token,
             pending: Default::default(),
             next: Default::default(),
             notify: Arc::new(notify),
@@ -63,18 +63,12 @@ impl Gate {
         Extension(parts): Extension<http::request::Parts>,
         Parameters(request): Parameters<Request>,
     ) -> String {
-        let header = |name: &str| {
-            parts
-                .headers
-                .get(name)
-                .and_then(|v| v.to_str().ok())
-                .unwrap_or_default()
-                .to_string()
-        };
-        if header("x-squadron-token") != self.token {
-            return deny("Request refused: invalid Squadron token.").to_string();
-        }
-        let agent = header("x-squadron-agent");
+        let agent = parts
+            .headers
+            .get("x-squadron-agent")
+            .and_then(|v| v.to_str().ok())
+            .unwrap_or_default()
+            .to_string();
         let id = self.next.fetch_add(1, Ordering::SeqCst).to_string();
         let (tx, rx) = oneshot::channel();
         self.pending
@@ -118,7 +112,11 @@ impl Gate {
     }
 
     pub async fn serve(self) -> std::io::Result<u16> {
-        listen(axum::Router::new().nest_service("/mcp", service(self))).await
+        listen(guarded(
+            axum::Router::new().nest_service("/mcp", service(self)),
+            Route::Gate,
+        ))
+        .await
     }
 }
 
@@ -158,9 +156,18 @@ pub async fn serve_with_pilot(
 ) -> std::io::Result<u16> {
     listen(
         axum::Router::new()
-            .nest_service("/mcp", service(gate))
-            .nest_service("/pilot", service(pilot))
-            .nest_service("/extensions", service(extensions))
+            .merge(guarded(
+                axum::Router::new().nest_service("/mcp", service(gate)),
+                Route::Gate,
+            ))
+            .merge(guarded(
+                axum::Router::new().nest_service("/pilot", service(pilot)),
+                Route::Pilot,
+            ))
+            .merge(guarded(
+                axum::Router::new().nest_service("/extensions", service(extensions)),
+                Route::Extensions,
+            ))
             .nest_service("/askpass", askpass),
     )
     .await
@@ -170,19 +177,21 @@ fn deny(message: &str) -> Value {
     json!({"behavior": "deny", "message": message})
 }
 
-pub fn mcp_config(port: u16, token: &str, agent: &str, pilot: bool) -> String {
-    let server = |path: &str| {
+pub fn mcp_config(port: u16, agent: &str, pilot: bool) -> String {
+    let server = |path: &str, route: Route| {
         json!({
             "type": "http",
             "url": format!("http://127.0.0.1:{port}/{path}"),
-            "headers": {"X-Squadron-Token": token, "X-Squadron-Agent": agent},
+            "headers": {"X-Squadron-Token": KEYS.issue(agent, route), "X-Squadron-Agent": agent},
             "timeout": i32::MAX,
         })
     };
-    let mut servers =
-        json!({"squadron": server("mcp"), "squadron-extensions": server("extensions")});
+    let mut servers = json!({
+        "squadron": server("mcp", Route::Gate),
+        "squadron-extensions": server("extensions", Route::Extensions),
+    });
     if pilot {
-        servers["squadron-pilot"] = server("pilot");
+        servers["squadron-pilot"] = server("pilot", Route::Pilot);
     }
     json!({ "mcpServers": servers }).to_string()
 }
@@ -218,7 +227,7 @@ mod tests {
 
     async fn run_with_delay(name: &str, mode: &str, prompts: &[&str], delay: u64) {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel::<Ask>();
-        let gate = Gate::new("token".into(), move |ask| asks_tx.send(ask).unwrap());
+        let gate = Gate::new(move |ask| asks_tx.send(ask).unwrap());
         let port = gate.clone().serve().await.unwrap();
         let answering = gate.clone();
         tokio::spawn(async move {
@@ -244,7 +253,7 @@ mod tests {
             agent: None,
             advisor: None,
         };
-        let config = mcp_config(port, "token", "agent-1", false);
+        let config = mcp_config(port, "agent-1", false);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let record =

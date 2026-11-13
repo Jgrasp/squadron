@@ -14,9 +14,17 @@
     "tools": [
       { "name": "changed_files", "description": "Lists the files changed in your folder, from git status." },
       { "name": "clicks", "description": "Tells how many times the user clicked the Count button." },
+      { "name": "options", "description": "The options of the Hello extension, as the user set them in Settings." },
       { "name": "github_user", "description": "The GitHub account of the user, from the token set in Settings › Extensions." }
     ],
     "panels": [{ "id": "main", "title": { "en": "Hello", "fr": "Hello" }, "page": "panel/index.html" }],
+    "settings": {
+      "options": [
+        { "id": "greeting", "label": { "en": "Greeting", "fr": "Salutation" }, "hint": { "en": "The first word of Greet the agent", "fr": "Le premier mot de Saluer l’agent" }, "kind": "text", "default": "Hello" },
+        { "id": "tone", "label": { "en": "Tone", "fr": "Ton" }, "kind": "select", "default": "plain", "choices": [{ "value": "plain", "label": { "en": "Plain", "fr": "Simple" } }, { "value": "warm", "label": { "en": "Warm", "fr": "Chaleureux" } }] }
+      ],
+      "page": "settings/index.html"
+    },
     "secrets": [{ "id": "token", "label": { "en": "GitHub token", "fr": "Jeton GitHub" }, "hint": { "en": "A fine-grained token with no permission is enough.", "fr": "Un jeton GitHub de type « fine-grained », sans aucune permission, suffit." } }]
   },
   "permissions": { "exec": ["git"], "network": ["api.github.com"] }

@@ -34,6 +34,46 @@ fn encode(path: &Path) -> String {
     path.to_string_lossy().replace(['/', '.'], "-")
 }
 
+pub fn carry(from: &Path, to: &Path) {
+    if let Some(root) = claude_dir().map(|d| d.join("projects")) {
+        carry_in(&root, from, to);
+    }
+}
+
+fn carry_in(root: &Path, from: &Path, to: &Path) {
+    let (old, new) = (encode(from), encode(to));
+    for dir in folders(root, from) {
+        let name = dir
+            .file_name()
+            .unwrap_or_default()
+            .to_string_lossy()
+            .into_owned();
+        let target = root.join(format!("{new}{}", &name[old.len()..]));
+        let moved = if target.exists() {
+            merge(&dir, &target)
+        } else {
+            fs::rename(&dir, &target)
+        };
+        if let Err(e) = moved {
+            log::warn!("{} not carried to {}: {e}", dir.display(), target.display());
+        }
+    }
+}
+
+fn merge(from: &Path, to: &Path) -> std::io::Result<()> {
+    fs::create_dir_all(to)?;
+    for entry in fs::read_dir(from)?.flatten() {
+        let (source, target) = (entry.path(), to.join(entry.file_name()));
+        let kind = entry.file_type()?;
+        if kind.is_dir() {
+            merge(&source, &target)?;
+        } else if kind.is_file() && !target.exists() {
+            fs::copy(&source, &target)?;
+        }
+    }
+    Ok(())
+}
+
 fn valid(id: &str) -> bool {
     !id.is_empty() && id.len() <= 64 && id.bytes().all(|b| b.is_ascii_hexdigit() || b == b'-')
 }
@@ -226,6 +266,39 @@ pub fn transcript(project: &Path, id: &str) -> Result<String, String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn carries_the_conversations_of_a_moved_project_and_its_worktrees() {
+        let root = std::env::temp_dir().join(format!("squadron-carry-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let main = root.join("-home-me-old-app");
+        let worktree = root.join("-home-me-old-app--claude-worktrees-T70");
+        let other = root.join("-home-me-old-app2");
+        let landed = root.join("-home-me-new-app");
+        for dir in [&main, &worktree, &other, &landed] {
+            fs::create_dir_all(dir).unwrap();
+        }
+        fs::write(main.join("a.jsonl"), "a").unwrap();
+        fs::write(worktree.join("b.jsonl"), "b").unwrap();
+        fs::write(other.join("c.jsonl"), "c").unwrap();
+        fs::write(landed.join("d.jsonl"), "d").unwrap();
+        carry_in(
+            &root,
+            Path::new("/home/me/old/app"),
+            Path::new("/home/me/new/app"),
+        );
+        assert_eq!(fs::read_to_string(landed.join("a.jsonl")).unwrap(), "a");
+        assert_eq!(fs::read_to_string(landed.join("d.jsonl")).unwrap(), "d");
+        assert_eq!(
+            fs::read_to_string(root.join("-home-me-new-app--claude-worktrees-T70/b.jsonl"))
+                .unwrap(),
+            "b"
+        );
+        assert!(!worktree.exists());
+        assert!(other.join("c.jsonl").exists());
+        assert!(!root.join("-home-me-new-app2").exists());
+        let _ = fs::remove_dir_all(&root);
+    }
 
     #[test]
     fn finds_the_conversations_of_a_project_and_its_worktrees() {

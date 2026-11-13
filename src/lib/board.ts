@@ -1,11 +1,10 @@
 import { changedFiles } from './diff'
 import type { Key } from './i18n/index.svelte'
 import { calls, type Agent, type Options } from './stream'
-import type { TicketLink } from './tickets.svelte'
 
 export type Column = 'todo' | 'progress' | 'review' | 'done'
 
-export type Card = { id: string; key: string; title: string; prompt: string; goal?: string; files?: string[]; column: Column; agent: string | null; auto?: Column | null; ticket?: TicketLink }
+export type Card = { id: string; key: string; title: string; prompt: string; goal?: string; files?: string[]; column: Column; agent: string | null; auto?: Column | null }
 
 export type Mirror = Pick<Agent, 'id' | 'project' | 'name' | 'status' | 'attention' | 'goal' | 'held'> & { detail: string; done: number; total: number; add: number; del: number }
 

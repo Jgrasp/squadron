@@ -12,6 +12,7 @@ pub mod extensions;
 pub mod forge;
 pub mod git;
 pub mod gitlab;
+pub mod keys;
 mod links;
 mod ondemand;
 pub mod permissions;
@@ -26,7 +27,6 @@ pub mod stored;
 pub mod sudo;
 pub mod system;
 pub mod terminal;
-pub mod tickets;
 pub mod wasm;
 
 use agents::Agents;
@@ -346,9 +346,6 @@ fn edit_project(
         if let Some(prompt) = changes.review_prompt {
             project.review_prompt = prompt.trim().to_string();
         }
-        if let Some(tickets) = changes.tickets {
-            project.tickets = tickets;
-        }
         if let Some(defaults) = changes.defaults {
             claude::Options {
                 model: defaults.model.clone().unwrap_or_else(|| "opus".into()),
@@ -375,16 +372,20 @@ fn order_projects(projects: State<Projects>, paths: Vec<PathBuf>) -> Result<Vec<
 #[tauri::command]
 fn move_project(
     projects: State<Projects>,
+    agents: State<Agents>,
     path: PathBuf,
     to: PathBuf,
 ) -> Result<Vec<Folder>, String> {
-    projects.update(|list| {
+    let list = projects.update(|list| {
         check_new_folder(list, &to)?;
         if let Some(p) = list.iter_mut().find(|p| p.path == path) {
-            p.path = to;
+            p.path = to.clone();
         }
         Ok(())
-    })
+    })?;
+    agents.rehome(&path, &to);
+    sessions::carry(&path, &to);
+    Ok(list)
 }
 
 struct Settings {
@@ -419,7 +420,6 @@ struct Config {
     runs_hidden: Vec<String>,
     runs_notify: bool,
     review_prompt: String,
-    ticket_fields_off: Vec<String>,
     conversation_width: u32,
     sidebar: String,
     plugin_lines: String,
@@ -460,7 +460,6 @@ impl Default for Config {
             runs_hidden: Vec::new(),
             runs_notify: false,
             review_prompt: String::new(),
-            ticket_fields_off: Vec::new(),
             conversation_width: 740,
             sidebar: "pinned".into(),
             plugin_lines: "tag".into(),
@@ -593,12 +592,33 @@ fn mcp_request(
     agents.request(&id, &request_id, request)
 }
 
+fn scratch(app: &AppHandle) -> Result<PathBuf, String> {
+    let dir = app
+        .path()
+        .app_cache_dir()
+        .map_err(|e| e.to_string())?
+        .join("scratch");
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(&dir, std::fs::Permissions::from_mode(0o700))
+            .map_err(|e| e.to_string())?;
+    }
+    Ok(dir)
+}
+
 #[tauri::command]
-async fn claude_config(settings: State<'_, Settings>, setting: String) -> Result<String, String> {
+async fn claude_config(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+    setting: String,
+) -> Result<String, String> {
     let program = settings.claude();
+    let dir = scratch(&app)?;
     let output = tauri::async_runtime::spawn_blocking(move || {
         process::command(program)
-            .current_dir(std::env::temp_dir())
+            .current_dir(dir)
             .args([
                 "-p",
                 "--output-format",
@@ -702,12 +722,17 @@ fn set_claude_path(settings: State<Settings>, path: String) -> Result<(), String
 }
 
 #[tauri::command]
-async fn suggest_title(settings: State<'_, Settings>, text: String) -> Result<String, String> {
+async fn suggest_title(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+    text: String,
+) -> Result<String, String> {
     let program = settings.claude();
     let task: String = text.chars().take(2000).collect();
+    let dir = scratch(&app)?;
     let output = tauri::async_runtime::spawn_blocking(move || {
         process::command(program)
-            .current_dir(std::env::temp_dir())
+            .current_dir(dir)
             .args([
                 "-p",
                 "--model",
@@ -1211,85 +1236,6 @@ async fn bitbucket_sign_in(email: String, token: String) -> Result<(), String> {
 }
 
 #[tauri::command]
-fn ticket_connections() -> Result<Vec<tickets::Connection>, String> {
-    tickets::connections()
-}
-
-#[tauri::command]
-async fn ticket_connect(
-    id: Option<String>,
-    name: String,
-    site: String,
-    email: String,
-    token: String,
-) -> Result<Vec<tickets::Connection>, String> {
-    tickets::connect(id, name, site, email, token).await
-}
-
-#[tauri::command]
-fn ticket_disconnect(id: String) -> Result<Vec<tickets::Connection>, String> {
-    tickets::disconnect(&id)
-}
-
-#[tauri::command]
-async fn ticket_projects(connection: String) -> Result<Vec<tickets::JiraProject>, String> {
-    tickets::projects(&connection).await
-}
-
-#[tauri::command]
-async fn ticket_mentions(path: PathBuf) -> std::collections::BTreeMap<String, (u32, u32)> {
-    tauri::async_runtime::spawn_blocking(move || tickets::mentions(&path))
-        .await
-        .unwrap_or_default()
-}
-
-#[tauri::command]
-async fn ticket_sprint(sources: Vec<tickets::Source>) -> tickets::Sprint {
-    tickets::sprint(sources).await
-}
-
-#[tauri::command]
-async fn ticket_get(connection: String, key: String) -> Result<tickets::Ticket, String> {
-    tickets::ticket(&connection, &key).await
-}
-
-#[tauri::command]
-async fn ticket_attachment(
-    app: AppHandle,
-    connection: String,
-    id: String,
-) -> Result<PathBuf, String> {
-    let cache = app.path().app_cache_dir().map_err(|e| e.to_string())?;
-    tickets::attachment(&connection, &id, &cache).await
-}
-
-#[tauri::command]
-async fn ticket_context(
-    connection: String,
-    key: String,
-    fields: Vec<String>,
-) -> Result<String, String> {
-    let ticket = tickets::ticket(&connection, &key).await?;
-    Ok(tickets::context(&ticket, &fields))
-}
-
-#[tauri::command]
-async fn ticket_brief(
-    settings: State<'_, Settings>,
-    path: PathBuf,
-    connection: String,
-    key: String,
-    fields: Vec<String>,
-) -> Result<tickets::Brief, String> {
-    let ticket = tickets::ticket(&connection, &key).await?;
-    let context = tickets::context(&ticket, &fields);
-    let program = settings.claude();
-    tauri::async_runtime::spawn_blocking(move || tickets::brief(&program, &path, &context))
-        .await
-        .map_err(|e| e.to_string())?
-}
-
-#[tauri::command]
 fn forge_sign_out(account: String) -> Result<(), String> {
     forge::sign_out(&account)
 }
@@ -1786,6 +1732,29 @@ async fn extensions_account_save(
 }
 
 #[tauri::command]
+async fn extensions_option_set(
+    app: AppHandle,
+    id: String,
+    option: String,
+    value: Option<Value>,
+) -> Result<serde_json::Map<String, Value>, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let values = app
+            .state::<extensions::Extensions>()
+            .set_option(&id, &option, value)?;
+        app.state::<wasm::Runtime>().event(
+            Some(&id),
+            "options.changed",
+            None,
+            &Value::Object(values.clone()).to_string(),
+        );
+        Ok(values)
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn extensions_account_remove(
     app: AppHandle,
     id: String,
@@ -2070,40 +2039,17 @@ async fn read_session(project: PathBuf, id: String) -> Result<String, String> {
         .map_err(|e| e.to_string())?
 }
 
-#[cfg(windows)]
-const RUNNABLE: &[&str] = &[
-    "appref-ms",
-    "bat",
-    "chm",
-    "cmd",
-    "com",
-    "cpl",
-    "exe",
-    "hta",
-    "inf",
-    "jar",
-    "js",
-    "jse",
-    "lnk",
-    "msc",
-    "msi",
-    "msix",
-    "msp",
-    "pif",
-    "ps1",
-    "psm1",
-    "reg",
-    "scf",
-    "scr",
-    "url",
-    "vb",
-    "vbe",
-    "vbs",
-    "ws",
-    "wsc",
-    "wsf",
-    "wsh",
+const DOCUMENTS: &[&str] = &[
+    "avif", "bmp", "csv", "doc", "docx", "gif", "heic", "jpeg", "jpg", "json", "key", "log", "m4a",
+    "md", "mov", "mp3", "mp4", "numbers", "odg", "odp", "ods", "odt", "ogg", "pages", "pdf", "png",
+    "ppt", "pptx", "rtf", "tif", "tiff", "tsv", "txt", "wav", "webm", "webp", "xls", "xlsx",
 ];
+
+fn document(path: &Path) -> bool {
+    path.extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| DOCUMENTS.contains(&e.to_ascii_lowercase().as_str()))
+}
 
 #[tauri::command]
 fn open_attachment(path: PathBuf) -> Result<(), String> {
@@ -2111,14 +2057,11 @@ fn open_attachment(path: PathBuf) -> Result<(), String> {
     #[cfg(unix)]
     let runs = {
         use std::os::unix::fs::PermissionsExt;
-        meta.permissions().mode() & 0o111 != 0 || path.extension().is_some_and(|e| e == "desktop")
+        meta.permissions().mode() & 0o111 != 0
     };
-    #[cfg(windows)]
-    let runs = path
-        .extension()
-        .and_then(|e| e.to_str())
-        .is_some_and(|e| RUNNABLE.contains(&e.to_ascii_lowercase().as_str()));
-    if !meta.is_file() || runs {
+    #[cfg(not(unix))]
+    let runs = false;
+    if !meta.is_file() || runs || !document(&path) {
         return Err("Squadron only opens documents and images from here.".into());
     }
     open_path(&path)
@@ -2235,7 +2178,8 @@ fn reload_agent(
 
 #[tauri::command]
 fn archive_agent(agents: State<Agents>, id: String) {
-    agents.archive(&id)
+    agents.archive(&id);
+    keys::KEYS.revoke(&id);
 }
 
 #[tauri::command]
@@ -2537,16 +2481,6 @@ pub fn run() {
             forge_sign_out,
             gitlab_sign_in,
             azure_sign_in,
-            ticket_connections,
-            ticket_connect,
-            ticket_disconnect,
-            ticket_projects,
-            ticket_mentions,
-            ticket_sprint,
-            ticket_get,
-            ticket_attachment,
-            ticket_context,
-            ticket_brief,
             subagent_log,
             get_settings,
             set_settings,
@@ -2578,6 +2512,7 @@ pub fn run() {
             extension_exec,
             extensions_secrets,
             extensions_secret_set,
+            extensions_option_set,
             extensions_account_save,
             extensions_account_remove,
             extensions_wasm_sync,
@@ -2697,7 +2632,7 @@ pub fn run() {
             });
             app.manage(extensions::Extensions { dir: extensions_dir, file: config.join("extensions.json") });
             let handle = app.handle().clone();
-            let (claude, accounts) = (app.handle().clone(), app.handle().clone());
+            let (claude, accounts, options) = (app.handle().clone(), app.handle().clone(), app.handle().clone());
             app.manage(
                 wasm::Runtime::new(config.join("extensions-state"), move |message| {
                     let _ = handle.emit_to("main", "extensions-host", message);
@@ -2705,23 +2640,23 @@ pub fn run() {
                 .with_hooks(wasm::Hooks {
                     claude: std::sync::Arc::new(move || claude.state::<Settings>().claude()),
                     accounts: std::sync::Arc::new(move |id| accounts.state::<extensions::Extensions>().accounts(id)),
+                    options: std::sync::Arc::new(move |id| Value::Object(options.state::<extensions::Extensions>().options(id))),
                 }),
             );
             let handle = app.handle().clone();
-            let token = uuid::Uuid::new_v4().simple().to_string();
-            let gate = Gate::new(token.clone(), move |ask| {
+            let gate = Gate::new(move |ask| {
                 let _ = handle.emit("permission-request", ask);
             });
             let handle = app.handle().clone();
-            let pilot = Pilot::new(token.clone(), move |call| {
+            let pilot = Pilot::new(move |call| {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });
             let handle = app.handle().clone();
-            let extension_tools = extension_tools::Tools::new(token.clone(), move |call| {
+            let extension_tools = extension_tools::Tools::new(move |call| {
                 let _ = handle.emit_to("main", "extensions-tool", call);
             });
             let handle = app.handle().clone();
-            let askpass = Askpass::new(token.clone(), move |question| {
+            let askpass = Askpass::new(move |question| {
                 let _ = handle.emit("askpass-request", question);
             });
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
@@ -2734,13 +2669,13 @@ pub fn run() {
             ssh::start_own_agent(&helpers);
             match std::env::current_exe().and_then(|exe| askpass::install(&helpers, &exe)) {
                 Ok(script) => {
-                    let _ = askpass::HELPER.set((script, port, token.clone()));
+                    let _ = askpass::HELPER.set((script, port));
                 }
                 Err(e) => log::warn!("password helper not installed: {e}"),
             }
             app.manage(askpass);
             let agents = app.state::<Agents>();
-            agents.endpoint(port, token, app.path().app_data_dir()?.join("mcp"));
+            agents.endpoint(port, app.path().app_data_dir()?.join("mcp"));
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);

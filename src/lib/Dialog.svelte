@@ -31,7 +31,7 @@
 >
   <div class="head">
     <div class="title">
-      <h1 id="dialog-title">{title}</h1>
+      <h1 id="dialog-title" {title}>{title}</h1>
       {@render badge?.()}
     </div>
     <button class="close" aria-label={t('settings.closeDialog')} onclick={onclose}>×</button>
@@ -68,6 +68,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
+    gap: 12px;
     padding: 20px 22px 6px;
   }
 
@@ -75,15 +76,22 @@
     display: flex;
     align-items: center;
     gap: 12px;
+    min-width: 0;
   }
 
   h1 {
+    display: -webkit-box;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    overflow: hidden;
+    overflow-wrap: anywhere;
     margin: 0;
     font-size: 18px;
     font-weight: 700;
   }
 
   .close {
+    flex: none;
     width: 32px;
     height: 32px;
     border-radius: 4px;

@@ -4,7 +4,6 @@
   import { find, show } from './agents.svelte'
   import { projects, showBoard } from './projects.svelte'
   import { progress, pullOf, stateLabel } from './pulls.svelte'
-  import { getTicket, type Ticket } from './tickets.svelte'
   import { codeOf, nameOf } from './taskref'
   import { t } from './i18n/index.svelte'
   import Dialog from './Dialog.svelte'
@@ -19,12 +18,6 @@
   const agent = $derived(card?.agent ? find(card.agent) : undefined)
   const pull = $derived(agent ? pullOf(agent) : null)
   const branch = $derived(pull ? `${pull.branch} → ${pull.base}` : (agent?.worktree?.branch ?? ''))
-  let ticket = $state<Ticket | null>(null)
-
-  $effect(() => {
-    const link = card?.ticket
-    if (link) getTicket(link.connection, link.key).then((found) => (ticket = found)).catch(() => {})
-  })
 
   function board() {
     if (!project) return
@@ -65,13 +58,6 @@
         <h3>{t('board.taskColumn')}</h3>
         <span class="pill">{t(COLUMNS.find(([c]) => c === card.column)![1])}</span>
       </div>
-      {#if card.ticket}
-        <div>
-          <h3>{t('board.taskTicket')}</h3>
-          <button class="link" onclick={() => ticket?.url && invoke('open_link', { url: ticket.url })}>{card.ticket.key}</button>
-          {#if ticket}<span class="muted"> · {ticket.status}</span><div class="muted">{ticket.title}</div>{/if}
-        </div>
-      {/if}
       <div>
         <h3>{t('board.taskAgent')}</h3>
         {#if agent}

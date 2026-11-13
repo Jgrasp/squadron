@@ -19,12 +19,13 @@ export type SettingsTab =
   | 'plugins'
   | 'editors'
   | 'hosting'
-  | 'tickets'
   | 'preferences'
   | 'shortcuts'
   | 'layout'
   | 'panels'
   | 'extensions'
+  | 'discover'
+  | `ext:${string}`
   | 'changelog'
   | 'about'
 

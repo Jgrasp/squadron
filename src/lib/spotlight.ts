@@ -30,7 +30,6 @@ const TABS: [SettingsTab, Key][] = [
   ['claude', 'settings.tabClaude'],
   ['editors', 'settings.tabEditors'],
   ['hosting', 'settings.tabHosting'],
-  ['tickets', 'tickets.tab'],
   ['preferences', 'settings.tabPreferences'],
   ['shortcuts', 'settings.tabShortcuts'],
   ['layout', 'settings.tabLayout'],

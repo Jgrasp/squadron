@@ -18,8 +18,10 @@ export function siteOf(url: string) {
     try {
       path = decodeURI(rest)
     } catch {}
-    return { host: parsed.host.replace(/^www\./, ''), path, favicon: `${parsed.origin}/favicon.ico` }
+    const labels = parsed.hostname.split('.')
+    const parent = labels.length > 2 && !/^[\d.]+$|:/.test(parsed.hostname) ? `${parsed.protocol}//${labels.slice(1).join('.')}/favicon.ico` : ''
+    return { host: parsed.host.replace(/^www\./, ''), path, favicon: `${parsed.origin}/favicon.ico`, parentFavicon: parent }
   } catch {
-    return { host: url, path: '', favicon: '' }
+    return { host: url, path: '', favicon: '', parentFavicon: '' }
   }
 }

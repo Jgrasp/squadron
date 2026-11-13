@@ -1,4 +1,4 @@
-package squadron:api@1.3.0;
+package squadron:api@1.4.0;
 
 interface types {
   /// The agent a call is about.
@@ -112,13 +112,17 @@ interface host {
   open-file: func(path: string) -> result<_, string>;
   /// Like `exec`, writing `input` to the program's standard input. Since 1.3.0.
   exec-input: func(program: string, args: list<string>, dir: option<string>, input: string) -> result<output, string>;
+  /// The values of the options of `contributes.settings`, as a JSON object by option id, the manifest's default for those the user left alone. Since 1.4.0.
+  options: func() -> string;
+  /// Sends a JSON message to the extension's settings page while it is open, which receives it in `squadron.on`. Since 1.4.0.
+  settings-post: func(message: string);
 }
 
 world squadron-extension {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;

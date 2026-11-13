@@ -33,6 +33,16 @@ export type Account = { id: string; values: Record<string, string>; host: string
 
 export type ManifestPanel = { id: string; title: Text; page: string }
 
+export const PAGE_THEME = ['bg-main', 'surface-1', 'surface-2', 'surface-3', 'border', 'border-focus', 'text', 'text-strong', 'text-muted', 'text-dim', 'ink', 'accent', 'accent-link', 'ok-text', 'err-text', 'sans', 'mono']
+
+export const OPTION_KINDS = ['toggle', 'select', 'text', 'number'] as const
+
+export type OptionValue = string | number | boolean
+
+export type ExtensionOption = { id: string; label: Text; hint?: Text; kind: (typeof OPTION_KINDS)[number]; default?: OptionValue; choices?: { value: string; label: Text }[]; min?: number; max?: number }
+
+export type Settings = { options?: ExtensionOption[]; page?: string; title?: Text }
+
 export type Panel = ManifestPanel & { key: `extension:${string}`; extension: string }
 
 export const AGENT_ACCESS = ['read', 'archive'] as const
@@ -43,11 +53,12 @@ export type Manifest = {
   id: string
   version: string
   api: 1
+  squadron?: string
   name: Text
   description?: Text
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; theme?: Record<string, string> }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string> }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
@@ -112,6 +123,36 @@ function actionProblem(action: unknown, slot: Slot, wasm: boolean, panels: strin
   return ['extensions.badAction']
 }
 
+function optionOk(o: unknown) {
+  if (!isObject(o) || typeof o.id !== 'string' || !ID.test(o.id) || !isText(o.label) || (o.hint !== undefined && !isText(o.hint))) return false
+  if (!(OPTION_KINDS as readonly unknown[]).includes(o.kind)) return false
+  if (o.kind === 'toggle') return o.default === undefined || typeof o.default === 'boolean'
+  if (o.kind === 'text') return o.default === undefined || (typeof o.default === 'string' && !/[\x00-\x1f\x7f]/.test(o.default))
+  if (o.kind === 'number') {
+    const bound = (v: unknown) => v === undefined || (typeof v === 'number' && Number.isFinite(v))
+    if (!bound(o.min) || !bound(o.max) || !bound(o.default)) return false
+    return [o.min, o.default, o.max].filter((v) => v !== undefined).every((v, i, all) => !i || (v as number) >= (all[i - 1] as number))
+  }
+  const choices = o.choices
+  if (!Array.isArray(choices) || !choices.length || !choices.every((c) => isObject(c) && oneLine(c.value) && isText(c.label))) return false
+  return new Set(choices.map((c) => c.value)).size === choices.length && (o.default === undefined || choices.some((c) => c.value === o.default))
+}
+
+function settingsProblems(value: unknown): Problem[] {
+  if (!isObject(value)) return [['extensions.badSettings']]
+  const problems: Problem[] = []
+  if (value.page !== undefined && !inside(value.page, '.html')) problems.push(['extensions.badSettingsPage'])
+  if (value.title !== undefined && !isText(value.title)) problems.push(['extensions.badSettings'])
+  const options = value.options ?? []
+  if (!Array.isArray(options)) return [...problems, ['extensions.badSettings']]
+  options.forEach((o, index) => {
+    if (!optionOk(o)) problems.push(['extensions.badOption', { option: isObject(o) && typeof o.id === 'string' ? o.id : `#${index + 1}` }])
+  })
+  if (new Set(options.map((o, i) => (isObject(o) ? o.id : i))).size < options.length) problems.push(['extensions.twiceOption'])
+  return problems
+}
+
+
 function accountsOk(value: unknown) {
   if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length) return false
   const fields = value.fields
@@ -127,6 +168,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   else if (taken.includes(raw.id)) problems.push(['extensions.takenId', { id: raw.id }])
   if (raw.api !== 1) problems.push(['extensions.badApi'])
   if (typeof raw.version !== 'string' || !raw.version.trim()) problems.push(['extensions.noVersion'])
+  if (raw.squadron !== undefined && (typeof raw.squadron !== 'string' || !RANGE.test(raw.squadron))) problems.push(['extensions.badRange'])
   if (!isText(raw.name)) problems.push(['extensions.noName'])
   if (raw.description !== undefined && !isText(raw.description)) problems.push(['extensions.badDescription'])
   const wasm = raw.wasm !== undefined
@@ -193,6 +235,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
       problems.push(['extensions.badSecrets'])
     else if (new Set(secrets.map((s) => s.id)).size < secrets.length) problems.push(['extensions.badSecrets'])
     if (contributes.accounts !== undefined && !accountsOk(contributes.accounts)) problems.push(['extensions.badAccounts'])
+    if (contributes.settings !== undefined) problems.push(...settingsProblems(contributes.settings))
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))
       problems.push(['extensions.badTheme'])
@@ -224,18 +267,19 @@ export const commandsOf = (manifest: Manifest) => [
 
 export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
 
-export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}): Extension[] {
+export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}, app = ''): Extension[] {
   const taken: string[] = []
   return found.map(({ dir, linked, manifest: raw, error }) => {
     const id = isObject(raw) && typeof raw.id === 'string' ? raw.id : (dir.split(/[\\/]/).pop() ?? dir)
     const { manifest, problems } = error ? { manifest: undefined, problems: [['extensions.unreadable', { error }] as Problem] } : validate(raw, taken)
     if (manifest) taken.push(manifest.id)
+    if (manifest && !fits(manifest.squadron, app)) problems.push(['extensions.needsSquadron', { range: manifest.squadron!, version: app }])
     const commands = manifest ? commandsOf(manifest) : []
     return { dir, linked, id, enabled: !disabled.includes(id), manifest, problems, commands, pending: commands.filter((c) => !approved[id]?.includes(c)) }
   })
 }
 
-export const active = (extensions: Extension[]) => extensions.filter((m): m is Extension & { manifest: Manifest } => m.enabled && !!m.manifest)
+export const active = (extensions: Extension[]) => extensions.filter((m): m is Extension & { manifest: Manifest } => m.enabled && !!m.manifest && !m.problems.length)
 
 export const itemsOf = (extensions: Extension[], slot: Slot): Item[] =>
   active(extensions).flatMap((m) =>
@@ -276,17 +320,37 @@ export type CatalogEntry = {
   repository: string
   archive: string
   sha256: string
+  squadron?: string
   permissions?: Permissions
+  changelog?: Release[]
   source: string
   official: boolean
 }
 
+export type Release = { version: string; date: string; notes: Record<string, string[]> }
+
+const releaseOf = (r: unknown): r is Release =>
+  isObject(r) &&
+  typeof r.version === 'string' &&
+  typeof r.date === 'string' &&
+  isObject(r.notes) &&
+  Array.isArray(r.notes.en) &&
+  Object.values(r.notes).every((lines) => Array.isArray(lines) && lines.every((l) => typeof l === 'string'))
+
+type Published = Omit<CatalogEntry, 'source' | 'official'>
+
 export type Source = { source: string; official: boolean; error?: string }
 
-const entryOf = (e: unknown): e is Omit<CatalogEntry, 'source' | 'official'> =>
+const entryOf = (e: unknown): e is Published =>
   isObject(e) && typeof e.id === 'string' && ID.test(e.id) && typeof e.version === 'string' && isText(e.name) && typeof e.archive === 'string' && typeof e.sha256 === 'string'
 
-export function catalogOf(raw: unknown): { entries: CatalogEntry[]; sources: Source[] } {
+const pickOf = (e: Published & { versions?: unknown }, app: string) => {
+  const { id, name, description, repository } = e
+  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v) => ({ name, description, repository, ...v, id })).filter(entryOf) : [e]
+  return list.sort((x, y) => (newer(x.version, y.version) ? -1 : 1)).find((r) => fits(r.squadron, app))
+}
+
+export function catalogOf(raw: unknown, app = ''): { entries: CatalogEntry[]; sources: Source[] } {
   const entries: CatalogEntry[] = []
   const sources: Source[] = []
   for (const s of Array.isArray(raw) ? raw : []) {
@@ -294,7 +358,7 @@ export function catalogOf(raw: unknown): { entries: CatalogEntry[]; sources: Sou
     const official = s.official === true
     sources.push({ source: s.source, official, error: typeof s.error === 'string' ? s.error : undefined })
     const found = isObject(s.index) && Array.isArray(s.index.extensions) ? s.index.extensions.filter(entryOf) : []
-    entries.push(...found.map((e) => ({ ...e, source: s.source as string, official })))
+    entries.push(...found.flatMap((e) => pickOf(e, app) ?? []).map((e) => ({ ...e, changelog: Array.isArray(e.changelog) ? e.changelog.filter(releaseOf) : undefined, source: s.source as string, official })))
   }
   return { entries, sources }
 }
@@ -304,11 +368,21 @@ export const originOf = (origins: Record<string, string>, id: string) => origins
 export const shownOf = (entries: CatalogEntry[], origins: Record<string, string>) =>
   [...new Set(entries.map((e) => e.id))].map((id) => entries.find((e) => e.id === id && e.source === origins[id]) ?? entries.find((e) => e.id === id)!)
 
+export const RANGE = /^>=\d+\.\d+\.\d+( <\d+\.\d+\.\d+)?$/
+
+export function fits(range: string | undefined, version: string) {
+  if (!range || !version || !RANGE.test(range)) return true
+  const [min, max] = range.split(' ').map((v) => v.replace(/^[<>=]+/, ''))
+  return !newer(min, version) && (!max || newer(max, version))
+}
+
 export function newer(a: string, b: string) {
   const [x, y] = [a, b].map((v) => v.split('.').map((n) => parseInt(n) || 0))
   for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0)
   return false
 }
+
+export const releasesOf = (entry: CatalogEntry, installed: string) => (entry.changelog ?? []).filter((r) => newer(r.version, installed) && !newer(r.version, entry.version))
 
 export const installedOf = (list: Extension[], id: string) => list.find((e) => e.id === id && !e.linked)
 

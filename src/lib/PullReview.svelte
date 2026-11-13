@@ -5,7 +5,6 @@
   import { fixWithAgent, lists, lookUpLists, moved, pullOf, reviewerOf, sinceOf, type Pull } from './pulls.svelte'
   import DiffPanel from './DiffPanel.svelte'
   import { prompt, type Comment } from './stream'
-  import { t } from './i18n/index.svelte'
 
   let { project, pull, onagent, banner, onclose }: { project: Project; pull: Pull; onagent: () => Promise<unknown>; banner?: Snippet; onclose: () => void } = $props()
 
@@ -16,10 +15,11 @@
   const agentOn = $derived(agents.list.find((a) => a.project === project.path && pullOf(a)?.number === pull.number))
 
   async function handOver(summary: string, list: Comment[]) {
-    onclose()
     const agent = agentOn
-    if (!agent) return show(find(await fixWithAgent(project.path, pull, summary, list))!)
-    const message = summary || `Review of pull request #${pull.number}`
+    const on = pull
+    onclose()
+    if (!agent) return show(find(await fixWithAgent(project.path, on, summary, list))!)
+    const message = summary || `Review of pull request #${on.number}`
     if (!reply(agent, prompt(message, list))) send(agent.id, message, list)
     show(agent)
   }
@@ -38,7 +38,7 @@
   bind:target
   onhand={() => {}}
   onreview={handOver}
-  handTo={agentOn?.name || t('review.newAgent')}
+  handTo={agentOn ?? 'new'}
   onposted={() => (onclose(), lookUpLists(project.path, true))}
   reviewer={reviewerOf(project.path, pull) ?? null}
   {onagent}

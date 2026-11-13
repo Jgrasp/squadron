@@ -12,6 +12,7 @@ jobs:
       contents: write
     outputs:
       id: ${{ steps.create.outputs.id }}
+      tag: ${{ steps.create.outputs.tag }}
     steps:
       - id: create
         if: ${{ !env.ACT }}
@@ -24,6 +25,7 @@ jobs:
           id=$(gh api repos/$GITHUB_REPOSITORY/releases -q ".[] | select(.tag_name == \"$tag\") | .id" | head -1)
           [ -n "$id" ] || id=$(gh api repos/$GITHUB_REPOSITORY/releases -f tag_name=$tag -f target_commitish=$GITHUB_SHA -f name="Squadron $tag" -f body="$MESSAGE" -F draft=true -q .id)
           echo "id=$id" >> "$GITHUB_OUTPUT"
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
 
   build:
     needs: release
@@ -77,7 +79,7 @@ jobs:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ''
         with:
-          tagName: v__VERSION__
+          tagName: ${{ needs.release.outputs.tag }}
           releaseId: ${{ needs.release.outputs.id }}
           args: ${{ matrix.args }}
           includeUpdaterJson: true

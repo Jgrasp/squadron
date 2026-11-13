@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { matches, ruleFor } from './rules'
+import { editable, matches, ruleFor } from './rules'
 
 const bash = (command: string) => ({ command })
 
@@ -43,5 +43,32 @@ describe('rules', () => {
     expect(matches('mcp__github__create_pull_request', 'mcp__github__create_pull_request', {})).toBe(true)
     expect(matches('mcp__github__create_pull_request', 'mcp__github__merge', {})).toBe(false)
     expect(matches('Bash', 'Bash', bash('rm -rf ~'))).toBe(false)
+  })
+})
+
+describe('editable', () => {
+  it('keeps edits inside the working folder', () => {
+    expect(editable('/home/me/app', '/home/me/app/src/main.ts')).toBe(true)
+    expect(editable('/home/me/app/', '/home/me/app/README.md')).toBe(true)
+    expect(editable('/home/me/app', '/home/me/app2/main.ts')).toBe(false)
+    expect(editable('/home/me/app', '/home/me/.zshrc')).toBe(false)
+    expect(editable('/home/me/app', '/home/me/app/../.zshrc')).toBe(false)
+    expect(editable('/home/me/app', 'src/main.ts')).toBe(false)
+    expect(editable('', '/home/me/app/main.ts')).toBe(false)
+    expect(editable('/home/me/app', undefined)).toBe(false)
+  })
+
+  it('leaves git, Claude Code settings and MCP servers to a card', () => {
+    expect(editable('/home/me/app', '/home/me/app/.git/config')).toBe(false)
+    expect(editable('/home/me/app', '/home/me/app/vendor/lib/.git/hooks/pre-commit')).toBe(false)
+    expect(editable('/home/me/app', '/home/me/app/.claude/settings.local.json')).toBe(false)
+    expect(editable('/home/me/app', '/home/me/app/.mcp.json')).toBe(false)
+    expect(editable('/home/me/app', '/home/me/app/docs/.mcp.json')).toBe(true)
+    expect(editable('/home/me/app', '/home/me/app/.gitignore')).toBe(true)
+  })
+
+  it('reads Windows paths', () => {
+    expect(editable('C:\\Users\\me\\app', 'C:\\Users\\me\\app\\src\\main.ts')).toBe(true)
+    expect(editable('C:\\Users\\me\\app', 'C:\\Users\\me\\app\\.git\\config')).toBe(false)
   })
 })

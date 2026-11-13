@@ -13,8 +13,7 @@ import runs from './runs'
 import settings from './settings'
 import shell from './shell'
 import spotlight from './spotlight'
-import tickets from './tickets'
 import usage from './usage'
 import mcp from './mcp'
 
-export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, tickets, claudeKeys, extensions, plugins, usage, mcp } satisfies Catalog
+export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, claudeKeys, extensions, plugins, usage, mcp } satisfies Catalog

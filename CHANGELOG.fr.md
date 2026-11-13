@@ -1,5 +1,31 @@
 # Nouveautés
 
+## 0.46.0 · 2026-11-13
+
+### Extensions
+
+- Settings a un groupe Extensions : + ouvre Découvrir, l’engrenage ouvre Gérer, et chaque extension activée a sa page avec ses comptes, ses secrets et ses options, une fenêtre À propos pour ses permissions et un bouton Désinstaller.
+- Un bouton de la barre d’état compte les extensions qui ont une mise à jour : les mettre à jour une par une ou toutes d’un coup, lire les nouveautés de leur changelog, et voir lesquelles demanderont de nouveaux accès.
+- Les extensions déclarent les versions de Squadron sur lesquelles elles tournent : Découvrir et les mises à jour proposent la plus récente qui convient, et une extension installée qui ne convient plus est désactivée avec la version qu’elle demande.
+- Les extensions peuvent déclarer des options que Squadron dessine sur leur page de réglages, et ajouter une page de réglages à elles.
+- L’intégration Jira intégrée laisse la place à l’extension Jira : plus d’onglet Tickets, de sources de tickets, de tableau Jira dans le Kanban ni de raccourci J, et un ticket cité dans un message s’ouvre toujours dans Jira depuis sa puce.
+
+### Sécurité
+
+- Chaque agent joint Squadron avec sa propre clé : une commande qu’il lance ne peut plus se faire passer pour un autre agent, et overview et read_agent ne voient que son projet, sauf si tous les projets sont permis.
+- « Toujours » sur une modification de fichier ne couvre que le dossier de l’agent hors .git, .claude et .mcp.json, s’arrête au redémarrage de Squadron et s’affiche « accept edits » sur la pastille du mode. Les blocs html d’une conversation ne chargent plus rien depuis le réseau.
+
+### Projets
+
+- Déplacer un projet emmène ses agents et leurs conversations.
+
+### Corrections
+
+- Envoyer une revue de pull request à la conversation qui l’a ouverte remet bien ses commentaires, et le bouton s’appelle Envoyer à la conversation.
+- Un titre de fenêtre trop long s’arrête après deux lignes, et un mot trop long dans un message passe à la ligne au lieu de faire défiler la fenêtre de côté.
+- Une puce de lien dont le site cache son favicon derrière une connexion montre celui du domaine parent.
+- La mise à jour télécharge une release depuis son vrai tag.
+
 ## 0.45.1 · 2026-11-13
 
 ### Agents

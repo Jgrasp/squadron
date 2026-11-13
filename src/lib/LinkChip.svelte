@@ -9,9 +9,13 @@
 
   $effect(() => {
     const target = url
-    icons = [siteOf(target).favicon].filter(Boolean)
+    const { favicon, parentFavicon } = siteOf(target)
+    icons = [favicon].filter(Boolean)
     failed = 0
-    preview(target).then((found) => found?.icon && target === url && !icons.includes(found.icon) && icons.push(found.icon))
+    preview(target).then((found) => {
+      if (target !== url) return
+      for (const icon of [found?.icon, parentFavicon]) if (icon && !icons.includes(icon)) icons.push(icon)
+    })
   })
 </script>
 

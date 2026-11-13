@@ -9,14 +9,19 @@
   import Changelog from './Changelog.svelte'
   import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
-  import TicketSettings from './TicketSettings.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
   import ArchivedAgents from './ArchivedAgents.svelte'
   import { account } from './catalogs.svelte'
   import ProjectSettings from './ProjectSettings.svelte'
   import { reset } from './layout-slots.svelte'
   import PanelSettings from './PanelSettings.svelte'
-  import ExtensionSettings from './ExtensionSettings.svelte'
+  import ExtensionLogo from './ExtensionLogo.svelte'
+  import ExtensionPage from './ExtensionPage.svelte'
+  import ExtensionsDiscover from './ExtensionsDiscover.svelte'
+  import ExtensionsManage from './ExtensionsManage.svelte'
+  import Icon from './Icon.svelte'
+  import { extensions } from './extensions.svelte'
+  import { nameOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
   import PluginSettings from './PluginSettings.svelte'
   import McpServers from './McpServers.svelte'
   import { detect } from './OpenWith.svelte'
@@ -59,7 +64,6 @@
         ['mcp', 'mcp.tab'],
         ['editors', 'settings.tabEditors'],
         ['hosting', 'settings.tabHosting'],
-        ['tickets', 'tickets.tab'],
       ],
     ],
     [
@@ -69,7 +73,6 @@
         ['shortcuts', 'settings.tabShortcuts'],
         ['layout', 'settings.tabLayout'],
         ['panels', 'settings.tabPanels'],
-        ['extensions', 'settings.tabExtensions'],
       ],
     ],
     [
@@ -80,7 +83,18 @@
       ],
     ],
   ]
+  const LISTED = 5
+  let expanded = $state(false)
+  const enabled = $derived(sorted(extensions.list.filter((e) => e.enabled)))
+  const listed = $derived.by(() => {
+    const shown = expanded ? enabled : enabled.slice(0, LISTED)
+    const open = extensions.list.find((e) => tab === `ext:${e.id}`)
+    return open && !shown.includes(open) ? [...shown, open] : shown
+  })
+
   const current = $derived.by(() => {
+    if (tab === 'extensions') return t('extensions.manageTitle')
+    if (tab === 'discover') return t('extensions.discoverTitle')
     const key = groups.flatMap(([, items]) => items).find(([id]) => id === tab)?.[1]
     return key ? t(key) : ''
   })
@@ -221,6 +235,26 @@
   <div class="frame">
   <div class="side" role="tablist" aria-label={t('settings.sections')} aria-orientation="vertical">
     {#each groups as [title, items] (title)}
+      {#if title === 'settings.groupSquadron'}
+        <div class="group tools">
+          <span>{t('settings.tabExtensions')}</span>
+          <button class="tool" role="tab" aria-selected={tab === 'discover'} title={t('extensions.discoverTitle')} aria-label={t('extensions.discoverTitle')} onclick={() => (ui.settings = 'discover')}><Icon name="plus" size={15} /></button>
+          <button class="tool" role="tab" aria-selected={tab === 'extensions'} title={t('extensions.manageTitle')} aria-label={t('extensions.manageTitle')} onclick={() => (ui.settings = 'extensions')}><Icon name="gear" size={15} /></button>
+        </div>
+        {#each listed as e (e.id)}
+          {@const update = updateOf(e)}
+          <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${e.id}`} onclick={() => (ui.settings = `ext:${e.id}`)}>
+            <ExtensionLogo id={e.id} name={nameOf(e)} size={16} />
+            <span class="name">{nameOf(e)}</span>
+            {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
+          </button>
+        {/each}
+        {#if enabled.length > LISTED}
+          <button class="more" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
+            <span class="chevron" class:up={expanded}><Icon name="chevron" size={12} /></span>{expanded ? t('extensions.showLess') : t('extensions.moreCount', { count: enabled.length - LISTED })}
+          </button>
+        {/if}
+      {/if}
       <span class="group">{t(title)}</span>
       {#each items as [id, label] (id)}
         <button role="tab" aria-selected={tab === id} onclick={() => (ui.settings = id)}>{t(label)}</button>
@@ -229,8 +263,8 @@
   </div>
 
   <div class="content">
-  <h2 class="heading">{current}</h2>
-  <div class="body" class:flush={tab === 'projects'}>
+  {#if !tab.startsWith('ext:')}<h2 class="heading">{current}</h2>{/if}
+  <div class="body" class:flush={tab === 'projects'} class:page={tab.startsWith('ext:')}>
     {#if tab === 'projects'}
       <ProjectSettings />
     {:else if tab === 'archived'}
@@ -241,8 +275,6 @@
       <AboutSquadron />
     {:else if tab === 'hosting'}
       <CodeHosting />
-    {:else if tab === 'tickets'}
-      <TicketSettings />
     {:else if tab === 'defaults'}
       <p class="intro">{t('settings.defaultsIntro')}</p>
       <OptionsFields bind:options={defaults} />
@@ -300,7 +332,11 @@
     {:else if tab === 'panels'}
       <PanelSettings />
     {:else if tab === 'extensions'}
-      <ExtensionSettings />
+      <ExtensionsManage />
+    {:else if tab === 'discover'}
+      <ExtensionsDiscover />
+    {:else if tab.startsWith('ext:')}
+      <ExtensionPage id={tab.slice('ext:'.length)} />
     {:else if tab === 'plugins'}
       <PluginSettings />
     {:else if tab === 'mcp'}
@@ -456,7 +492,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['rules', 'layout', 'panels', 'extensions', 'projects', 'archived', 'changelog', 'about', 'hosting'].includes(tab)}
+  {#if !['rules', 'layout', 'panels', 'extensions', 'discover', 'projects', 'archived', 'changelog', 'about', 'hosting'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
@@ -502,6 +538,7 @@
   }
 
   .side button {
+    flex: none;
     height: 34px;
     padding: 0 10px;
     border-radius: 4px;
@@ -518,6 +555,83 @@
     background: var(--surface-4);
     color: var(--text-strong);
     font-weight: 600;
+  }
+
+  .group.tools {
+    display: flex;
+    align-items: center;
+    gap: 2px;
+    padding: 8px 4px 2px 10px;
+  }
+
+  .group.tools span {
+    flex: 1;
+  }
+
+  .side .tool {
+    width: 26px;
+    height: 26px;
+    display: grid;
+    place-items: center;
+    padding: 0;
+    color: var(--text-dim);
+  }
+
+  .side .ext {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .side .ext.off .name,
+  .side .ext.off :global(.logo) {
+    opacity: 0.5;
+  }
+
+  .ext .name {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .ext .wait {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .ext .tag {
+    flex: none;
+    height: 18px;
+    padding: 0 6px;
+    display: grid;
+    place-items: center;
+    border-radius: 3px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font-size: 11px;
+    font-weight: 600;
+  }
+
+  .side .more {
+    height: 30px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+    font-size: 12.5px;
+  }
+
+  .more .chevron {
+    display: grid;
+  }
+
+  .more .chevron.up {
+    transform: rotate(180deg);
   }
 
   .content {
@@ -545,6 +659,18 @@
 
   .body > :global(*) {
     max-width: 860px;
+  }
+
+  .body.page {
+    padding-top: 20px;
+  }
+
+  .body.page > :global(*) {
+    max-width: 860px;
+  }
+
+  .body.page {
+    gap: 0;
   }
 
   .body.flush {

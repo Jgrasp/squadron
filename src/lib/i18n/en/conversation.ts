@@ -209,5 +209,6 @@ export default {
   advisorTokens: '{input} → {output} tok',
   advisorSealed: 'Encrypted by Anthropic: only Claude reads it. The rest of the reply applies it.',
   advisorWithout: 'Claude goes on without advice.',
+  openTicket: 'Open the Jira ticket {key}',
   turnAdvised: { one: 'advisor ×{count} · {input} → {output}', other: 'advisor ×{count} · {input} → {output}' },
 }
