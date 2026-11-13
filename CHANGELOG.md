@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.46.1 · 2026-11-13
+
+### Updates
+
+- A new version reaches Linux, macOS and Windows each as soon as its own build is ready, instead of waiting for the slowest one.
+
 ## 0.46.0 · 2026-11-13
 
 ### Extensions
