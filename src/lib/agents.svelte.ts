@@ -831,8 +831,7 @@ export async function retry(id: string) {
   const agent = find(id)
   const last = agent?.entries.findLast((e) => e.kind === 'user')
   if (!agent || last?.kind !== 'user') return
-  agent.status = 'working'
-  agent.action = t('shell.starting')
+  starting(agent)
   try {
     await invoke('send_message', { id, text: prompt(last.text, last.comments) })
   } catch (e) {

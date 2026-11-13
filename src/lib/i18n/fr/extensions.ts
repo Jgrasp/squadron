@@ -79,6 +79,8 @@ export default {
   install: 'Installer',
   installing: 'Installation…',
   update: 'Mettre à jour vers {version}',
+  updateNow: 'Mettre à jour',
+  updating: 'Mise à jour…',
   updateTitle: 'Mise à jour d’extension',
   updateBody: '{name} {version} est disponible dans Réglages › Extensions.',
   search: { one: 'Rechercher parmi {count} extension : nom, outil, source…', other: 'Rechercher parmi {count} extensions : nom, outil, source…' },

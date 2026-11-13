@@ -10,6 +10,8 @@
 
   let { agent, entry }: { agent: Agent; entry: Extract<Entry, { kind: 'error' }> } = $props()
 
+  const live = $derived(agent.status === 'error' && agent.entries.findLast((e) => e.kind === 'error') === entry)
+
   let path = $state('')
   let copied = $state(false)
 
@@ -38,16 +40,18 @@
       </span>
       <h2 id="error-{entry.at}">{t('agent.claudeNotFound')}</h2>
     </div>
-    <p><Trans k="agent.claudeNotInPath">{#snippet command()}<code>claude</code>{/snippet}</Trans></p>
-    <label for="path-{entry.at}">{t('agent.executablePath')}</label>
-    <div class="row">
-      <input id="path-{entry.at}" class="field" bind:value={path} placeholder="/home/user/.local/bin/claude" spellcheck="false" />
-      <button class="btn btn-danger" onclick={browse}>{t('common.browse')}</button>
-    </div>
-    <div class="row">
-      <button class="btn btn-primary" onclick={useClaude}>{t('common.retry')}</button>
-      <a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noreferrer">{t('agent.installClaudeCode')}</a>
-    </div>
+    {#if live}
+      <p><Trans k="agent.claudeNotInPath">{#snippet command()}<code>claude</code>{/snippet}</Trans></p>
+      <label for="path-{entry.at}">{t('agent.executablePath')}</label>
+      <div class="row">
+        <input id="path-{entry.at}" class="field" bind:value={path} placeholder="/home/user/.local/bin/claude" spellcheck="false" />
+        <button class="btn btn-danger" onclick={browse}>{t('common.browse')}</button>
+      </div>
+      <div class="row">
+        <button class="btn btn-primary" onclick={useClaude}>{t('common.retry')}</button>
+        <a href="https://docs.claude.com/en/docs/claude-code/setup" target="_blank" rel="noreferrer">{t('agent.installClaudeCode')}</a>
+      </div>
+    {/if}
   {:else if entry.login}
     <div class="title">
       <span class="icon" aria-hidden="true">
@@ -55,13 +59,17 @@
       </span>
       <h2 id="error-{entry.at}">{t('agent.notLoggedIn')}</h2>
     </div>
-    <p>{t('agent.loginHint')}</p>
-    <pre><span>$</span> claude auth login</pre>
-    <div class="row">
-      <button class="btn btn-primary" onclick={() => copy('claude auth login')}>{copied ? t('common.copied') : t('agent.copyCommand')}</button>
-      <button class="btn btn-danger" onclick={() => retry(agent.id)}>{t('common.retry')}</button>
-      <span class="raw">{entry.message}</span>
-    </div>
+    {#if live}
+      <p>{t('agent.loginHint')}</p>
+      <pre><span>$</span> claude auth login</pre>
+      <div class="row">
+        <button class="btn btn-primary" onclick={() => copy('claude auth login')}>{copied ? t('common.copied') : t('agent.copyCommand')}</button>
+        <button class="btn btn-danger" onclick={() => retry(agent.id)}>{t('common.retry')}</button>
+        <span class="raw">{entry.message}</span>
+      </div>
+    {:else}
+      <p>{entry.message}</p>
+    {/if}
   {:else}
     <div class="title">
       <span class="icon" aria-hidden="true">
@@ -73,12 +81,14 @@
       </span>
     </div>
     <pre>{entry.message}</pre>
-    <p>{t('agent.sessionStoppedHint')}</p>
-    <div class="row">
-      <button class="btn btn-primary" onclick={() => send(agent.id, t('agent.continue'))}>{t('agent.continue')}</button>
-      <button class="btn btn-danger" onclick={() => reload(agent.id)}>{t('common.reload')}</button>
-      <button class="btn btn-danger" onclick={() => copy(entry.message)}>{copied ? t('common.copied') : t('agent.copyError')}</button>
-    </div>
+    {#if live}
+      <p>{t('agent.sessionStoppedHint')}</p>
+      <div class="row">
+        <button class="btn btn-primary" onclick={() => send(agent.id, t('agent.continue'))}>{t('agent.continue')}</button>
+        <button class="btn btn-danger" onclick={() => reload(agent.id)}>{t('common.reload')}</button>
+        <button class="btn btn-danger" onclick={() => copy(entry.message)}>{copied ? t('common.copied') : t('agent.copyError')}</button>
+      </div>
+    {/if}
   {/if}
 </section>
 

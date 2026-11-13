@@ -222,6 +222,18 @@ describe('stream', () => {
     expect(last?.kind === 'error' && last.login).toBe(true)
   })
 
+  it('stops calling the user once a failed session goes on by itself', () => {
+    const agent = fresh()
+    replay(agent, nologin)
+    expect(agent.attention).not.toBe('')
+    apply(agent, { type: 'system', subtype: 'status', status: 'requesting' })
+    expect(agent.status).toBe('working')
+    expect(agent.attention).toBe('')
+    apply(agent, { type: 'result', subtype: 'success', is_error: false, num_turns: 1, total_cost_usd: 0.01, usage: {} })
+    expect(agent.status).toBe('done')
+    expect(agent.attention).toBe('')
+  })
+
   it('turns an unexpected exit into an error', () => {
     const agent = fresh()
     exited(agent, 'Segmentation fault\n')
