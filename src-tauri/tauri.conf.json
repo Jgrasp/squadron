@@ -45,6 +45,7 @@
     "updater": {
       "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IDQ0NzIzRUVBMUZGQTY0NzcKUldSM1pQb2Y2ajV5UktmeWdxdEdKSk9WbjBpNk5JUmtlb3BOOFRDNjVna2pweXh4QzVHR0dKWHYK",
       "endpoints": [
+        "https://github.com/Jgrasp/squadron/releases/download/updater/{{target}}-{{arch}}.json",
         "https://github.com/Jgrasp/squadron/releases/latest/download/latest.json"
       ]
     }

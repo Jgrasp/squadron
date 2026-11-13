@@ -35,11 +35,14 @@ jobs:
         include:
           - os: ubuntu-24.04
             args: --bundles deb,appimage
+            updater: linux-x86_64
           - os: macos-latest
             args: --target universal-apple-darwin --bundles app,dmg
             targets: aarch64-apple-darwin,x86_64-apple-darwin
+            updater: darwin-aarch64 darwin-x86_64
           - os: windows-latest
             args: --bundles nsis
+            updater: windows-x86_64
     runs-on: ${{ matrix.os }}
     permissions:
       contents: write
@@ -83,6 +86,25 @@ jobs:
           releaseId: ${{ needs.release.outputs.id }}
           args: ${{ matrix.args }}
           includeUpdaterJson: true
+      - name: Offer this build to the updater
+        if: ${{ !env.ACT }}
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release.outputs.tag }}
+          ID: ${{ needs.release.outputs.id }}
+          PLATFORMS: ${{ matrix.updater }}
+        run: |
+          gh release download "$TAG" -p latest.json -O latest.json --clobber
+          files=()
+          for platform in $PLATFORMS; do
+            jq -e --arg p "$platform" '.platforms[$p]' latest.json >/dev/null
+            cp latest.json "$platform.json"
+            files+=("$platform.json")
+          done
+          gh api -X PATCH repos/$GITHUB_REPOSITORY/releases/$ID -F draft=false -f make_latest=false >/dev/null
+          gh release view updater >/dev/null 2>&1 || gh release create updater --prerelease --latest=false --title Updater --notes "Each platform's newest build, read by Squadron's updater." || true
+          gh release upload updater "${files[@]}" --clobber
 
   publish:
     needs: [release, build]
