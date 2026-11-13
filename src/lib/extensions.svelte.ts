@@ -1,3 +1,4 @@
+import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -8,7 +9,7 @@ import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel } from './extensions'
+import { active, AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -47,9 +48,11 @@ export const commandLine = (key: string) =>
             ? t('extensions.agentsArchive')
             : key
 
+const app = getVersion().catch(() => '')
+
 export async function loadExtensions() {
   const listing = await invoke<{ extensions: Found[]; disabled: string[]; approved: Record<string, string[]>; sources: string[]; origins: Record<string, string>; accounts?: Record<string, Account[]>; options?: Record<string, Record<string, OptionValue>> }>('extensions_list')
-  extensions.list = load(listing.extensions, listing.disabled, listing.approved)
+  extensions.list = load(listing.extensions, listing.disabled, listing.approved, await app)
   extensions.sources = listing.sources
   extensions.origins = listing.origins
   extensions.accounts = listing.accounts ?? {}
@@ -57,7 +60,7 @@ export async function loadExtensions() {
   for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('extension:') && !panelsOf(extensions.list).some((p) => p.key === kind)) setPanel(project, null)
   for (const extension of extensions.list) {
     const key = `${extension.id}\n${extension.pending.join('\n')}`
-    if (!extension.enabled || !extension.manifest || !extension.pending.length || asked.has(key)) continue
+    if (!extension.enabled || !extension.manifest || extension.problems.length || !extension.pending.length || asked.has(key)) continue
     asked.add(key)
     requestApproval(extension)
   }
@@ -162,7 +165,7 @@ export const catalog = $state({ entries: null as CatalogEntry[] | null, sources:
 
 export async function loadCatalog() {
   try {
-    Object.assign(catalog, catalogOf(await invoke('extensions_catalog')), { error: '' })
+    Object.assign(catalog, catalogOf(await invoke('extensions_catalog'), await app), { error: '' })
   } catch (e) {
     catalog.error = errorText(e)
   }
@@ -212,7 +215,7 @@ const syncSkills = (list: Extension[]) =>
 
 const syncWasm = (list: Extension[]) =>
   invoke<Record<string, string>>('extensions_wasm_sync', {
-    list: list.filter((m) => m.enabled && m.manifest?.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest!.wasm, allowed: grantsOf(m) })),
+    list: active(list).filter((m) => m.manifest.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest.wasm, allowed: grantsOf(m) })),
   }).then((errors) => {
     extensions.errors = errors
   })

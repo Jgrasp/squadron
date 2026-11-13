@@ -53,6 +53,7 @@ export type Manifest = {
   id: string
   version: string
   api: 1
+  squadron?: string
   name: Text
   description?: Text
   wasm?: string
@@ -167,6 +168,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   else if (taken.includes(raw.id)) problems.push(['extensions.takenId', { id: raw.id }])
   if (raw.api !== 1) problems.push(['extensions.badApi'])
   if (typeof raw.version !== 'string' || !raw.version.trim()) problems.push(['extensions.noVersion'])
+  if (raw.squadron !== undefined && (typeof raw.squadron !== 'string' || !RANGE.test(raw.squadron))) problems.push(['extensions.badRange'])
   if (!isText(raw.name)) problems.push(['extensions.noName'])
   if (raw.description !== undefined && !isText(raw.description)) problems.push(['extensions.badDescription'])
   const wasm = raw.wasm !== undefined
@@ -265,18 +267,19 @@ export const commandsOf = (manifest: Manifest) => [
 
 export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
 
-export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}): Extension[] {
+export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}, app = ''): Extension[] {
   const taken: string[] = []
   return found.map(({ dir, linked, manifest: raw, error }) => {
     const id = isObject(raw) && typeof raw.id === 'string' ? raw.id : (dir.split(/[\\/]/).pop() ?? dir)
     const { manifest, problems } = error ? { manifest: undefined, problems: [['extensions.unreadable', { error }] as Problem] } : validate(raw, taken)
     if (manifest) taken.push(manifest.id)
+    if (manifest && !fits(manifest.squadron, app)) problems.push(['extensions.needsSquadron', { range: manifest.squadron!, version: app }])
     const commands = manifest ? commandsOf(manifest) : []
     return { dir, linked, id, enabled: !disabled.includes(id), manifest, problems, commands, pending: commands.filter((c) => !approved[id]?.includes(c)) }
   })
 }
 
-export const active = (extensions: Extension[]) => extensions.filter((m): m is Extension & { manifest: Manifest } => m.enabled && !!m.manifest)
+export const active = (extensions: Extension[]) => extensions.filter((m): m is Extension & { manifest: Manifest } => m.enabled && !!m.manifest && !m.problems.length)
 
 export const itemsOf = (extensions: Extension[], slot: Slot): Item[] =>
   active(extensions).flatMap((m) =>
@@ -317,6 +320,7 @@ export type CatalogEntry = {
   repository: string
   archive: string
   sha256: string
+  squadron?: string
   permissions?: Permissions
   changelog?: Release[]
   source: string
@@ -333,12 +337,20 @@ const releaseOf = (r: unknown): r is Release =>
   Array.isArray(r.notes.en) &&
   Object.values(r.notes).every((lines) => Array.isArray(lines) && lines.every((l) => typeof l === 'string'))
 
+type Published = Omit<CatalogEntry, 'source' | 'official'>
+
 export type Source = { source: string; official: boolean; error?: string }
 
-const entryOf = (e: unknown): e is Omit<CatalogEntry, 'source' | 'official'> =>
+const entryOf = (e: unknown): e is Published =>
   isObject(e) && typeof e.id === 'string' && ID.test(e.id) && typeof e.version === 'string' && isText(e.name) && typeof e.archive === 'string' && typeof e.sha256 === 'string'
 
-export function catalogOf(raw: unknown): { entries: CatalogEntry[]; sources: Source[] } {
+const pickOf = (e: Published & { versions?: unknown }, app: string) => {
+  const { id, name, description, repository } = e
+  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v) => ({ name, description, repository, ...v, id })).filter(entryOf) : [e]
+  return list.sort((x, y) => (newer(x.version, y.version) ? -1 : 1)).find((r) => fits(r.squadron, app))
+}
+
+export function catalogOf(raw: unknown, app = ''): { entries: CatalogEntry[]; sources: Source[] } {
   const entries: CatalogEntry[] = []
   const sources: Source[] = []
   for (const s of Array.isArray(raw) ? raw : []) {
@@ -346,7 +358,7 @@ export function catalogOf(raw: unknown): { entries: CatalogEntry[]; sources: Sou
     const official = s.official === true
     sources.push({ source: s.source, official, error: typeof s.error === 'string' ? s.error : undefined })
     const found = isObject(s.index) && Array.isArray(s.index.extensions) ? s.index.extensions.filter(entryOf) : []
-    entries.push(...found.map((e) => ({ ...e, changelog: Array.isArray(e.changelog) ? e.changelog.filter(releaseOf) : undefined, source: s.source as string, official })))
+    entries.push(...found.flatMap((e) => pickOf(e, app) ?? []).map((e) => ({ ...e, changelog: Array.isArray(e.changelog) ? e.changelog.filter(releaseOf) : undefined, source: s.source as string, official })))
   }
   return { entries, sources }
 }
@@ -355,6 +367,14 @@ export const originOf = (origins: Record<string, string>, id: string) => origins
 
 export const shownOf = (entries: CatalogEntry[], origins: Record<string, string>) =>
   [...new Set(entries.map((e) => e.id))].map((id) => entries.find((e) => e.id === id && e.source === origins[id]) ?? entries.find((e) => e.id === id)!)
+
+export const RANGE = /^>=\d+\.\d+\.\d+( <\d+\.\d+\.\d+)?$/
+
+export function fits(range: string | undefined, version: string) {
+  if (!range || !version || !RANGE.test(range)) return true
+  const [min, max] = range.split(' ').map((v) => v.replace(/^[<>=]+/, ''))
+  return !newer(min, version) && (!max || newer(max, version))
+}
 
 export function newer(a: string, b: string) {
   const [x, y] = [a, b].map((v) => v.split('.').map((n) => parseInt(n) || 0))

@@ -9,6 +9,8 @@ export default {
   takenId: 'Une autre extension utilise déjà l’identifiant {id}.',
   badApi: 'api doit valoir 1.',
   noVersion: 'La version manque.',
+  badRange: 'squadron doit être un intervalle comme ">=0.45.0" ou ">=0.45.0 <0.50.0".',
+  needsSquadron: 'Demande Squadron {range}, celui-ci est en {version}.',
   noName: 'Le nom demande au moins un texte anglais : { "en": "…" }.',
   badDescription: 'La description doit être un texte comme { "en": "…", "fr": "…" }.',
   badContributes: 'contributes doit être un objet.',

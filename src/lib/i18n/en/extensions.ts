@@ -8,6 +8,8 @@ export default {
   takenId: 'Another extension already uses the id {id}.',
   badApi: 'api must be 1.',
   noVersion: 'The version is missing.',
+  badRange: 'squadron must be a range like ">=0.45.0" or ">=0.45.0 <0.50.0".',
+  needsSquadron: 'Needs Squadron {range}, this one is {version}.',
   noName: 'The name needs at least an English text: { "en": "…" }.',
   badDescription: 'The description must be a text like { "en": "…", "fr": "…" }.',
   badContributes: 'contributes must be an object.',

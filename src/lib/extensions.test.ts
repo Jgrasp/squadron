@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { argsOf, catalogOf, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -171,6 +171,26 @@ describe('extensions', () => {
     const found = [{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels: [panel] } }, error: null }]
     expect(panelsOf(load(found, [])).map((p) => p.key)).toEqual(['extension:p.main'])
     expect(panelsOf(load(found, ['p']))).toEqual([])
+  })
+
+  it('keeps an extension or a catalog version to the Squadron versions it declares', () => {
+    expect([fits(undefined, '0.45.0'), fits('>=0.45.0', '0.45.0'), fits('>=0.45.0', '0.44.9'), fits('>=0.45.0 <0.50.0', '0.50.0'), fits('>=0.45.0 <0.50.0', '0.49.3'), fits('>=0.46.0', '')]).toEqual([true, true, false, false, true, true])
+    const manifest = { id: 'share', version: '0.3.0', api: 1, name: { en: 'Share' } }
+    const found = (squadron: unknown) => [{ dir: '/x/share', linked: false, manifest: { ...manifest, squadron }, error: null }]
+    expect(load(found('0.45'), [], {}, '0.45.0')[0].problems.map(([key]) => key)).toEqual(['extensions.badRange'])
+    const old = load(found('>=0.46.0'), [], {}, '0.45.0')
+    expect(old[0].problems).toEqual([['extensions.needsSquadron', { range: '>=0.46.0', version: '0.45.0' }]])
+    expect(old[0].manifest?.version).toBe('0.3.0')
+    expect(active(old)).toEqual([])
+    expect(active(load(found('>=0.45.0'), [], {}, '0.45.0')).length).toBe(1)
+    const release = (version: string, squadron?: string) => ({ version, archive: `https://x/${version}`, sha256: 'f'.repeat(64), ...(squadron ? { squadron } : {}) })
+    const index = { extensions: [{ id: 'share', name: { en: 'Share' }, repository: 'https://github.com/a/b', ...release('0.3.0', '>=0.46.0'), versions: [release('0.3.0', '>=0.46.0'), { ...release('0.2.1', '>=0.45.0'), changelog: [{ version: '0.2.1', date: '2026-11-13', notes: { en: ['Fix'] } }] }, release('0.1.0')] }, { id: 'later', name: { en: 'Later' }, ...release('1.0.0', '>=0.50.0') }] }
+    const pick = (app: string) => catalogOf([{ source: OFFICIAL, official: true, index }], app).entries.map((e) => `${e.id}@${e.version}`)
+    expect(pick('0.46.0')).toEqual(['share@0.3.0'])
+    expect(pick('0.45.0')).toEqual(['share@0.2.1'])
+    expect(pick('0.44.0')).toEqual(['share@0.1.0'])
+    expect(catalogOf([{ source: OFFICIAL, official: true, index }], '0.45.0').entries[0]).toMatchObject({ name: { en: 'Share' }, archive: 'https://x/0.2.1', squadron: '>=0.45.0', changelog: [{ version: '0.2.1', date: '2026-11-13', notes: { en: ['Fix'] } }] })
+    expect(updatesOf(old, catalogOf([{ source: OFFICIAL, official: true, index }], '0.45.0').entries, {})).toEqual([])
   })
 
   it('merges the sources and takes updates only from the source an extension came from', () => {
