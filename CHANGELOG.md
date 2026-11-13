@@ -1,5 +1,31 @@
 # Changelog
 
+## 0.46.0 · 2026-11-13
+
+### Extensions
+
+- Settings get an Extensions group: + opens Discover, the gear opens Manage, and each enabled extension has its own page with its accounts, secrets and options, an About window for its permissions and an Uninstall button.
+- A button in the status bar counts the extensions that have an update: update them one by one or all at once, read What's new from their changelog, and see which ones will ask for new access.
+- Extensions declare the Squadron versions they run on: Discover and updates offer the newest version that fits, and an installed one that no longer fits is turned off with the version it needs.
+- Extensions can declare options that Squadron draws on their settings page, and add a settings page of their own.
+- The built-in Jira integration gives way to the Jira extension: no more Tickets tab, ticket sources, Kanban Jira board or J shortcut, while a ticket in a message still opens in Jira from its chip.
+
+### Security
+
+- Each agent reaches Squadron with its own key, so a command it runs cannot pass for another agent, and overview and read_agent only see its own project unless every project is allowed.
+- “Always” on a file edit only covers the agent's own folder outside .git, .claude and .mcp.json, ends when Squadron restarts and shows as “accept edits” on the mode pill. html blocks in a conversation no longer load anything from the network.
+
+### Projects
+
+- Moving a project takes its agents and their conversations along.
+
+### Fixes
+
+- Sending a pull request review to the conversation that opened it delivers its comments, and the button reads Send to the conversation.
+- A long dialog title stops after two lines, and a long word in a message wraps instead of scrolling the window sideways.
+- A link chip whose site hides its favicon behind a login shows the favicon of the parent domain.
+- The updater downloads a release from its real tag.
+
 ## 0.45.1 · 2026-11-13
 
 ### Agents
