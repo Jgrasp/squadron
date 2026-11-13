@@ -1758,6 +1758,20 @@ async fn extensions_option_set(
 }
 
 #[tauri::command]
+fn extensions_field_link(
+    window: tauri::WebviewWindow,
+    app: AppHandle,
+    id: String,
+    field: String,
+) -> Result<(), String> {
+    let url = app
+        .state::<extensions::Extensions>()
+        .field_url(&id, &field)
+        .ok_or("This field has no https:// link.")?;
+    open_link(window, url)
+}
+
+#[tauri::command]
 async fn extensions_account_remove(
     app: AppHandle,
     id: String,
@@ -2579,6 +2593,7 @@ pub fn run() {
             }
             let groups_file = config.join("groups.json");
             app.manage(Projects {
+            extensions_field_link,
                 list: Mutex::new(list),
                 file,
                 groups: Mutex::new(projects::load_groups(&groups_file)),

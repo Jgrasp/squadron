@@ -151,8 +151,8 @@
     </div>
   {/if}
 
-  {#snippet link(url: string, hint: Text | undefined)}
-    <button type="button" class="link" onclick={() => invoke('open_link', { url })}>{hint ? named(hint) : t('extensions.fieldLink')}</button>
+  {#snippet link(field: string, hint: Text | undefined)}
+    <button type="button" class="link" onclick={() => invoke('extensions_field_link', { id, field }).catch((err) => (work.error = errorText(err)))}>{hint ? named(hint) : t('extensions.fieldLink')}</button>
   {/snippet}
 
   <div class="settings" class:dim={!e.enabled} inert={!e.enabled}>
@@ -164,7 +164,7 @@
         <button class="btn btn-secondary" disabled={!typed[s.id]?.trim()}>{t('common.save')}</button>
         {#if isSaved}<button type="button" class="btn danger" onclick={() => keep(s.id, null)}>{t('common.remove')}</button>{/if}
       </form>
-      <p class="hint">{#if s.url}{@render link(s.url, s.hint)}{' '}{:else if s.hint}{named(s.hint)}{' '}{/if}{t('extensions.secretHint')}</p>
+      <p class="hint">{#if s.url}{@render link(s.id, s.hint)}{' '}{:else if s.hint}{named(s.hint)}{' '}{/if}{t('extensions.secretHint')}</p>
     {/each}
 
     {#if contributes?.accounts}
@@ -185,7 +185,7 @@
                 placeholder={kept.includes(f.id) ? t('extensions.accountKept', { label }) : ''}
                 bind:value={draft!.values[f.id]}
               />
-              {#if f.url}<small>{@render link(f.url, f.hint)}</small>{:else if f.hint}<small>{named(f.hint)}</small>{/if}
+              {#if f.url}<small>{@render link(f.id, f.hint)}</small>{:else if f.hint}<small>{named(f.hint)}</small>{/if}
             </label>
           {/each}
           <div class="bar">

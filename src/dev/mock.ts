@@ -538,6 +538,8 @@ const orbitPull = () => ({
             })
 
 mockWindows(label)
+const JIRA_TOKENS = 'https://id.atlassian.com/manage-profile/security/api-tokens'
+
 const DEMO_ACCOUNTS = '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]}]}'
 
 mockIPC(
@@ -635,6 +637,9 @@ mockIPC(
       }
       case 'open_link':
         window.open(a.url, '_blank')
+        return
+      case 'extensions_field_link':
+        window.open(JIRA_TOKENS, '_blank')
         return
       case 'link_preview':
         return a.url.includes('github.com')
@@ -1254,7 +1259,7 @@ mockIPC(
                         label: { en: 'API token', fr: 'Jeton d’API' },
                         kind: 'secret',
                         hint: { en: 'Create API token (not “with scopes”)', fr: 'Create API token (pas « with scopes »)' },
-                        url: 'https://id.atlassian.com/manage-profile/security/api-tokens',
+                        url: JIRA_TOKENS,
                       },
                     ],
                   },
