@@ -41,3 +41,14 @@ export function matches(rule: string, tool: string, input: Record<string, any>):
 export function ruleLabel(rule: string) {
   return /^Bash\((.*)\)$/s.exec(rule)?.[1] ?? rule
 }
+
+const GUARDED = ['.git', '.claude']
+
+export function editable(dir: string, path: unknown) {
+  if (!dir || typeof path !== 'string') return false
+  const root = dir.replaceAll('\\', '/').replace(/\/+$/, '')
+  const file = path.replaceAll('\\', '/')
+  if (!file.startsWith(`${root}/`)) return false
+  const parts = file.slice(root.length + 1).split('/')
+  return !parts.some((p) => p === '..' || p === '.' || GUARDED.includes(p)) && parts.join('/') !== '.mcp.json'
+}

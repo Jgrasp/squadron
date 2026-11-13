@@ -6,7 +6,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
-  import { archiveProject, create, ensureLoaded, ofProject, onDisk, selected, waiting } from './agents.svelte'
+  import { archiveProject, create, ensureLoaded, ofProject, onDisk, rehome, selected, waiting } from './agents.svelte'
   import {
     bottomShare,
     sideSpan,
@@ -73,7 +73,9 @@
     const chosen = await open({ directory: true })
     if (typeof chosen !== 'string') return
     try {
-      await move(project.path, chosen)
+      const from = project.path
+      await move(from, chosen)
+      rehome(from, chosen)
       error = ''
     } catch (e) {
       error = errorText(e)

@@ -2,7 +2,7 @@
   import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
-  import { archive, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, useServer, VALUES, type Server } from './agents.svelte'
+  import { archive, askEdits, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, useServer, VALUES, type Server } from './agents.svelte'
   import { loadServers, mcp, type Listed } from './ondemand.svelte'
   import { claudeConfig, labelOf as settingLabel, loadSettings, TERMINAL } from './claudeConfig.svelte'
   import Conversation from './Conversation.svelte'
@@ -198,6 +198,7 @@
   const advisorOn = $derived(advising(agent.options))
   const effortRank = $derived(catalogOf(agent)?.models.find((m) => m.value === agent.options.model)?.supportedEffortLevels?.length === 0 ? -1 : EFFORTS.indexOf(agent.options.effort))
   const idle = $derived(advisorIdle(agent.options))
+  const shownMode = $derived(agent.allowEdits && agent.options.mode === 'default' ? 'acceptEdits' : agent.options.mode)
 
   function chooseOption(key: Sub, value: string) {
     setOptions(agent.id, key === 'advisor' ? { ...agent.options, advisor: value || undefined } : { ...agent.options, [key]: value })
@@ -840,7 +841,7 @@
                       ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3l2.4 5.6L20 11l-5.6 2.4L12 19l-2.4-5.6L4 11l5.6-2.4z" /></svg>{familyLabel(agent.options.advisor!)}</span
                     >
                   {/if}
-                  <span class="mode tone-{agent.options.mode}">{modeLabel(agent.options.mode)}</span>
+                  <span class="mode tone-{shownMode}" title={agent.allowEdits ? t('agent.editsAllowed') : undefined}>{modeLabel(shownMode)}</span>
                 </button>
               {:else if id === 'context'}
                 <ContextGauge {agent} />
@@ -850,6 +851,9 @@
           {#if tuning}
             <div class="tuning" role="dialog" aria-label={t('agent.agentOptions')}>
               <OptionsFields bind:options={tuning} />
+              {#if agent.allowEdits}
+                <p class="edits">{t('agent.editsAllowed')}<button class="btn btn-ghost" onclick={() => askEdits(agent.id)}>{t('agent.askEditsAgain')}</button></p>
+              {/if}
               <p>{t('agent.optionsHint')}</p>
             </div>
           {/if}
@@ -2575,6 +2579,14 @@
     margin: 0;
     font-size: 12.5px;
     color: var(--text-dim);
+  }
+
+  .tuning .edits {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    color: var(--text-2);
   }
 
   h1 .name {

@@ -3,7 +3,7 @@ use serde::Serialize;
 use serde_json::Value;
 use std::collections::HashMap;
 use std::io::ErrorKind;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, AtomicU32, Ordering};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant};
@@ -129,6 +129,18 @@ impl Agents {
         let mut list = self.list.lock().unwrap();
         list.get_mut(id).ok_or("Unknown agent.")?.dir = dir;
         Ok(())
+    }
+
+    pub fn rehome(&self, from: &Path, to: &Path) {
+        for agent in self.list.lock().unwrap().values_mut() {
+            if agent.project != from {
+                continue;
+            }
+            agent.project = to.to_path_buf();
+            if let Some(dir) = agent.dir.as_ref().and_then(|d| d.strip_prefix(from).ok()).map(|rest| to.join(rest)) {
+                agent.dir = Some(dir);
+            }
+        }
     }
 
     /// Keeps the on-demand MCP servers an agent uses and gives them to its process now and at each start.

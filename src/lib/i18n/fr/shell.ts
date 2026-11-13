@@ -298,7 +298,7 @@ export default {
   subagentDetail: 'sous-agent #{num} · {what}',
   goalStopped: 'Objectif arrêté',
   goalStoppedDetail: 'après {count} relances · {reason}',
-  editsWithoutAsking: '{name} modifie les fichiers sans demander jusqu’à la fin de sa session',
+  editsWithoutAsking: '{name} modifie les fichiers de son dossier sans demander jusqu’au redémarrage de Squadron',
   ruleAdded: 'Règle ajoutée pour {project} : {rule}',
   alwaysAllowed: 'Toujours autorisé',
   allowedOnce: 'Autorisé une fois',

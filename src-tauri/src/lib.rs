@@ -371,16 +371,20 @@ fn order_projects(projects: State<Projects>, paths: Vec<PathBuf>) -> Result<Vec<
 #[tauri::command]
 fn move_project(
     projects: State<Projects>,
+    agents: State<Agents>,
     path: PathBuf,
     to: PathBuf,
 ) -> Result<Vec<Folder>, String> {
-    projects.update(|list| {
+    let list = projects.update(|list| {
         check_new_folder(list, &to)?;
         if let Some(p) = list.iter_mut().find(|p| p.path == path) {
-            p.path = to;
+            p.path = to.clone();
         }
         Ok(())
-    })
+    })?;
+    agents.rehome(&path, &to);
+    sessions::carry(&path, &to);
+    Ok(list)
 }
 
 struct Settings {

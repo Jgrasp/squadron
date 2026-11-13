@@ -9,7 +9,9 @@ export default {
   allow: 'Allow',
   deny: 'Deny',
   seeInDiffPanel: 'See in the Diff panel',
-  alwaysEdit: '{agent} will edit the project files without asking until its session ends. Bash commands will still ask.',
+  alwaysEdit: '{agent} will edit the files of its folder without asking, except .git, .claude and .mcp.json, until you take it back in its options or Squadron restarts. Bash commands will still ask.',
+  editsAllowed: 'Edits the files of its folder without asking',
+  askEditsAgain: 'Ask again',
   alwaysBash: 'Allows {rule} in {project}, for all its agents.',
   alwaysBashOthers: {
     one: 'Allows {rule} in {project}, for all its agents, including the {count} other running subagent. They may ask the same.',

@@ -42,8 +42,10 @@
     return (theme = rules.join('\n'))
   }
 
+  const MOCKUP_CSP = "default-src 'none'; style-src 'unsafe-inline'; img-src 'self' data:; font-src 'self' data:; form-action 'none'"
+
   const page = (code: string) =>
-    `<!doctype html><html><head><meta charset="utf-8"><style>${themeCss()}\nhtml{color-scheme:dark}body{margin:0;padding:16px;background:var(--bg-main);color:var(--text);font:13.5px/1.5 var(--sans)}</style></head><body>${code}</body></html>`
+    `<!doctype html><html><head><meta charset="utf-8"><meta http-equiv="Content-Security-Policy" content="${MOCKUP_CSP}"><style>${themeCss()}\nhtml{color-scheme:dark}body{margin:0;padding:16px;background:var(--bg-main);color:var(--text);font:13.5px/1.5 var(--sans)}</style></head><body>${code}</body></html>`
 
   const md = new MarkdownIt({ html: false, linkify: true, highlight: (code, lang) => (lang ? colored(code, lang) : '') })
   md.core.ruler.push('pull_cards', (state) => {
