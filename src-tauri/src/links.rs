@@ -1,4 +1,4 @@
-use tauri::{plugin::TauriPlugin, Runtime, Url, Webview};
+use tauri::{Runtime, Url, Webview, plugin::TauriPlugin};
 
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     tauri::plugin::Builder::new("links")
@@ -26,7 +26,7 @@ fn open<R: Runtime>(webview: &Webview<R>, url: &str) {
             .ok()
             .and_then(|w| gtk::prelude::WidgetExt::display(&w).app_launch_context())
             .map(gtk::prelude::Cast::upcast)
-            .unwrap_or_else(gtk::gio::AppLaunchContext::new);
+            .unwrap_or_default();
         if let Err(e) = crate::launch(url, context) {
             log::error!("{url} did not open: {e}");
         }

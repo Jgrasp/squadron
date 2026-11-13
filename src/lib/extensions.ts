@@ -350,7 +350,7 @@ const entryOf = (e: unknown): e is Published =>
 
 const pickOf = (e: Published & { versions?: unknown }, app: string) => {
   const { id, name, description, repository } = e
-  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v) => ({ name, description, repository, ...v, id })).filter(entryOf) : [e]
+  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v): unknown => ({ name, description, repository, ...v, id })).filter(entryOf) : [e]
   return list.sort((x, y) => (newer(x.version, y.version) ? -1 : 1)).find((r) => fits(r.squadron, app))
 }
 

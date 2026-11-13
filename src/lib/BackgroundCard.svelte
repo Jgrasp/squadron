@@ -10,7 +10,7 @@
   const started = $derived(Math.min(...agent.background.map((b) => b.started)))
   const callOf = (id: string) => calls(agent).find((c) => c.id === id)
   const outputOf = (id: string) =>
-    /^\s*sleep\s+\S+\s*$/.test(callOf(id)?.input?.command ?? '')
+    /^\s*sleep\s+\S+\s*$/.test(String(callOf(id)?.input?.command ?? ''))
       ? undefined
       : /Output is being written to: (\S+?)\.?(\s|$)/.exec(callOf(id)?.result?.text ?? '')?.[1]
 </script>

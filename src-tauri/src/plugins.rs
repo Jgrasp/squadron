@@ -262,7 +262,7 @@ Per-component (rounded)
             r#"{"permissions":{},"enabledPlugins":{"a@m":true}}"#,
         )
         .unwrap();
-        let f = read_flags(Some(dir.clone()), &[project.clone()]);
+        let f = read_flags(Some(dir.clone()), std::slice::from_ref(&project));
         assert_eq!(f.user.get("a@m"), Some(&true));
         let p = &f.projects[&project.to_string_lossy().into_owned()];
         assert_eq!(p.get("a@m"), Some(&true));
