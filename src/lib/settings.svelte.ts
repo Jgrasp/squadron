@@ -41,7 +41,6 @@ export type Config = {
   runs_hidden: string[]
   runs_notify: boolean
   review_prompt: string
-  ticket_fields_off: string[]
   conversation_width: number
   sidebar: 'pinned' | 'peek'
   plugin_lines: 'off' | 'tag' | 'card' | 'gutter'
@@ -74,7 +73,6 @@ export const settings = $state<Config>({
   runs_hidden: [],
   runs_notify: false,
   review_prompt: '',
-  ticket_fields_off: [],
   conversation_width: 740,
   sidebar: 'pinned',
   plugin_lines: 'tag',

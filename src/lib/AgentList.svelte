@@ -211,7 +211,6 @@
 </script>
 
 {#snippet card(agent: Agent)}
-  {@const ticket = projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket}
   <span class="line">
     {#if agent.review}
       <span class="prnum" title={t('review.reviewingTitle', { number: String(agent.review.number) })}><Icon name="pull" size={11} />{agent.review.number}</span>
@@ -235,7 +234,7 @@
       {#if agent.review}{@const verdict = verdictOf(agent)}{#if verdict}<span class="verdict {verdict[0]}">{verdict[1]}</span>{/if}{/if}
     {/if}
   </span>
-  <span class="state">{#if ticket}<span class="ticket" title={t('tickets.linkTitle', { key: ticket.key })}><span class="logo" aria-hidden="true">J</span>{ticket.key}</span>{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
+  <span class="state">{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
   {#if !agent.review}<PullTag {agent} gutter />{/if}
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
@@ -861,28 +860,6 @@
   .persona {
     float: right;
     margin-left: 8px;
-  }
-
-  .ticket {
-    float: right;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: 8px;
-    font: 500 11px var(--mono);
-    color: var(--ticket-text);
-  }
-
-  .ticket .logo {
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 11px;
-    height: 11px;
-    border-radius: 2px;
-    background: var(--jira);
-    color: #fff;
-    font: 700 7.5px var(--sans);
   }
 
   .done .state,

@@ -121,8 +121,7 @@ Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette,
 | `--mode-default` / `--mode-accept` / `--mode-plan` / `--mode-auto` | `#999999` / `#AF87FF` / `#48968C` / `#FFC107` | Pilule du mode de permission |
 | `--remote-dot` / `--remote-text` | `#7DB8FA` / `#B9D6F7` | PR en revue, session distante, verdict « revérifier » |
 | `--merged` / `--merged-text` | `#C4A7F0` / `#CDBCF7` | PR fusionnée : ton de PullCard, texte de la puce PR (fond `--merged` 16 %) |
-| `--jira` | `#2684FF` | Marque Jira |
-| `--ticket-bg` / `--ticket-card` / `--ticket-card-hover` / `--ticket-border` / `--ticket-border-hover` / `--ticket-text` / `--ticket-muted` / `--ticket-button` | bleus nuit | Popup de ticket Jira et clés Jira (Kanban, agents), seulement là |
+| `--jira` | `#2684FF` | Marque Jira des puces de ticket dans la bulle utilisateur |
 
 ### Exceptions en dur
 
@@ -145,7 +144,6 @@ Chaque projet reçoit à l'ajout la couleur la moins utilisée de cette palette,
 | `#2A1F14` | Bandeau d'avertissement de l'éditeur |
 | `#DDBBA8` | Détail d'un agent en attente |
 | `#C99A90` | Repères dans la sortie d'erreur (ErrorCard) |
-| `#CDB8FF` | Épopée Jira |
 | `#1F8BFF`, `#FC6D26` | Logos Azure DevOps, GitLab |
 | `#4FA3E0`, `#7CC47C`, `#E3B341`, `#6FA0D0`, `#3CC39A`, `#E07A9B`, `#A8A29E` | Couleurs au choix (extensions, palette de projet) |
 | `#7FD1D9`, `#8DB4E8`, `#A8E3E8`, `#B3CDF0`, `#C9A6FF`, `#DCC5FF` | Palette ANSI du terminal |
@@ -191,7 +189,7 @@ Fond `--text`, texte `--ink`. La bulle a le coin bas droit pincé : `border-radi
 - `.option-row` / `.option-trigger` / `.option-menu` : ligne réglage 36px et son menu 280px qui s'ouvre vers le haut.
 - `.effect-pulse`, `.effect-snake`, `.ring` : onglet ou carte qui travaille / qui attend, teintés par `--project`.
 - Keyframes : `spin`, `snake`, `ping`, `pulse`, `ring`, `trace`, `blink`.
-- `.jira-kind`, `.jira-urgency`, `.jira-status` : marques Jira. `.sr-only`, `.mono`.
+- `.sr-only`, `.mono`.
 
 ## Composants
 
@@ -208,11 +206,11 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 
 ### Liste des agents
 - En-tête : nom du projet (700), « N agents · N t'attend » (12px `--text-dim`), « + Agent » 32px pointillé.
-- Agent : padding 12px 14px, rayon 6px, espacement 6px. Ligne 1 : StatusIcon (ou n° de PR en revue), point non lu 7px `--ok`, nom 600, épingle, verdict. Ligne 2 : état 12px, ticket Jira et PersonaChip à droite ; détail en mono 11,5px. Puis PullTag, compteurs de sous-agents, progression 4px.
+- Agent : padding 12px 14px, rayon 6px, espacement 6px. Ligne 1 : StatusIcon (ou n° de PR en revue), point non lu 7px `--ok`, nom 600, épingle, verdict. Ligne 2 : état 12px, PersonaChip à droite ; détail en mono 11,5px. Puis PullTag, compteurs de sous-agents, progression 4px.
 - Sélectionné : `--surface-1` + contour `--border-strong`. En attente : `--wait-bg` + `--wait-border`, état `--accent-soft` 600 ; sélectionné : anneau 2px `--accent-soft` + ombre cuivrée. En erreur sélectionné : `--err-bg`, anneau `--err`. Fini non lu : fond `--ok` 9 % + barre de ton `--ok`. Sélection multiple : anneau intérieur 2px `--accent-soft` + barre d'actions.
 
 ### En-tête d'agent
-60px min, padding 10px 20px, sur plusieurs lignes. Nom 15px 600 (bouton qui renomme). Bouton réglages 34px `--menu` + contour `--border-strong` : modèle 600, effort en marches, conseiller `--advisor-text`, pilule de mode 22px `--mode-*`. Outils en `.btn-ghost` (Éditeur, Terminal, Diff `+N` `--ok` `−N` `--err`, PRs, Kanban…), actif `--surface-5` + contour `--text-faint`, compteur 18px `--accent`. Puces de contexte 34px `--menu` (remote, MCP, tâches, ticket, branche, PR, artefacts, sous-agents) et ContextGauge (anneau 22px, `#4ADE80` / `#FB923C` / `#F87171`).
+60px min, padding 10px 20px, sur plusieurs lignes. Nom 15px 600 (bouton qui renomme). Bouton réglages 34px `--menu` + contour `--border-strong` : modèle 600, effort en marches, conseiller `--advisor-text`, pilule de mode 22px `--mode-*`. Outils en `.btn-ghost` (Éditeur, Terminal, Diff `+N` `--ok` `−N` `--err`, PRs, Kanban…), actif `--surface-5` + contour `--text-faint`, compteur 18px `--accent`. Puces de contexte 34px `--menu` (remote, MCP, tâches, branche, PR, artefacts, sous-agents) et ContextGauge (anneau 22px, `#4ADE80` / `#FB923C` / `#F87171`).
 
 **Panneau de contexte** (`ContextPanel`, ouvert par ContextGauge) : 460px, `--bg-main`, rayon 6px, contour + ombre de menu. En tête « Context » 600 et segments Usage / Settings (`--surface-2`, actif `--text`/`--ink` 700). Usage : barre de progression 8px `--surface-3` remplie par source, trait 2px `--text-faint` au seuil d'auto-compaction ; deux tuiles `--surface-1` (mono 18px) ; sections en capitales 11px ; lignes 30px (26px imbriquées, filet gauche `--border-strong`), chevron 18px `--surface-3`, pastille 9px de la source, total mono 12,5px `--text-2`, « ≈ » devant une estimation. Couleurs des sources : Claude Code `--text-faint`, Squadron `--remote-dot`, configuration `--persona`, serveurs MCP `--background`, plugins et appels de plugins `--advisor`, conversation `--ok`, hooks et rappels `--ok-line`. Logo de plugin 16px rayon 4px. Bas : « Compaction » et un champ 36px `--surface-2` qui contient le bouton « Compact now ». Settings : lignes 48px séparées par `--border`, `Select` à droite.
 
@@ -283,8 +281,6 @@ Fond `--bg-sidebar`. En-tête 60px, padding 0 12px 0 18px, trait bas `--border` 
 
 ### Dialogues
 Voile `--overlay`, boîte `--bg-main`, rayon 8px, contour `--border-strong`. En-tête padding 20px 22px 6px, titre 18px 700, aide 13px `--text-dim`, fermer 32px `--surface-2`. Champs `.field`, chemins en mono. Boutons en bas à droite (Cancel `--surface-2`, action principale claire), séparés par un trait `--border`. Erreur de champ : `--err-text` avec icône, bouton principal désactivé.
-- **Tickets Jira** (`JiraDialog.svelte`, bouton Jira du Kanban ou `J`) : Dialog 1180px, hauteur `min(720px, 100vh − 150px)`. Sous le titre, projet et sprints en 13px `--text-dim` + rafraîchir 26px. Filtres à gauche sur 232px `--bg-sidebar` : sections en capitales 11px, lignes 30px 12,5px `--text-2` avec compteur mono 11px `--text-faint` ; projets en boutons (actif `--surface-4` blanc 600, section absente s'il n'y a qu'un projet Jira), le reste en cases 14px rayon 3px (contour `--border-focus`, cochée `--text` + coche `--ink`). À droite, recherche 32px `--surface-2` (`/`), « N of M » et « Reset filters », puis colonnes de statut de 288px alignées à gauche qui défilent en largeur (`--bg-sidebar`, rayon 8px, pastille `.jira-status`). Ticket `--surface-1` (`--surface-2` au survol), padding 10px 12px, rayon 6px : marques, titre 13px sur 2 lignes, « + Create a task » 24px `--surface-3` ou, s'il a déjà sa tâche, fond transparent + contour `--border` et la colonne de la tâche (pastille 8px du Kanban). Ticket ouvert : contour 2px `--border-focus`. Aucun résultat : message 15px 600 centré + « Reset filters » `.btn-secondary`.
-- **Ticket Jira** (`TicketDialog.svelte`) : Dialog plein écran, colonne principale (description, pièces jointes en grille `minmax(180px,1fr)` vignette 110px `--surface-1`, commentaires) + colonne 340px `--bg-sidebar` (champs, liens, « Open in Jira » `--ticket-*`), pied « Read only » + « Create a task ».
 - **Question d'une commande** (`AskpassDialog`) : 460px, voile, icône cadenas 32px `--accent` sur `--accent-soft`, agent et projet, commande en cours en mono sur `--surface-1`, question en mono `--text-muted`. Seulement Non (`.btn-secondary`) et Oui (`.btn-primary`) : aucun champ.
 - **Confirm** : 440px, icône 32px rayon 6px (`--surface-3`, avertissement `--wait-btn` / `--accent-soft`, erreur `--err-bg` / `--err`, ou logo `HostLogo` 18px sur `--surface-3`), titre 16px 700. Case à cocher facultative sous le texte (case native `accent-color: --accent`, libellé 13px `--text-2`, aide 12px `--text-dim`). Action destructrice : bouton danger `#3A2420` / `#F8D5CC` 700 à la place du bouton clair.
 - **Settings** : Dialog plein écran. Navigation 230px `--bg-sidebar`, groupes en capitales, entrées 34px, active `--surface-4` blanc 600. Contenu 860px max. Cartes de choix `--surface-1` + contour `--border-strong`, choisie `--surface-3` + anneau 2px `--text`. Listes (Agents archivés, Serveurs MCP) : lignes `--surface-1` rayon 4px, padding 10px 12px, nom 600 et légende 12px `--text-dim` (commande en mono 11,5px), bouton `.btn-secondary` 30px ; sections en capitales 11px ; un serveur à la demande ajoute sous sa ligne un `.field` 34px pour sa description. Fiche d'extension, comptes : lignes 12,5px (valeurs non secrètes en mono séparées par « · », `.btn-secondary` Edit et `.btn.danger` Remove 30px, ligne en cours d'édition en `--text-strong`), puis un `.field` 30px par champ empilés à 6px (secret en `password`, « gardé si laissé vide » en placeholder pendant l'édition) et « Add the account » / Save `.btn-secondary`. Fiche d'une extension qui partage des artifacts avec `cleanup` : section « Clean up shared artifacts », `.field` select (délai de l'extension, règle de Squadron, 30 jours, 90 jours, 1 an, Never) et son aide 12px `--text-dim`.

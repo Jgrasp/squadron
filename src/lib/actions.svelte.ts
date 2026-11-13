@@ -19,7 +19,6 @@ export type SettingsTab =
   | 'plugins'
   | 'editors'
   | 'hosting'
-  | 'tickets'
   | 'preferences'
   | 'shortcuts'
   | 'layout'

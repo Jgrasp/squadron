@@ -31,9 +31,6 @@
   import ArtifactsPanel from './ArtifactsPanel.svelte'
   import { docsOf } from './artifacts'
   import { pointed, refresh as refreshArtifacts, shelf } from './artifacts.svelte'
-  import TicketDialog from './TicketDialog.svelte'
-  import { loadConnections, tickets } from './tickets.svelte'
-  import { connectionFor } from './jira'
   import TerminalPanel from './TerminalPanel.svelte'
   import { type as typeInTerminal } from './terminals.svelte'
   import { badgeOf, extensionItem, extensionPanel, runItem } from './extensions.svelte'
@@ -229,19 +226,7 @@
     delete pointed[agent.id]
     untrack(() => quotes.forEach(point))
   })
-  const ticket = $derived(projects.list.find((p) => p.path === agent.project)?.cards.find((c) => c.agent === agent.id)?.ticket)
-  let reading = $state<{ connection: string; key: string } | null>(null)
   let persona = $state(false)
-  $effect(() => {
-    void agent.id
-    reading = null
-  })
-  async function readTicket(key: string) {
-    if (reading?.key === key) return (reading = null)
-    const sources = projects.list.find((p) => p.path === agent.project)?.tickets ?? []
-    const connection = ticket?.key === key ? ticket.connection : (connectionFor(sources, key) ?? (tickets.connections ?? (await loadConnections()))[0]?.id)
-    if (connection) reading = { connection, key }
-  }
   const mcpGroups = $derived(groups(agent.tools ?? []).filter((g) => g.kind === 'mcp'))
   const info = $derived(
     shown('agent.info').filter(
@@ -249,13 +234,12 @@
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'artifacts' || shared.length) &&
         (id !== 'branch' || branch) &&
-        (id !== 'ticket' || ticket) &&
         (id !== 'pull' || pull || agent.review) &&
         (id !== 'mcp' || mcpGroups.length) &&
         (id !== 'tasks' || agent.tasks.length),
     ),
   )
-  const CHIPS = ['remote', 'ticket', 'branch', 'pull', 'mcp', 'tasks', 'subagents', 'artifacts']
+  const CHIPS = ['remote', 'branch', 'pull', 'mcp', 'tasks', 'subagents', 'artifacts']
   const inline = $derived(info.filter((id) => !CHIPS.includes(id)))
   const chips = $derived(info.filter((id) => CHIPS.includes(id)))
   let mcpOpen = $state(false)
@@ -810,9 +794,6 @@
   style:--panel-side={sideSpan(openPanel(agent.project))}
 >
   <section class="conversation" aria-label={t('agent.conversation')}>
-    {#if reading}
-      <TicketDialog connection={reading.connection} ticketKey={reading.key} linked oncreate={() => {}} onclose={() => (reading = null)} />
-    {/if}
     <div class="top" bind:offsetHeight={headerHeight}>
       <div class="title">
         <div class="heading">
@@ -1047,16 +1028,6 @@
                   </div>
                 {/if}
               </span>
-            {:else if id === 'ticket' && ticket}
-              <button
-                class="chip ticket"
-                data-item={id}
-                aria-pressed={reading?.key === ticket.key}
-                title={t(reading?.key === ticket.key ? 'tickets.closeTicket' : 'tickets.openTicket', { key: ticket.key })}
-                onclick={() => readTicket(ticket.key)}
-              >
-                <span class="jira" aria-hidden="true">J</span><span class="mono">{ticket.key}</span><span class="go" aria-hidden="true">›</span>
-              </button>
             {:else if id === 'branch'}
               <span
                 class="chip branch"
@@ -1210,7 +1181,6 @@
               onterminal={inTerminal}
               onrun={(command) => ((stuck = true), run(agent, command))}
               onsend={(message) => send(agent.id, message)}
-              onticket={readTicket}
             />
             </div>
           </div>
@@ -1776,23 +1746,6 @@
   .context .anchor {
     position: relative;
     display: inline-flex;
-  }
-
-  .ticket .mono {
-    color: var(--ticket-text);
-  }
-
-  .jira {
-    flex: none;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 14px;
-    height: 14px;
-    border-radius: 3px;
-    background: var(--jira);
-    color: #fff;
-    font: 700 9px var(--sans);
   }
 
   .chip {

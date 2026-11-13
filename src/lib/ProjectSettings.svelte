@@ -7,21 +7,18 @@
   import ProjectGeneral from './ProjectGeneral.svelte'
   import ProjectReview from './ProjectReview.svelte'
   import ProjectRuns from './ProjectRuns.svelte'
-  import ProjectTickets from './ProjectTickets.svelte'
   import { home, ordered, orderProjects, projects } from './projects.svelte'
   import Select, { type Option } from './Select.svelte'
   import { saveSettings, settings } from './settings.svelte'
-  import { tickets } from './tickets.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
 
-  type Section = 'general' | 'agents' | 'runs' | 'review' | 'tickets'
+  type Section = 'general' | 'agents' | 'runs' | 'review'
 
   const SECTIONS: [Section, Key][] = [
     ['general', 'settings.projectGeneral'],
     ['agents', 'settings.projectAgents'],
     ['runs', 'settings.projectRuns'],
     ['review', 'settings.projectReview'],
-    ['tickets', 'tickets.projectTickets'],
   ]
   const HOURS = [1, 4, 12, 24, ALWAYS, 0]
   const STORE = 'squadron.project-section'
@@ -152,14 +149,8 @@
           <ProjectAgents {project} {act} />
         {:else if shown === 'runs'}
           <ProjectRuns {project} {act} />
-        {:else if shown === 'review'}
-          <ProjectReview {project} {act} />
         {:else}
-          <ProjectTickets {project} />
-          {#if tickets.connections && !tickets.connections.length}
-            <p class="empty">{t('settings.projectTicketsNone')}</p>
-            <button class="btn btn-secondary" onclick={() => (ui.settings = 'tickets')}>{t('settings.projectTicketsConnect')}</button>
-          {/if}
+          <ProjectReview {project} {act} />
         {/if}
         {#if error}<p class="bad" role="alert">{error}</p>{/if}
       </div>
@@ -439,8 +430,7 @@
     max-width: 100%;
   }
 
-  .pane > :global(textarea),
-  .pane > :global(.tickets) {
+  .pane > :global(textarea) {
     width: 100%;
   }
 

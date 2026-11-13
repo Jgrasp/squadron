@@ -32,7 +32,7 @@
     <strong>{nameOf(card.title)}</strong>
     <span class="meta">
       {#if agent}<StatusIcon status={agent.status} />{/if}
-      {[t(COLUMNS.find(([c]) => c === card.column)![1]), agent?.name, pull?.state === 'open' ? `PR #${pull.number}` : '', card.ticket?.key].filter(Boolean).join(' · ')}
+      {[t(COLUMNS.find(([c]) => c === card.column)![1]), agent?.name, pull?.state === 'open' ? `PR #${pull.number}` : ''].filter(Boolean).join(' · ')}
     </span>
     <span class="actions">
       {#if agent}<button type="button" onclick={() => show(agent)}>{t('board.taskGoAgent')}</button>{/if}

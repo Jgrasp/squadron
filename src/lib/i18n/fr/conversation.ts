@@ -211,5 +211,6 @@ export default {
   advisorTokens: '{input} → {output} tok',
   advisorSealed: 'Chiffré par Anthropic : seul Claude le lit. La suite de la réponse l’applique.',
   advisorWithout: 'Claude continue sans avis.',
+  openTicket: 'Ouvrir le ticket Jira {key}',
   turnAdvised: { one: 'conseil ×{count} · {input} → {output}', other: 'conseil ×{count} · {input} → {output}' },
 } satisfies Catalog['conversation']

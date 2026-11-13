@@ -9,7 +9,6 @@
   import Changelog from './Changelog.svelte'
   import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
-  import TicketSettings from './TicketSettings.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
   import ArchivedAgents from './ArchivedAgents.svelte'
   import { account } from './catalogs.svelte'
@@ -65,7 +64,6 @@
         ['mcp', 'mcp.tab'],
         ['editors', 'settings.tabEditors'],
         ['hosting', 'settings.tabHosting'],
-        ['tickets', 'tickets.tab'],
       ],
     ],
     [
@@ -277,8 +275,6 @@
       <AboutSquadron />
     {:else if tab === 'hosting'}
       <CodeHosting />
-    {:else if tab === 'tickets'}
-      <TicketSettings />
     {:else if tab === 'defaults'}
       <p class="intro">{t('settings.defaultsIntro')}</p>
       <OptionsFields bind:options={defaults} />

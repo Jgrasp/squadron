@@ -53,7 +53,7 @@ pub fn content(text: &str, files: &[PathBuf]) -> Result<Value, String> {
     Ok(Value::Array(blocks))
 }
 
-pub fn safe_name(name: &str) -> String {
+fn safe_name(name: &str) -> String {
     let name: String = name
         .chars()
         .map(|c| {

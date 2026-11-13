@@ -5,7 +5,6 @@ import { ofProject } from './agents.svelte'
 import { requestPanel, setPanel } from './layout.svelte'
 import { settings } from './settings.svelte'
 import type { Options } from './stream'
-import type { Source } from './tickets.svelte'
 
 export type Defaults = Partial<Pick<Options, 'model' | 'effort' | 'mode' | 'advisor'>>
 
@@ -23,7 +22,6 @@ export type Project = {
   runs_hidden: string[]
   repository: string
   review_prompt: string
-  tickets: Source[]
   defaults: Defaults
   exists: boolean
   git: boolean
@@ -117,7 +115,6 @@ export async function editProject(path: string, changes: {
     runs_hidden?: string[]
     repository?: string
     review_prompt?: string
-    tickets?: Source[]
     defaults?: Defaults
   },) {
   set(await invoke<Project[]>('edit_project', { path, changes }))

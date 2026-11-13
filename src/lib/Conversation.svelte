@@ -1,6 +1,6 @@
 <script lang="ts">
   import { copyText } from './clipboard'
-  import { ticketBlocks } from './tickets.svelte'
+  import { ticketBlocks } from './ticketBlocks'
   import { SvelteSet } from 'svelte/reactivity'
   import { clock, forkPoint, SSH_KEY, SUDO, VALUES } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
@@ -52,7 +52,6 @@ import { fences } from './codepaste'
     onterminal = () => {},
     onrun,
     onsend,
-    onticket,
   }: {
     agent: Agent
     start?: number
@@ -65,7 +64,6 @@ import { fences } from './codepaste'
     onterminal?: (command: string) => void
     onrun?: (command: string) => void
     onsend?: (text: string) => void
-    onticket?: (key: string) => void
   } = $props()
 
   const SPAWN = ['Agent', 'Task']
@@ -367,9 +365,15 @@ import { fences } from './codepaste'
         {#if said.blocks.length}
           <div class="tickets">
             {#each said.blocks as block, b (b)}
-              <button class="ticket-chip" title={t('tickets.openTicket', { key: block.key })} onclick={() => onticket?.(block.key)}>
-                <span class="logo" aria-hidden="true">J</span><strong>{block.key}</strong>{#if block.title}<span class="title">{block.title}</span>{/if}
-              </button>
+              {#if block.url}
+                <button class="ticket-chip" title={t('conversation.openTicket', { key: block.key })} onclick={() => invoke('open_link', { url: block.url })}>
+                  <span class="logo" aria-hidden="true">J</span><strong>{block.key}</strong>{#if block.title}<span class="title">{block.title}</span>{/if}
+                </button>
+              {:else}
+                <span class="ticket-chip">
+                  <span class="logo" aria-hidden="true">J</span><strong>{block.key}</strong>{#if block.title}<span class="title">{block.title}</span>{/if}
+                </span>
+              {/if}
             {/each}
           </div>
         {/if}
@@ -747,7 +751,7 @@ import { fences } from './codepaste'
     font-size: 12px;
   }
 
-  .ticket-chip:hover {
+  button.ticket-chip:hover {
     background: var(--wait-btn);
   }
 
