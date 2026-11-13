@@ -139,6 +139,7 @@ export default {
   posting: 'Posting…',
   postOn: 'Post on {host}',
   sendTo: 'Send to {agent}',
+  theConversation: 'the conversation',
   verdict: 'Verdict',
   verdictComment: 'Comment',
   verdictApprove: 'Approve',

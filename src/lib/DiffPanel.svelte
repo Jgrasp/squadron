@@ -59,7 +59,7 @@
     onreview: (summary: string, list: Comment[]) => void
     onposted?: () => void
     reviewer?: Agent | null
-    handTo?: string | null
+    handTo?: Agent | 'new' | null
     onagent?: () => Promise<unknown>
     since?: string | null
     own?: boolean
@@ -809,10 +809,11 @@
         ></textarea>
         <div class="actions">
           {#if (agent && !agent.review) || (own && handTo)}
-            {@const to = agent?.name ?? handTo ?? ''}
-            <span class="hint">{t('review.sendOrPost', { count: handing.length, agent: to, host: hostName(pull) })}</span>
+            {@const to = agent ?? (handTo === 'new' ? null : handTo)}
+            {@const where = to ? t('review.theConversation') : t('review.newAgent')}
+            <span class="hint">{t('review.sendOrPost', { count: handing.length, agent: where, host: hostName(pull) })}</span>
             <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
-            <button class="btn btn-primary" disabled={posting || !(ready || handing.length)} onclick={handOver}>{t('review.sendTo', { agent: to })}</button>
+            <button class="btn btn-primary" title={to?.name} disabled={posting || !(ready || handing.length)} onclick={handOver}>{t('review.sendTo', { agent: where })}</button>
           {:else}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
               {#each own || closed ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
