@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte'
+  import { untrack, type Snippet } from 'svelte'
   import { models } from './catalogs.svelte'
   import { advisorChoices, advisorIdle, advisorLabel, advising, effortLabel, modelLabel } from './format'
   import { t, type Key } from './i18n/index.svelte'
   import OptionRow from './OptionRow.svelte'
   import type { Options } from './stream'
 
-  let { options = $bindable(), before, picker }: { options: Options; before?: Snippet; picker?: Snippet } = $props()
+  let { options = $bindable(), before, picker, open = false }: { options: Options; before?: Snippet; picker?: Snippet; open?: boolean } = $props()
 
   const EFFORTS: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
   const MODES: Options['mode'][] = ['default', 'acceptEdits', 'plan', 'auto']
@@ -31,7 +31,7 @@
   const effortChoices = $derived(EFFORTS.map((value) => ({ value, label: effortLabel(value), off: !!levels && !levels.includes(value) })))
   const noEffort = $derived(levels?.length === 0)
   let openKey = $state<'model' | 'effort' | null>(null)
-  let expanded = $state(false)
+  let expanded = $state(untrack(() => open))
 
   function pickModel(value: string) {
     options.model = value

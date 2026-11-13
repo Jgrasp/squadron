@@ -424,6 +424,27 @@ L'exemple `hello` a un panneau qui affiche le compteur et l'augmente par un bout
 
 L'exemple `hello` a deux options (`greeting`, `tone`), son outil `options` et une page de réglages qui remet le compteur à zéro.
 
+### Nouvel agent pré-rempli (API 1.5)
+
+```rust
+let draft = host::open_new_agent(&agent.id, r#"{
+  "name": "RING-128 Card payment: 3-D Secure on iOS",
+  "link": { "key": "RING-128", "title": "Card payment: 3-D Secure on iOS", "url": "https://acme.atlassian.net/browse/RING-128" },
+  "context": "<ticket source=\"jira\" key=\"RING-128\">…</ticket>",
+  "choices": { "label": { "en": "Context given to Haiku and to the agent" }, "items": [{ "id": "comments", "label": "Comments", "on": true }] },
+  "status": { "state": "running", "text": { "en": "Haiku is preparing the instructions…" } }
+}"#);
+let (text, goal) = brief(&context)?;
+host::update_new_agent(&draft, &json!({ "text": text, "goal": goal, "status": { "state": "done" } }).to_string());
+```
+
+- **`host::open-new-agent(agent, draft)`** : ouvre tout de suite la fenêtre New agent dans le projet de `agent`, qui passe à l'écran, et rend l'id du brouillon. Une seule à la fois : un nouveau brouillon ferme le précédent. Le reste de la fenêtre ne change pas (modèle, effort, conseiller, mode, type d'agent), Settings ouvert pour montrer Name et Done when.
+- **Clés du brouillon**, toutes facultatives : `name`, `text` (premier message), `goal` (Done when), `context` (ajouté après le premier message au démarrage, jamais montré dans la fenêtre : c'est là que va le bloc `<ticket>` que la conversation affiche en puce), `link` (en tête avec le logo de l'extension, la clé ouvre `url` en `https://` dans le navigateur, ✕ délie), `choices` (cases à cocher repliées sous le lien), `status` (bandeau `running`, `done` ou `error`, avec `text`). Libellés et textes : une chaîne ou `{ "en": "…", "fr": "…" }`. Une clé à `null` retire le lien, les cases ou le bandeau.
+- **`host::update-new-agent(id, draft)`** : remplit le brouillon ouvert. `name`, `text` et `goal` ne sont remplacés que si l'utilisateur ne les a pas modifiés ; `context`, `link`, `choices` et `status` le sont toujours. Sans effet une fois la fenêtre fermée ou le lien retiré.
+- **Événements** : `new-agent.regenerate` avec `{ "draft": "…", "choices": ["…"] }` (ids cochés) quand l'utilisateur clique Regenerate, ou change les cases sans avoir touché au premier message ; Squadron vide alors le premier message et remet le bandeau en `running`. `new-agent.started` avec `{ "draft": "…" }` et l'agent lancé. `new-agent.closed` quand la fenêtre se ferme sans lancer d'agent, ou que l'utilisateur délie.
+
+L'exemple `hello` le montre avec l'entrée « New agent from Hello » du menu de l'agent.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

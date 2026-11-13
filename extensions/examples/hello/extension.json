@@ -9,7 +9,8 @@
     "items": [
       { "slot": "agent.tools", "id": "count", "label": { "en": "Count", "fr": "Compter" }, "icon": "plus", "action": { "run": "count" } },
       { "slot": "agent.tools", "id": "panel", "label": { "en": "Hello panel", "fr": "Panneau Hello" }, "icon": "grid", "action": { "panel.open": "main" } },
-      { "slot": "agent.menu", "id": "greet", "label": { "en": "Greet the agent", "fr": "Saluer l’agent" }, "action": { "run": "greet" } }
+      { "slot": "agent.menu", "id": "greet", "label": { "en": "Greet the agent", "fr": "Saluer l’agent" }, "action": { "run": "greet" } },
+      { "slot": "agent.menu", "id": "draft", "label": { "en": "New agent from Hello", "fr": "Nouvel agent depuis Hello" }, "action": { "run": "draft" } }
     ],
     "tools": [
       { "name": "changed_files", "description": "Lists the files changed in your folder, from git status." },

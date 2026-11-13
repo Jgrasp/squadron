@@ -2,9 +2,12 @@ import { getVersion } from '@tauri-apps/api/app'
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { run, type Context } from './actions.svelte'
+import { run, ui, type Context } from './actions.svelte'
 import { agents, archivable, archive, find, shownAgent } from './agents.svelte'
 import { pointed } from './artifacts.svelte'
+import { draftClosed, drafts } from './drafts.svelte'
+import { parseDraft } from './newAgentDraft'
+import { projects } from './projects.svelte'
 import { ask, message } from './asking.svelte'
 import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { errorText, locale, t } from './i18n/index.svelte'
@@ -240,8 +243,20 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
   }
   if ((p.call === 'agents' || p.call === 'archive-agent') && getCurrentWindow().label === 'main') answerHost(String(p.reply), p.call, String(p.agent))
   if (p.call === 'insert-prompt' && find(String(p.agent))) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
+  if (p.call === 'open-new-agent' && getCurrentWindow().label === 'main') openDraft(p.extension, String(p.draft), String(p.agent), String(p.fields))
+  if (p.call === 'update-new-agent' && drafts.open?.id === p.draft) drafts.open?.updates.push(parseDraft(String(p.fields)))
   if (p.call === 'notify' && ((await isPermissionGranted()) || (await requestPermission()) === 'granted')) sendNotification({ title: String(p.title), body: String(p.body) })
 })
+
+function openDraft(extension: string, id: string, from: string, fields: string) {
+  const agent = find(from)
+  if (!agent || !projects.list.some((p) => p.path === agent.project && p.exists)) return
+  if (drafts.open) draftClosed(drafts.open)
+  ui.creating = false
+  projects.overview = projects.board = projects.pulls = false
+  projects.current = agent.project
+  drafts.open = { id, extension, project: agent.project, agent: agent.id, draft: parseDraft(fields), updates: [] }
+}
 
 async function answerHost(reply: string, call: string, id: string) {
   const answer = (value: unknown, error: string | null = null) => invoke('extensions_wasm_answer', { reply, value, error })

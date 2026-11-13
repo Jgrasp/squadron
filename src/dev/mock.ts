@@ -538,6 +538,36 @@ const orbitPull = () => ({
             })
 
 mockWindows(label)
+const TICKET_DRAFT = {
+  name: 'RING-128 Card payment: 3-D Secure on iOS',
+  link: { key: 'RING-128', title: 'Card payment: 3-D Secure on iOS', url: 'https://acme.atlassian.net/browse/RING-128' },
+  context: '<ticket source="jira" key="RING-128" url="https://acme.atlassian.net/browse/RING-128">\n# RING-128 Card payment: 3-D Secure on iOS\n\nThe 3-D Secure sheet closes before the bank answers on iOS 18.\n</ticket>',
+  choices: {
+    label: { en: 'Context given to Haiku and to the agent', fr: 'Contexte donné à Haiku et à l’agent' },
+    items: ['Description', 'Comments', 'Attachments', 'Links', 'Subtasks', 'Sprint'].map((label) => ({ id: label.toLowerCase(), label, on: true })),
+  },
+  status: { state: 'running', text: { en: 'Haiku is preparing the instructions…', fr: 'Haiku prépare les instructions…' } },
+}
+
+function briefTicket(draft: string, short: boolean) {
+  setTimeout(
+    () =>
+      emit('extensions-host', {
+        extension: 'jira',
+        call: 'update-new-agent',
+        draft,
+        fields: JSON.stringify({
+          text: short
+            ? 'Fix the 3-D Secure sheet that closes before the bank answers on iOS 18.'
+            : 'Fix the 3-D Secure sheet that closes before the bank answers on iOS 18. The comments point at the WKWebView delegate: reproduce it in the simulator first, then fix it and add a UI test.',
+          goal: 'A card payment with 3-D Secure goes through on the iOS 18 simulator, with the UI test passing.',
+          status: { state: 'done', text: { en: 'Instructions prepared by Haiku', fr: 'Instructions préparées par Haiku' } },
+        }),
+      }),
+    1600,
+  )
+}
+
 const JIRA_TOKENS = 'https://id.atlassian.com/manage-profile/security/api-tokens'
 
 const DEMO_ACCOUNTS = '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]}]}'
@@ -1249,6 +1279,7 @@ mockIPC(
                 wasm: 'jira.wasm',
                 permissions: { exec: ['claude'], network: ['api.media.atlassian.com'] },
                 contributes: {
+                  items: [{ slot: 'agent.menu', id: 'launch', label: { en: 'Launch an agent on RING-128', fr: 'Lancer un agent sur RING-128' }, action: { run: 'launch' } }],
                   accounts: {
                     label: { en: 'Jira sites', fr: 'Sites Jira' },
                     fields: [
@@ -1350,8 +1381,20 @@ mockIPC(
       case 'extensions_secrets':
         return []
       case 'extensions_set_tools':
-      case 'extensions_wasm_event':
         return
+      case 'extensions_wasm_run': {
+        const { agent } = args as { agent: { id: string } | null }
+        if (a.action !== 'launch' || !agent) return
+        const draft = crypto.randomUUID()
+        emit('extensions-host', { extension: 'jira', call: 'open-new-agent', agent: agent.id, draft, fields: JSON.stringify(TICKET_DRAFT) })
+        briefTicket(draft, false)
+        return
+      }
+      case 'extensions_wasm_event': {
+        const data = JSON.parse(a.data || '{}')
+        if (a.name === 'new-agent.regenerate') briefTicket(data.draft, !data.choices.includes('comments'))
+        return
+      }
       case 'extensions_set_skills':
         return []
       case 'extensions_wasm_sync':

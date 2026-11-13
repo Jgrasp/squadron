@@ -1,11 +1,17 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { ui } from './actions.svelte'
   import AgentDefinition from './AgentDefinition.svelte'
   import AgentPicker from './AgentPicker.svelte'
-  import { agents } from './agents.svelte'
+  import { agents, find } from './agents.svelte'
   import Attachment from './Attachment.svelte'
+  import { draftClosed, draftRegenerate, draftStarted, type OpenDraft } from './drafts.svelte'
+  import { named, nameOf } from './extension-pages.svelte'
+  import ExtensionLogo from './ExtensionLogo.svelte'
+  import { extensions } from './extensions.svelte'
+  import { fill, type Draft, type DraftStatus, type Label } from './newAgentDraft'
   import { agentTypes, catalogs, models, type Definition } from './catalogs.svelte'
   import { families, find as findCommand, options as argumentsOf } from './commands'
   import Trans from './Trans.svelte'
@@ -22,19 +28,74 @@
   let {
     project,
     draft = { name: '', text: '' },
+    linked,
     start,
     onclose,
   }: {
     project: Project
     draft?: { name: string; text: string }
-    start: (name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[]) => void
+    linked?: OpenDraft
+    start: (name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[]) => unknown
     onclose: () => void
   } = $props()
 
-  let name = $state(untrack(() => draft.name))
-  let text = $state(untrack(() => draft.text))
+  let name = $state(untrack(() => linked?.draft.name ?? draft.name))
+  let text = $state(untrack(() => linked?.draft.text ?? draft.text))
   let options = $state<Options>(untrack(() => defaultsFor(project.path)))
-  let goal = $state('')
+  let goal = $state(untrack(() => linked?.draft.goal ?? ''))
+  let applied = untrack(() => ({ name, text, goal }))
+  let tied = $state(untrack(() => !!linked))
+  let link = $state(untrack(() => linked?.draft.link ?? null))
+  let picks = $state(untrack(() => linked?.draft.choices ?? null))
+  let status = $state<DraftStatus | null>(untrack(() => linked?.draft.status ?? null))
+  let context = $state(untrack(() => linked?.draft.context ?? ''))
+  let preparing = untrack(() => (status?.state === 'running' ? status.text : undefined))
+  let started = false
+  const extension = $derived(linked && extensions.list.find((x) => x.id === linked.extension))
+  const said = (label: Label | undefined) => (label === undefined ? '' : typeof label === 'string' ? label : named(label))
+
+  function apply(update: Draft) {
+    const next = fill({ name, text, goal }, applied, update)
+    ;({ name, text, goal } = next.form)
+    applied = next.applied
+    if (update.context !== undefined) context = update.context
+    if (update.link !== undefined) link = update.link
+    if (update.choices !== undefined) picks = update.choices
+    if (update.status !== undefined) status = update.status
+    if (status?.state === 'running' && status.text) preparing = status.text
+  }
+
+  $effect(() => {
+    const updates = linked?.updates
+    if (!updates?.length) return
+    untrack(() => {
+      for (const update of updates.splice(0)) if (tied) apply(update)
+    })
+  })
+
+  function regenerate() {
+    if (!linked) return
+    text = applied.text = ''
+    status = { state: 'running', text: preparing }
+    draftRegenerate(linked, picks?.items.filter((c) => c.on).map((c) => c.id) ?? [])
+  }
+
+  function toggle(id: string | null, on: boolean) {
+    for (const c of picks?.items ?? []) if (id === null || c.id === id) c.on = on
+    if (text === applied.text) regenerate()
+  }
+
+  function unlink() {
+    if (linked) draftClosed(linked)
+    tied = false
+    link = picks = status = null
+    context = ''
+  }
+
+  function close() {
+    if (linked && tied && !started) draftClosed(linked)
+    onclose()
+  }
   let worktree = $state<string | null>(null)
   let files = $state<string[]>([])
   let attachError = $state('')
@@ -160,17 +221,59 @@
   function submit(event?: Event) {
     event?.preventDefault()
     if (!ready) return
-    start(name.trim(), $state.snapshot(options), text.trim(), goal.trim(), worktree, $state.snapshot(files))
+    started = true
+    const launched = start(name.trim(), $state.snapshot(options), [text.trim(), tied ? context.trim() : ''].filter(Boolean).join('\n\n'), goal.trim(), worktree, $state.snapshot(files))
+    const from = tied ? linked : undefined
+    if (from)
+      Promise.resolve(launched).then((id) => {
+        const agent = typeof id === 'string' ? find(id) : undefined
+        if (agent) draftStarted(from, agent)
+      })
     onclose()
   }
 </script>
 
-<Dialog title={t('common.newAgent')} {onclose} width={620}>
+<Dialog title={t('common.newAgent')} onclose={close} width={620}>
   {#snippet badge()}
     <span class="in" style:--project={project.color}><span class="dot" aria-hidden="true"></span>{t('board.inProject', { project: project.name })}</span>
   {/snippet}
   <form onsubmit={submit}>
     <div class="fields">
+      {#if tied && link && linked}
+        <div class="linked">
+          <ExtensionLogo id={linked.extension} name={extension ? nameOf(extension) : linked.extension} size={20} />
+          {#if link.url}
+            {@const url = link.url}
+            <button type="button" class="key" title={t('board.draftOpenLink')} onclick={() => invoke('open_link', { url })}>{link.key}</button>
+          {:else}
+            <span class="key">{link.key}</span>
+          {/if}
+          <span class="title">{link.title}</span>
+          <button type="button" class="unlink" aria-label={t('board.draftUnlink')} title={t('board.draftUnlink')} onclick={unlink}>✕</button>
+        </div>
+      {/if}
+      {#if tied && picks?.items.length}
+        {@const on = picks.items.filter((c) => c.on).length}
+        <details class="context">
+          <summary>
+            <span class="chevron" aria-hidden="true">›</span>{said(picks.label)}
+            <span class="count">· {t('board.draftChoices', { count: on, total: picks.items.length })}</span>
+          </summary>
+          <div class="context-fields">
+            <label class="all"><input type="checkbox" checked={on === picks.items.length} onchange={(e) => toggle(null, e.currentTarget.checked)} />{t('board.draftAll')}</label>
+            {#each picks.items as c (c.id)}
+              <label><input type="checkbox" checked={c.on} onchange={(e) => toggle(c.id, e.currentTarget.checked)} />{said(c.label)}</label>
+            {/each}
+          </div>
+        </details>
+      {/if}
+      {#if tied && status}
+        <div class="brief" class:ok={status.state === 'done'} class:failed={status.state === 'error'} role="status">
+          <span class="pulse" aria-hidden="true"></span>
+          <span class="what">{said(status.text) || t(status.state === 'running' ? 'board.draftRunning' : status.state === 'done' ? 'board.draftDone' : 'board.draftFailed')}</span>
+          {#if status.state !== 'running'}<button type="button" class="regen" onclick={regenerate}>↻ {t('board.draftRegenerate')}</button>{/if}
+        </div>
+      {/if}
       <div class="write">
         <div class="box">
           <Composer
@@ -178,7 +281,7 @@
             label={t('board.firstMessage')}
             bind:value={text}
             bind:this={message}
-            placeholder={t('board.firstMessagePlaceholder')}
+            placeholder={tied && status?.state === 'running' && !text ? t('board.draftWriting') : t('board.firstMessagePlaceholder')}
             autofocus
             onkeydown={keys}
             onpaste={(e) => clip.paste(e, message)}
@@ -222,6 +325,9 @@
           </div>
         {/if}
       </div>
+      {#if tied && context}
+        <p class="added">{link ? t('board.draftAdded', { key: link.key }) : t('board.draftAddedContext')}</p>
+      {/if}
       {#if files.length || attachError}
         <div class="files" aria-label={t('board.taskFiles')}>
           {#each files as file, i (file)}<Attachment path={file} onremove={() => files.splice(i, 1)} />{/each}
@@ -229,7 +335,7 @@
         </div>
       {/if}
 
-      <LaunchOptions bind:options>
+      <LaunchOptions bind:options open={!!linked}>
         {#snippet before()}
           <div class="group">
             <label for="agent-name">{t('common.name')}</label>
@@ -255,7 +361,7 @@
     </div>
 
     <footer>
-      <button type="button" class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}<span class="keys"><kbd>{t('agent.keyEsc')}</kbd></span></button>
+      <button type="button" class="btn btn-secondary" onclick={close}>{t('common.cancel')}<span class="keys"><kbd>{t('agent.keyEsc')}</kbd></span></button>
       <button class="btn btn-primary" disabled={!ready}>{t('board.startAgent')}<span class="keys"><kbd>Ctrl</kbd><kbd>↵</kbd></span></button>
     </footer>
   </form>
@@ -289,6 +395,176 @@
     flex-direction: column;
     gap: 18px;
     padding: 10px 22px 20px;
+  }
+
+  .linked {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    height: 36px;
+    padding: 0 8px 0 10px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    font-size: 13px;
+  }
+
+  .linked .key {
+    font: 600 12.5px var(--mono);
+    color: var(--text-strong);
+  }
+
+  button.key:hover {
+    color: var(--accent-link);
+  }
+
+  .linked .title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-2);
+  }
+
+  .unlink {
+    width: 24px;
+    height: 24px;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .unlink:hover {
+    background: var(--surface-3);
+  }
+
+  .context summary {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: var(--text-muted);
+    cursor: pointer;
+    list-style: none;
+  }
+
+  .context summary::-webkit-details-marker {
+    display: none;
+  }
+
+  .chevron {
+    display: inline-grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    transition: transform 0.15s;
+  }
+
+  .context[open] .chevron {
+    transform: rotate(90deg);
+  }
+
+  .count {
+    color: var(--text-dim);
+  }
+
+  .context-fields {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr);
+    gap: 6px 12px;
+    margin-top: 10px;
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    font-size: 12.5px;
+  }
+
+  .context-fields label {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-weight: 400;
+    color: var(--text-2);
+    cursor: pointer;
+  }
+
+  .context-fields input {
+    accent-color: var(--accent);
+  }
+
+  .context-fields .all {
+    grid-column: 1 / -1;
+    font-weight: 600;
+  }
+
+  .brief {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 34px;
+    padding: 0 10px 0 12px;
+    border-radius: 6px;
+    background: var(--background-bg);
+    box-shadow: inset 0 0 0 1px var(--background-line);
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .brief.ok {
+    background: var(--ok-bg);
+    box-shadow: inset 0 0 0 1px var(--ok-line);
+  }
+
+  .brief.failed {
+    background: var(--err-bg);
+    box-shadow: inset 0 0 0 1px var(--err-border);
+    color: var(--err-text);
+  }
+
+  .pulse {
+    flex: none;
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background: var(--background);
+    animation: pulse 1.2s ease-in-out infinite;
+  }
+
+  .brief.ok .pulse {
+    background: var(--ok);
+    animation: none;
+  }
+
+  .brief.failed .pulse {
+    background: var(--err);
+    animation: none;
+  }
+
+  .what {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .regen {
+    flex: none;
+    height: 24px;
+    padding: 0 8px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-2);
+  }
+
+  .regen:hover {
+    background: var(--surface-3);
+  }
+
+  .added {
+    margin: -10px 0 0;
+    font-size: 12px;
+    color: var(--text-faint);
   }
 
   .group {

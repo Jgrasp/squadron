@@ -1,4 +1,4 @@
-package squadron:api@1.4.0;
+package squadron:api@1.5.0;
 
 interface types {
   /// The agent a call is about.
@@ -116,13 +116,17 @@ interface host {
   options: func() -> string;
   /// Sends a JSON message to the extension's settings page while it is open, which receives it in `squadron.on`. Since 1.4.0.
   settings-post: func(message: string);
+  /// Opens the New agent window in the project of `agent`, filled from `draft`, and returns the id of the draft. `draft` is a JSON object, each key optional: `name`, `text` (the first message), `goal` (Done when), `context` (added after the first message when the agent starts, never shown in the window), `link` (`{ "key": "…", "title": "…", "url": "https://…" }`, shown at the top, with ✕ to unlink), `choices` (`{ "label": "…", "items": [{ "id": "…", "label": "…", "on": true }] }`, checkboxes), `status` (`{ "state": "running", "done" or "error", "text": "…" }`). Labels and texts are strings or `{ "en": "…", "fr": "…" }`. Since 1.5.0.
+  open-new-agent: func(agent: string, draft: string) -> string;
+  /// Fills the open draft `id` with the keys of `draft`. `name`, `text` and `goal` stay as the user left them once they edited them. Since 1.5.0.
+  update-new-agent: func(id: string, draft: string);
 }
 
 world squadron-extension {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`, `new-agent.regenerate` when the user clicked Regenerate or changed the choices of a draft, with `{ "draft": "…", "choices": ["…"] }`, `new-agent.started` with `{ "draft": "…" }` and the agent that started, `new-agent.closed` with `{ "draft": "…" }` when the window closed without starting one. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;
