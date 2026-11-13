@@ -212,7 +212,7 @@
         await release(agent.id, item)
       } catch (e) {
         await refresh(agent.id)
-        return tell(errorText(e), { kind: 'error', title: t('agent.artifactDeleteTitle') })
+        if (!(await ask(t('agent.artifactDeleteAnyway', { error: errorText(e) }), { title: t('agent.artifactDeleteTitle'), kind: 'error', okLabel: t('agent.artifactDelete'), danger: true }))) return
       }
       await invoke('delete_artifact', { agent: agent.id, id: item.id }).catch((e) => ask(errorText(e), { kind: 'error' }))
       await refresh(agent.id)
@@ -397,7 +397,7 @@
           ? (bandLink ?? '')
           : band.state === 'err'
             ? band.reason?.split('\n').find((l) => l.trim()) || t(band.extension && !band.reason ? 'agent.artifactNotStarted' : 'agent.artifactStoppedHint')
-            : p?.message || (band.destination === 'claude' ? t('agent.artifactSharing', { name: agent.name }) : t(band.verb === 'share' ? 'agent.artifactBusyShare' : band.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: band.by }))}
+            : p?.message || (band.queued ? t('agent.artifactQueued') : band.destination === 'claude' ? t('agent.artifactSharing', { name: agent.name }) : t(band.verb === 'share' ? 'agent.artifactBusyShare' : band.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: band.by }))}
     <div class="band {band.state}" role="status">
       {#if band.state === 'done'}
         <span class="badge" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" /></svg></span>

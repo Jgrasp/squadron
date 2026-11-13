@@ -204,6 +204,8 @@ export default {
   artifactDeleteShared: 'Supprimer l’artifact « {title} » ? Il est partagé : le partage s’arrête, son lien ne marche plus et l’extension supprime ce qu’elle a mis en ligne.',
   artifactDeletedIn: { one: 'Supprimé dans {count} jour', other: 'Supprimé dans {count} jours' },
   artifactDeleteSharedHint: 'Arrête aussi ses partages',
+  artifactDeleteAnyway: '{error}\n\nSupprimer l’artifact quand même ? Son partage reste en ligne.',
+  artifactQueued: 'Démarre après le tour en cours',
   artifactDeletedSoon: 'Supprimé au prochain nettoyage',
   artifactKeptForever: 'Jamais supprimé',
   artifactRuleSquadron: 'Règle de Squadron',

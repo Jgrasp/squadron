@@ -21,9 +21,9 @@ export const pointed = $state<Record<string, string[]>>({})
 
 export type Progress = { done: number; total: number; message: string }
 
-export type Work = { destination: string; verb: 'share' | 'update' | 'unshare'; by: string; since: number; extension?: string; progress?: Progress; done?: number }
+export type Work = { destination: string; verb: 'share' | 'update' | 'unshare'; by: string; since: number; extension?: string; progress?: Progress; done?: number; after?: number }
 
-export type Band = Work & { state: 'work' | 'wait' | 'done' | 'err'; reason?: string; asker?: string }
+export type Band = Work & { state: 'work' | 'wait' | 'done' | 'err'; reason?: string; asker?: string; queued?: boolean }
 
 export const working = $state<Record<string, Work>>({})
 
@@ -35,6 +35,8 @@ const main = () => getCurrentWindow().label === 'main'
 
 export function setWork(key: string, work: Work | null) {
   if (!main()) return void emitTo('main', 'artifact-work', { key, work })
+  const agent = find(key.slice(0, key.indexOf('/')))
+  if (work?.extension && work.after === undefined && agent) work = { ...work, after: agent.turns + (agent.status === 'working' || agent.status === 'waiting' ? 1 : 0) }
   if (work) working[key] = work
   else delete working[key]
 }
@@ -66,8 +68,8 @@ function bandOf(key: string, work: Work): Band {
   const sub = shareFork(agent, work)
   if (sub && agent.asks.some((a) => subagentOf(agent, a.tool_use_id) === sub)) return { ...work, state: 'wait', asker: sub.name.slice(sub.name.lastIndexOf(':') + 1) }
   if (sub && sub.status !== 'running') return { ...work, state: 'err', reason: lastText(sub) }
-  if (!sub && agent.status !== 'working' && agent.status !== 'waiting') return { ...work, state: 'err' }
-  return { ...work, state: 'work' }
+  if (!sub && work.after !== undefined && agent.turns > work.after) return { ...work, state: 'err' }
+  return { ...work, state: 'work', queued: !sub && work.after !== undefined && agent.turns < work.after }
 }
 
 function replace(next: Record<string, Band>) {

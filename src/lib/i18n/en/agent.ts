@@ -202,6 +202,8 @@ export default {
   artifactDeleteShared: 'Delete the artifact “{title}”? It is shared: the share stops, its link no longer works and the extension deletes what it put online.',
   artifactDeletedIn: { one: 'Deleted in {count} day', other: 'Deleted in {count} days' },
   artifactDeleteSharedHint: 'Stops its shares too',
+  artifactDeleteAnyway: '{error}\n\nDelete the artifact anyway? Its share stays online.',
+  artifactQueued: 'Starts after the current turn',
   artifactDeletedSoon: 'Deleted at the next cleanup',
   artifactKeptForever: 'Never deleted',
   artifactRuleSquadron: 'Squadron’s rule',
