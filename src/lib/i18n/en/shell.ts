@@ -123,6 +123,7 @@ export default {
   updateTitle: 'Download {version}, install it and restart Squadron',
   downloading: 'Downloading {version}… {percent}',
   updateFailed: 'Update failed · retry',
+  extensionUpdates: { one: '{count} extension update', other: '{count} extension updates' },
   updateAvailable: 'Squadron {version} is available · Update',
   limitSession: 'Session',
   limitSessionHint: 'Current 5-hour window of your Claude plan',

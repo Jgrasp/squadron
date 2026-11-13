@@ -318,9 +318,20 @@ export type CatalogEntry = {
   archive: string
   sha256: string
   permissions?: Permissions
+  changelog?: Release[]
   source: string
   official: boolean
 }
+
+export type Release = { version: string; date: string; notes: Record<string, string[]> }
+
+const releaseOf = (r: unknown): r is Release =>
+  isObject(r) &&
+  typeof r.version === 'string' &&
+  typeof r.date === 'string' &&
+  isObject(r.notes) &&
+  Array.isArray(r.notes.en) &&
+  Object.values(r.notes).every((lines) => Array.isArray(lines) && lines.every((l) => typeof l === 'string'))
 
 export type Source = { source: string; official: boolean; error?: string }
 
@@ -335,7 +346,7 @@ export function catalogOf(raw: unknown): { entries: CatalogEntry[]; sources: Sou
     const official = s.official === true
     sources.push({ source: s.source, official, error: typeof s.error === 'string' ? s.error : undefined })
     const found = isObject(s.index) && Array.isArray(s.index.extensions) ? s.index.extensions.filter(entryOf) : []
-    entries.push(...found.map((e) => ({ ...e, source: s.source as string, official })))
+    entries.push(...found.map((e) => ({ ...e, changelog: Array.isArray(e.changelog) ? e.changelog.filter(releaseOf) : undefined, source: s.source as string, official })))
   }
   return { entries, sources }
 }
@@ -350,6 +361,8 @@ export function newer(a: string, b: string) {
   for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] ?? 0) !== (y[i] ?? 0)) return (x[i] ?? 0) > (y[i] ?? 0)
   return false
 }
+
+export const releasesOf = (entry: CatalogEntry, installed: string) => (entry.changelog ?? []).filter((r) => newer(r.version, installed) && !newer(r.version, entry.version))
 
 export const installedOf = (list: Extension[], id: string) => list.find((e) => e.id === id && !e.linked)
 

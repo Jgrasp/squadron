@@ -125,6 +125,7 @@ export default {
   updateTitle: 'Télécharger {version}, l’installer et redémarrer Squadron',
   downloading: 'Téléchargement de {version}… {percent}',
   updateFailed: 'Échec de la mise à jour · réessayer',
+  extensionUpdates: { one: '{count} mise à jour d’extension', other: '{count} mises à jour d’extensions' },
   updateAvailable: 'Squadron {version} est disponible · Mettre à jour',
   limitSession: 'Session',
   limitSessionHint: 'Fenêtre de 5 heures en cours de votre forfait Claude',

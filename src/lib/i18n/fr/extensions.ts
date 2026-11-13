@@ -172,4 +172,11 @@ export default {
   badSettingsPage: 'contributes.settings.page doit être un fichier .html dans le dossier de l’extension.',
   badOption: 'Option {option} : il lui faut un id, un libellé { "en": "…" } et un type parmi toggle, select, text et number, avec une valeur par défaut de ce type ; un select demande des choix [{ "value": "…", "label": { "en": "…" } }], chaque valeur une fois.',
   twiceOption: 'Deux options de contributes.settings ont le même id.',
+  updatesTitle: 'Mises à jour des extensions',
+  updatesIntro: { one: '{count} de vos extensions a une version plus récente dans sa marketplace.', other: '{count} de vos extensions ont une version plus récente dans leur marketplace.' },
+  noUpdates: 'Toutes vos extensions sont à jour.',
+  whatsNew: 'Nouveautés',
+  updated: 'À jour',
+  willAsk: 'Demandera {list}',
+  newAccessNote: { one: '{list} demandera de nouveaux accès une fois à jour : Squadron affiche la demande, comme pour toute extension.', other: '{list} demanderont de nouveaux accès une fois à jour : Squadron affiche chaque demande, comme pour toute extension.' },
 } satisfies Catalog['extensions']

@@ -171,4 +171,11 @@ export default {
   badSettingsPage: 'contributes.settings.page must be an .html file inside the extension folder.',
   badOption: 'Option {option}: it needs an id, a label { "en": "…" } and a kind among toggle, select, text and number, with a default of that kind; a select needs choices [{ "value": "…", "label": { "en": "…" } }], each value once.',
   twiceOption: 'Two options of contributes.settings have the same id.',
+  updatesTitle: 'Extension updates',
+  updatesIntro: { one: '{count} of your extensions has a newer version in its marketplace.', other: '{count} of your extensions have a newer version in their marketplace.' },
+  noUpdates: 'Every extension is up to date.',
+  whatsNew: 'What’s new',
+  updated: 'Updated',
+  willAsk: 'Will ask for {list}',
+  newAccessNote: { one: '{list} will ask for new access once updated: Squadron shows the request, as for any extension.', other: '{list} will ask for new access once updated: Squadron shows each request, as for any extension.' },
 }
