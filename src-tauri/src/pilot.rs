@@ -226,6 +226,8 @@ struct SetProgress {
     message: Option<String>,
     /// above or below: where the message goes, above the bar by default.
     place: Option<String>,
+    /// The id of one of your artifacts that the Share menu is sharing: the bar and the message then show in the Artifacts panel instead of on your card.
+    artifact: Option<String>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -447,7 +449,7 @@ impl Pilot {
         self.forward(&parts, "set_title", json!(args)).await
     }
 
-    /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps.
+    /// Shows a progress bar on your own card in Squadron's agent list, with a short message above or below it, so the user follows a long task at a glance (\"60/80 tasks processed\"). Call it again as the work moves on, and without total to remove the bar once it no longer helps. With artifact, the bar shows in the Artifacts panel for a share of that artifact under way.
     #[tool]
     async fn set_progress(
         &self,

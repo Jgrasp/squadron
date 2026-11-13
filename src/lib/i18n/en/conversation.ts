@@ -1,4 +1,8 @@
 export default {
+  forkTag: 'Subagent',
+  forkAsks: '{name} asks you',
+  forkFrom: 'Started by {what}',
+  forkWorking: 'Working…',
   starting: 'Starting…',
   runningCommand: 'Running a command',
   readingFile: 'Reading {file}',

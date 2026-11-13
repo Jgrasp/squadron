@@ -407,7 +407,7 @@ Un élément de l'emplacement `artifact.actions` devient une destination de part
     "confirm": { "en": "“{artifact.title}” becomes a Google web app for your team." },
     "lines": ["Google Apps Script · access: example.com"],
     "shared": { "en": "Shared with the team" },
-    "share": "Share the artifact {artifact.id} at {artifact.dir}, then call publish_artifact with id {artifact.id}, destination {destination} and its link.",
+    "share": "Call the Skill tool with skill team-share:share-artifact and args: artifact {artifact.id} at {artifact.dir}, destination {destination}. Do nothing else.",
     "update": { "tool": "deploy" },
     "unshare": { "tool": "undeploy" },
     "delete": { "en": "Also delete the Apps Script project" },
@@ -416,7 +416,8 @@ Un élément de l'emplacement `artifact.actions` devient une destination de part
 ```
 
 - **Étapes** : `share` est obligatoire, `update` et `unshare` facultatifs. Chacune est un prompt, ou `{ "tool": "<nom>" }` qui appelle `call-tool` du module WASM sans passer par un agent. L'outil reçoit `{ verb, destination, artifact: { id, title, dir, entry }, link, delete, data }` et rend le lien pour `share` et `update`. Il n'a pas besoin de figurer dans `contributes.tools` : les agents ne le voient pas.
-- **Agent dédié** : un prompt ne va pas à l'agent de la conversation. Squadron lance un agent « <titre> · <libellé> » dans le même projet, avec les réglages par défaut du projet, et lui envoie les étapes suivantes du même artifact et de la même destination tant qu'il n'est pas archivé. Son `publish_artifact` vise l'artifact de l'agent d'origine.
+- **Prompt** : il part dans la conversation de l'artifact, sous le libellé de la destination (« Share with the team ») ; l'agent reçoit le prompt complet. Pour que le travail ne coûte pas le modèle de la conversation, le prompt fait appeler à l'agent un skill de l'extension marqué `context: fork` et `model: sonnet` : Claude Code le lance en sous-agent sur ce modèle. Appelé par l'outil Skill, ce sous-agent fait passer ses demandes de permission par Squadron ; tapé en commande `/`, il ne le peut pas et Claude Code les refuse.
+- **Suivi** : le sous-agent appelle `set_progress` avec `artifact`, `done` (étapes finies), `total` et `message` (l'étape en cours) ; le bandeau du panneau et sa carte dans la conversation les affichent. Ses demandes de permission s'affichent dans sa carte. S'il finit sans `publish_artifact`, le bandeau passe en erreur avec sa dernière phrase.
 - **Variables** des prompts et de `confirm` : `{artifact.id}`, `{artifact.title}`, `{artifact.dir}` (dossier absolu de l'artifact), `{artifact.entry}`, `{agent}` (le nom de l'agent), `{agent.id}`, `{destination}` (la clé `<extension>.<élément>`), `{extension.data}` (le dossier de données de l'extension), `{link}` et `{delete}` (`true` si la case de suppression est cochée).
 - **Lien** : un prompt finit par `publish_artifact` avec `id`, `destination` et `link` (toute adresse `https://`), ou un `link` vide pour retirer le partage. Squadron garde un lien par destination dans le `.squadron.json` de l'artifact, avec l'heure du partage.
 - **Menu** : partagée, la destination montre Open, Copy link, Update quand l'artifact a changé depuis le partage et que `update` existe, Stop sharing si `unshare` existe. Stop sharing demande confirmation, avec la case `delete` quand elle est déclarée. Pendant une étape, un bandeau s'affiche sous l'en-tête du panneau.

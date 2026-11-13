@@ -175,7 +175,6 @@ export type Agent = {
   infoPanel?: { html: string; height: number; hidden?: boolean }
   artifacts?: LegacyArtifact[]
   hiddenDocs?: string[]
-  sharing?: { agent: string; artifact: string; destination: string }
   guess?: string
   stored?: { count: number; created: number | null; users?: number }
   onDemand?: string[]
@@ -335,9 +334,9 @@ export function subagentOf(agent: Agent, toolUseId: string | null) {
 const SETTLED: Record<string, Subagent['status']> = { completed: 'done', failed: 'error', killed: 'stopped', stopped: 'stopped' }
 
 function subagentEvent(agent: Agent, d: Json) {
-  if (d.subtype === 'task_started' && d.task_type === 'local_agent' && !agent.subagents.some((s) => s.id === d.tool_use_id))
+  if (d.subtype === 'task_started' && d.task_type === 'local_agent' && !agent.subagents.some((s) => (d.tool_use_id ? s.id === d.tool_use_id : s.task === d.task_id)))
     agent.subagents.push({
-      id: d.tool_use_id,
+      id: d.tool_use_id ?? `forked-command-${String(d.description ?? '').replace(/^\//, '')}`,
       task: d.task_id,
       num: agent.subagents.length + 1,
       name: String(d.description ?? ''),
@@ -603,7 +602,7 @@ function stream(agent: Agent, d: Json) {
 }
 
 function assistant(agent: Agent, d: Json) {
-  const sub = d.parent_tool_use_id && agent.subagents.find((s) => s.id === d.parent_tool_use_id)
+  const sub = d.parent_tool_use_id && agent.subagents.findLast((s) => s.id === d.parent_tool_use_id)
   if (d.parent_tool_use_id && !sub) return
   if (sub) sub.model = d.message.model ?? sub.model
   const blocks = (): Block[] => (sub ? sub.log : agentEntry(agent).blocks)

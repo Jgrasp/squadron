@@ -15,7 +15,8 @@
     ask,
     onlog,
     onpreview,
-  }: { agent: Agent; ask: Ask; onlog?: (sub: Subagent) => void; onpreview?: (proposal: Proposal) => void } = $props()
+    nested = false,
+  }: { agent: Agent; ask: Ask; onlog?: (sub: Subagent) => void; onpreview?: (proposal: Proposal) => void; nested?: boolean } = $props()
 
   const edit = $derived(EDITS.includes(ask.tool_name))
   const sub = $derived(subagentOf(agent, ask.tool_use_id))
@@ -76,7 +77,7 @@
   })
 </script>
 
-<section class="card" aria-label={t('agent.permissionRequest')}>
+<section class="card" class:nested aria-label={t('agent.permissionRequest')}>
   <div class="head">
     <span class="icon" aria-hidden="true">
       {#if ask.tool_name === 'Bash'}
@@ -89,7 +90,7 @@
     </span>
     <span class="what">
       <strong>{title}</strong>
-      {#if sub}
+      {#if sub && !nested}
         <span class="by">
           {t('agent.requestedBy', { num: String(sub.num), name: sub.name })}{#if onlog}{' · '}<button class="log" onclick={() => onlog(sub)}>{t('agent.openItsLog')}</button>{/if}
         </span>
@@ -152,6 +153,23 @@
     border-radius: 6px;
     background: var(--wait-bg);
     box-shadow: 0 0 0 1px var(--wait-border);
+  }
+
+  .nested {
+    padding: 14px 16px;
+    background: var(--wait-note);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wait-border) 70%, transparent);
+  }
+
+  .nested .icon {
+    width: 26px;
+    height: 26px;
+    background: var(--wait-btn);
+    color: var(--accent-soft);
+  }
+
+  .nested .note {
+    background: var(--wait-bg);
   }
 
   .head {
