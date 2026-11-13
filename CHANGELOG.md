@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.46.2 · 2026-11-13
+
+### Extensions
+
+- A field of an extension's account or secret can link to the page where you create it, shown under the field and opened in the browser.
+
+### Conversation
+
+- Up arrow only brings back a previous message when the composer is empty or still shows the recalled one.
+
+### Updates
+
+- 0.46.1 did not build: this version carries its changes.
+
 ## 0.46.1 · 2026-11-13
 
 ### Updates
