@@ -127,6 +127,7 @@
     line-height: 1.55;
     color: var(--text-2);
     white-space: pre-line;
+    overflow-wrap: anywhere;
   }
 
   .lines {
