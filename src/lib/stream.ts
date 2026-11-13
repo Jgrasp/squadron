@@ -520,6 +520,10 @@ export function apply(agent: Agent, d: Json) {
         agent.guess = ''
         if (agent.held) agent.live = { input: 0, output: 0, outputDone: 0, started: Date.now() }
         agent.held = false
+        if (agent.status === 'error') {
+          agent.attention = ''
+          agent.action = t('conversation.starting')
+        }
         if (agent.status !== 'waiting') agent.status = 'working'
       }
       return
