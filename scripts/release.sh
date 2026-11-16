@@ -6,6 +6,13 @@ repo=Jgrasp/squadron
 cd "$(dirname "$0")/.."
 . "$HOME/.cargo/env"
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "Commit or stash your changes first." >&2; exit 1; }
+copy=../squadron-extensions/api
+if [ ! -d "$copy" ]; then
+  echo "No $copy to compare extensions/api with." >&2
+elif ! diff -rq -x target -x Cargo.lock extensions/api "$copy" >/dev/null; then
+  echo "extensions/api differs from $copy: copy it there and commit before the release." >&2
+  exit 1
+fi
 
 sed -i "0,/^version = .*/s//version = \"$version\"/" src-tauri/Cargo.toml
 (cd src-tauri && cargo update -p squadron --offline -q)
