@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.50.0 · 2026-11-16
+
+### Conversation
+
+- Right-clicking a file card in a conversation offers Download… to save a copy of the file.
+
+### Projects
+
+- Right-clicking a project tab offers Remove from the tab bar, which keeps the project out of the bar without archiving it.
+
+### Pull requests
+
+- Your own new GitHub pull requests offer Merge in their diff right away, before GitHub lists them in its search.
+
+### Updates
+
+- The updater always offers the newest version, even when an older release finishes building after it.
+
 ## 0.49.0 · 2026-11-16
 
 ### Extensions
