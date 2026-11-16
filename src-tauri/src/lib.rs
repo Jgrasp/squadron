@@ -5,6 +5,7 @@ pub mod askpass;
 pub mod attach;
 pub mod azure;
 pub mod claude;
+pub mod claude_flags;
 pub mod definitions;
 pub mod editors;
 pub mod extension_tools;
@@ -418,13 +419,19 @@ struct Config {
     runs: bool,
     runs_linger: u32,
     runs_hidden: Vec<String>,
-    runs_notify: bool,
     review_prompt: String,
     conversation_width: u32,
     sidebar: String,
     plugin_lines: String,
     plugin_card: String,
     plugin_projects: std::collections::BTreeMap<String, Vec<String>>,
+    notify_when: String,
+    notify_off: Vec<String>,
+    notify_sound: Vec<String>,
+    notify_turn_secs: u32,
+    notify_runs: String,
+    notify_remote: String,
+    remote_new_agents: bool,
 }
 
 impl Default for Config {
@@ -458,21 +465,43 @@ impl Default for Config {
             runs: true,
             runs_linger: 10,
             runs_hidden: Vec::new(),
-            runs_notify: false,
             review_prompt: String::new(),
             conversation_width: 740,
             sidebar: "pinned".into(),
             plugin_lines: "tag".into(),
             plugin_card: "normal".into(),
             plugin_projects: Default::default(),
+            notify_when: "background".into(),
+            notify_off: Vec::new(),
+            notify_sound: ["question", "permission", "plan", "password"]
+                .map(String::from)
+                .to_vec(),
+            notify_turn_secs: 60,
+            notify_runs: "failures".into(),
+            notify_remote: "keep".into(),
+            remote_new_agents: false,
         }
     }
+}
+
+fn read_config(text: &str) -> Result<Config, serde_json::Error> {
+    let mut value: serde_json::Value = serde_json::from_str(text)?;
+    if let Some(map) = value.as_object_mut()
+        && !map.contains_key("notify_runs")
+        && let Some(old) = map.remove("runs_notify").and_then(|v| v.as_bool())
+    {
+        map.insert(
+            "notify_runs".into(),
+            (if old { "all" } else { "never" }).into(),
+        );
+    }
+    serde_json::from_value(value)
 }
 
 impl Settings {
     fn load(file: PathBuf) -> Self {
         let config = match std::fs::read_to_string(&file) {
-            Ok(text) => serde_json::from_str::<Config>(&text).unwrap_or_else(|e| {
+            Ok(text) => read_config(&text).unwrap_or_else(|e| {
                 log::error!("{} is unreadable ({e}), set aside as .bak", file.display());
                 let _ = std::fs::rename(&file, file.with_extension("json.bak"));
                 Config::default()
@@ -503,6 +532,15 @@ impl Settings {
         }
         if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));
+        }
+        if !["background", "always", "never"].contains(&config.notify_when.as_str()) {
+            return Err(format!("Unknown notification moment: {}", config.notify_when));
+        }
+        if !["all", "failures", "never"].contains(&config.notify_runs.as_str()) {
+            return Err(format!("Unknown pipeline notification: {}", config.notify_runs));
+        }
+        if !["keep", "skip", "background"].contains(&config.notify_remote.as_str()) {
+            return Err(format!("Unknown remote notification: {}", config.notify_remote));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
@@ -616,6 +654,16 @@ fn scratch(app: &AppHandle) -> Result<PathBuf, String> {
             .map_err(|e| e.to_string())?;
     }
     Ok(dir)
+}
+
+#[tauri::command]
+fn claude_flags() -> std::collections::BTreeMap<String, bool> {
+    claude_flags::read_flags()
+}
+
+#[tauri::command]
+fn set_claude_flag(key: String, value: bool) -> Result<(), String> {
+    claude_flags::write_flag(&key, value)
 }
 
 #[tauri::command]
@@ -2539,6 +2587,8 @@ pub fn run() {
             stop_task,
             mcp_request,
             claude_config,
+            claude_flags,
+            set_claude_flag,
             cancel_permissions,
             answer_askpass,
             read_project_file,
@@ -2833,4 +2883,19 @@ pub fn run() {
                 app.state::<Terminals>().close_all();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pipeline_notifications_carry_over_from_runs_notify() {
+        assert_eq!(read_config(r#"{"runs_notify":true}"#).unwrap().notify_runs, "all");
+        assert_eq!(read_config(r#"{"runs_notify":false}"#).unwrap().notify_runs, "never");
+        assert_eq!(read_config("{}").unwrap().notify_runs, "failures");
+        let kept = r#"{"runs_notify":true,"notify_runs":"failures"}"#;
+        assert_eq!(read_config(kept).unwrap().notify_runs, "failures");
+        assert!(read_config("{ nope").is_err());
+    }
 }

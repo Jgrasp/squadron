@@ -26,8 +26,6 @@ export default {
   settingsIntro: 'Squadron affiche dans l’en-tête des agents de chaque projet ses GitHub Actions, Bitbucket Pipelines, pipelines GitLab et Azure Pipelines pendant qu’ils tournent, puis un moment après leur fin.',
   show: 'Afficher les actions et pipelines',
   showHint: 'Chaque projet peut les désactiver dans Réglages › Projets.',
-  notify: 'Me notifier quand un pipeline se termine',
-  notifyHint: 'Une notification système pour chaque exécution terminée. Chaque projet peut la couper dans Réglages › Projets.',
   projectNotify: 'Notifier à la fin',
   notifySuccess: '{name} a réussi dans {project}',
   notifyFailure: '{name} a échoué dans {project}',

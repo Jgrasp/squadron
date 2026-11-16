@@ -14,5 +14,6 @@ import shell from './shell'
 import spotlight from './spotlight'
 import usage from './usage'
 import mcp from './mcp'
+import notify from './notify'
 
-export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, claudeKeys, extensions, plugins, usage, mcp }
+export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, claudeKeys, extensions, plugins, usage, mcp, notify }

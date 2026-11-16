@@ -16,6 +16,12 @@ export type TabOrder = 'manual' | 'name' | 'activity'
 
 export type App = { name: string; command: string }
 
+export type NotifyWhen = 'background' | 'always' | 'never'
+
+export type NotifyRuns = 'all' | 'failures' | 'never'
+
+export type NotifyRemote = 'keep' | 'skip' | 'background'
+
 export type Config = {
   claude: string
   defaults: Options
@@ -39,13 +45,19 @@ export type Config = {
   runs: boolean
   runs_linger: number
   runs_hidden: string[]
-  runs_notify: boolean
   review_prompt: string
   conversation_width: number
   sidebar: 'pinned' | 'peek'
   plugin_lines: 'off' | 'tag' | 'card' | 'gutter'
   plugin_card: 'normal' | 'minimal'
   plugin_projects: Record<string, string[]>
+  notify_when: NotifyWhen
+  notify_off: string[]
+  notify_sound: string[]
+  notify_turn_secs: number
+  notify_runs: NotifyRuns
+  notify_remote: NotifyRemote
+  remote_new_agents: boolean
 }
 
 export const settings = $state<Config>({
@@ -71,13 +83,19 @@ export const settings = $state<Config>({
   runs: true,
   runs_linger: 10,
   runs_hidden: [],
-  runs_notify: false,
   review_prompt: '',
   conversation_width: 740,
   sidebar: 'pinned',
   plugin_lines: 'tag',
   plugin_card: 'normal',
   plugin_projects: {},
+  notify_when: 'background',
+  notify_off: [],
+  notify_sound: ['question', 'permission', 'plan', 'password'],
+  notify_turn_secs: 60,
+  notify_runs: 'failures',
+  notify_remote: 'keep',
+  remote_new_agents: false,
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

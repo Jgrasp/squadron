@@ -32,6 +32,7 @@
   import { lists, lookUpAll, lookUpLists, lookUpNumbered, numbered, reviewWithAgent } from './lib/pulls.svelte'
   import { showPulls } from './lib/linked.svelte'
   import { watchRuns } from './lib/pipelines.svelte'
+  import { watchNotifications } from './lib/notify.svelte'
   import PullsView from './lib/PullsView.svelte'
   import PullReview from './lib/PullReview.svelte'
   import SidePanel from './lib/SidePanel.svelte'
@@ -124,6 +125,7 @@
       lookUpPulls().then(() => (boot.pulls = true))
       setInterval(lookUpPulls, 3 * 60_000)
       watchRuns()
+      watchNotifications()
     })
 
   $effect(() => {

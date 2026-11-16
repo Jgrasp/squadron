@@ -15,6 +15,7 @@ export default {
   tabHosting: 'Hébergement du code',
   groupInterface: 'Interface',
   tabPreferences: 'Préférences',
+  tabNotifications: 'Notifications',
   tabShortcuts: 'Raccourcis',
   tabLayout: 'Disposition',
   tabPanels: 'Panneaux',

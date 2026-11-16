@@ -72,7 +72,9 @@ let tabHours = 4
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 let language = 'system'
-let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[], runs_notify: false }
+let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[] }
+let notifyConfig = { notify_when: 'background', notify_off: [] as string[], notify_sound: ['question', 'permission', 'plan', 'password'], notify_turn_secs: 60, notify_runs: 'failures', notify_remote: 'keep', remote_new_agents: false }
+const claudeFlags: Record<string, boolean> = { inputNeededNotifEnabled: false, agentPushNotifEnabled: true, autoUploadSessions: false }
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -711,6 +713,11 @@ mockIPC(
         } else if (verb === 'uninstall') mockPlugins.splice(mockPlugins.findIndex((p) => p.id === id), 1)
         return new Promise((resolve) => setTimeout(() => resolve('✔ Done'), 250))
       }
+      case 'claude_flags':
+        return { ...claudeFlags }
+      case 'set_claude_flag':
+        claudeFlags[(args as { key: string }).key] = (args as { value: boolean }).value
+        return
       case 'claude_config':
         return new Promise((done) => setTimeout(() => done(a.setting ? `Set ${a.setting.replace('=', ' to ')}` : configUsage), 600))
       case 'stop_task': {
@@ -908,7 +915,7 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, projects_effect: projectsEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ...runsConfig }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, projects_effect: projectsEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ...runsConfig, ...notifyConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
@@ -919,7 +926,8 @@ mockIPC(
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
         reviewPrompt = (a as unknown as { config: { review_prompt: string } }).config.review_prompt
-        runsConfig = (({ runs, runs_linger, runs_hidden, runs_notify }) => ({ runs, runs_linger, runs_hidden, runs_notify }))((a as unknown as { config: typeof runsConfig }).config)
+        runsConfig = (({ runs, runs_linger, runs_hidden }) => ({ runs, runs_linger, runs_hidden }))((a as unknown as { config: typeof runsConfig }).config)
+        notifyConfig = (({ notify_when, notify_off, notify_sound, notify_turn_secs, notify_runs, notify_remote, remote_new_agents }) => ({ notify_when, notify_off, notify_sound, notify_turn_secs, notify_runs, notify_remote, remote_new_agents }))((a as unknown as { config: typeof notifyConfig }).config)
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))

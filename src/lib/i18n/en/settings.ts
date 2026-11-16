@@ -13,6 +13,7 @@ export default {
   tabHosting: 'Code hosting',
   groupInterface: 'Interface',
   tabPreferences: 'Preferences',
+  tabNotifications: 'Notifications',
   tabShortcuts: 'Shortcuts',
   tabLayout: 'Layout',
   tabPanels: 'Panels',

@@ -20,6 +20,7 @@ export type SettingsTab =
   | 'editors'
   | 'hosting'
   | 'preferences'
+  | 'notifications'
   | 'shortcuts'
   | 'layout'
   | 'panels'

@@ -806,6 +806,7 @@ export async function create(project: string, name: string, options: Options, te
     await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null, files })
     if (dir) branchOf(agent)
     if (options.mode !== 'plan') await arm(agent)
+    if (settings.remote_new_agents) await invoke('remote_control', { id: agent.id, enabled: true }).catch(() => {})
   } catch (e) {
     fail(agent, String(e))
   }

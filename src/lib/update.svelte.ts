@@ -6,6 +6,7 @@ import { check, type Update } from '@tauri-apps/plugin-updater'
 import { ui } from './actions.svelte'
 import { agents, closeAll } from './agents.svelte'
 import { errorText, t } from './i18n/index.svelte'
+import { notify } from './notify.svelte'
 
 export const update = $state<{ found: Update | null; progress: number | null; error: string; checking: boolean }>({
   found: null,
@@ -14,11 +15,17 @@ export const update = $state<{ found: Update | null; progress: number | null; er
   checking: false,
 })
 
+const TOLD = 'squadron.update-told'
+
 export async function lookForUpdate() {
   if (import.meta.env.DEV) return
   try {
     update.found = await check()
   } catch {}
+  const version = update.found?.version
+  if (!version || localStorage.getItem(TOLD) === version) return
+  localStorage.setItem(TOLD, version)
+  notify('updates', t('notify.squadronUpdate'), t('notify.squadronUpdateBody', { version }), { settings: 'about' })
 }
 
 export const news = $state<{ version: string }>({ version: '' })

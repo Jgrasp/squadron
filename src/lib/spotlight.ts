@@ -31,6 +31,7 @@ const TABS: [SettingsTab, Key][] = [
   ['editors', 'settings.tabEditors'],
   ['hosting', 'settings.tabHosting'],
   ['preferences', 'settings.tabPreferences'],
+  ['notifications', 'settings.tabNotifications'],
   ['shortcuts', 'settings.tabShortcuts'],
   ['layout', 'settings.tabLayout'],
   ['changelog', 'settings.tabChangelog'],
