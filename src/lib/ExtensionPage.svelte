@@ -1,15 +1,18 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { onDestroy, untrack } from 'svelte'
   import Dialog from './Dialog.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
   import ExtensionSettingsFrame from './ExtensionSettingsFrame.svelte'
   import Icon from './Icon.svelte'
+  import StatusIcon from './StatusIcon.svelte'
   import { ui } from './actions.svelte'
   import { ask } from './asking.svelte'
   import { keepLabel } from './cleanup.svelte'
   import { errorText, t } from './i18n/index.svelte'
   import type { Account, Extension, ExtensionOption, OptionValue, Text } from './extensions'
-  import { approve, commandLine, extensions, install, removeAccount, saveAccount, setOption, uninstall } from './extensions.svelte'
+  import { approve, checkAccount, checkAccounts, checks, checksAccounts, commandLine, extensions, install, keepCheck, removeAccount, saveAccount, setOption, testAccount, uninstall, type AccountCheck } from './extensions.svelte'
+  import { ago } from './format'
   import { attempt, fromOf, named, nameOf, originOf, pendingOf, problemOf, updateOf, work } from './extension-pages.svelte'
   import { home } from './projects.svelte'
   import { saveSettings, settings } from './settings.svelte'
@@ -30,7 +33,10 @@
   let about = $state(false)
   let saved = $state<string[]>([])
   let typed = $state<Record<string, string>>({})
-  let draft = $state<{ account: string | null; values: Record<string, string> } | null>(null)
+  let draft = $state<{ account: string | null; values: Record<string, string>; result: AccountCheck | null; testing: boolean; round: number } | null>(null)
+  let now = $state(Date.now())
+  const clock = setInterval(() => (now = Date.now()), 30_000)
+  onDestroy(() => clearInterval(clock))
 
   $effect(() => {
     void id
@@ -38,6 +44,10 @@
     draft = null
     typed = {}
     work.error = ''
+    untrack(() => {
+      const x = extensions.list.find((x) => x.id === id)
+      if (x) checkAccounts(x)
+    })
   })
 
   $effect(() => {
@@ -69,12 +79,41 @@
   const shownValues = (a: Account) => fields.filter((f) => f.kind !== 'secret').map((f) => a.values[f.id]).filter(Boolean)
   const kept = $derived(draft?.account ? (extensions.accounts[id]?.find((a) => a.id === draft!.account)?.secrets ?? []) : [])
   const complete = $derived(!!draft && fields.every((f) => draft!.values[f.id]?.trim() || kept.includes(f.id)))
+  const tests = $derived(!!e && checksAccounts(e))
+  const hostField = $derived(fields.find((f) => f.kind === 'host'))
+  const said = (value: AccountCheck['title']) => (typeof value === 'string' ? value : named(value ?? undefined))
+  const titleOf = (check: AccountCheck) => said(check.title) || t(check.ok ? 'extensions.accountOk' : 'extensions.accountFailed')
+
+  const openDraft = (account: string | null, values: Record<string, string>) => (draft = { account, values, result: null, testing: false, round: 0 })
+
+  function edited() {
+    if (!draft) return
+    draft.round++
+    draft.result = null
+    draft.testing = false
+  }
+
+  async function test() {
+    if (!draft || !complete) return
+    const mine = draft
+    const { account, values, round } = $state.snapshot(draft)
+    draft.testing = true
+    draft.result = null
+    const result = await testAccount(id, account, values)
+    if (!draft || draft !== mine || draft.round !== round) return
+    draft.testing = false
+    draft.result = result
+  }
 
   async function keepAccount(event: SubmitEvent) {
     event.preventDefault()
     if (!draft) return
-    const { account, values } = $state.snapshot(draft)
-    if (await attempt(() => saveAccount(id, account, values))) draft = null
+    if (tests && !draft.result?.ok) return test()
+    const { account, values, result } = $state.snapshot(draft)
+    let saved = ''
+    if (!(await attempt(async () => (saved = await saveAccount(id, account, values))))) return
+    if (result?.ok && saved) keepCheck(id, saved, result)
+    draft = null
   }
 
   async function dropAccount(a: Account) {
@@ -183,11 +222,23 @@
                 autocomplete="off"
                 spellcheck="false"
                 placeholder={kept.includes(f.id) ? t('extensions.accountKept', { label }) : ''}
+                aria-invalid={draft?.result && !draft.result.ok && draft.result.field === f.id ? 'true' : undefined}
                 bind:value={draft!.values[f.id]}
+                oninput={edited}
               />
               {#if f.url}<small>{@render link(f.id, f.hint)}</small>{:else if f.hint}<small>{named(f.hint)}</small>{/if}
             </label>
           {/each}
+          {#if draft?.testing}
+            {@const host = hostField ? draft.values[hostField.id]?.trim().replace(/^https?:\/\//i, '').split('/')[0] : ''}
+            <div class="result run" role="status"><StatusIcon status="working" /><span>{host ? t('extensions.accountTesting', { host }) : t('extensions.accountTestingHere')}</span></div>
+          {:else if draft?.result}
+            {@const r = draft.result}
+            <div class="result" class:ok={r.ok} class:err={!r.ok} role={r.ok ? 'status' : 'alert'}>
+              <Icon name={r.ok ? 'ok' : 'alert'} size={16} />
+              <span>{titleOf(r)}{#if r.detail}<small>{said(r.detail)}</small>{/if}</span>
+            </div>
+          {/if}
           <div class="bar">
             {#if draft?.account}
               {@const account = accounts.find((a) => a.id === draft!.account)}
@@ -195,25 +246,54 @@
             {/if}
             <span class="grow"></span>
             <button type="button" class="btn btn-ghost" onclick={() => (draft = null)}>{t('common.cancel')}</button>
-            <button class="btn btn-primary" disabled={!complete || !!work.busy}>{draft?.account ? t('common.save') : t('extensions.accountAdd')}</button>
+            {#if !tests}
+              <button class="btn btn-primary" disabled={!complete || !!work.busy}>{draft?.account ? t('common.save') : t('extensions.accountAdd')}</button>
+            {:else if draft?.result?.ok}
+              <button type="button" class="btn btn-secondary" onclick={test}><Icon name="retry" />{t('extensions.accountTestAgain')}</button>
+              <button class="btn btn-primary" disabled={!!work.busy}>{draft.account ? t('common.save') : t('extensions.accountAdd')}</button>
+            {:else}
+              <button class="btn btn-primary" disabled={!complete || !!draft?.testing}>{draft?.result ? t('extensions.accountTestAgain') : t('extensions.accountTest')}</button>
+            {/if}
           </div>
         </form>
       {/snippet}
       <div class="accounts">
         {#each accounts as a (a.id)}
           {@const values = shownValues(a)}
-          <div class="account" class:editing={draft?.account === a.id}>
+          {@const editing = draft?.account === a.id}
+          {@const check = tests && !editing ? checks[id]?.[a.id] : undefined}
+          {@const done = check && !check.running ? check : undefined}
+          <div class="account" class:editing class:broken={done && !done.ok}>
             <div class="who">
+              {#if check}
+                <span class="state" class:ok={done?.ok} class:err={done && !done.ok}>
+                  {#if done}<Icon name={done.ok ? 'ok' : 'alert'} size={16} />{:else}<StatusIcon status="working" />{/if}
+                </span>
+              {/if}
               <span class="names"><strong>{values[0] ?? a.id}</strong>{#if values.length > 1}<small class="mono">{values.slice(1).join(' · ')}</small>{/if}</span>
-              {#if draft?.account !== a.id}<button class="btn btn-ghost" onclick={() => (draft = { account: a.id, values: { ...a.values } })}>{t('common.edit')}</button>{/if}
+              {#if check?.running}
+                <span class="status-line">{t('extensions.accountChecking')}</span>
+              {:else if done}
+                <span class="status-line">
+                  {#if done.ok}<b>{titleOf(done)}</b>{#if done.detail}<span>· {said(done.detail)}</span>{/if}<i>·</i>{/if}
+                  <i>{t('extensions.accountChecked', { ago: ago(done.at, now) })}</i>
+                </span>
+              {/if}
+              {#if tests && !editing}
+                <button class="icon-btn" title={t('extensions.accountCheckAgain')} aria-label={t('extensions.accountCheckAgain')} disabled={!!check?.running} onclick={() => checkAccount(id, a.id)}><Icon name="retry" /></button>
+              {/if}
+              {#if !editing}<button class="btn btn-ghost" onclick={() => openDraft(a.id, { ...a.values })}>{t('common.edit')}</button>{/if}
             </div>
-            {#if draft?.account === a.id}{@render form()}{/if}
+            {#if done && !done.ok}
+              <div class="problem" role="alert"><strong>{titleOf(done)}</strong>{#if done.detail}{said(done.detail)}{/if}</div>
+            {/if}
+            {#if editing}{@render form()}{/if}
           </div>
         {/each}
         {#if draft && !draft.account}
           <div class="account editing">{@render form()}</div>
         {:else}
-          <button class="new" onclick={() => (draft = { account: null, values: {} })}><Icon name="plus" />{t('extensions.accountNew')}</button>
+          <button class="new" onclick={() => openDraft(null, {})}><Icon name="plus" />{t('extensions.accountNew')}</button>
         {/if}
       </div>
       <p class="hint">{t('extensions.accountsHint')}</p>
@@ -545,6 +625,129 @@
 
   .account.editing {
     box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .account.broken {
+    box-shadow: inset 0 0 0 1px var(--err-border);
+  }
+
+  .state {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 18px;
+    height: 18px;
+  }
+
+  .state.ok {
+    color: var(--ok);
+  }
+
+  .state.err {
+    color: var(--err);
+  }
+
+  .status-line {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    max-width: 50%;
+    overflow: hidden;
+    white-space: nowrap;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .status-line b {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    color: var(--ok-text);
+    font-weight: 500;
+  }
+
+  .status-line i {
+    font-style: normal;
+    color: var(--text-faint);
+  }
+
+  .icon-btn {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 30px;
+    height: 30px;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .icon-btn:hover:not(:disabled) {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+
+  .icon-btn:disabled {
+    opacity: 0.4;
+  }
+
+  .problem {
+    margin: 8px 0 0 30px;
+    padding: 8px 10px;
+    border-radius: 4px;
+    background: var(--err-bg);
+    color: var(--err-muted);
+    font-size: 12px;
+  }
+
+  .problem strong {
+    display: block;
+    color: var(--err-text);
+    font-weight: 600;
+  }
+
+  .result {
+    grid-column: 1 / -1;
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+    padding: 9px 12px;
+    border-radius: 6px;
+    font-size: 12.5px;
+  }
+
+  .result :global(svg) {
+    margin-top: 2px;
+  }
+
+  .result.run {
+    align-items: center;
+    background: var(--surface-2);
+    color: var(--text-2);
+  }
+
+  .result.run :global(svg) {
+    margin: 0 3px;
+  }
+
+  .result.ok {
+    background: var(--ok-bg);
+    box-shadow: inset 0 0 0 1px var(--ok-line);
+    color: var(--ok-text);
+  }
+
+  .result.err {
+    background: var(--err-bg);
+    box-shadow: inset 0 0 0 1px var(--err-border);
+    color: var(--err-text);
+  }
+
+  .edit .result small {
+    display: block;
+    color: var(--err-muted);
+  }
+
+  .edit .result.ok small {
+    color: var(--text-dim);
   }
 
   .who {

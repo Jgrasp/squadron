@@ -134,6 +134,89 @@ pub fn host_of(input: &str) -> Option<String> {
     (host.len() <= 253 && host.contains('.') && host.split('.').all(label)).then_some(host)
 }
 
+#[derive(Debug, PartialEq)]
+pub struct Unfit {
+    pub message: String,
+    pub field: Option<String>,
+}
+
+impl From<&str> for Unfit {
+    fn from(message: &str) -> Self {
+        Unfit {
+            message: message.into(),
+            field: None,
+        }
+    }
+}
+
+impl From<String> for Unfit {
+    fn from(message: String) -> Self {
+        Unfit {
+            message,
+            field: None,
+        }
+    }
+}
+
+fn existing(list: &[Account], account: Option<&str>) -> Result<Option<Account>, String> {
+    account
+        .map(|account| {
+            list.iter()
+                .find(|a| a.id == account)
+                .cloned()
+                .ok_or_else(|| "This account no longer exists.".to_string())
+        })
+        .transpose()
+}
+
+fn filled(
+    fields: &[(String, Kind)],
+    old: Option<&Account>,
+    input: &BTreeMap<String, String>,
+    fresh: impl Fn() -> String,
+) -> Result<(Account, Vec<(String, String)>), Unfit> {
+    let unfit = |message: String, field: &str| Unfit {
+        message,
+        field: Some(field.to_string()),
+    };
+    let mut next = Account {
+        id: old.map_or_else(fresh, |o| o.id.clone()),
+        ..Default::default()
+    };
+    let mut secrets = Vec::new();
+    for (field, kind) in fields {
+        let value = input.get(field).map(|v| v.trim()).unwrap_or_default();
+        match kind {
+            Kind::Secret if value.is_empty() => {
+                if !old.is_some_and(|o| o.secrets.contains(field)) {
+                    return Err(unfit(format!("Fill in the field {field}."), field));
+                }
+                next.secrets.push(field.clone());
+            }
+            Kind::Secret => {
+                secrets.push((field.clone(), value.to_string()));
+                next.secrets.push(field.clone());
+            }
+            _ if value.is_empty() => {
+                return Err(unfit(format!("Fill in the field {field}."), field));
+            }
+            Kind::Host => {
+                let host = host_of(value)
+                    .ok_or_else(|| unfit(format!("{value} is not a site address."), field))?;
+                if next.host.is_some() {
+                    return Err("An account has one host field at most.".into());
+                }
+                next.values.insert(field.clone(), host.clone());
+                next.host = Some(host);
+            }
+            Kind::Text => {
+                next.values.insert(field.clone(), value.to_string());
+            }
+        }
+    }
+    Ok((next, secrets))
+}
+
 #[derive(Serialize, Debug)]
 pub struct Found {
     pub dir: String,
@@ -290,6 +373,38 @@ impl Extensions {
         (!rest.is_empty() && !url.contains(char::is_whitespace)).then(|| url.to_string())
     }
 
+    fn account_spec(&self, id: &str) -> Result<Vec<(String, Kind)>, String> {
+        self.manifest(id)
+            .map(|m| account_fields(&m))
+            .filter(|f| !f.is_empty())
+            .ok_or_else(|| "This extension has no accounts.".into())
+    }
+
+    pub fn checks_accounts(&self, id: &str) -> bool {
+        self.manifest(id)
+            .is_some_and(|m| m["contributes"]["accounts"]["check"] == true)
+    }
+
+    pub fn account_field_ids(&self, id: &str) -> Vec<String> {
+        self.manifest(id)
+            .map(|m| account_fields(&m).into_iter().map(|(f, _)| f).collect())
+            .unwrap_or_default()
+    }
+
+    pub fn trial_account(
+        &self,
+        id: &str,
+        account: Option<&str>,
+        input: &BTreeMap<String, String>,
+    ) -> Result<(Account, BTreeMap<String, String>), Unfit> {
+        let fields = self.account_spec(id).map_err(Unfit::from)?;
+        let list = self.accounts(id);
+        let old = existing(&list, account).map_err(Unfit::from)?;
+        let fresh = || format!("trial-{}", &uuid::Uuid::new_v4().simple().to_string()[..8]);
+        let (next, secrets) = filled(&fields, old.as_ref(), input, fresh)?;
+        Ok((next, secrets.into_iter().collect()))
+    }
+
     pub fn save_account(
         &self,
         id: &str,
@@ -297,58 +412,12 @@ impl Extensions {
         input: &BTreeMap<String, String>,
         keyring: Keyring,
     ) -> Result<String, String> {
-        let fields = self
-            .manifest(id)
-            .map(|m| account_fields(&m))
-            .filter(|f| !f.is_empty())
-            .ok_or("This extension has no accounts.")?;
+        let fields = self.account_spec(id)?;
         let mut choices = self.choices();
         let list = choices.accounts.entry(id.to_string()).or_default();
-        let old = match account {
-            Some(account) => Some(
-                list.iter()
-                    .find(|a| a.id == account)
-                    .cloned()
-                    .ok_or("This account no longer exists.")?,
-            ),
-            None => None,
-        };
-        let mut next = Account {
-            id: old.as_ref().map_or_else(
-                || uuid::Uuid::new_v4().simple().to_string()[..8].to_string(),
-                |o| o.id.clone(),
-            ),
-            ..Default::default()
-        };
-        let mut secrets = Vec::new();
-        for (field, kind) in &fields {
-            let value = input.get(field).map(|v| v.trim()).unwrap_or_default();
-            match kind {
-                Kind::Secret if value.is_empty() => {
-                    if !old.as_ref().is_some_and(|o| o.secrets.contains(field)) {
-                        return Err(format!("Fill in the field {field}."));
-                    }
-                    next.secrets.push(field.clone());
-                }
-                Kind::Secret => {
-                    secrets.push((field.clone(), value.to_string()));
-                    next.secrets.push(field.clone());
-                }
-                _ if value.is_empty() => return Err(format!("Fill in the field {field}.")),
-                Kind::Host => {
-                    let host =
-                        host_of(value).ok_or_else(|| format!("{value} is not a site address."))?;
-                    if next.host.is_some() {
-                        return Err("An account has one host field at most.".into());
-                    }
-                    next.values.insert(field.clone(), host.clone());
-                    next.host = Some(host);
-                }
-                Kind::Text => {
-                    next.values.insert(field.clone(), value.to_string());
-                }
-            }
-        }
+        let old = existing(list, account)?;
+        let fresh = || uuid::Uuid::new_v4().simple().to_string()[..8].to_string();
+        let (next, secrets) = filled(&fields, old.as_ref(), input, fresh).map_err(|u| u.message)?;
         for (field, value) in &secrets {
             keyring(&next.id, field, Some(value))?;
         }
@@ -1061,6 +1130,51 @@ mod tests {
         ]);
         assert!(m.save_account("jira", None, &bad, &keyring).is_err());
         assert!(m.save_account("other", None, &full, &keyring).is_err());
+
+        let before = ring.lock().unwrap().clone();
+        let (trial, secrets) = m
+            .trial_account(
+                "jira",
+                Some(&a),
+                &input(&[
+                    ("site", "https://jira.acme.com"),
+                    ("email", "x@acme.com"),
+                    ("pin", "9"),
+                ]),
+            )
+            .unwrap();
+        assert_eq!(
+            (trial.id.as_str(), trial.host.as_deref()),
+            (a.as_str(), Some("jira.acme.com"))
+        );
+        assert_eq!(trial.secrets, ["token", "pin"]);
+        assert_eq!(
+            secrets,
+            BTreeMap::from([("pin".to_string(), "9".to_string())])
+        );
+        let (fresh, _) = m.trial_account("jira", None, &full).unwrap();
+        assert!(fresh.id.starts_with("trial-") && fresh.id != a);
+        assert_eq!(
+            m.trial_account("jira", None, &bad).unwrap_err(),
+            Unfit {
+                message: "not a host is not a site address.".into(),
+                field: Some("site".into())
+            }
+        );
+        assert_eq!(
+            m.trial_account("jira", None, &edit)
+                .unwrap_err()
+                .field
+                .as_deref(),
+            Some("token")
+        );
+        assert_eq!(*ring.lock().unwrap(), before);
+        assert_eq!(m.accounts("jira").len(), 1);
+        assert!(!m.checks_accounts("jira"));
+        assert_eq!(
+            m.account_field_ids("jira"),
+            ["site", "email", "token", "pin"]
+        );
 
         let b = m.save_account("jira", None, &full, &keyring).unwrap();
         m.remove_account("jira", &b, &keyring).unwrap();

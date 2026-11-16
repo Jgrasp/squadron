@@ -21,7 +21,7 @@
   import ExtensionsDiscover from './ExtensionsDiscover.svelte'
   import ExtensionsManage from './ExtensionsManage.svelte'
   import Icon from './Icon.svelte'
-  import { extensions } from './extensions.svelte'
+  import { brokenAccounts, checkAccounts, extensions } from './extensions.svelte'
   import { nameOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
   import PluginSettings from './PluginSettings.svelte'
   import McpServers from './McpServers.svelte'
@@ -86,6 +86,7 @@
     ],
   ]
   const LISTED = 5
+  untrack(() => extensions.list.forEach((e) => checkAccounts(e, true)))
   let expanded = $state(false)
   const enabled = $derived(sorted(extensions.list.filter((e) => e.enabled)))
   const listed = $derived.by(() => {
@@ -248,7 +249,7 @@
           <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${e.id}`} onclick={() => (ui.settings = `ext:${e.id}`)}>
             <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={16} />
             <span class="name">{nameOf(e)}</span>
-            {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
+            {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if brokenAccounts(e)}<span class="broken" title={t('extensions.accountBroken')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
           </button>
         {/each}
         {#if enabled.length > LISTED}
@@ -600,12 +601,17 @@
     white-space: nowrap;
   }
 
-  .ext .wait {
+  .ext .wait,
+  .ext .broken {
     flex: none;
     width: 7px;
     height: 7px;
     border-radius: 50%;
     background: var(--accent);
+  }
+
+  .ext .broken {
+    background: var(--err);
   }
 
   .ext .tag {

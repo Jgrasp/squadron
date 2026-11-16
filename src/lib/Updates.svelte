@@ -1,14 +1,16 @@
 <script lang="ts">
+  import { getVersion } from '@tauri-apps/api/app'
   import { untrack } from 'svelte'
   import Dialog from './Dialog.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
   import Icon from './Icon.svelte'
   import Markdown from './Markdown.svelte'
   import { ui } from './actions.svelte'
-  import { errorText, list, locale, t } from './i18n/index.svelte'
+  import { errorText, list, locale, number, t } from './i18n/index.svelte'
   import { releasesOf, updatesOf, type CatalogEntry, type Extension } from './extensions'
   import { asks, catalog, commandLine, extensions, install } from './extensions.svelte'
   import { fromOf, nameOf } from './extension-pages.svelte'
+  import { install as installSquadron, update } from './update.svelte'
 
   let { onclose }: { onclose: () => void } = $props()
 
@@ -24,10 +26,19 @@
     }),
   )
 
+  const SQUADRON = ''
+
   let steps = $state<Record<string, Step>>({})
   let open = $state<string | null>(null)
+  let version = $state('')
 
-  const busy = $derived(Object.values(steps).some((s) => s.status === 'busy'))
+  getVersion()
+    .then((v) => (version = v))
+    .catch(() => {})
+
+  const squadron = $derived(update.found)
+  const installed = $derived(extensions.list.filter((e) => e.manifest && !e.linked).length)
+  const busy = $derived(update.progress !== null || Object.values(steps).some((s) => s.status === 'busy'))
   const left = $derived(rows.filter((r) => steps[r.e.id]?.status !== 'done'))
   const asking = $derived(left.filter((r) => r.asking.length))
 
@@ -43,6 +54,7 @@
 
   async function all() {
     for (const row of left) await one(row)
+    if (squadron) await installSquadron()
   }
 
   const notes = (row: Row) => releasesOf(row.entry, row.from)
@@ -56,8 +68,50 @@
 </script>
 
 <Dialog title={t('extensions.updatesTitle')} width={600} {onclose}>
-  <p class="intro">{rows.length ? t('extensions.updatesIntro', { count: rows.length }) : t('extensions.noUpdates')}</p>
+  <p class="intro">
+    {#if rows.length || squadron}
+      {t('extensions.updatesIntro', { count: rows.length + (squadron ? 1 : 0) })}
+    {:else if catalog.error}
+      {t('extensions.catalogError', { error: catalog.error })}
+    {:else if import.meta.env.DEV || !version}
+      {t('extensions.noUpdates')}
+    {:else}
+      {t('extensions.allUpToDate', { version, count: installed })}
+    {/if}
+  </p>
+  {#if catalog.error && (rows.length || squadron)}<p class="intro bad">{t('extensions.catalogError', { error: catalog.error })}</p>{/if}
   <div class="list">
+    {#if squadron}
+      {#if rows.length}<span class="group">Squadron</span>{/if}
+      <div class="row" class:joined={open === SQUADRON}>
+        <span class="brand" aria-hidden="true"><span class="triangle"></span></span>
+        <span class="what">
+          <span class="l1">
+            <strong>Squadron</strong>
+            <span class="version">{squadron.currentVersion}{' → '}<b>{squadron.version}</b></span>
+          </span>
+          {#if update.error}
+            <small class="bad">{update.error}</small>
+          {:else}
+            <small>{t('extensions.squadronRestarts')}</small>
+          {/if}
+        </span>
+        {#if squadron.body}
+          <button class="log" aria-expanded={open === SQUADRON} onclick={() => (open = open === SQUADRON ? null : SQUADRON)}>{t('extensions.whatsNew')}</button>
+        {/if}
+        {#if update.progress !== null}
+          <span class="act busy"><span class="spin" aria-hidden="true"></span>{number(update.progress, { style: 'percent', maximumFractionDigits: 0 })}</span>
+        {:else if update.error}
+          <button class="act retry" disabled={busy} onclick={installSquadron}>{t('common.retry')}</button>
+        {:else}
+          <button class="act go" disabled={busy} onclick={installSquadron}>{t('extensions.updateNow')}</button>
+        {/if}
+      </div>
+      {#if open === SQUADRON && squadron.body}
+        <div class="notes"><Markdown text={squadron.body} /></div>
+      {/if}
+      {#if rows.length}<span class="group">{t('settings.tabExtensions')}</span>{/if}
+    {/if}
     {#each rows as row (row.e.id)}
       {@const step = steps[row.e.id]}
       {@const releases = notes(row)}
@@ -107,7 +161,9 @@
     <button class="link" onclick={manage}>{t('extensions.manageTitle')}</button>
     <span class="grow"></span>
     <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
-    <button class="btn btn-primary" disabled={busy || !left.length} onclick={all}>{t('extensions.updateAll')}</button>
+    {#if left.length || squadron}
+      <button class="btn btn-primary" disabled={busy} onclick={all}>{squadron ? t('extensions.updateAllRestart') : t('extensions.updateAll')}</button>
+    {/if}
   </footer>
 </Dialog>
 
@@ -119,6 +175,11 @@
     font-size: 13px;
   }
 
+  .intro.bad {
+    margin-top: 6px;
+    color: var(--err-text);
+  }
+
   .list {
     display: flex;
     flex-direction: column;
@@ -126,6 +187,36 @@
     max-height: min(520px, calc(100vh - 300px));
     overflow-y: auto;
     padding: 14px 22px 18px;
+  }
+
+  .group {
+    margin: 10px 0 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .group:first-child {
+    margin-top: 0;
+  }
+
+  .brand {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 7px;
+    background: var(--surface-3);
+  }
+
+  .triangle {
+    width: 16px;
+    height: 16px;
+    background: var(--accent);
+    clip-path: polygon(50% 0, 100% 100%, 0 100%);
   }
 
   .row {

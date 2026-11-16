@@ -1,4 +1,4 @@
-use squadron_extension_api::{Agent, Extension, Request, host, squadron_extension};
+use squadron_extension_api::{Account, Agent, Extension, Request, host, squadron_extension};
 
 struct Hello;
 
@@ -37,6 +37,29 @@ fn draft_of(data: &str) -> String {
 fn brief(draft: &str, short: bool) {
     let text = if short { "Say hello." } else { "Say hello, then list the files you would read first." };
     host::update_new_agent(draft, &format!(r#"{{"text":"{text}","goal":"The agent said hello","status":{{"state":"done","text":"Written by Hello"}}}}"#));
+}
+
+fn field(account: &Account, name: &str) -> String {
+    account.fields.iter().find(|(k, _)| k == name).map(|(_, v)| v.clone()).unwrap_or_default()
+}
+
+fn quoted(text: &str) -> String {
+    let mut out = String::from('"');
+    for c in text.chars() {
+        match c {
+            '"' => out.push_str("\\\""),
+            '\\' => out.push_str("\\\\"),
+            c if c.is_control() => out.push_str(&format!("\\u{:04x}", c as u32)),
+            c => out.push(c),
+        }
+    }
+    out.push('"');
+    out
+}
+
+fn value<'a>(body: &'a str, key: &str) -> Option<&'a str> {
+    let rest = body[body.find(&format!(r#""{key}":"#))? + key.len() + 3..].trim_start_matches('"');
+    Some(&rest[..rest.find(['"', ',', '}'])?])
 }
 
 impl Extension for Hello {
@@ -108,6 +131,30 @@ impl Extension for Hello {
                 Ok(answer.body)
             }
             _ => Err(format!("Unknown tool {name}.")),
+        }
+    }
+
+    fn check_account(account: Account) -> Result<String, String> {
+        let api = field(&account, "api");
+        let path = if api == "api.github.com" { "/user" } else { "/api/v3/user" };
+        let answer = host::fetch(&Request {
+            method: "GET".into(),
+            url: format!("https://{api}{path}"),
+            headers: vec![
+                ("Authorization".into(), format!("Bearer {{{{{}.token}}}}", account.id)),
+                ("User-Agent".into(), "squadron-hello".into()),
+            ],
+            body: None,
+        })
+        .map_err(|e| format!(r#"{{"title":{{"en":"Could not reach {api}","fr":"{api} ne répond pas"}},"detail":{},"field":"api"}}"#, quoted(&e)))?;
+        match answer.status {
+            200 => {
+                let login = value(&answer.body, "login").unwrap_or("?");
+                let repos = value(&answer.body, "public_repos").unwrap_or("0");
+                Ok(format!(r#"{{"text":{{"en":"Connected as {login}","fr":"Connecté en tant que {login}"}},"detail":{{"en":"{repos} public repositories","fr":"{repos} dépôts publics"}}}}"#))
+            }
+            401 => Err(r#"{"title":{"en":"GitHub refused this token","fr":"GitHub refuse ce jeton"},"detail":{"en":"It may be wrong, expired or revoked: create a new one and paste it here.","fr":"Il est peut-être faux, expiré ou révoqué : créez-en un nouveau et collez-le ici."},"field":"token"}"#.into()),
+            status => Err(format!(r#"{{"title":{{"en":"GitHub answered {status}","fr":"GitHub a répondu {status}"}}}}"#)),
         }
     }
 }

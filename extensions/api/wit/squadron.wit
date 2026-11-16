@@ -1,4 +1,4 @@
-package squadron:api@1.5.0;
+package squadron:api@1.6.0;
 
 interface types {
   /// The agent a call is about.
@@ -122,7 +122,8 @@ interface host {
   update-new-agent: func(id: string, draft: string);
 }
 
-world squadron-extension {
+/// The exports every version of the API has. Squadron binds to it, so that an extension built before 1.6.0 still loads.
+world squadron-core {
   use types.{agent};
   import host;
 
@@ -132,4 +133,12 @@ world squadron-extension {
   export run: func(action: string, agent: option<agent>) -> result<_, string>;
   /// An agent called one of the extension's tools that has no `command`. `input` is JSON.
   export call-tool: func(name: string, input: string, agent: option<agent>) -> result<string, string>;
+}
+
+world squadron-extension {
+  use types.{account};
+  include squadron-core;
+
+  /// Tests an account, from `contributes.accounts` with `"check": true`: when the user clicks Test the connection, with an account that is not saved yet, and when the extension's page opens, with each saved one. While it runs, `{{<account.id>.<field>}}` in `fetch` gives its fields and secrets, and its `host` field is reachable; `accounts` does not list an account that is not saved. `ok` is JSON or a plain text: `{ "text": "Connected as Ada", "detail": "12 projects" }`. `err` likewise: `{ "title": "…", "detail": "…", "field": "<field id>" }`, `field` marking the field to fix. Texts are strings or `{ "en": "…", "fr": "…" }`. Since 1.6.0.
+  export check-account: func(account: account) -> result<string, string>;
 }
