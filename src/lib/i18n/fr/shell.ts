@@ -17,6 +17,8 @@ export default {
   pinNamed: 'Épingler {name} à la barre d’onglets',
   pinToTabBar: 'Épingler à la barre d’onglets',
   unpinFromTabBar: 'Détacher de la barre d’onglets',
+  removeFromTabBar: 'Retirer de la barre d’onglets',
+  showInTabBar: 'Remettre dans la barre d’onglets',
   reorderTabs: 'Réordonner et épingler les onglets…',
   addProject: 'Ajouter un projet',
   todayTitle: 'Coût du jour, tous agents confondus',

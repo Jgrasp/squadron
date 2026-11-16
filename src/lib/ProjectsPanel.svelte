@@ -162,6 +162,12 @@
     if (first) act(() => Promise.all(paths.map((path) => editProject(path, { pinned: !first.pinned }))))
   }
 
+  function hide(paths: string[]) {
+    menu = null
+    const first = projects.list.find((p) => p.path === paths[0])
+    if (first) act(() => Promise.all(paths.map((path) => editProject(path, { tab_hidden: !first.tab_hidden }))))
+  }
+
   function context(event: MouseEvent, row: Row | null) {
     event.preventDefault()
     event.stopPropagation()
@@ -480,6 +486,10 @@
       <button role="menuitem" onclick={() => pin(paths)}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
         {row.project.pinned ? t('shell.unpinFromTabBar') : t('shell.pinToTabBar')}
+      </button>
+      <button role="menuitem" onclick={() => hide(paths)}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
+        {row.project.tab_hidden ? t('shell.showInTabBar') : t('shell.removeFromTabBar')}
       </button>
       <span class="rule" aria-hidden="true"></span>
       <span class="section">{t('shell.groupMoveTo')}</span>

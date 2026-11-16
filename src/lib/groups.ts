@@ -72,13 +72,14 @@ export const HOURS = 3_600_000
 export const ALWAYS = 4_294_967_295
 
 export function inBar(
-  project: Pick<Project, 'path' | 'pinned'>,
+  project: Pick<Project, 'path' | 'pinned'> & Partial<Pick<Project, 'tab_hidden'>>,
   current: string,
   activity: { busy: boolean; last: number },
   now: number,
   hours: number,
 ) {
   if (project.pinned || project.path === current) return true
+  if (project.tab_hidden) return false
   if (hours === ALWAYS) return true
   if (hours <= 0) return false
   return activity.busy || (activity.last > 0 && now - activity.last < hours * HOURS)

@@ -328,6 +328,11 @@ fn edit_project(
         }
         if let Some(pinned) = changes.pinned {
             project.pinned = pinned;
+            project.tab_hidden &= !pinned;
+        }
+        if let Some(hidden) = changes.tab_hidden {
+            project.tab_hidden = hidden;
+            project.pinned &= !hidden;
         }
         if let Some(archived) = changes.archived {
             project.archived = archived;
@@ -534,13 +539,22 @@ impl Settings {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));
         }
         if !["background", "always", "never"].contains(&config.notify_when.as_str()) {
-            return Err(format!("Unknown notification moment: {}", config.notify_when));
+            return Err(format!(
+                "Unknown notification moment: {}",
+                config.notify_when
+            ));
         }
         if !["all", "failures", "never"].contains(&config.notify_runs.as_str()) {
-            return Err(format!("Unknown pipeline notification: {}", config.notify_runs));
+            return Err(format!(
+                "Unknown pipeline notification: {}",
+                config.notify_runs
+            ));
         }
         if !["keep", "skip", "background"].contains(&config.notify_remote.as_str()) {
-            return Err(format!("Unknown remote notification: {}", config.notify_remote));
+            return Err(format!(
+                "Unknown remote notification: {}",
+                config.notify_remote
+            ));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
@@ -951,6 +965,19 @@ fn open_artifact_folder(agent: String, id: String) -> Result<(), String> {
 #[tauri::command]
 fn save_text_file(path: PathBuf, text: String) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
+fn download_attachment(path: PathBuf, to: PathBuf) -> Result<(), String> {
+    if !std::fs::metadata(&path)
+        .map_err(|_| "The file is gone.")?
+        .is_file()
+    {
+        return Err("The file is gone.".into());
+    }
+    std::fs::copy(&path, &to)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
@@ -2637,6 +2664,7 @@ pub fn run() {
             read_project_file,
             write_project_file,
             save_text_file,
+            download_attachment,
             artifacts_dir,
             list_artifacts,
             read_artifact,
@@ -2936,8 +2964,14 @@ mod tests {
 
     #[test]
     fn pipeline_notifications_carry_over_from_runs_notify() {
-        assert_eq!(read_config(r#"{"runs_notify":true}"#).unwrap().notify_runs, "all");
-        assert_eq!(read_config(r#"{"runs_notify":false}"#).unwrap().notify_runs, "never");
+        assert_eq!(
+            read_config(r#"{"runs_notify":true}"#).unwrap().notify_runs,
+            "all"
+        );
+        assert_eq!(
+            read_config(r#"{"runs_notify":false}"#).unwrap().notify_runs,
+            "never"
+        );
         assert_eq!(read_config("{}").unwrap().notify_runs, "failures");
         let kept = r#"{"runs_notify":true,"notify_runs":"failures"}"#;
         assert_eq!(read_config(kept).unwrap().notify_runs, "failures");
@@ -2952,7 +2986,10 @@ mod tests {
         let file = dir.join("settings.json");
         std::fs::write(&file, "{ broken").unwrap();
         let settings = Settings::load(file.clone());
-        assert_eq!(std::fs::read_to_string(dir.join("settings.json.bak")).unwrap(), "{ broken");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("settings.json.bak")).unwrap(),
+            "{ broken"
+        );
         let config = settings.config.lock().unwrap().clone();
         settings.save(config).unwrap();
         assert!(read_config(&std::fs::read_to_string(&file).unwrap()).is_ok());

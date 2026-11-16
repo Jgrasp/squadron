@@ -1,5 +1,23 @@
 # Nouveautés
 
+## 0.50.0 · 2026-11-16
+
+### Conversation
+
+- Un clic droit sur une carte de fichier dans une conversation propose « Télécharger… » pour en enregistrer une copie.
+
+### Projets
+
+- Un clic droit sur un onglet de projet propose « Retirer de la barre d’onglets », qui sort le projet de la barre sans l’archiver.
+
+### Pull requests
+
+- Vos nouvelles pull requests GitHub proposent « Fusionner » dans leur diff tout de suite, avant que GitHub ne les liste dans sa recherche.
+
+### Mises à jour
+
+- La mise à jour propose toujours la version la plus récente, même quand une release plus ancienne finit de se construire après elle.
+
 ## 0.49.0 · 2026-11-16
 
 ### Extensions
