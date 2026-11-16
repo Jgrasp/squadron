@@ -412,10 +412,16 @@
     {/each}
   </div>
 
-  <button class="add" onclick={() => ((ui.projects = false), (ui.adding = ''))}>
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
-    {t('shell.addProject')}
-  </button>
+  <div class="adds">
+    <button class="add" onclick={() => ((ui.projects = false), (ui.adding = ''))}>
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+      {t('shell.addProject')}
+    </button>
+    <button class="add" onclick={() => create('')}>
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2zM12 10.5v5M9.5 13h5" /></svg>
+      {t('shell.groupNew')}
+    </button>
+  </div>
 
   <div class="grab" role="separator" aria-orientation="vertical" aria-label={t('shell.projectsResize')} onpointerdown={resize}><i></i></div>
 </aside>
@@ -810,8 +816,14 @@
     font-weight: 800;
   }
 
-  .add {
+  .adds {
     flex: none;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px;
+  }
+
+  .add {
     height: 34px;
     display: flex;
     align-items: center;
