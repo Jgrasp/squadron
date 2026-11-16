@@ -212,10 +212,9 @@
 
 {#snippet card(agent: Agent)}
   <span class="line">
+    <StatusIcon status={look(agent)} />
     {#if agent.review}
       <span class="prnum" title={t('review.reviewingTitle', { number: String(agent.review.number) })}><Icon name="pull" size={11} />{agent.review.number}</span>
-    {:else}
-      <StatusIcon status={look(agent)} />
     {/if}
     {#if editing === agent.id}
       <!-- svelte-ignore a11y_autofocus -->

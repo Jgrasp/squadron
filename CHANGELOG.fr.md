@@ -1,5 +1,23 @@
 # Nouveautés
 
+## 0.48.0 · 2026-11-16
+
+### Projets
+
+- Dans le panneau Projets, un projet se glisse à sa place dans son groupe : une ligne cuivre montre où il atterrit, et le déposer sur un projet d’un autre groupe l’y place à cet endroit.
+
+### Conversation
+
+- Un long lien dans le champ de message s’affiche en puce coupée à la largeur du champ au lieu de faire défiler le champ de côté.
+
+### Agents
+
+- Un agent qui relit une pull request affiche son indicateur d’activité dans la liste des agents, à côté du numéro de la pull request.
+
+### Mises à jour
+
+- La barre d’état prévient quand le Claude Code installé n’est pas la version avec laquelle ce Squadron a été testé, désormais 2.1.310, et son infobulle indique la version testée.
+
 ## 0.47.0 · 2026-11-16
 
 ### Notifications

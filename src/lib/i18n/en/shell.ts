@@ -124,6 +124,8 @@ export default {
   downloading: 'Downloading {version}… {percent}',
   updateFailed: 'Update failed · retry',
   extensionUpdates: { one: '{count} extension update', other: '{count} extension updates' },
+  claudeUntested: 'untested',
+  claudeUntestedTitle: 'This Squadron was tested with Claude Code {tested}. Another version can change what agents send back and break a conversation.',
   updateAvailable: 'Squadron {version} is available · Update',
   limitSession: 'Session',
   limitSessionHint: 'Current 5-hour window of your Claude plan',

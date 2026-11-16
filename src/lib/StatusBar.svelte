@@ -9,16 +9,33 @@
   import ExtensionUpdates from './ExtensionUpdates.svelte'
   import { updatesOf } from './extensions'
   import { catalog, extensions } from './extensions.svelte'
+  import { settings } from './settings.svelte'
 
   type Load = { cpu: number; used: number; total: number }
 
   let load = $state<Load | null>(null)
   let version = $state('')
   let updating = $state(false)
+  let claude = $state('')
+  let tested = $state('')
 
   const extensionUpdates = $derived(updatesOf(extensions.list, catalog.entries ?? [], extensions.origins).length)
 
+  $effect(() => {
+    const path = settings.claude
+    const check = () =>
+      invoke<string>('claude_version', { path })
+        .then((v) => (claude = v.split(' ')[0]))
+        .catch(() => (claude = ''))
+    check()
+    const timer = setInterval(check, 600_000)
+    return () => clearInterval(timer)
+  })
+
   onMount(() => {
+    invoke<string>('tested_claude_version')
+      .then((v) => (tested = v))
+      .catch(() => {})
     getVersion()
       .then((v) => (version = v))
       .catch(() => {})
@@ -52,6 +69,9 @@
 
 <footer class="status">
   {#if version}<span class="item">Squadron <span class="mono">{version}</span></span>{/if}
+  {#if claude && tested && claude !== tested}
+    <span class="item" title={t('shell.claudeUntestedTitle', { tested })}>Claude Code <span class="mono">{claude}</span><span class="untested">{t('shell.claudeUntested')}</span></span>
+  {/if}
   {#if load}
     <span class="item" title={t('shell.processorLoad')}>
       {t('shell.cpu')} {@render meter(load.cpu / 100)}<span class="mono">{percent(load.cpu / 100)}</span>
@@ -127,6 +147,10 @@
     color: var(--accent-ink);
     font-size: 11.5px;
     font-weight: 600;
+  }
+
+  .untested {
+    color: var(--err-text);
   }
 
   .spacer {
