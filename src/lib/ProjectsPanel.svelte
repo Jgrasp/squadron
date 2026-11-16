@@ -291,23 +291,24 @@
       </div>
     {:else}
       {@const sum = inside(row.id)}
-      <button
-        class="row g"
-        class:target={over === row.id}
-        class:dim={drag?.group && drag.ids[0] === row.id}
-        data-drop={row.id}
-        style:--depth={depth}
-        aria-expanded={!row.folded}
-        aria-label={row.folded ? t('shell.groupUnfold', { name: row.name }) : t('shell.groupFold', { name: row.name })}
-        onpointerdown={(e) => down(e, row)}
-        onclick={() => toggle(row.id)}
-        oncontextmenu={(e) => context(e, row)}
-      >
-        {@render chevron(!row.folded)}
-        <span class="nm">{row.name}</span>
-        <span class="n">{count(row.id)}</span>
-        {@render tail(row.folded || searching ? sum : { working: sum.working, waiting: 0, failed: 0 })}
-      </button>
+      <div class="row g" class:target={over === row.id} class:dim={drag?.group && drag.ids[0] === row.id} class:open={menu?.row?.kind === 'group' && menu.row.id === row.id} data-drop={row.id} style:--depth={depth}>
+        <button
+          class="fold"
+          aria-expanded={!row.folded}
+          aria-label={row.folded ? t('shell.groupUnfold', { name: row.name }) : t('shell.groupFold', { name: row.name })}
+          onpointerdown={(e) => down(e, row)}
+          onclick={() => toggle(row.id)}
+          oncontextmenu={(e) => context(e, row)}
+        >
+          {@render chevron(!row.folded)}
+          <span class="nm">{row.name}</span>
+          <span class="n">{count(row.id)}</span>
+          {@render tail(row.folded || searching ? sum : { working: sum.working, waiting: 0, failed: 0 })}
+        </button>
+        <button class="plus" aria-label={t('shell.groupNewIn')} title={t('shell.groupNewIn')} onclick={() => create(row.id)}>
+          <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+        </button>
+      </div>
     {/if}
   {:else}
     {@const at = visible.indexOf(row)}
@@ -685,8 +686,24 @@
     opacity: 0;
   }
 
+  .row.g:not(.editing) {
+    gap: 2px;
+    padding: 0 5px 0 0;
+  }
+
+  .row.g .fold {
+    padding-left: calc(8px + var(--depth) * 16px);
+    color: inherit;
+  }
+
+  .row.g.open {
+    background: var(--surface-2);
+  }
+
   .bh:hover .plus,
   .bh.open .plus,
+  .row.g:hover .plus,
+  .row.g.open .plus,
   .plus:focus-visible {
     opacity: 1;
   }
