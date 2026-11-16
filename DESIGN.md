@@ -219,6 +219,7 @@ Marque à gauche, puis bouton 30px du panneau Projets (`--surface-5` actif). Ong
 
 ### Conversation
 - **Message utilisateur** : bulle claire à droite, 540px max, padding 12px 16px.
+- **Message pas encore lu** : sous la bulle, ligne 11,5px `--text-dim` (comme « Sent via remote control ») tant que Claude Code ne l'a pas pris pendant une action, suivie du lien « Stop it and read now » 600 `--accent-link` (`--accent-soft` au survol) qui interrompt l'action en cours.
 - **Réponse de l'agent** : bloc `--surface-1`, padding 16px 18px, rayon 6px, espacement 12px. Markdown 1,65 ; code en ligne `--surface-3`, mono 12,5px, padding 1px 6px.
 - **Retour en haut** : sous une réponse plus haute qu'une fois et demie la conversation, filet `--border`, padding-top 12px, puis « Back to top » en `.btn-ghost` 28px aligné à droite, qui fait défiler jusqu'au début du bloc.
 - **Résumé replié** (réflexion, groupe d'actions) : 12,5px `--text-muted`, chevron dans un carré 18px `--surface-3`.

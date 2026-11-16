@@ -286,6 +286,10 @@ impl Session {
                         } = &event
                             && take(&mut own.lock().unwrap(), uuid)
                         {
+                            on_event(
+                                &json!({"type": "squadron_read", "uuid": uuid}).to_string(),
+                                Event::Other,
+                            );
                             continue;
                         }
                         on_event(&line, event);
@@ -324,11 +328,11 @@ impl Session {
             .collect()
     }
 
-    pub fn send(&mut self, text: &str) -> io::Result<()> {
+    pub fn send(&mut self, text: &str) -> io::Result<String> {
         self.send_content(json!(text))
     }
 
-    pub fn send_content(&mut self, content: Value) -> io::Result<()> {
+    pub fn send_content(&mut self, content: Value) -> io::Result<String> {
         let uuid = uuid::Uuid::new_v4().to_string();
         self.sent
             .lock()
@@ -339,7 +343,7 @@ impl Session {
         writeln!(self.stdin, "{message}")?;
         self.stdin.flush()?;
         self.busy.store(true, Ordering::SeqCst);
-        Ok(())
+        Ok(uuid)
     }
 
     /// Changes the permission mode or the model of the running session, or interrupts its turn; the effort has no such request.
@@ -514,21 +518,22 @@ mod tests {
 
     #[test]
     fn keeps_the_messages_claude_has_not_read() {
+        let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
             fake_claude(
                 r#"read -r l; printf '%s\n' "$l" | sed 's/"type":"user"/"type":"user","isReplay":true/'; exec sleep 30"#,
                 "",
             ),
-            |_, _| {},
+            move |line, _| tx.send(line.to_string()).unwrap(),
             |_| {},
         )
         .unwrap();
-        session.send("read").unwrap();
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while !session.sent.lock().unwrap().is_empty() {
-            assert!(std::time::Instant::now() < deadline);
-            thread::sleep(Duration::from_millis(20));
-        }
+        let uuid = session.send("read").unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            json!({"type": "squadron_read", "uuid": uuid}).to_string()
+        );
+        assert!(session.sent.lock().unwrap().is_empty());
         session.send("second").unwrap();
         session
             .send_content(json!([{"type": "text", "text": "third"}]))

@@ -35,6 +35,7 @@ import {
   newAgent,
   notice,
   prompt,
+  queue,
   reloaded,
   running,
   starting,
@@ -410,7 +411,8 @@ async function resume(agent: Agent) {
 
 function tidy(entries: Entry[]) {
   for (const e of entries)
-    if (e.kind === 'shell' && e.state === 'running') {
+    if (e.kind === 'user') delete e.queued
+    else if (e.kind === 'shell' && e.state === 'running') {
       e.state = 'stopped'
       delete e.pty
       if (e.sudo) e.sudo = true
@@ -834,21 +836,31 @@ export async function send(id: string, text: string, comments: Comment[] = [], f
   if (!agent) return
   if (onDisk.has(id)) await ensureLoaded(agent)
   if (agent.autoName && text.trim() && !agent.entries.some((e) => e.kind === 'user')) entitle(agent, text)
+  const busy = agent.status === 'working' && !agent.held
   userMessage(agent, text, comments, files, from)
-  if (hint) {
-    const entry = agent.entries.at(-1)
-    if (entry?.kind === 'user') entry.squadron = true
-  }
+  const entry = agent.entries.at(-1)!
+  if (hint && entry.kind === 'user') entry.squadron = true
   agent.guess = ''
   persist(agent)
   const said = [take(agent), from ? `Message from the agent “${from}”, sent with the user's approval:\n\n${prompt(text, comments)}` : prompt(text, comments), hint]
     .filter(Boolean)
     .join('\n\n')
   try {
-    await invoke('send_message', { id, text: said, files })
+    const uuid = await invoke<string>('send_message', { id, text: said, files })
+    if (busy) queue(entry, uuid)
   } catch (e) {
     fail(agent, String(e))
   }
+}
+
+export async function readNow(id: string) {
+  const agent = find(id)
+  if (!agent || agent.status !== 'working' || agent.held) return
+  agent.cutting = true
+  agent.asks = []
+  agent.attention = ''
+  await invoke('stop_turn', { id })
+  await invoke('cancel_permissions', { agent: id })
 }
 
 export async function retry(id: string) {

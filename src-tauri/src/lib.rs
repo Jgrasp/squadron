@@ -1448,7 +1448,8 @@ fn create_agent(
         return Ok(());
     }
     let content = attach::content(&text, &files)?;
-    agents.send(&app, &settings.claude(), &id, content)
+    agents.send(&app, &settings.claude(), &id, content)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -2104,7 +2105,7 @@ fn send_message(
     id: String,
     text: String,
     files: Option<Vec<PathBuf>>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let content = attach::content(&text, &files.unwrap_or_default())?;
     agents.send(&app, &settings.claude(), &id, content)
 }
@@ -2347,7 +2348,8 @@ fn resume_agent(
     id: String,
     content: Value,
 ) -> Result<(), String> {
-    agents.send(&app, &settings.claude(), &id, content)
+    agents.send(&app, &settings.claude(), &id, content)?;
+    Ok(())
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]

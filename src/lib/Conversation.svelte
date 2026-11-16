@@ -2,7 +2,7 @@
   import { copyText } from './clipboard'
   import { ticketBlocks } from './ticketBlocks'
   import { SvelteSet } from 'svelte/reactivity'
-  import { clock, forkPoint, SSH_KEY, SUDO, VALUES } from './agents.svelte'
+  import { clock, forkPoint, readNow, SSH_KEY, SUDO, VALUES } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
   import Attachment from './Attachment.svelte'
   import CommentChip from './CommentChip.svelte'
@@ -383,6 +383,7 @@ import { fences } from './codepaste'
       <div class="link-cards">{#each cards as url (url)}{#if isPullLink(url)}<PullCard {url} />{:else}<LinkCard {url} />{/if}{/each}</div>
     {/if}
     {#if entry.remote}<span class="via"><span class="dot" aria-hidden="true"></span>{t('conversation.sentRemote', { time: time(entry.at) })}</span>{/if}
+    {#if entry.queued && working}<span class="via">{t('conversation.queued')}<button class="link" title={t('conversation.readNowHint')} onclick={() => readNow(agent.id)}>{t('conversation.readNow')}</button></span>{/if}
   {:else if entry.kind === 'shell'}
     <ShellCard {entry} {onreplay} {onterminal} />
   {:else if entry.kind === 'agent'}
@@ -800,6 +801,15 @@ import { fences } from './codepaste'
     gap: 6px;
     font-size: 11.5px;
     color: var(--text-dim);
+  }
+
+  .via .link {
+    font-weight: 600;
+    color: var(--accent-link);
+  }
+
+  .via .link:hover {
+    color: var(--accent-soft);
   }
 
   .via .dot {

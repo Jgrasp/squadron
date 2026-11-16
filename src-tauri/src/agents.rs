@@ -241,7 +241,7 @@ impl Agents {
         program: &str,
         id: &str,
         content: Value,
-    ) -> Result<(), String> {
+    ) -> Result<String, String> {
         let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Unknown agent.")?;
         send(self, app, program, id, agent, content)
@@ -446,7 +446,7 @@ fn send(
     id: &str,
     agent: &mut Agent,
     content: Value,
-) -> Result<(), String> {
+) -> Result<String, String> {
     if agent.stale && !agent.session.as_ref().is_some_and(Session::busy) {
         if let Some(session) = agent.session.take() {
             let _ = session.stop();
