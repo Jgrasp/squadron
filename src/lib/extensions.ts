@@ -27,7 +27,7 @@ export const FIELD_KINDS = ['text', 'host', 'secret'] as const
 
 export type AccountField = { id: string; label: Text; hint?: Text; url?: string; kind?: (typeof FIELD_KINDS)[number] }
 
-export type Accounts = { label: Text; fields: AccountField[] }
+export type Accounts = { label: Text; fields: AccountField[]; check?: boolean }
 
 export type Account = { id: string; values: Record<string, string>; host: string | null; secrets: string[] }
 
@@ -161,7 +161,7 @@ function settingsProblems(value: unknown): Problem[] {
 const helpOk = (f: Record<string, unknown>) => (f.hint === undefined || isText(f.hint)) && (f.url === undefined || isHttps(f.url))
 
 function accountsOk(value: unknown) {
-  if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length) return false
+  if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length || (value.check !== undefined && typeof value.check !== 'boolean')) return false
   const fields = value.fields
   if (!fields.every((f) => isObject(f) && typeof f.id === 'string' && ID.test(f.id) && isText(f.label) && helpOk(f) && (f.kind === undefined || (FIELD_KINDS as readonly unknown[]).includes(f.kind))))
     return false
@@ -243,6 +243,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
       problems.push(['extensions.badSecrets'])
     else if (new Set(secrets.map((s) => s.id)).size < secrets.length) problems.push(['extensions.badSecrets'])
     if (contributes.accounts !== undefined && !accountsOk(contributes.accounts)) problems.push(['extensions.badAccounts'])
+    else if (isObject(contributes.accounts) && contributes.accounts.check === true && !wasm) problems.push(['extensions.checkNeedsWasm'])
     if (contributes.settings !== undefined) problems.push(...settingsProblems(contributes.settings))
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))

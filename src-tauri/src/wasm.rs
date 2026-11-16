@@ -1,16 +1,16 @@
 use crate::extension_tools;
 use serde::Deserialize;
-use serde_json::{Value, json};
+use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
-use wasmtime::component::{Component, HasSelf, Linker, ResourceTable};
+use wasmtime::component::{Component, HasSelf, Linker, ResourceTable, TypedFunc};
 use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
 use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 
-wasmtime::component::bindgen!({ path: "../extensions/api/wit", world: "squadron-extension" });
+wasmtime::component::bindgen!({ path: "../extensions/api/wit", world: "squadron-core" });
 
 use crate::extensions::Account as Stored;
 use squadron::api::types::{
@@ -55,6 +55,30 @@ impl Default for Hooks {
 }
 
 type Answers = Arc<Mutex<HashMap<String, mpsc::Sender<Result<Value, String>>>>>;
+
+type CheckAccount = TypedFunc<(Account,), (Result<String, String>,)>;
+
+pub struct Trial {
+    pub account: Stored,
+    pub secrets: BTreeMap<String, String>,
+}
+
+impl Trial {
+    fn secret(&self, key: &str) -> Option<String> {
+        let (account, field) = key.split_once('.')?;
+        (account == self.account.id)
+            .then(|| self.secrets.get(field).cloned())
+            .flatten()
+    }
+}
+
+fn with_trial(mut accounts: Vec<Stored>, trial: Option<&Trial>) -> Vec<Stored> {
+    if let Some(trial) = trial {
+        accounts.retain(|a| a.id != trial.account.id);
+        accounts.push(trial.account.clone());
+    }
+    accounts
+}
 
 #[derive(Deserialize, Clone, Debug)]
 pub struct AgentInfo {
@@ -120,6 +144,7 @@ enum Job {
         Option<Agent>,
         mpsc::Sender<Result<String, String>>,
     ),
+    Check(Trial, mpsc::Sender<Result<Result<String, String>, String>>),
     Allow(Vec<String>),
     Timer,
 }
@@ -143,6 +168,7 @@ struct Host {
     answers: Answers,
     timer: Option<Instant>,
     hooks: Hooks,
+    trial: Option<Trial>,
 }
 
 impl WasiView for Host {
@@ -219,8 +245,12 @@ impl Host {
 
     fn send(&self, request: Request, max: usize, timeout: Duration) -> Result<Sent, String> {
         let id = self.id.clone();
-        let accounts = (self.hooks.accounts)(&self.id);
+        let trial = self.trial.as_ref();
+        let accounts = with_trial((self.hooks.accounts)(&self.id), trial);
         send(&self.allowed, &accounts, request, max, timeout, |key| {
+            if let Some(value) = trial.and_then(|t| t.secret(key)) {
+                return Ok(Some(value));
+            }
             let key = match key.split_once('.') {
                 Some((account, field)) => account_key(&id, account, field)?,
                 None => secret_key(&id, key)?,
@@ -672,15 +702,63 @@ fn instantiate(
     engine: &Engine,
     component: &Component,
     host: Host,
-) -> wasmtime::Result<(Store<Host>, SquadronExtension)> {
+) -> wasmtime::Result<(Store<Host>, SquadronCore, Option<CheckAccount>)> {
     let mut linker = Linker::<Host>::new(engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
-    SquadronExtension::add_to_linker::<_, HasSelf<_>>(&mut linker, |h| h)?;
+    SquadronCore::add_to_linker::<_, HasSelf<_>>(&mut linker, |h| h)?;
     let mut store = Store::new(engine, host);
     store.limiter(|h| &mut h.limits);
     store.set_fuel(FUEL)?;
-    let bindings = SquadronExtension::instantiate(&mut store, component, &linker)?;
-    Ok((store, bindings))
+    let instance = linker.instantiate(&mut store, component)?;
+    let bindings = SquadronCore::new(&mut store, &instance)?;
+    let check = instance
+        .get_typed_func::<(Account,), (Result<String, String>,)>(&mut store, "check-account")
+        .ok();
+    Ok((store, bindings, check))
+}
+
+pub const NO_CHECK: &str = "This extension does not export check-account. Build it against squadron_extension_api 1.6.0 or later.";
+
+fn text_of(value: &Value) -> Option<Value> {
+    match value {
+        Value::String(s) if !s.trim().is_empty() => Some(json!(s.trim())),
+        Value::Object(o) => {
+            let texts: Map<String, Value> = o
+                .iter()
+                .filter_map(|(k, v)| Some((k.clone(), json!(v.as_str()?.trim()))))
+                .filter(|(_, v)| v.as_str().is_some_and(|s| !s.is_empty()))
+                .collect();
+            texts.contains_key("en").then_some(Value::Object(texts))
+        }
+        _ => None,
+    }
+}
+
+pub fn verdict(answer: Result<Result<String, String>, String>, fields: &[String]) -> Value {
+    let (fine, raw) = match answer {
+        Err(problem) => {
+            return json!({"ok": false, "title": null, "detail": problem, "field": null});
+        }
+        Ok(Ok(raw)) => (true, raw),
+        Ok(Err(raw)) => (false, raw),
+    };
+    let parsed = serde_json::from_str::<Value>(&raw).unwrap_or(Value::String(raw));
+    let Value::Object(o) = parsed else {
+        return json!({"ok": fine, "title": text_of(&parsed), "detail": null, "field": null});
+    };
+    let ok = o.get("ok").and_then(Value::as_bool).unwrap_or(fine);
+    let main = if ok {
+        ["text", "title"]
+    } else {
+        ["title", "text"]
+    };
+    let title = main.iter().find_map(|k| o.get(*k).and_then(text_of));
+    let detail = o.get("detail").and_then(text_of);
+    let field = o
+        .get("field")
+        .and_then(Value::as_str)
+        .filter(|f| !ok && fields.iter().any(|known| known == f));
+    json!({"ok": ok, "title": title, "detail": detail, "field": field})
 }
 
 pub struct Runtime {
@@ -811,6 +889,7 @@ impl Runtime {
             answers: answers.clone(),
             timer: None,
             hooks: hooks.clone(),
+            trial: None,
         };
         let (ready_tx, ready_rx) = mpsc::channel();
         let (tx, rx) = mpsc::channel::<Job>();
@@ -827,7 +906,7 @@ impl Runtime {
                 let Some(next) = job.take().or_else(|| wait(&rx, timer)) else {
                     break;
                 };
-                let (store, bindings) = &mut current;
+                let (store, bindings, check) = &mut current;
                 let _ = store.set_fuel(FUEL);
                 let failure = match next {
                     Job::Allow(list) => {
@@ -846,6 +925,32 @@ impl Runtime {
                         .call_on_event(&mut *store, &name, agent.as_ref(), &data)
                         .err()
                         .map(trapped),
+                    Job::Check(trial, reply) => match check {
+                        None => {
+                            let _ = reply.send(Err(NO_CHECK.into()));
+                            None
+                        }
+                        Some(check) => {
+                            let account = Account {
+                                id: trial.account.id.clone(),
+                                fields: trial.account.values.clone().into_iter().collect(),
+                            };
+                            store.data_mut().trial = Some(trial);
+                            let out = check.call(&mut *store, (account,));
+                            store.data_mut().trial = None;
+                            match out {
+                                Ok((result,)) => {
+                                    let _ = reply.send(Ok(result));
+                                    None
+                                }
+                                Err(e) => {
+                                    let e = trapped(e);
+                                    let _ = reply.send(Err(e.clone()));
+                                    Some(e)
+                                }
+                            }
+                        }
+                    },
                     Job::Run(action, agent, reply) => {
                         match bindings.call_run(&mut *store, &action, agent.as_ref()) {
                             Ok(result) => {
@@ -926,6 +1031,16 @@ impl Runtime {
         let (reply, answer) = mpsc::channel();
         self.sender(id)?
             .send(Job::Run(action.into(), agent.map(Agent::from), reply))
+            .map_err(|_| "The extension stopped.".to_string())?;
+        answer
+            .recv_timeout(ANSWER)
+            .map_err(|_| "The extension did not answer.".to_string())?
+    }
+
+    pub fn check(&self, id: &str, trial: Trial) -> Result<Result<String, String>, String> {
+        let (reply, answer) = mpsc::channel();
+        self.sender(id)?
+            .send(Job::Check(trial, reply))
             .map_err(|_| "The extension stopped.".to_string())?;
         answer
             .recv_timeout(ANSWER)
@@ -1057,6 +1172,24 @@ mod tests {
             r#"{"count":"4"}"#
         );
 
+        let unreachable = runtime.check(
+            "hello",
+            Trial {
+                account: Stored {
+                    id: "trial-1".into(),
+                    values: [("api".to_string(), "nowhere.invalid".to_string())].into(),
+                    host: Some("nowhere.invalid".into()),
+                    secrets: vec!["token".into()],
+                },
+                secrets: [("token".to_string(), "t0k".to_string())].into(),
+            },
+        );
+        let answer = verdict(unreachable, &["api".into(), "token".into()]);
+        assert_eq!(answer["ok"], false);
+        assert_eq!(answer["field"], "api");
+        assert_eq!(answer["title"]["en"], "Could not reach nowhere.invalid");
+        assert!(!answer["detail"].as_str().unwrap().contains("t0k"));
+
         let restarted = Runtime::new(states, |_| {}).unwrap();
         assert!(restarted.sync(vec![spec(vec![])]).is_empty());
         assert_eq!(
@@ -1125,6 +1258,7 @@ mod tests {
             answers,
             timer: None,
             hooks: Hooks::default(),
+            trial: None,
         };
         (host, told)
     }
@@ -1268,6 +1402,98 @@ mod tests {
             host: host.map(str::to_string),
             secrets: vec!["token".into()],
         }
+    }
+
+    #[test]
+    fn a_trial_account_shadows_the_saved_one_and_keeps_its_secrets_in_memory() {
+        let keys = |key: &str| {
+            Ok(match key {
+                "a1.token" => Some("saved".to_string()),
+                _ => None,
+            })
+        };
+        let mut edited = account("a1", Some("jira.other.com"));
+        edited.secrets.push("pin".into());
+        let trial = Trial {
+            account: edited,
+            secrets: [("pin".to_string(), "1234".to_string())].into(),
+        };
+        let accounts = with_trial(
+            vec![account("a1", Some("jira.acme.com")), account("b2", None)],
+            Some(&trial),
+        );
+        assert_eq!(accounts.len(), 2);
+        let secret = |key: &str| match trial.secret(key) {
+            Some(value) => Ok(Some(value)),
+            None => keys(key),
+        };
+        let resolve = |name: &str| lookup(name, "jira.other.com", &accounts, &secret);
+        let mut used = vec![];
+        assert_eq!(
+            fill("{{a1.pin}}:{{a1.token}}", &resolve, &mut used).unwrap(),
+            "1234:saved"
+        );
+        assert_eq!(used, ["1234", "saved"]);
+        let before = |name: &str| lookup(name, "jira.acme.com", &accounts, &secret);
+        assert!(
+            fill("{{a1.token}}", &before, &mut vec![])
+                .unwrap_err()
+                .contains("only go to jira.other.com")
+        );
+        assert_eq!(trial.secret("b2.pin"), None);
+        assert_eq!(with_trial(vec![account("b2", None)], None).len(), 1);
+    }
+
+    #[test]
+    fn reads_what_check_account_returned() {
+        let fields = ["site".to_string(), "token".to_string()];
+        assert_eq!(
+            verdict(
+                Ok(Ok(
+                    r#"{"text":{"en":"Connected as Ada","fr":"Connectée"},"detail":"12 projects"}"#
+                        .into()
+                )),
+                &fields
+            ),
+            json!({"ok": true, "title": {"en": "Connected as Ada", "fr": "Connectée"}, "detail": "12 projects", "field": null})
+        );
+        assert_eq!(
+            verdict(
+                Ok(Err(
+                    r#"{"title":"Refused","detail":"Expired","field":"token"}"#.into()
+                )),
+                &fields
+            ),
+            json!({"ok": false, "title": "Refused", "detail": "Expired", "field": "token"})
+        );
+        assert_eq!(
+            verdict(
+                Ok(Ok(r#"{"ok":false,"title":"Refused","field":"nope"}"#.into())),
+                &fields
+            ),
+            json!({"ok": false, "title": "Refused", "detail": null, "field": null})
+        );
+        assert_eq!(
+            verdict(Ok(Err("connection refused".into())), &fields),
+            json!({"ok": false, "title": "connection refused", "detail": null, "field": null})
+        );
+        assert_eq!(
+            verdict(Ok(Ok("  ".into())), &fields),
+            json!({"ok": true, "title": null, "detail": null, "field": null})
+        );
+        assert_eq!(
+            verdict(
+                Ok(Ok(
+                    r#"{"text":{"fr":"Sans anglais"},"detail":{"en":7}}"#.into()
+                )),
+                &fields
+            ),
+            json!({"ok": true, "title": null, "detail": null, "field": null})
+        );
+        assert_eq!(
+            verdict(Err(NO_CHECK.into()), &fields),
+            json!({"ok": false, "title": null, "detail": NO_CHECK, "field": null})
+        );
     }
 
     #[test]
