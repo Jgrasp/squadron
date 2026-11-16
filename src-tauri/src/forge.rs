@@ -2,8 +2,8 @@ use crate::{azure, git, gitlab, projects};
 use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
-use std::io::Write;
 use std::collections::BTreeMap;
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::Stdio;
 use std::sync::Mutex;
@@ -225,7 +225,11 @@ static SECRETS: Mutex<BTreeMap<String, Option<String>>> = Mutex::new(BTreeMap::n
 static READING: Mutex<()> = Mutex::new(());
 
 fn cached(user: &str) -> Option<Option<String>> {
-    SECRETS.lock().unwrap_or_else(|e| e.into_inner()).get(user).cloned()
+    SECRETS
+        .lock()
+        .unwrap_or_else(|e| e.into_inner())
+        .get(user)
+        .cloned()
 }
 
 fn remember(user: &str, secret: Option<String>) {
@@ -2069,7 +2073,10 @@ mod tests {
     fn a_read_gives_up_while_another_waits_on_the_keyring_unless_cached() {
         remember("cached-check", Some("kept".into()));
         let _waiting = READING.lock().unwrap();
-        assert_eq!(read_secret("cached-check").unwrap().as_deref(), Some("kept"));
+        assert_eq!(
+            read_secret("cached-check").unwrap().as_deref(),
+            Some("kept")
+        );
         assert_eq!(read_secret("uncached-check").unwrap_err(), KEYRING_BUSY);
     }
 

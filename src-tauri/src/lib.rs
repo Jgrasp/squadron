@@ -534,13 +534,22 @@ impl Settings {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));
         }
         if !["background", "always", "never"].contains(&config.notify_when.as_str()) {
-            return Err(format!("Unknown notification moment: {}", config.notify_when));
+            return Err(format!(
+                "Unknown notification moment: {}",
+                config.notify_when
+            ));
         }
         if !["all", "failures", "never"].contains(&config.notify_runs.as_str()) {
-            return Err(format!("Unknown pipeline notification: {}", config.notify_runs));
+            return Err(format!(
+                "Unknown pipeline notification: {}",
+                config.notify_runs
+            ));
         }
         if !["keep", "skip", "background"].contains(&config.notify_remote.as_str()) {
-            return Err(format!("Unknown remote notification: {}", config.notify_remote));
+            return Err(format!(
+                "Unknown remote notification: {}",
+                config.notify_remote
+            ));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
@@ -2945,8 +2954,14 @@ mod tests {
 
     #[test]
     fn pipeline_notifications_carry_over_from_runs_notify() {
-        assert_eq!(read_config(r#"{"runs_notify":true}"#).unwrap().notify_runs, "all");
-        assert_eq!(read_config(r#"{"runs_notify":false}"#).unwrap().notify_runs, "never");
+        assert_eq!(
+            read_config(r#"{"runs_notify":true}"#).unwrap().notify_runs,
+            "all"
+        );
+        assert_eq!(
+            read_config(r#"{"runs_notify":false}"#).unwrap().notify_runs,
+            "never"
+        );
         assert_eq!(read_config("{}").unwrap().notify_runs, "failures");
         let kept = r#"{"runs_notify":true,"notify_runs":"failures"}"#;
         assert_eq!(read_config(kept).unwrap().notify_runs, "failures");
@@ -2961,7 +2976,10 @@ mod tests {
         let file = dir.join("settings.json");
         std::fs::write(&file, "{ broken").unwrap();
         let settings = Settings::load(file.clone());
-        assert_eq!(std::fs::read_to_string(dir.join("settings.json.bak")).unwrap(), "{ broken");
+        assert_eq!(
+            std::fs::read_to_string(dir.join("settings.json.bak")).unwrap(),
+            "{ broken"
+        );
         let config = settings.config.lock().unwrap().clone();
         settings.save(config).unwrap();
         assert!(read_config(&std::fs::read_to_string(&file).unwrap()).is_ok());

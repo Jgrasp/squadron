@@ -269,11 +269,7 @@ fn fetch(dir: &Path, branches: &[&str]) -> bool {
     if go(branches) {
         return true;
     }
-    branches.len() > 1
-        && branches
-            .iter()
-            .map(|b| go(&[b]))
-            .fold(true, |all, ok| all && ok)
+    branches.len() > 1 && branches.iter().filter(|b| !go(&[b])).count() == 0
 }
 
 #[derive(Serialize)]

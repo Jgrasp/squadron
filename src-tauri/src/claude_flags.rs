@@ -98,9 +98,9 @@ mod tests {
         let global =
             serde_json::json!({ "agentPushNotifEnabled": false, "inputNeededNotifEnabled": true });
         let flags = flags_in(Some(&settings), Some(&global));
-        assert_eq!(flags["agentPushNotifEnabled"], true);
-        assert_eq!(flags["inputNeededNotifEnabled"], true);
-        assert_eq!(flags["autoUploadSessions"], false);
+        assert_eq!(flags["agentPushNotifEnabled"], serde_json::json!(true));
+        assert_eq!(flags["inputNeededNotifEnabled"], serde_json::json!(true));
+        assert_eq!(flags["autoUploadSessions"], serde_json::json!(false));
     }
 
     #[test]
