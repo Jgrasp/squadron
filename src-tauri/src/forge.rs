@@ -841,9 +841,18 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                     .map(|p| github_pull(p, &me))
                     .filter(|p| !review.iter().any(|r| r.number == p.number))
                     .collect();
+                let mut mine = search("author:@me")?;
+                for found in open.iter().filter(|p| p["author"]["login"] == me.as_str()) {
+                    if !mine
+                        .iter()
+                        .any(|p| Some(p.number) == found["number"].as_u64())
+                    {
+                        mine.push(github_pull(found, &me));
+                    }
+                }
                 Ok(Lists {
                     review,
-                    mine: search("author:@me")?,
+                    mine,
                     others,
                 })
             })
