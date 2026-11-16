@@ -964,10 +964,15 @@ fn save_text_file(path: PathBuf, text: String) -> Result<(), String> {
 
 #[tauri::command]
 fn download_attachment(path: PathBuf, to: PathBuf) -> Result<(), String> {
-    if !std::fs::metadata(&path).map_err(|_| "The file is gone.")?.is_file() {
+    if !std::fs::metadata(&path)
+        .map_err(|_| "The file is gone.")?
+        .is_file()
+    {
         return Err("The file is gone.".into());
     }
-    std::fs::copy(&path, &to).map(|_| ()).map_err(|e| e.to_string())
+    std::fs::copy(&path, &to)
+        .map(|_| ())
+        .map_err(|e| e.to_string())
 }
 
 #[derive(Serialize)]
