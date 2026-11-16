@@ -6,6 +6,10 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ${{ github.event_name == 'push' && 'release' || format('test-{0}', github.ref) }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
 jobs:
   test:
     if: github.event_name == 'pull_request' || startsWith(github.event.head_commit.message, 'Squadron ')
@@ -145,15 +149,22 @@ jobs:
           PLATFORMS: ${{ matrix.updater }}
         run: |
           gh release download "$TAG" -p latest.json -O latest.json --clobber
+          version=$(jq -r .version latest.json)
+          older() { [ "$1" != "$2" ] && [ "$(printf '%s\n%s\n' "$1" "$2" | sort -V | tail -n 1)" = "$2" ]; }
           files=()
           for platform in $PLATFORMS; do
             jq -e --arg p "$platform" '.platforms[$p]' latest.json >/dev/null
+            offered=$(gh release download updater -p "$platform.json" -O - 2>/dev/null | jq -r .version || true)
+            if [ -n "$offered" ] && older "$version" "$offered"; then
+              echo "$platform already offers $offered, newer than $version."
+              continue
+            fi
             cp latest.json "$platform.json"
             files+=("$platform.json")
           done
           gh api -X PATCH repos/$GITHUB_REPOSITORY/releases/$ID -F draft=false -f make_latest=false >/dev/null
           gh release view updater >/dev/null 2>&1 || gh release create updater --prerelease --latest=false --title Updater --notes "Each platform's newest build, read by Squadron's updater." || true
-          gh release upload updater "${files[@]}" --clobber
+          [ ${#files[@]} -eq 0 ] || gh release upload updater "${files[@]}" --clobber
 
   publish:
     needs: [release, build]
@@ -164,4 +175,13 @@ jobs:
       - if: ${{ !env.ACT }}
         env:
           GH_TOKEN: ${{ github.token }}
-        run: gh api -X PATCH repos/$GITHUB_REPOSITORY/releases/${{ needs.release.outputs.id }} -F draft=false -f make_latest=true
+          TAG: ${{ needs.release.outputs.tag }}
+          ID: ${{ needs.release.outputs.id }}
+        run: |
+          latest=$(gh api repos/$GITHUB_REPOSITORY/releases/latest -q .tag_name 2>/dev/null || true)
+          make=true
+          if [ -n "$latest" ] && [ "$latest" != "$TAG" ] && [ "$(printf '%s\n%s\n' "${TAG#v}" "${latest#v}" | sort -V | tail -n 1)" = "${latest#v}" ]; then
+            echo "$latest stays the latest release, newer than $TAG."
+            make=false
+          fi
+          gh api -X PATCH repos/$GITHUB_REPOSITORY/releases/$ID -F draft=false -f make_latest=$make
