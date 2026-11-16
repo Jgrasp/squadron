@@ -25,6 +25,14 @@ struct Agent {
     servers: Vec<String>,
 }
 
+pub static REVIEWS: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+
+pub fn reviews_branch(dir: &Path) -> bool {
+    REVIEWS
+        .get()
+        .is_some_and(|root| dir.parent() == Some(root.as_path()))
+}
+
 #[derive(Default)]
 pub struct Agents {
     list: Mutex<HashMap<String, Agent>>,
@@ -469,6 +477,9 @@ fn spawn(
         agent.at.as_deref(),
         agents.mcp(id).as_deref(),
     );
+    if reviews_branch(dir) {
+        cmd.args(["--setting-sources", "user", "--strict-mcp-config"]);
+    }
     crate::askpass::env(&mut cmd, id);
     if let Some(dir) = crate::artifacts::ROOT
         .get()

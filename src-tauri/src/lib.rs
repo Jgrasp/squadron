@@ -1506,8 +1506,18 @@ fn extensions_approve(
 }
 
 #[tauri::command]
-fn extensions_set_args(args: Vec<String>) {
-    *claude::EXTENSION_ARGS.lock().unwrap() = args;
+fn extensions_set_args(args: Vec<Vec<String>>) {
+    *claude::EXTENSION_ARGS.lock().unwrap() = args
+        .into_iter()
+        .filter(|list| {
+            let allowed = claude::allowed_args(list);
+            if !allowed {
+                log::warn!("Claude Code options of an extension refused: {list:?}");
+            }
+            allowed
+        })
+        .flatten()
+        .collect();
 }
 
 #[tauri::command]
@@ -2360,6 +2370,13 @@ pub fn run() {
         let _ = std::fs::remove_dir_all(data.join(DEV_ID).join("WebKitCache"));
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.unminimize();
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
+        }))
         .register_asynchronous_uri_scheme_protocol("artifact", |_, request, responder| {
             let path = request.uri().path().to_string();
             std::thread::spawn(move || match artifacts::ROOT.get() {
@@ -2387,6 +2404,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .plugin(links::init())
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Started {
+                links::keep_home(webview, payload.url());
+            }
+        })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
@@ -2394,7 +2416,8 @@ pub fn run() {
         .manage(Terminals::default())
         .manage(sudo::Sudo::default())
         .manage(system::Cpu::default())
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler({
+            let commands: fn(tauri::ipc::Invoke) -> bool = tauri::generate_handler![
             agent_definition,
             plugins_installed,
             plugins_catalog,
@@ -2568,7 +2591,22 @@ pub fn run() {
             close_agents,
             sleep_agent,
             resume_agent
-        ])
+            ];
+            move |invoke: tauri::ipc::Invoke| {
+                if !invoke
+                    .message
+                    .webview_ref()
+                    .url()
+                    .is_ok_and(|url| links::from_squadron(&url))
+                {
+                    invoke
+                        .resolver
+                        .reject("Squadron's commands only answer Squadron's own pages.");
+                    return true;
+                }
+                commands(invoke)
+            }
+        })
         .setup(|app| {
             if cfg!(debug_assertions) && app.config().identifier != DEV_ID {
                 return Err("Start the dev build with `pnpm app`: it keeps its own data, apart from the installed Squadron.".into());
@@ -2700,6 +2738,7 @@ pub fn run() {
             app.manage(askpass);
             let agents = app.state::<Agents>();
             agents.endpoint(port, app.path().app_data_dir()?.join("mcp"));
+            let _ = agents::REVIEWS.set(app.path().app_data_dir()?.join("reviews"));
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);

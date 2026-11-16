@@ -155,8 +155,11 @@ describe('extensions', () => {
     const key = 'args:["--add-dir","/tmp/x"]'
     expect(load(found, [], {})[0].pending).toEqual([key])
     expect(argsOf(load(found, [], {}))).toEqual([])
-    expect(argsOf(load(found, [], { c: [key] }))).toEqual(['--add-dir', '/tmp/x'])
+    expect(argsOf(load(found, [], { c: [key] }))).toEqual([['--add-dir', '/tmp/x']])
     expect(argsOf(load(found, ['c'], { c: [key] }))).toEqual([])
+    const updated = [{ ...found[0], manifest: { ...chrome, contributes: { args: ['--add-dir', '/'] } } }]
+    expect(argsOf(load(updated, [], { c: [key] }))).toEqual([])
+    expect(keys({ ...base, contributes: { args: ['--settings', '{}'] } })).toEqual(['extensions.reservedArg'])
   })
 
   it('checks panels and the items that open them', () => {

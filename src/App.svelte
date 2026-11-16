@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core'
   import { emitTo, listen } from '@tauri-apps/api/event'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -163,15 +162,6 @@
     }
   })
 
-  function links(event: MouseEvent) {
-    const link = (event.target as HTMLElement).closest('a[href]')
-    const href = link?.getAttribute('href')
-    if (!href || href.startsWith('#')) return
-    event.preventDefault()
-    if (/^https?:\/\//.test(href)) invoke('open_link', { url: href })
-    else if (/^(\/|file:\/\/)/.test(href)) invoke('open_attachment', { path: decodeURI(href.replace(/^file:\/\//, '')) }).catch(() => {})
-  }
-
   const SCOPED = ['newAgent', 'interrupt', 'editor', 'terminal', 'diff', 'sidebar', 'find']
 
   function shortcuts(event: KeyboardEvent) {
@@ -187,7 +177,7 @@
   }
 </script>
 
-<svelte:window onkeydown={shortcuts} onclick={links} onfocus={rescan} />
+<svelte:window onkeydown={shortcuts} onfocus={rescan} />
 
 <div class="app">
   <Header onadd={() => (ui.adding = '')} />

@@ -10,6 +10,53 @@ use std::thread;
 pub static COMPACT_WINDOW: AtomicU32 = AtomicU32::new(0);
 pub static CAPTURES: OnceLock<PathBuf> = OnceLock::new();
 pub static EXTENSION_ARGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+const RESERVED_ARGS: &[&str] = &[
+    "-p",
+    "--print",
+    "--input-format",
+    "--output-format",
+    "--replay-user-messages",
+    "--model",
+    "--effort",
+    "--permission-mode",
+    "--append-system-prompt",
+    "--agent",
+    "--advisor",
+    "-r",
+    "--resume",
+    "-c",
+    "--continue",
+    "--fork-session",
+    "--resume-session-at",
+    "--session-id",
+    "--mcp-config",
+    "--strict-mcp-config",
+    "--permission-prompt-tool",
+    "--dangerously-skip-permissions",
+    "--allow-dangerously-skip-permissions",
+    "-w",
+    "--worktree",
+    "--settings",
+    "--setting-sources",
+    "--allowedTools",
+    "--allowed-tools",
+    "--tools",
+    "--plugin-dir",
+    "--plugin-url",
+    "--agents",
+    "--system-prompt",
+    "--system-prompt-file",
+    "--append-system-prompt-file",
+];
+
+pub fn allowed_args(args: &[String]) -> bool {
+    args.first().is_some_and(|a| a.starts_with('-'))
+        && args.iter().all(|a| {
+            !a.contains(['\n', '\r'])
+                && !RESERVED_ARGS.contains(&a.split('=').next().unwrap_or_default())
+        })
+}
 pub static EXTENSION_PLUGINS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 pub static ON_DEMAND: Mutex<String> = Mutex::new(String::new());
 
@@ -358,6 +405,19 @@ fn take(sent: &mut Vec<(String, Value)>, uuid: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refuses_extension_options_that_change_permissions() {
+        let list = |args: &[&str]| args.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        assert!(allowed_args(&list(&["--add-dir", "/tmp/x"])));
+        assert!(allowed_args(&list(&["--chrome"])));
+        assert!(!allowed_args(&list(&[])));
+        assert!(!allowed_args(&list(&["chrome"])));
+        assert!(!allowed_args(&list(&["--settings", "{}"])));
+        assert!(!allowed_args(&list(&["--allowedTools=Bash"])));
+        assert!(!allowed_args(&list(&["--add-dir", "--plugin-dir"])));
+        assert!(!allowed_args(&list(&["--add-dir", "/a\n--settings"])));
+    }
     use std::sync::mpsc::{self, RecvTimeoutError};
     use std::time::Duration;
 

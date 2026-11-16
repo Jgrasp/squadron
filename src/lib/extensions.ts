@@ -86,7 +86,7 @@ const TOOL = /^[a-z0-9_]{1,40}$/
 
 const oneLine = (v: unknown) => typeof v === 'string' && !!v.trim() && !/[\x00-\x1f\x7f]/.test(v)
 
-const RESERVED = ['-p', '--print', '--input-format', '--output-format', '--replay-user-messages', '--model', '--effort', '--permission-mode', '--append-system-prompt', '--agent', '--advisor', '-r', '--resume', '-c', '--continue', '--fork-session', '--resume-session-at', '--session-id', '--mcp-config', '--strict-mcp-config', '--permission-prompt-tool', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '-w', '--worktree']
+const RESERVED = ['-p', '--print', '--input-format', '--output-format', '--replay-user-messages', '--model', '--effort', '--permission-mode', '--append-system-prompt', '--agent', '--advisor', '-r', '--resume', '-c', '--continue', '--fork-session', '--resume-session-at', '--session-id', '--mcp-config', '--strict-mcp-config', '--permission-prompt-tool', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '-w', '--worktree', '--settings', '--setting-sources', '--allowedTools', '--allowed-tools', '--tools', '--plugin-dir', '--plugin-url', '--agents', '--system-prompt', '--system-prompt-file', '--append-system-prompt-file']
 
 const COLOR = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d.,%\s/]+\))$/i
 
@@ -310,10 +310,19 @@ export const toolsOf = (extensions: Extension[]): Exposed[] =>
       .map((t) => ({ ...t, name: `${m.manifest.id}_${t.name}`, tool: t.name, extension: m.manifest.id })),
   )
 
-export const argsOf = (extensions: Extension[]) => active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(ARGS) && !m.pending.includes(c)) ? (m.manifest.contributes?.args ?? []) : []))
+const granted = (m: Extension, key: string) => m.commands.includes(key) && !m.pending.includes(key)
+
+export const argsOf = (extensions: Extension[]) =>
+  active(extensions).flatMap((m) => {
+    const args = m.manifest.contributes?.args ?? []
+    return args.length && granted(m, ARGS + JSON.stringify(args)) ? [args] : []
+  })
 
 export const skillsOf = (extensions: Extension[]) =>
-  active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(SKILLS) && !m.pending.includes(c)) ? [{ id: m.manifest.id, dir: m.dir, skills: m.manifest.contributes?.skills ?? [] }] : []))
+  active(extensions).flatMap((m) => {
+    const skills = m.manifest.contributes?.skills ?? []
+    return skills.length && granted(m, SKILLS + JSON.stringify(skills)) ? [{ id: m.manifest.id, dir: m.dir, skills }] : []
+  })
 
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))
