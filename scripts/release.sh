@@ -6,6 +6,13 @@ repo=Jgrasp/squadron
 cd "$(dirname "$0")/.."
 . "$HOME/.cargo/env"
 [ -z "$(git status --porcelain --untracked-files=no)" ] || { echo "Commit or stash your changes first." >&2; exit 1; }
+copy=../squadron-extensions/api
+if [ ! -d "$copy" ]; then
+  echo "No $copy to compare extensions/api with." >&2
+elif ! diff -rq -x target -x Cargo.lock extensions/api "$copy" >/dev/null; then
+  echo "extensions/api differs from $copy: copy it there and commit before the release." >&2
+  exit 1
+fi
 
 sed -i "0,/^version = .*/s//version = \"$version\"/" src-tauri/Cargo.toml
 (cd src-tauri && cargo update -p squadron --offline -q)
@@ -24,9 +31,17 @@ if [ -n "$notes" ]; then
 fi
 git diff --quiet || git commit -qam "Squadron $version"
 
-parent=$(git rev-parse -q --verify refs/heads/public || true)
-public=$(git commit-tree "HEAD^{tree}" ${parent:+-p "$parent"} -m "Squadron $version" ${notes:+-m "$notes"})
-git update-ref refs/heads/public "$public"
-git tag "v$version" "$public"
-git push -q "git@github.com:$repo.git" public:main "v$version"
-echo "v$version pushed: GitHub builds the release, https://github.com/$repo/actions"
+git fetch -q "git@github.com:$repo.git" main
+public=$(git commit-tree "HEAD^{tree}" -p FETCH_HEAD -m "Squadron $version" ${notes:+-m "$notes"})
+branch=release/v$version
+git push -q "git@github.com:$repo.git" "$public:refs/heads/$branch"
+gh pr create -R "$repo" --base main --head "$branch" --title "Squadron $version" --body "${notes:-Squadron $version}" >/dev/null
+for try in 1 2 3 4 5; do
+  gh pr merge -R "$repo" "$branch" --rebase --delete-branch && break
+  [ "$try" = 5 ] && exit 1
+  sleep 5
+done
+git fetch -q "git@github.com:$repo.git" main
+git update-ref refs/heads/public FETCH_HEAD
+git tag "v$version" FETCH_HEAD
+echo "Squadron $version merged into main: GitHub tests it, then builds the release, https://github.com/$repo/actions"

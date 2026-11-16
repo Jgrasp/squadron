@@ -844,6 +844,11 @@ fn claude_version(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn tested_claude_version() -> &'static str {
+    claude::TESTED_VERSION
+}
+
+#[tauri::command]
 fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     if std::fs::metadata(&file).is_ok_and(|m| m.len() > 5_000_000) {
@@ -2651,6 +2656,7 @@ pub fn run() {
             set_settings,
             set_claude_path,
             claude_version,
+            tested_claude_version,
             suggest_title,
             remove_rule,
             set_cards,
@@ -2899,5 +2905,21 @@ mod tests {
         let kept = r#"{"runs_notify":true,"notify_runs":"failures"}"#;
         assert_eq!(read_config(kept).unwrap().notify_runs, "failures");
         assert!(read_config("{ nope").is_err());
+    }
+
+    #[test]
+    fn sets_aside_unreadable_settings_and_writes_them_whole() {
+        let dir = std::env::temp_dir().join(format!("squadron-settings-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{ broken").unwrap();
+        let settings = Settings::load(file.clone());
+        assert_eq!(std::fs::read_to_string(dir.join("settings.json.bak")).unwrap(), "{ broken");
+        let config = settings.config.lock().unwrap().clone();
+        settings.save(config).unwrap();
+        assert!(read_config(&std::fs::read_to_string(&file).unwrap()).is_ok());
+        assert!(!dir.join("settings.json.tmp").exists());
+        let _ = std::fs::remove_dir_all(dir);
     }
 }

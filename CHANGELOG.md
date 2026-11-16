@@ -1,5 +1,23 @@
 # Changelog
 
+## 0.48.0 · 2026-11-16
+
+### Projects
+
+- Projects can be dragged into place within a group in the Projects panel: a copper line shows where they land, and dropping on a project of another group moves them there at that spot.
+
+### Conversation
+
+- A long link in the message field shows as a chip cut to the field width instead of making the field scroll sideways.
+
+### Agents
+
+- An agent reviewing a pull request shows its status spinner in the agent list, next to the pull request number.
+
+### Updates
+
+- The status bar warns when the installed Claude Code is not the version this Squadron was tested with, now 2.1.310, and its tooltip gives the tested version.
+
 ## 0.47.0 · 2026-11-16
 
 ### Notifications
