@@ -31,9 +31,17 @@ if [ -n "$notes" ]; then
 fi
 git diff --quiet || git commit -qam "Squadron $version"
 
-parent=$(git rev-parse -q --verify refs/heads/public || true)
-public=$(git commit-tree "HEAD^{tree}" ${parent:+-p "$parent"} -m "Squadron $version" ${notes:+-m "$notes"})
-git update-ref refs/heads/public "$public"
-git tag "v$version" "$public"
-git push -q "git@github.com:$repo.git" public:main "v$version"
-echo "v$version pushed: GitHub builds the release, https://github.com/$repo/actions"
+git fetch -q "git@github.com:$repo.git" main
+public=$(git commit-tree "HEAD^{tree}" -p FETCH_HEAD -m "Squadron $version" ${notes:+-m "$notes"})
+branch=release/v$version
+git push -q "git@github.com:$repo.git" "$public:refs/heads/$branch"
+gh pr create -R "$repo" --base main --head "$branch" --title "Squadron $version" --body "${notes:-Squadron $version}" >/dev/null
+for try in 1 2 3 4 5; do
+  gh pr merge -R "$repo" "$branch" --rebase --delete-branch && break
+  [ "$try" = 5 ] && exit 1
+  sleep 5
+done
+git fetch -q "git@github.com:$repo.git" main
+git update-ref refs/heads/public FETCH_HEAD
+git tag "v$version" FETCH_HEAD
+echo "Squadron $version merged into main: GitHub tests it, then builds the release, https://github.com/$repo/actions"
