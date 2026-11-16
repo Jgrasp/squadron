@@ -296,6 +296,7 @@
   }
 
   .composer-field :global(.cm-content) {
+    min-width: 0;
     padding: 0;
     caret-color: var(--text);
   }
