@@ -1871,6 +1871,42 @@ async fn extensions_account_save(
 }
 
 #[tauri::command]
+async fn extensions_account_check(
+    app: AppHandle,
+    id: String,
+    account: Option<String>,
+    values: Option<std::collections::BTreeMap<String, String>>,
+) -> Result<Value, String> {
+    tauri::async_runtime::spawn_blocking(move || {
+        let extensions = app.state::<extensions::Extensions>();
+        if !extensions.checks_accounts(&id) {
+            return Err("This extension does not test its accounts.".into());
+        }
+        let fields = extensions.account_field_ids(&id);
+        let trial = match values {
+            Some(values) => match extensions.trial_account(&id, account.as_deref(), &values) {
+                Ok((account, secrets)) => wasm::Trial { account, secrets },
+                Err(unfit) => {
+                    return Ok(serde_json::json!({"ok": false, "title": unfit.message, "detail": null, "field": unfit.field}));
+                }
+            },
+            None => wasm::Trial {
+                account: extensions
+                    .accounts(&id)
+                    .into_iter()
+                    .find(|a| Some(&a.id) == account.as_ref())
+                    .ok_or("This account no longer exists.")?,
+                secrets: Default::default(),
+            },
+        };
+        let answer = app.state::<wasm::Runtime>().check(&id, trial);
+        Ok(wasm::verdict(answer, &fields))
+    })
+    .await
+    .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn extensions_option_set(
     app: AppHandle,
     id: String,
@@ -2685,6 +2721,7 @@ pub fn run() {
             extensions_secret_set,
             extensions_option_set,
             extensions_account_save,
+            extensions_account_check,
             extensions_account_remove,
             extensions_field_link,
             extensions_wasm_sync,

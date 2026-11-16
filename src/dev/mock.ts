@@ -575,7 +575,8 @@ function briefTicket(draft: string, short: boolean) {
 
 const JIRA_TOKENS = 'https://id.atlassian.com/manage-profile/security/api-tokens'
 
-const DEMO_ACCOUNTS = '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]}]}'
+const DEMO_ACCOUNTS =
+  '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]},{"id":"8b20d4f1","values":{"site":"client-ring.atlassian.net","email":"demo@acme.com"},"host":"client-ring.atlassian.net","secrets":["token"]}]}'
 
 mockIPC(
   (cmd, args) => {
@@ -1299,6 +1300,7 @@ mockIPC(
                   ],
                   accounts: {
                     label: { en: 'Jira sites', fr: 'Sites Jira' },
+                    check: true,
                     fields: [
                       { id: 'site', label: { en: 'Site', fr: 'Site' }, kind: 'host', hint: { en: 'company.atlassian.net' } },
                       { id: 'email', label: { en: 'Email', fr: 'E-mail' } },
@@ -1379,6 +1381,16 @@ mockIPC(
         const { id, commands } = args as { id: string; commands: string[] }
         localStorage.setItem('extensions-approved', JSON.stringify({ ...JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'), [id]: commands }))
         return
+      }
+      case 'extensions_account_check': {
+        const { id, account, values } = args as { id: string; account: string | null; values: Record<string, string> | null }
+        const saved = (JSON.parse(localStorage.getItem('extensions-accounts') ?? DEMO_ACCOUNTS)[id] ?? []).find((x: { id: string }) => x.id === account)
+        const site = (values?.site ?? saved?.values.site ?? '').trim().replace(/^https?:\/\//, '').split('/')[0].toLowerCase()
+        const answer = (result: unknown) => new Promise((done) => setTimeout(() => done(result), 1200))
+        if (!site.includes('.')) return answer({ ok: false, title: { en: 'No Jira site at this address', fr: 'Aucun site Jira à cette adresse' }, detail: { en: 'Check the address: it looks like company.atlassian.net.', fr: 'Vérifiez l’adresse\u00a0: elle ressemble à entreprise.atlassian.net.' }, field: 'site' })
+        if (site.includes('ring') || values?.token === 'bad')
+          return answer({ ok: false, title: { en: 'Jira refused this email and token', fr: 'Jira refuse cet e-mail et ce jeton' }, detail: { en: 'The token may be wrong, expired or revoked: create a new one and paste it here.', fr: 'Le jeton est peut-être faux, expiré ou révoqué\u00a0: créez-en un nouveau et collez-le ici.' }, field: 'token' })
+        return answer({ ok: true, title: { en: 'Connected as Demo User', fr: 'Connecté en tant que Demo User' }, detail: { en: `${site.length} Jira projects`, fr: `${site.length} projets Jira` }, field: null })
       }
       case 'extensions_account_save':
       case 'extensions_account_remove': {

@@ -22,6 +22,10 @@ pub trait Extension {
     fn call_tool(name: String, _input: String, _agent: Option<Agent>) -> Result<String, String> {
         Err(format!("This extension has no tool {name}."))
     }
+
+    fn check_account(_account: Account) -> Result<String, String> {
+        Err("This extension does not test its accounts.".into())
+    }
 }
 
 #[macro_export]
@@ -40,6 +44,10 @@ macro_rules! squadron_extension {
 
             fn call_tool(name: String, input: String, agent: Option<$crate::Agent>) -> Result<String, String> {
                 <$extension as $crate::Extension>::call_tool(name, input, agent)
+            }
+
+            fn check_account(account: $crate::Account) -> Result<String, String> {
+                <$extension as $crate::Extension>::check_account(account)
             }
         }
 

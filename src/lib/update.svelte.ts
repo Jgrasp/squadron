@@ -5,6 +5,7 @@ import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
 import { ui } from './actions.svelte'
 import { agents, closeAll } from './agents.svelte'
+import { loadCatalog } from './extensions.svelte'
 import { errorText, t } from './i18n/index.svelte'
 import { notify } from './notify.svelte'
 
@@ -44,18 +45,15 @@ export function openChangelog() {
 }
 
 export async function checkNow() {
-  const title = t('settings.itemUpdates')
-  if (import.meta.env.DEV) return message(t('settings.updateFromSources'), { title })
   update.checking = true
   try {
-    update.found = await check()
+    await Promise.all([import.meta.env.DEV ? null : check().then((found) => (update.found = found)), loadCatalog()])
   } catch {
     return message(t('settings.updateFailed'), { title: t('settings.updateFailedTitle'), icon: 'github' })
   } finally {
     update.checking = false
   }
-  if (!update.found) return message(t('settings.upToDate', { version: await getVersion() }), { title })
-  if (await ask(t('settings.updateAsk', { version: update.found.version }), { title, okLabel: t('settings.update'), cancelLabel: t('settings.later') })) install()
+  ui.updates = true
 }
 
 export async function install() {

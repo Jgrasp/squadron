@@ -1,5 +1,20 @@
 # Nouveautés
 
+## 0.49.0 · 2026-11-16
+
+### Extensions
+
+- Une extension peut tester un compte avant que vous l’enregistriez : « Tester la connexion » dit si le site, l’e-mail et le jeton marchent, et marque le champ à corriger. Chaque compte de la page de l’extension montre s’il marche, avec « Vérifier à nouveau », et les Réglages marquent l’extension d’un point rouge quand l’un d’eux échoue.
+- API d’extension 1.6.0 : `check-account` teste un compte, enregistré ou non, sans que les secrets n’atteignent jamais l’extension.
+
+### Mises à jour
+
+- « Rechercher des mises à jour » vérifie aussi les extensions et ouvre une seule fenêtre Mises à jour pour Squadron et ses extensions, et la barre d’état les montre dans une seule pastille en deux parties.
+
+### Agents
+
+- Quand un agent en lance un autre en mode accept edits ou auto, la demande montre les deux projets, le nom de l’agent, ses options, le mode expliqué et son premier message.
+
 ## 0.48.0 · 2026-11-16
 
 ### Projets

@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.49.0 · 2026-11-16
+
+### Extensions
+
+- An extension can test an account before you save it: Test the connection tells whether the site, email and token work, and marks the field to fix. Each account on the extension's page shows whether it works, with Check again, and Settings marks the extension with a red dot when one fails.
+- Extension API 1.6.0: `check-account` tests an account, saved or not, without the secrets ever reaching the extension.
+
+### Updates
+
+- Check for updates also checks extensions and opens one Updates dialog for Squadron and its extensions, and the status bar shows both in a single split pill.
+
+### Agents
+
+- When an agent starts another in accept edits or auto mode, the request shows both projects, the agent's name, its options, the mode explained and its first message.
+
 ## 0.48.0 · 2026-11-16
 
 ### Projects

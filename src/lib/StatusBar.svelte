@@ -4,9 +4,10 @@
   import { onMount } from 'svelte'
   import { clock, limits, type Limit } from './agents.svelte'
   import { time } from './format'
-  import { install, update } from './update.svelte'
+  import { update } from './update.svelte'
   import { date, number, t, type Key } from './i18n/index.svelte'
-  import ExtensionUpdates from './ExtensionUpdates.svelte'
+  import Updates from './Updates.svelte'
+  import { ui } from './actions.svelte'
   import { updatesOf } from './extensions'
   import { catalog, extensions } from './extensions.svelte'
   import { settings } from './settings.svelte'
@@ -15,7 +16,6 @@
 
   let load = $state<Load | null>(null)
   let version = $state('')
-  let updating = $state(false)
   let claude = $state('')
   let tested = $state('')
 
@@ -80,19 +80,25 @@
       {t('shell.memory')} {@render meter(load.used / load.total)}<span class="mono">{t('shell.gigabytes', { used: gb(load.used), total: gb(load.total) })}</span>
     </span>
   {/if}
-  {#if update.found}
-    <button class="update" title={update.error || t('shell.updateTitle', { version: update.found.version })} onclick={install}>
-      {#if update.progress !== null}
-        {t('shell.downloading', { version: update.found.version, percent: percent(update.progress) })}
-      {:else if update.error}
-        {t('shell.updateFailed')}
-      {:else}
-        {t('shell.updateAvailable', { version: update.found.version })}
+  {#if update.found || extensionUpdates}
+    <button class="updates" title={update.error || undefined} onclick={() => (ui.updates = true)}>
+      {#if update.found}
+        <span class="squadron">
+          {#if update.progress !== null}
+            {t('shell.downloading', { version: update.found.version, percent: percent(update.progress) })}
+          {:else if update.error}
+            {t('shell.updateFailed')}
+          {:else if extensionUpdates}
+            Squadron {update.found.version}
+          {:else}
+            {t('shell.updateAvailable', { version: update.found.version })}
+          {/if}
+        </span>
+      {/if}
+      {#if extensionUpdates}
+        <span class="extensions">{update.found ? t('shell.moreExtensions', { count: extensionUpdates }) : t('shell.extensionUpdates', { count: extensionUpdates })}</span>
       {/if}
     </button>
-  {/if}
-  {#if extensionUpdates}
-    <button class="update" onclick={() => (updating = true)}>{t('shell.extensionUpdates', { count: extensionUpdates })}</button>
   {/if}
   <span class="spacer"></span>
   {#each windows as [label, hint, limit] (label)}
@@ -111,7 +117,7 @@
   {/each}
 </footer>
 
-{#if updating}<ExtensionUpdates onclose={() => (updating = false)} />{/if}
+{#if ui.updates}<Updates onclose={() => (ui.updates = false)} />{/if}
 
 <style>
   .status {
@@ -139,14 +145,38 @@
     color: var(--text-2);
   }
 
-  .update {
+  .updates {
+    display: inline-flex;
     height: 20px;
-    padding: 0 8px;
     border-radius: 3px;
-    background: var(--accent);
-    color: var(--accent-ink);
+    overflow: hidden;
+    box-shadow: inset 0 0 0 1px var(--wait-border);
     font-size: 11.5px;
     font-weight: 600;
+  }
+
+  .updates span {
+    display: inline-flex;
+    align-items: center;
+    padding: 0 8px;
+  }
+
+  .squadron {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .extensions {
+    background: var(--wait-bg);
+    color: var(--wait-btn-text);
+  }
+
+  .updates:hover .squadron {
+    background: var(--accent-soft);
+  }
+
+  .updates:hover .extensions {
+    background: var(--wait-btn);
   }
 
   .untested {

@@ -12,7 +12,7 @@ import { ask, message } from './asking.svelte'
 import { notify } from './notify.svelte'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { active, AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel } from './extensions'
+import { active, AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -178,7 +178,44 @@ export const install = (entry: CatalogEntry) =>
   invoke('extensions_install', { source: entry.source, id: entry.id, archive: entry.archive, sha256: entry.sha256 }).then(loadExtensions)
 
 export const saveAccount = (extension: string, account: string | null, values: Record<string, string>) =>
-  invoke<string>('extensions_account_save', { id: extension, account, values }).then(loadExtensions)
+  invoke<string>('extensions_account_save', { id: extension, account, values }).then(async (saved) => (await loadExtensions(), saved))
+
+export type AccountCheck = { ok: boolean; title: string | Text | null; detail: string | Text | null; field: string | null }
+
+export type CheckState = { running: true } | (AccountCheck & { running?: false; at: number })
+
+export const checks = $state<Record<string, Record<string, CheckState>>>({})
+
+const failed = (e: unknown): AccountCheck => ({ ok: false, title: null, detail: errorText(e), field: null })
+
+export const testAccount = (extension: string, account: string | null, values: Record<string, string>) =>
+  invoke<AccountCheck>('extensions_account_check', { id: extension, account, values }).catch(failed)
+
+export function keepCheck(extension: string, account: string, result: AccountCheck) {
+  checks[extension] ??= {}
+  checks[extension][account] = { ...result, at: Date.now() }
+}
+
+export async function checkAccount(extension: string, account: string) {
+  checks[extension] ??= {}
+  if (checks[extension][account]?.running) return
+  checks[extension][account] = { running: true }
+  keepCheck(extension, account, await invoke<AccountCheck>('extensions_account_check', { id: extension, account, values: null }).catch(failed))
+}
+
+export const checksAccounts = (e: Extension) => e.enabled && !!e.manifest?.wasm && e.manifest.contributes?.accounts?.check === true
+
+export function checkAccounts(e: Extension, unchecked = false) {
+  if (!checksAccounts(e)) return
+  for (const a of extensions.accounts[e.id] ?? []) if (!unchecked || !checks[e.id]?.[a.id]) void checkAccount(e.id, a.id)
+}
+
+export const brokenAccounts = (e: Extension) =>
+  checksAccounts(e) &&
+  (extensions.accounts[e.id] ?? []).some((a) => {
+    const check = checks[e.id]?.[a.id]
+    return !!check && !check.running && !check.ok
+  })
 
 export const removeAccount = (extension: string, account: string) => invoke('extensions_account_remove', { id: extension, account }).then(loadExtensions)
 

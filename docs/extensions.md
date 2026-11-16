@@ -448,6 +448,30 @@ host::update_new_agent(&draft, &json!({ "text": text, "goal": goal, "status": { 
 
 L'exemple `hello` le montre avec l'entrée « New agent from Hello » du menu de l'agent.
 
+### Tester un compte (API 1.6)
+
+```json
+"accounts": { "label": { "en": "Jira sites" }, "check": true, "fields": [ … ] }
+```
+
+```rust
+fn check_account(account: Account) -> Result<String, String> {
+    let me = host::fetch(&Request { url: format!("https://{site}/rest/api/3/myself"), headers: vec![("Authorization".into(), format!("Basic {{{{base64:{0}.email:{0}.token}}}}", account.id))], .. })?;
+    match me.status {
+        200 => Ok(r#"{ "text": { "en": "Connected as Ada" }, "detail": { "en": "12 projects" } }"#.into()),
+        _ => Err(r#"{ "title": { "en": "Jira refused this email and token" }, "detail": { "en": "…" }, "field": "token" }"#.into()),
+    }
+}
+```
+
+- **Export `check-account(account) -> result<string, string>`** : ajouté au monde `squadron-extension`, que l'extension compile. Squadron se lie au monde `squadron-core` (les trois exports d'avant) et cherche `check-account` à part dans l'instance : une extension construite avant 1.6.0 se charge toujours, et un test lui répond « This extension does not export check-account ».
+- **`contributes.accounts.check: true`** : active le test, demande `wasm`. Sans lui, la fiche garde « Add the account » / Save directs.
+- **Compte provisoire** : le test d'un formulaire passe par le même contrôle que l'enregistrement (champs requis, `host` normalisé) ; un champ refusé revient en échec sur ce champ sans appeler le WASM. Squadron crée un compte `trial-xxxxxxxx` (ou garde l'id du compte modifié) avec les valeurs tapées et les secrets en mémoire, jamais écrits ; un secret laissé vide en modification est lu dans le trousseau du compte enregistré. Pendant l'appel, ce compte remplace l'enregistré dans `fetch` : `{{<id>.<champ>}}` donne ses champs, son `host` tapé est joignable, l'ancien hôte ne l'est plus pour ses champs. `host::accounts` ne le liste pas. Le WASM reçoit l'id et les champs `text` et `host`, jamais les secrets.
+- **Réponse** : `Ok` = réussi, `Err` = raté, en JSON ou en texte brut. Réussi : `text` (« Connected as … »), `detail` facultatif. Raté : `title`, `detail`, `field` (l'id du champ à corriger, ignoré s'il n'existe pas). Textes en chaîne ou `{ "en", "fr" }`. Une clé `"ok"`, si présente, tranche. Un plantage, un délai dépassé ou une extension arrêtée donnent un échec « The connection failed » avec le message en détail.
+- **Quand** : à l'ouverture de Settings (comptes jamais vérifiés dans la session), à l'ouverture de la fiche (tous), sur ↻, et au clic Test the connection. Les résultats restent en mémoire, par extension et par compte, pour le point `--err` de la navigation ; un compte enregistré après un test réussi garde ce résultat.
+
+L'exemple `hello` le montre avec ses comptes GitHub.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

@@ -18,3 +18,25 @@ export const ask = (text: string, options?: Options | string) => show(text, opti
 export const message = async (text: string, options?: Options | string) => {
   await show(text, options, false)
 }
+
+type Place = { name: string; color: string }
+
+export type StartRequest = {
+  caller: string
+  from: Place
+  to: Place
+  name: string
+  mode: 'acceptEdits' | 'auto'
+  persona?: string
+  model: string
+  effort: string
+  worktree?: string
+  card?: string
+  prompt: string
+  goal: string
+  answer: (yes: boolean) => void
+}
+
+export const starts = $state<StartRequest[]>([])
+
+export const askStart = (request: Omit<StartRequest, 'answer'>) => new Promise<boolean>((answer) => starts.push({ ...request, answer }))

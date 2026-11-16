@@ -1,6 +1,7 @@
 {
   "id": "hello",
-  "version": "1.0.0",
+  "version": "1.2.0",
+  "squadron": ">=0.49.0",
   "api": 1,
   "name": { "en": "Hello", "fr": "Hello" },
   "description": { "en": "Example extension written in Rust", "fr": "Extension d’exemple écrite en Rust" },
@@ -26,7 +27,15 @@
       ],
       "page": "settings/index.html"
     },
-    "secrets": [{ "id": "token", "label": { "en": "GitHub token", "fr": "Jeton GitHub" }, "hint": { "en": "A fine-grained token with no permission is enough.", "fr": "Un jeton GitHub de type « fine-grained », sans aucune permission, suffit." } }]
+    "secrets": [{ "id": "token", "label": { "en": "GitHub token", "fr": "Jeton GitHub" }, "hint": { "en": "A fine-grained token with no permission is enough.", "fr": "Un jeton GitHub de type « fine-grained », sans aucune permission, suffit." } }],
+    "accounts": {
+      "label": { "en": "GitHub accounts", "fr": "Comptes GitHub" },
+      "check": true,
+      "fields": [
+        { "id": "api", "label": { "en": "API host", "fr": "Hôte de l’API" }, "kind": "host", "hint": { "en": "api.github.com, or your GitHub Enterprise", "fr": "api.github.com, ou votre GitHub Enterprise" } },
+        { "id": "token", "label": { "en": "Token", "fr": "Jeton" }, "kind": "secret", "hint": { "en": "Create a fine-grained token", "fr": "Créer un jeton « fine-grained »" }, "url": "https://github.com/settings/personal-access-tokens/new" }
+      ]
+    }
   },
   "permissions": { "exec": ["git"], "network": ["api.github.com"] }
 }
