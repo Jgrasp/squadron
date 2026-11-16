@@ -932,7 +932,9 @@ mockIPC(
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
       case 'claude_version':
-        return '2.1.304 (Claude Code)'
+        return '2.1.310 (Claude Code)'
+      case 'tested_claude_version':
+        return '2.1.310'
       case 'plugin:app|version':
         return '0.36.0'
       case 'remove_rule': {

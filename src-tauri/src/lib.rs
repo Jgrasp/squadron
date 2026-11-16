@@ -844,6 +844,11 @@ fn claude_version(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
+fn tested_claude_version() -> &'static str {
+    claude::TESTED_VERSION
+}
+
+#[tauri::command]
 fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     if std::fs::metadata(&file).is_ok_and(|m| m.len() > 5_000_000) {
@@ -2651,6 +2656,7 @@ pub fn run() {
             set_settings,
             set_claude_path,
             claude_version,
+            tested_claude_version,
             suggest_title,
             remove_rule,
             set_cards,
