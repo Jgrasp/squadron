@@ -380,20 +380,24 @@
               {@render renaming(head)}
             </div>
           {:else}
-            <button
-              class="bh"
-              class:open={menu?.row?.kind === 'group' && menu.row.id === head.id}
-              aria-expanded={!head.folded}
-              aria-label={head.folded ? t('shell.groupUnfold', { name: head.name }) : t('shell.groupFold', { name: head.name })}
-              onpointerdown={(e) => down(e, head)}
-              onclick={() => toggle(head.id)}
-              oncontextmenu={(e) => context(e, head)}
-            >
-              {@render chevron(!head.folded)}
-              <span class="nm">{head.name}</span>
-              <span class="n">{count(head.id)}</span>
-              {@render tail(inside(head.id))}
-            </button>
+            <div class="bh" class:open={menu?.row?.kind === 'group' && menu.row.id === head.id}>
+              <button
+                class="fold"
+                aria-expanded={!head.folded}
+                aria-label={head.folded ? t('shell.groupUnfold', { name: head.name }) : t('shell.groupFold', { name: head.name })}
+                onpointerdown={(e) => down(e, head)}
+                onclick={() => toggle(head.id)}
+                oncontextmenu={(e) => context(e, head)}
+              >
+                {@render chevron(!head.folded)}
+                <span class="nm">{head.name}</span>
+                <span class="n">{count(head.id)}</span>
+                {@render tail(inside(head.id))}
+              </button>
+              <button class="plus" aria-label={t('shell.groupNewIn')} title={t('shell.groupNewIn')} onclick={() => create(head.id)}>
+                <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 5v14M5 12h14" /></svg>
+              </button>
+            </div>
           {/if}
           {#each block.rows as row (row.kind === 'group' ? `g:${row.id}` : `p:${row.project.path}`)}
             {@render line(row, row.depth - 1)}
@@ -442,7 +446,7 @@
 {/if}
 
 {#if menu}
-  {@const row = menu.row}
+  {@const row = menu?.row ?? null}
   {@const paths = targets(row)}
   <div class="menu" role="menu" style:left="{menu.x}px" style:top="{menu.y}px">
     {#if row?.kind === 'project'}
@@ -476,7 +480,11 @@
         {t('shell.groupRename')}
       </button>
       <span class="rule" aria-hidden="true"></span>
-      <button role="menuitem" class="danger" title={t('shell.groupDeleteHint')} onclick={() => ((menu = null), act(() => removeGroup(row.id)))}>
+      <button role="menuitem" class="danger" title={t('shell.groupDeleteHint')} onclick={() => {
+          const id = row.id
+          menu = null
+          act(() => removeGroup(id))
+        }}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 7h16M10 11v6M14 11v6M6 7l1 13h10l1-13M9 7V4h6v3" /></svg>
         {t('shell.groupDelete')}
       </button>
@@ -637,18 +645,55 @@
     flex: none;
     display: flex;
     align-items: center;
-    gap: 8px;
+    gap: 2px;
     height: 34px;
-    padding: 0 8px;
+    padding-right: 5px;
     border-radius: 4px;
-    color: var(--text);
-    text-align: left;
-    white-space: nowrap;
+  }
+
+  .bh.editing {
+    gap: 8px;
+    padding: 0 8px;
   }
 
   .bh:hover,
   .bh.open {
     background: var(--surface-2);
+  }
+
+  .fold {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 8px;
+    color: var(--text);
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .plus {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 4px;
+    color: var(--text-dim);
+    opacity: 0;
+  }
+
+  .bh:hover .plus,
+  .bh.open .plus,
+  .plus:focus-visible {
+    opacity: 1;
+  }
+
+  .plus:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
   }
 
   .bh .nm {
