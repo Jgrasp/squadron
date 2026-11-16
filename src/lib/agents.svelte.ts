@@ -255,7 +255,10 @@ export function saveAll() {
   return Promise.all(agents.list.map((a) => save(a)))
 }
 
+export const shutdown = { closing: false }
+
 export async function closeAll() {
+  shutdown.closing = true
   const unsent = await invoke<Record<string, unknown[]>>('close_agents').catch(() => ({}) as Record<string, unknown[]>)
   for (const [id, contents] of Object.entries(unsent)) {
     const agent = find(id)

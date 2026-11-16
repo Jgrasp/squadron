@@ -18,6 +18,7 @@
   let error = $state('')
   let flags = $state<Record<string, boolean> | null>(null)
   let saving = $state<Record<string, boolean>>({})
+  let countdown = $state(0)
 
   invoke<Record<string, boolean>>('claude_flags')
     .then((found) => (flags = found))
@@ -52,6 +53,17 @@
     } finally {
       saving[key] = false
     }
+  }
+
+  function test() {
+    if (countdown) return
+    countdown = 5
+    const tick = setInterval(() => {
+      countdown -= 1
+      if (countdown) return
+      clearInterval(tick)
+      testNotification().catch((e) => (error = errorText(e)))
+    }, 1000)
   }
 
   const turnLabel = (secs: number) => (!secs ? t('notify.turnAny') : secs < 60 ? t('notify.turnSeconds', { count: secs }) : t('notify.turnMinutes', { count: secs / 60 }))
@@ -132,8 +144,8 @@
 </div>
 
 <div class="bar">
-  {#if error}<p class="bad" role="alert">{error}</p>{/if}
-  <button class="btn btn-ghost" onclick={() => testNotification().catch((e) => (error = errorText(e)))}>{t('notify.test')}</button>
+  {#if error}<p class="bad" role="alert">{error}</p>{:else}<p class="hint">{t('notify.testHint')}</p>{/if}
+  <button class="btn btn-ghost" disabled={countdown > 0} onclick={test}>{countdown ? t('notify.testIn', { count: countdown }) : t('notify.test')}</button>
 </div>
 
 <h2>
@@ -339,6 +351,13 @@
 
   .bar .btn {
     height: 32px;
+  }
+
+  .hint {
+    flex: 1;
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-dim);
   }
 
   .bad {

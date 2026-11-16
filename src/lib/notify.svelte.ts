@@ -2,7 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { isPermissionGranted, onAction, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { untrack } from 'svelte'
 import { ui, type SettingsTab } from './actions.svelte'
-import { agents, find, selected, show, SSH_KEY, SUDO, VALUES, waitingDetail, waitingFor } from './agents.svelte'
+import { agents, find, selected, show, shutdown, SSH_KEY, SUDO, VALUES, waitingDetail, waitingFor } from './agents.svelte'
 import { asked } from './askpass.svelte'
 import { chime } from './chime'
 import { t, type Key } from './i18n/index.svelte'
@@ -61,7 +61,9 @@ export async function notifyRun(title: string, body: string, target: Target = {}
 }
 
 export function testNotification() {
-  return deliver(t('notify.testTitle'), t('notify.testBody'), {}, false)
+  const agent = projects.current ? selected(projects.current) : undefined
+  if (!agent) return deliver(t('notify.testTitle'), t('notify.testBody'), {}, false)
+  return deliver(t('notify.testTitle'), t('notify.testAgent', { agent: agent.name }), { agent: agent.id }, false)
 }
 
 async function open(target: Target) {
@@ -69,6 +71,7 @@ async function open(target: Target) {
   await window.unminimize().catch(() => {})
   await window.setFocus().catch(() => {})
   const agent = target.agent ? find(target.agent) : undefined
+  if (agent || target.pulls) ui.settings = null
   if (agent) show(agent)
   if (target.pulls) showPulls(target.pulls)
   if (target.settings) ui.settings = target.settings
@@ -117,6 +120,7 @@ function tell(agent: Agent, event: NotifyEvent, detail: string) {
 }
 
 function compare(agent: Agent, before: Seen, now: Seen) {
+  if (shutdown.closing) return
   const ask = agent.asks[0]
   if (ask && now.ask !== before.ask) tell(agent, kindOf(ask.tool_name), waitingDetail(agent) || waitingFor(ask))
   if (now.password && !before.password) tell(agent, 'password', asked.list.findLast((q) => q.agent === agent.id)?.prompt ?? '')
