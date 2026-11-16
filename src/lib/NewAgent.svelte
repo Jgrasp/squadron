@@ -8,9 +8,8 @@
   import { agents, find } from './agents.svelte'
   import Attachment from './Attachment.svelte'
   import { draftClosed, draftRegenerate, draftStarted, type OpenDraft } from './drafts.svelte'
-  import { named, nameOf } from './extension-pages.svelte'
+  import { brand, named } from './extension-pages.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
-  import { extensions } from './extensions.svelte'
   import { fill, type Draft, type DraftStatus, type Label } from './newAgentDraft'
   import { agentTypes, catalogs, models, type Definition } from './catalogs.svelte'
   import { families, find as findCommand, options as argumentsOf } from './commands'
@@ -51,7 +50,6 @@
   let context = $state(untrack(() => linked?.draft.context ?? ''))
   let preparing = untrack(() => (status?.state === 'running' ? status.text : undefined))
   let started = false
-  const extension = $derived(linked && extensions.list.find((x) => x.id === linked.extension))
   const said = (label: Label | undefined) => (label === undefined ? '' : typeof label === 'string' ? label : named(label))
 
   function apply(update: Draft) {
@@ -241,7 +239,7 @@
     <div class="fields">
       {#if tied && link && linked}
         <div class="linked">
-          <ExtensionLogo id={linked.extension} name={extension ? nameOf(extension) : linked.extension} size={20} />
+          <ExtensionLogo {...brand(linked.extension)} size={20} />
           {#if link.url}
             {@const url = link.url}
             <button type="button" class="key" title={t('board.draftOpenLink')} onclick={() => invoke('open_link', { url })}>{link.key}</button>

@@ -244,7 +244,7 @@
         {#each listed as e (e.id)}
           {@const update = updateOf(e)}
           <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${e.id}`} onclick={() => (ui.settings = `ext:${e.id}`)}>
-            <ExtensionLogo id={e.id} name={nameOf(e)} size={16} />
+            <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={16} />
             <span class="name">{nameOf(e)}</span>
             {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
           </button>

@@ -5,6 +5,7 @@ use std::path::{Path, PathBuf};
 use std::time::{Duration, SystemTime};
 
 const MAX_MANIFEST: u64 = 256 * 1024;
+const MAX_LOGO: u64 = 64 * 1024;
 
 pub struct Extensions {
     pub dir: PathBuf,
@@ -139,6 +140,7 @@ pub struct Found {
     pub linked: bool,
     pub manifest: Option<serde_json::Value>,
     pub error: Option<String>,
+    pub logo: Option<String>,
 }
 
 #[derive(Serialize, Debug)]
@@ -737,20 +739,57 @@ pub fn read(dir: &Path, linked: bool) -> Found {
         Ok(_) => std::fs::read_to_string(&file)
             .map_err(|e| e.to_string())
             .and_then(|text| {
-                serde_json::from_str(&text)
+                serde_json::from_str::<Value>(&text)
                     .map_err(|e| format!("extension.json is not valid JSON: {e}"))
             }),
     };
-    let (manifest, error) = match manifest {
+    let (manifest, mut error) = match manifest {
         Ok(value) => (Some(value), None),
         Err(e) => (None, Some(e)),
     };
+    let logo = manifest
+        .as_ref()
+        .and_then(|m| m["logo"].as_str())
+        .and_then(|path| logo_of(dir, path).map_err(|e| error = Some(e)).ok());
     Found {
         dir: dir.to_string_lossy().to_string(),
         linked,
         manifest,
         error,
+        logo,
     }
+}
+
+fn logo_of(dir: &Path, path: &str) -> Result<String, String> {
+    use base64::Engine;
+    let plain = path.ends_with(".svg")
+        && !path.starts_with('/')
+        && path
+            .split('/')
+            .all(|p| !p.is_empty() && !p.starts_with('.') && !p.contains(['\\', '\0', ':']));
+    if !plain {
+        return Err(format!(
+            "The logo {path} is not an .svg file of the extension folder."
+        ));
+    }
+    let root = dir.canonicalize().map_err(|e| e.to_string())?;
+    let file = root
+        .join(path)
+        .canonicalize()
+        .ok()
+        .filter(|f| f.starts_with(&root) && f.is_file())
+        .ok_or(format!("The logo {path} is missing."))?;
+    if std::fs::metadata(&file).map_err(|e| e.to_string())?.len() > MAX_LOGO {
+        return Err(format!("The logo {path} is larger than 64 KB."));
+    }
+    let bytes = std::fs::read(&file).map_err(|e| e.to_string())?;
+    if !String::from_utf8_lossy(&bytes).contains("<svg") {
+        return Err(format!("The logo {path} is not an SVG image."));
+    }
+    Ok(format!(
+        "data:image/svg+xml;base64,{}",
+        base64::engine::general_purpose::STANDARD.encode(bytes)
+    ))
 }
 
 #[derive(Deserialize)]
@@ -1063,6 +1102,59 @@ mod tests {
             assert_eq!(m.field_url("jira", field), None, "{field}");
         }
         assert_eq!(m.field_url("other", "token"), None);
+    }
+
+    #[test]
+    fn reads_the_logo_as_an_image_and_refuses_files_outside_the_extension() {
+        let m = extensions();
+        let dir = m.dir.join("jira");
+        std::fs::create_dir_all(dir.join("panel")).unwrap();
+        let svg = r#"<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 16 16"><path d="M0 0h16v16H0z"/></svg>"#;
+        std::fs::write(dir.join("panel/logo.svg"), svg).unwrap();
+        std::fs::write(dir.join(".logo.svg"), svg).unwrap();
+        std::fs::write(dir.join("logo.png.svg"), "not an image").unwrap();
+        std::fs::write(
+            dir.join("big.svg"),
+            format!("<svg>{}</svg>", " ".repeat(65 * 1024)),
+        )
+        .unwrap();
+        std::fs::write(m.dir.join("outside.svg"), svg).unwrap();
+        let with = |logo: &str| {
+            std::fs::write(
+                dir.join("extension.json"),
+                serde_json::json!({"id": "jira", "logo": logo}).to_string(),
+            )
+            .unwrap();
+            read(&dir, false)
+        };
+        let found = with("panel/logo.svg");
+        assert_eq!(found.error, None);
+        let logo = found.logo.unwrap();
+        use base64::Engine;
+        let bytes = base64::engine::general_purpose::STANDARD
+            .decode(logo.strip_prefix("data:image/svg+xml;base64,").unwrap())
+            .unwrap();
+        assert_eq!(bytes, svg.as_bytes());
+        for (bad, why) in [
+            ("../outside.svg", "not an .svg file"),
+            ("/etc/logo.svg", "not an .svg file"),
+            (".logo.svg", "not an .svg file"),
+            ("panel/logo.png", "not an .svg file"),
+            ("panel/none.svg", "is missing"),
+            ("big.svg", "larger than 64 KB"),
+            ("logo.png.svg", "not an SVG image"),
+        ] {
+            let found = with(bad);
+            assert_eq!(found.logo, None, "{bad}");
+            assert!(
+                found.error.as_deref().unwrap_or_default().contains(why),
+                "{bad}: {:?}",
+                found.error
+            );
+        }
+        std::fs::write(dir.join("extension.json"), r#"{"id":"jira"}"#).unwrap();
+        let found = read(&dir, false);
+        assert_eq!((found.logo, found.error), (None, None));
     }
 
     #[test]

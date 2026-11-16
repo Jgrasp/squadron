@@ -10,6 +10,11 @@ export const colorOf = (id: string) => COLORS[[...id].reduce((sum, c) => sum + c
 
 export const named = (value: Text | undefined) => (value ? text(value, locale()) : '')
 
+export function brand(id: string) {
+  const e = extensions.list.find((x) => x.id === id)
+  return { id, name: e ? nameOf(e) : id, logo: e?.logo ?? null }
+}
+
 export const nameOf = (e: Extension) => (e.manifest ? named(e.manifest.name) : e.id)
 
 export const originOf = (e: Extension) => (e.linked ? undefined : extensions.origins[e.id])

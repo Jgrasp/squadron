@@ -538,6 +538,9 @@ const orbitPull = () => ({
             })
 
 mockWindows(label)
+const JIRA_LOGO =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0052cc"/><stop offset="1" stop-color="#2684ff"/></linearGradient></defs><path fill="#2684ff" d="M30.4 15.2 17.6 2.4 16 .8 3.6 13.2l-2 2a1.2 1.2 0 0 0 0 1.6l8.8 8.8L16 31.2l12.4-12.4.2-.2 1.8-1.8a1.2 1.2 0 0 0 0-1.6ZM16 20.4 11.6 16 16 11.6l4.4 4.4Z"/><path fill="url(#g)" d="M16 11.6a7.4 7.4 0 0 1 0-10.4L6.4 10.8l5.2 5.2Z"/></svg>'
+
 const TICKET_DRAFT = {
   name: 'RING-128 Card payment: 3-D Secure on iOS',
   link: { key: 'RING-128', title: 'Card payment: 3-D Secure on iOS', url: 'https://acme.atlassian.net/browse/RING-128' },
@@ -1270,6 +1273,7 @@ mockIPC(
               dir: '/home/demo/.config/dev.squadron.desktop/extensions/jira',
               linked: false,
               error: null,
+              logo: `data:image/svg+xml;base64,${btoa(JIRA_LOGO)}`,
               manifest: {
                 id: 'jira',
                 version: '0.1.0',
@@ -1279,7 +1283,10 @@ mockIPC(
                 wasm: 'jira.wasm',
                 permissions: { exec: ['claude'], network: ['api.media.atlassian.com'] },
                 contributes: {
-                  items: [{ slot: 'agent.menu', id: 'launch', label: { en: 'Launch an agent on RING-128', fr: 'Lancer un agent sur RING-128' }, action: { run: 'launch' } }],
+                  items: [
+                    { slot: 'agent.tools', id: 'board', label: { en: 'Jira', fr: 'Jira' }, icon: 'logo', action: { run: 'launch' } },
+                    { slot: 'agent.menu', id: 'launch', label: { en: 'Launch an agent on RING-128', fr: 'Lancer un agent sur RING-128' }, action: { run: 'launch' } },
+                  ],
                   accounts: {
                     label: { en: 'Jira sites', fr: 'Sites Jira' },
                     fields: [

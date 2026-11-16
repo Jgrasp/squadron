@@ -19,6 +19,7 @@
   import { ui } from './actions.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
+  import ItemIcon from './ItemIcon.svelte'
   import { groups } from './agenttools'
   import AgentDefinition from './AgentDefinition.svelte'
   import PersonaChip from './PersonaChip.svelte'
@@ -911,7 +912,7 @@
                 aria-pressed={'panel.open' in item.action ? panel === `extension:${item.extension}.${item.action['panel.open']}` : undefined}
                 onclick={() => runItem(item, { project, agent })}
               >
-                {#if item.icon}<Icon name={item.icon} />{/if}
+                <ItemIcon icon={item.icon} extension={item.extension} />
                 {labelOf('agent.tools', id)}
                 {#if badgeOf(id)}<span class="count">{badgeOf(id)}</span>{/if}
               </button>

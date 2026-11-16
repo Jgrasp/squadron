@@ -35,6 +35,7 @@ describe('extensions', () => {
     expect(item({ slot: 'agent.info' })).toEqual(['extensions.badSlot'])
     expect(item({ slot: 'artifact.actions', action: { 'prompt.insert': 'Share it' } })).toEqual([])
     expect(item({ icon: 'rocket' })).toEqual(['extensions.badIcon'])
+    expect(item({ icon: 'logo' })).toEqual([])
     expect(item({ action: { squadron: 'explode' } })).toEqual(['extensions.badSquadron'])
     expect(item({ action: { 'terminal.run': 'ls\nrm -rf ~' } })).toEqual(['extensions.badCommand'])
     expect(item({ action: { 'url.open': 'javascript:alert(1)' } })).toEqual(['extensions.badUrl'])
@@ -216,6 +217,22 @@ describe('extensions', () => {
     )
     expect(updatesOf(list, entries, {}).map((e) => `${e.id}@${e.version}`)).toEqual(['hello@1.2.0'])
     expect(updatesOf(list, entries, { hello: 'me/ext' }).map((e) => `${e.id}@${e.version}`)).toEqual(['hello@9.0.0'])
+  })
+
+  it('takes a logo from an .svg file of the extension folder', () => {
+    const base = { id: 'jira', version: '1.0.0', api: 1, name: { en: 'Jira' } }
+    expect(keys({ ...base, logo: 'panel/logo.svg' })).toEqual([])
+    for (const logo of ['../logo.svg', '/logo.svg', '.logo.svg', 'panel/.hidden/logo.svg', 'logo.png', 'panel//logo.svg', 42])
+      expect(keys({ ...base, logo })).toEqual(['extensions.badLogo'])
+    const [read, broken] = load(
+      [
+        { dir: '/x/jira', linked: false, manifest: { ...base, logo: 'logo.svg' }, error: null, logo: 'data:image/svg+xml;base64,PHN2Zz4=' },
+        { dir: '/x/other', linked: false, manifest: { ...base, id: 'other', logo: 'big.svg' }, error: 'The logo big.svg is larger than 64 KB.', logo: null },
+      ],
+      [],
+    )
+    expect(read.logo).toBe('data:image/svg+xml;base64,PHN2Zz4=')
+    expect([broken.logo, broken.problems]).toEqual([null, [['extensions.unreadable', { error: 'The logo big.svg is larger than 64 KB.' }]]])
   })
 
   it('asks for network hosts and checks secrets', () => {

@@ -9,6 +9,7 @@
   import { needsAgent, text, type Item } from './extensions'
   import { showPulls } from './linked.svelte'
   import Icon from './Icon.svelte'
+  import ItemIcon from './ItemIcon.svelte'
   import { projects, scratch, type Project } from './projects.svelte'
   import { approve, hostName, lists, lookUpLists, merge, moved, needsYou, openReview, requestChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
   import { hint, settings } from './settings.svelte'
@@ -523,7 +524,7 @@
               </button>
             {:else if line.kind === 'item'}
               <button class="action" onclick={() => choose(i)} onmousemove={() => (active = i)}>
-                <span class="icon"><Icon name={line.item.icon ?? 'plugins'} /></span>
+                <span class="icon"><ItemIcon icon={line.item.icon} extension={line.item.extension} fallback="plugins" /></span>
                 <span class="title">{label(line.item)}</span>
                 {#if line.agent && focus?.kind !== 'agent'}
                   <span class="target agent" style:--project={projectOf(line.agent.project)?.color}><i></i>{line.agent.name}</span>

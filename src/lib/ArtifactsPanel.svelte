@@ -13,6 +13,7 @@
   import { allowed, extensionItem, extensions, runItem, shareTool } from './extensions.svelte'
   import { errorText, locale, t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
+  import ItemIcon from './ItemIcon.svelte'
   import { detailOf, labelOf, shown } from './layout-slots.svelte'
   import Markdown from './Markdown.svelte'
   import Select from './Select.svelte'
@@ -267,7 +268,7 @@
               {@const stale = local_.modified > on.at}
               <div class="entry">
                 <div class="option">
-                  <span class="ico"><Icon name={item.icon ?? 'plugins'} /></span>
+                  <span class="ico"><ItemIcon icon={item.icon} extension={item.extension} fallback="plugins" /></span>
                   <span class="text">
                     <b><span class="dot" aria-hidden="true"></span>{tr(action.shared) || labelOf('artifact.actions', id)}</b>
                     <span>{stale ? t('agent.artifactStale', { time: time(on.at) }) : t('agent.artifactSince', { time: time(on.at) })}</span>
@@ -283,7 +284,7 @@
               </div>
             {:else if id === 'claude' || item}
               <button class="option" role="menuitem" disabled={(id === 'claude' && open.kind !== 'markdown') || (!!busy && (id === 'claude' || !!shareOf(item)))} onclick={() => pick(id)}>
-                <span class="ico"><Icon name={id === 'claude' ? 'artifact' : (item?.icon ?? 'plugins')} /></span>
+                <span class="ico">{#if item}<ItemIcon icon={item.icon} extension={item.extension} fallback="plugins" />{:else}<Icon name="artifact" />{/if}</span>
                 <span class="text">
                   <b>{labelOf('artifact.actions', id)}</b>
                   <span>{id === 'claude' && open.kind !== 'markdown' ? t('agent.artifactMarkdownOnly') : detailOf('artifact.actions', id)}</span>

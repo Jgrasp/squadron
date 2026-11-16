@@ -8,8 +8,9 @@
     full = false,
     onclose,
     badge,
+    icon,
     children,
-  }: { title: string; width?: number; full?: boolean; onclose: () => void; badge?: Snippet; children: Snippet } =
+  }: { title: string; width?: number; full?: boolean; onclose: () => void; badge?: Snippet; icon?: Snippet; children: Snippet } =
     $props()
 
   let dialog: HTMLDialogElement
@@ -31,6 +32,7 @@
 >
   <div class="head">
     <div class="title">
+      {@render icon?.()}
       <h1 id="dialog-title" {title}>{title}</h1>
       {@render badge?.()}
     </div>

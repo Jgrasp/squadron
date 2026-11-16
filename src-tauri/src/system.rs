@@ -102,7 +102,11 @@ pub fn package_manager_busy() -> bool {
 
 #[cfg(target_os = "linux")]
 fn locked(locks: &str, dev: u64, ino: u64) -> bool {
-    let id = format!("{:02x}:{:02x}:{ino}", libc::major(dev as _), libc::minor(dev as _));
+    let id = format!(
+        "{:02x}:{:02x}:{ino}",
+        libc::major(dev as _),
+        libc::minor(dev as _)
+    );
     locks
         .lines()
         .filter_map(|l| l.split_whitespace().nth(5))
@@ -149,13 +153,21 @@ mod tests {
         use std::os::unix::fs::MetadataExt;
         use std::os::unix::io::AsRawFd;
         let path = std::env::temp_dir().join(format!("squadron-lock-{}", std::process::id()));
-        let file = fs::OpenOptions::new().create(true).write(true).open(&path).unwrap();
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .unwrap();
         let meta = file.metadata().unwrap();
         let read = || fs::read_to_string("/proc/locks").unwrap();
         assert!(!locked(&read(), meta.dev(), meta.ino()));
         let mut lock: libc::flock = unsafe { std::mem::zeroed() };
         lock.l_type = libc::F_WRLCK as _;
-        assert_eq!(unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLK, &lock) }, 0);
+        assert_eq!(
+            unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLK, &lock) },
+            0
+        );
         assert!(locked(&read(), meta.dev(), meta.ino()));
         fs::remove_file(path).unwrap();
     }
