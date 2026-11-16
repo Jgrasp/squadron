@@ -88,6 +88,7 @@ export default {
   tasks: 'Tasks · {done} of {total}',
   messageActions: 'Message actions',
   forkFromHere: 'Fork from here',
+  download: 'Download…',
 
   openInDiff: 'Open in the Diff panel',
   diffLink: 'Diff →',

@@ -13,7 +13,7 @@ import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw
 import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
 import picker from '../../src-tauri/src/artifact-pick.js?raw'
 
-type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; defaults?: Record<string, string> }
+type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; tab_hidden?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; defaults?: Record<string, string> }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
@@ -59,7 +59,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ group: p.group ?? '', ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', defaults: p.defaults ?? {} }))
+const views = () => projects.map((p, i) => ({ group: p.group ?? '', ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, tab_hidden: !!p.tab_hidden, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', defaults: p.defaults ?? {} }))
 
 const loaded = Date.now()
 const timers = new Map<string, number>()
@@ -836,7 +836,10 @@ mockIPC(
         return
       case 'edit_project': {
         const project = projects.find((p) => p.path === a.path)!
-        Object.assign(project, (args as { changes: Partial<Project> }).changes)
+        const changes = (args as { changes: Partial<Project> }).changes
+        Object.assign(project, changes)
+        if (changes.pinned) project.tab_hidden = false
+        if (changes.tab_hidden) project.pinned = false
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
       }

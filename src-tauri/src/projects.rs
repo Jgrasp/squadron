@@ -38,6 +38,8 @@ pub struct Project {
     pub pinned: bool,
     #[serde(default)]
     pub archived: bool,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub tab_hidden: bool,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -59,6 +61,7 @@ pub struct Edit {
     pub name: Option<String>,
     pub color: Option<String>,
     pub pinned: Option<bool>,
+    pub tab_hidden: Option<bool>,
     pub archived: Option<bool>,
     pub runs: Option<bool>,
     pub runs_notify: Option<bool>,
@@ -261,6 +264,7 @@ pub struct Folder {
     pub cards: Vec<Card>,
     pub color: String,
     pub pinned: bool,
+    pub tab_hidden: bool,
     pub archived: bool,
     pub group: String,
     pub runs: bool,
@@ -284,6 +288,7 @@ impl Folder {
             cards: project.cards.clone(),
             color: project.color.clone(),
             pinned: project.pinned,
+            tab_hidden: project.tab_hidden,
             archived: project.archived,
             group: project.group.clone(),
             runs: !project.runs_off,
@@ -513,6 +518,7 @@ mod tests {
             }],
             color: "#A78BFA".into(),
             pinned: true,
+            tab_hidden: false,
             archived: false,
             group: "g1".into(),
             runs_off: true,

@@ -90,6 +90,7 @@ export default {
   tasks: 'Tâches · {done} sur {total}',
   messageActions: 'Actions sur le message',
   forkFromHere: 'Dupliquer à partir d’ici',
+  download: 'Télécharger…',
 
   openInDiff: 'Ouvrir dans le panneau Diff',
   diffLink: 'Diff →',

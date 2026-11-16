@@ -66,6 +66,11 @@ describe('inBar', () => {
     expect(inBar({ path: '/a', pinned: false }, '', idle, now, 4)).toBe(false)
   })
 
+  it('leaves out a project removed from the bar, unless it is the current one', () => {
+    expect(inBar({ path: '/a', pinned: false, tab_hidden: true }, '', { busy: true, last: now }, now, ALWAYS)).toBe(false)
+    expect(inBar({ path: '/a', pinned: false, tab_hidden: true }, '/a', idle, now, 4)).toBe(true)
+  })
+
   it('keeps every project when the delay is always', () => {
     expect(inBar({ path: '/a', pinned: false }, '', idle, now, ALWAYS)).toBe(true)
   })

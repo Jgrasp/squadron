@@ -100,6 +100,16 @@
     search = ''
   }
 
+  function removeTab(path: string) {
+    if (path === projects.current) {
+      const at = visible.findIndex((p) => p.path === path)
+      const next = visible[at + 1] ?? visible[at - 1]
+      if (next) choose(next.path)
+      else projects.overview = true
+    }
+    editProject(path, { tab_hidden: true })
+  }
+
   function closeMenus(event: MouseEvent) {
     if (!(event.target as HTMLElement).closest('[data-menu]')) {
       menuOpen = false
@@ -324,6 +334,10 @@
       <button role="menuitem" onclick={() => (editProject(target.path, { pinned: !target.pinned }), (context = null))}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
         {target.pinned ? t('shell.unpinFromTabBar') : t('shell.pinToTabBar')}
+      </button>
+      <button role="menuitem" onclick={() => (target.tab_hidden ? editProject(target.path, { tab_hidden: false }) : removeTab(target.path), (context = null))}>
+        <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
+        {target.tab_hidden ? t('shell.showInTabBar') : t('shell.removeFromTabBar')}
       </button>
       <button role="menuitem" onclick={() => ((ui.settingsProject = target.path), (context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
       <button role="menuitem" onclick={() => (shelve(target), (context = null))}>{t('shell.archiveProjectEllipsis')}</button>
