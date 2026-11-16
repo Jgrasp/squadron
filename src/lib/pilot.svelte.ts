@@ -3,7 +3,7 @@ import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { homeDir, join } from '@tauri-apps/api/path'
 import { listen } from '@tauri-apps/api/event'
-import { ask } from './asking.svelte'
+import { askStart } from './asking.svelte'
 import { archived, askSecret, askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, unarchive, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
 import { loadServers } from './ondemand.svelte'
 import { moveCard, type Card, type Column } from './board'
@@ -111,17 +111,26 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     }
     const name = String(args.name ?? '').trim() || card?.title || ''
     const goal = String(args.done_when ?? '').trim() || card?.goal || ''
+    const dir = String(args.worktree ?? '').trim().replace(/\/+$/, '')
+    const home = projects.list.find((p) => p.path === caller.project)!
     if (
       (options.mode === 'acceptEdits' || options.mode === 'auto') &&
-      !(await ask(t(name ? 'shell.pilotStartNamed' : 'shell.pilotStartUnnamed', { caller: caller.name, name, project: project.name, mode: options.mode }), {
-        title: t('shell.pilotStartTitle'),
-        kind: 'warning',
-        okLabel: t('shell.pilotStartOk'),
-        cancelLabel: t('shell.pilotStartRefuse'),
+      !(await askStart({
+        caller: caller.name,
+        from: { name: home.name, color: home.color },
+        to: { name: project.name, color: project.color },
+        name,
+        mode: options.mode,
+        persona: options.agent,
+        model: options.model,
+        effort: options.effort,
+        worktree: dir || undefined,
+        card: card?.key || undefined,
+        prompt: text,
+        goal,
       }))
     )
       return `The user refused to start this agent in ${options.mode} mode.`
-    const dir = String(args.worktree ?? '').trim().replace(/\/+$/, '')
     if (dir) await invoke('git_branch', { path: dir }).catch(() => {
       throw new Error(`${dir} is not a git checkout.`)
     })
