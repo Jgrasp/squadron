@@ -953,6 +953,14 @@ fn save_text_file(path: PathBuf, text: String) -> Result<(), String> {
     std::fs::write(path, text).map_err(|e| e.to_string())
 }
 
+#[tauri::command]
+fn download_attachment(path: PathBuf, to: PathBuf) -> Result<(), String> {
+    if !std::fs::metadata(&path).map_err(|_| "The file is gone.")?.is_file() {
+        return Err("The file is gone.".into());
+    }
+    std::fs::copy(&path, &to).map(|_| ()).map_err(|e| e.to_string())
+}
+
 #[derive(Serialize)]
 struct Entry {
     name: String,
@@ -2637,6 +2645,7 @@ pub fn run() {
             read_project_file,
             write_project_file,
             save_text_file,
+            download_attachment,
             artifacts_dir,
             list_artifacts,
             read_artifact,
