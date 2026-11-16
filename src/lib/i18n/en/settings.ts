@@ -329,11 +329,8 @@ export default {
   modePlanHint: 'Proposes a plan, acts only once approved',
   modeAuto: 'Auto',
   modeAutoHint: 'Claude Code decides, and only asks for risky actions',
-  updateFromSources: 'This Squadron runs from its sources: updates come to the installed app.',
   updateFailedTitle: 'GitHub is not responding',
   updateFailed: 'Couldn’t check for updates.',
-  upToDate: 'Squadron {version} is up to date.',
-  updateAsk: 'Squadron {version} is available. Install it now?',
   later: 'Later',
   updateRestart: {
     one: 'Squadron restarts to install {version}. {count} agent is still at work: its turn is cut, then picks up where it left off.',
