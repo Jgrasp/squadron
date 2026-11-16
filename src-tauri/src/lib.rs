@@ -2900,4 +2900,20 @@ mod tests {
         assert_eq!(read_config(kept).unwrap().notify_runs, "failures");
         assert!(read_config("{ nope").is_err());
     }
+
+    #[test]
+    fn sets_aside_unreadable_settings_and_writes_them_whole() {
+        let dir = std::env::temp_dir().join(format!("squadron-settings-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(&dir).unwrap();
+        let file = dir.join("settings.json");
+        std::fs::write(&file, "{ broken").unwrap();
+        let settings = Settings::load(file.clone());
+        assert_eq!(std::fs::read_to_string(dir.join("settings.json.bak")).unwrap(), "{ broken");
+        let config = settings.config.lock().unwrap().clone();
+        settings.save(config).unwrap();
+        assert!(read_config(&std::fs::read_to_string(&file).unwrap()).is_ok());
+        assert!(!dir.join("settings.json.tmp").exists());
+        let _ = std::fs::remove_dir_all(dir);
+    }
 }
