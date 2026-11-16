@@ -4,7 +4,7 @@
   import { failed, ofProject, waiting } from './agents.svelte'
   import { contained, groupOf, parentOf, rollup, rows, within, type Row, type Stat } from './groups'
   import { foldGroup, layout, MIN_PROJECTS, resizeProjects } from './layout.svelte'
-  import { addGroup, editGroup, editProject, moveProjects, projects, removeGroup, type Project } from './projects.svelte'
+  import { addGroup, editGroup, editProject, moveProjects, orderProjects, projects, removeGroup, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { errorText, t } from './i18n/index.svelte'
@@ -22,6 +22,7 @@
   let menu = $state<{ x: number; y: number; row: Row | null } | null>(null)
   let drag = $state<{ x: number; y: number; ids: string[]; group: boolean; label: string; color: string } | null>(null)
   let over = $state<string | null>(null)
+  let slot = $state<{ path: string; after: boolean } | null>(null)
 
   const searching = $derived(!!query.trim())
   const list = $derived(rows(projects.groups, projects.list, layout.foldedGroups, query))
@@ -214,6 +215,22 @@
     drag.x = event.clientX
     drag.y = event.clientY
     over = aim(event.clientX, event.clientY)
+    slot = place(event.clientX, event.clientY)
+  }
+
+  function place(x: number, y: number) {
+    const row = document.elementFromPoint(x, y)?.closest<HTMLElement>('[data-path]')
+    if (!row || !drag || drag.group || drag.ids.includes(row.dataset.path!)) return null
+    const box = row.getBoundingClientRect()
+    return { path: row.dataset.path!, after: y > box.top + box.height / 2 }
+  }
+
+  function placed(ids: string[], at: { path: string; after: boolean } | null) {
+    if (!at) return null
+    const all = projects.list.map((p) => p.path)
+    const rest = all.filter((p) => !ids.includes(p))
+    rest.splice(rest.indexOf(at.path) + (at.after ? 1 : 0), 0, ...all.filter((p) => ids.includes(p)))
+    return rest.join('\n') === all.join('\n') ? null : rest
   }
 
   function up(event: PointerEvent) {
@@ -224,17 +241,24 @@
     suppress = true
     setTimeout(() => (suppress = false), 0)
     const target = aim(event.clientX, event.clientY)
+    const order = placed(drag.ids, drag.group ? null : place(event.clientX, event.clientY))
     const moved = drag
     drag = null
     over = null
+    slot = null
     if (target === null) return
     if (target) foldGroup(target, false)
     if (moved.group) {
       const group = projects.groups.find((g) => g.id === moved.ids[0])
       if (group && group.parent !== target) act(() => editGroup(group.id, { parent: target }))
-    } else if (moved.ids.some((path) => projects.list.find((p) => p.path === path && groupOf(projects.groups, p) !== target))) {
+    } else {
+      const regroup = moved.ids.some((path) => projects.list.find((p) => p.path === path && groupOf(projects.groups, p) !== target))
+      if (!regroup && !order) return
       selected = []
-      act(() => moveProjects(moved.ids, target))
+      act(async () => {
+        if (regroup) await moveProjects(moved.ids, target)
+        if (order) await orderProjects(order)
+      })
     }
   }
 
@@ -291,7 +315,7 @@
       </div>
     {:else}
       {@const sum = inside(row.id)}
-      <div class="row g" class:target={over === row.id} class:dim={drag?.group && drag.ids[0] === row.id} class:open={menu?.row?.kind === 'group' && menu.row.id === row.id} data-drop={row.id} style:--depth={depth}>
+      <div class="row g" class:target={over === row.id && !slot} class:dim={drag?.group && drag.ids[0] === row.id} class:open={menu?.row?.kind === 'group' && menu.row.id === row.id} data-drop={row.id} style:--depth={depth}>
         <button
           class="fold"
           aria-expanded={!row.folded}
@@ -320,6 +344,7 @@
       class:cursor={at === cursor}
       class:dim={drag && !drag.group && drag.ids.includes(row.project.path)}
       data-drop={row.group}
+      data-path={row.project.path}
       style:--project={row.project.color}
       style:--depth={depth}
       aria-current={current ? 'page' : undefined}
@@ -327,6 +352,7 @@
       onclick={(e) => pick(e, row.project)}
       oncontextmenu={(e) => context(e, row)}
     >
+      {#if slot?.path === row.project.path}<i class="slot" class:after={slot.after} aria-hidden="true"></i>{/if}
       <span class="dot" aria-hidden="true"></span>
       <span class="nm">{row.project.name}</span>
       {#if row.project.pinned}
@@ -370,11 +396,11 @@
 
   {#if error}<p class="error" role="alert">{error}</p>{/if}
 
-  <div class="tree" data-drop="" class:root={over === ''} role="presentation" oncontextmenu={(e) => context(e, null)}>
+  <div class="tree" data-drop="" class:root={over === '' && !slot} role="presentation" oncontextmenu={(e) => context(e, null)}>
     {#each blocks as block (block.head ? `g:${block.head.id}` : 'loose')}
       {#if block.head}
         {@const head = block.head}
-        <section class="box" class:target={over === head.id} class:dim={drag?.group && drag.ids[0] === head.id} data-drop={head.id} aria-label={head.name}>
+        <section class="box" class:target={over === head.id && !slot} class:dim={drag?.group && drag.ids[0] === head.id} data-drop={head.id} aria-label={head.name}>
           {#if editing === head.id}
             <div class="bh editing">
               {@render chevron(!head.folded)}
@@ -788,6 +814,26 @@
 
   .chev.open {
     transform: rotate(90deg);
+  }
+
+  .row.p {
+    position: relative;
+  }
+
+  .slot {
+    position: absolute;
+    left: 8px;
+    right: 8px;
+    top: -1px;
+    height: 2px;
+    border-radius: 1px;
+    background: var(--accent);
+    pointer-events: none;
+  }
+
+  .slot.after {
+    top: auto;
+    bottom: -1px;
   }
 
   .row.target {
