@@ -328,6 +328,11 @@ fn edit_project(
         }
         if let Some(pinned) = changes.pinned {
             project.pinned = pinned;
+            project.tab_hidden &= !pinned;
+        }
+        if let Some(hidden) = changes.tab_hidden {
+            project.tab_hidden = hidden;
+            project.pinned &= !hidden;
         }
         if let Some(archived) = changes.archived {
             project.archived = archived;

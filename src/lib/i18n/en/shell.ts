@@ -15,6 +15,8 @@ export default {
   pinNamed: 'Pin {name} to the tab bar',
   pinToTabBar: 'Pin to the tab bar',
   unpinFromTabBar: 'Unpin from the tab bar',
+  removeFromTabBar: 'Remove from the tab bar',
+  showInTabBar: 'Show in the tab bar',
   reorderTabs: 'Reorder and pin tabs…',
   addProject: 'Add a project',
   todayTitle: 'Cost of today, all agents',
