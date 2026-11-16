@@ -56,22 +56,25 @@ export type Manifest = {
   squadron?: string
   name: Text
   description?: Text
+  logo?: string
   wasm?: string
   permissions?: Permissions
   contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string> }
 }
 
-export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null }
+export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null; logo?: string | null }
 
 export type Problem = [Key, Params?]
 
-export type Extension = { dir: string; linked: boolean; id: string; enabled: boolean; manifest?: Manifest; problems: Problem[]; commands: string[]; pending: string[] }
+export type Extension = { dir: string; linked: boolean; id: string; enabled: boolean; logo: string | null; manifest?: Manifest; problems: Problem[]; commands: string[]; pending: string[] }
 
 export type Item = ExtensionItem & { key: string; extension: string; allowed: boolean }
 
 export type Exposed = ExtensionTool & { extension: string; tool: string }
 
 export const EXTENSION_SLOTS: Slot[] = ['agent.tools', 'agent.menu', 'menu.squadron', 'artifact.actions']
+
+export const LOGO = 'logo'
 
 export const ICONS = ['editor', 'pull', 'terminal', 'diff', 'kanban', 'remote', 'subagents', 'artifact', 'branch', 'options', 'context', 'turns', 'tasks', 'persona', 'plus', 'copy', 'folder', 'archive', 'stop', 'pin', 'grid', 'jump', 'update', 'mcp']
 
@@ -83,7 +86,7 @@ const TOOL = /^[a-z0-9_]{1,40}$/
 
 const oneLine = (v: unknown) => typeof v === 'string' && !!v.trim() && !/[\x00-\x1f\x7f]/.test(v)
 
-const RESERVED = ['-p', '--print', '--input-format', '--output-format', '--replay-user-messages', '--model', '--effort', '--permission-mode', '--append-system-prompt', '--agent', '--advisor', '-r', '--resume', '-c', '--continue', '--fork-session', '--resume-session-at', '--session-id', '--mcp-config', '--strict-mcp-config', '--permission-prompt-tool', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '-w', '--worktree']
+const RESERVED = ['-p', '--print', '--input-format', '--output-format', '--replay-user-messages', '--model', '--effort', '--permission-mode', '--append-system-prompt', '--agent', '--advisor', '-r', '--resume', '-c', '--continue', '--fork-session', '--resume-session-at', '--session-id', '--mcp-config', '--strict-mcp-config', '--permission-prompt-tool', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '-w', '--worktree', '--settings', '--setting-sources', '--allowedTools', '--allowed-tools', '--tools', '--plugin-dir', '--plugin-url', '--agents', '--system-prompt', '--system-prompt-file', '--append-system-prompt-file']
 
 const COLOR = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d.,%\s/]+\))$/i
 
@@ -177,6 +180,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   if (raw.description !== undefined && !isText(raw.description)) problems.push(['extensions.badDescription'])
   const wasm = raw.wasm !== undefined
   if (wasm && !inside(raw.wasm, '.wasm')) problems.push(['extensions.badWasm'])
+  if (raw.logo !== undefined && !(inside(raw.logo, '.svg') && !(raw.logo as string).split(/[\\/]/).some((p) => p.startsWith('.')))) problems.push(['extensions.badLogo'])
   const exec = isObject(raw.permissions) ? raw.permissions.exec : undefined
   if ((raw.permissions !== undefined && !isObject(raw.permissions)) || (exec !== undefined && (!Array.isArray(exec) || !exec.every((p) => typeof p === 'string' && /^[\w.+-]+$/.test(p)))))
     problems.push(['extensions.badExec'])
@@ -212,7 +216,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
         if (!EXTENSION_SLOTS.includes(item.slot as Slot)) problems.push(['extensions.badSlot', { ...at, slots: EXTENSION_SLOTS.join(', ') }])
         if (!isText(item.label)) problems.push(['extensions.noLabel', at])
         if (item.hint !== undefined && !isText(item.hint)) problems.push(['extensions.badHint', at])
-        if (item.icon !== undefined && !ICONS.includes(item.icon as string)) problems.push(['extensions.badIcon', { ...at, icons: ICONS.join(', ') }])
+        if (item.icon !== undefined && item.icon !== LOGO && !ICONS.includes(item.icon as string)) problems.push(['extensions.badIcon', { ...at, icons: [...ICONS, LOGO].join(', ') }])
         if (item.words !== undefined && (!Array.isArray(item.words) || !item.words.every(oneLine))) problems.push(['extensions.badWords', at])
         if (item.spotlight !== undefined && typeof item.spotlight !== 'boolean') problems.push(['extensions.badSpotlight', at])
         const wrong = actionProblem(item.action, item.slot as Slot, wasm, panelIds)
@@ -273,13 +277,13 @@ export const grantsOf = (extension: Extension) => extension.commands.filter((c) 
 
 export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}, app = ''): Extension[] {
   const taken: string[] = []
-  return found.map(({ dir, linked, manifest: raw, error }) => {
+  return found.map(({ dir, linked, manifest: raw, error, logo }) => {
     const id = isObject(raw) && typeof raw.id === 'string' ? raw.id : (dir.split(/[\\/]/).pop() ?? dir)
     const { manifest, problems } = error ? { manifest: undefined, problems: [['extensions.unreadable', { error }] as Problem] } : validate(raw, taken)
     if (manifest) taken.push(manifest.id)
     if (manifest && !fits(manifest.squadron, app)) problems.push(['extensions.needsSquadron', { range: manifest.squadron!, version: app }])
     const commands = manifest ? commandsOf(manifest) : []
-    return { dir, linked, id, enabled: !disabled.includes(id), manifest, problems, commands, pending: commands.filter((c) => !approved[id]?.includes(c)) }
+    return { dir, linked, id, enabled: !disabled.includes(id), logo: logo ?? null, manifest, problems, commands, pending: commands.filter((c) => !approved[id]?.includes(c)) }
   })
 }
 
@@ -306,10 +310,19 @@ export const toolsOf = (extensions: Extension[]): Exposed[] =>
       .map((t) => ({ ...t, name: `${m.manifest.id}_${t.name}`, tool: t.name, extension: m.manifest.id })),
   )
 
-export const argsOf = (extensions: Extension[]) => active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(ARGS) && !m.pending.includes(c)) ? (m.manifest.contributes?.args ?? []) : []))
+const granted = (m: Extension, key: string) => m.commands.includes(key) && !m.pending.includes(key)
+
+export const argsOf = (extensions: Extension[]) =>
+  active(extensions).flatMap((m) => {
+    const args = m.manifest.contributes?.args ?? []
+    return args.length && granted(m, ARGS + JSON.stringify(args)) ? [args] : []
+  })
 
 export const skillsOf = (extensions: Extension[]) =>
-  active(extensions).flatMap((m) => (m.commands.some((c) => c.startsWith(SKILLS) && !m.pending.includes(c)) ? [{ id: m.manifest.id, dir: m.dir, skills: m.manifest.contributes?.skills ?? [] }] : []))
+  active(extensions).flatMap((m) => {
+    const skills = m.manifest.contributes?.skills ?? []
+    return skills.length && granted(m, SKILLS + JSON.stringify(skills)) ? [{ id: m.manifest.id, dir: m.dir, skills }] : []
+  })
 
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))

@@ -5,6 +5,7 @@ pub mod askpass;
 pub mod attach;
 pub mod azure;
 pub mod claude;
+pub mod claude_flags;
 pub mod definitions;
 pub mod editors;
 pub mod extension_tools;
@@ -418,13 +419,19 @@ struct Config {
     runs: bool,
     runs_linger: u32,
     runs_hidden: Vec<String>,
-    runs_notify: bool,
     review_prompt: String,
     conversation_width: u32,
     sidebar: String,
     plugin_lines: String,
     plugin_card: String,
     plugin_projects: std::collections::BTreeMap<String, Vec<String>>,
+    notify_when: String,
+    notify_off: Vec<String>,
+    notify_sound: Vec<String>,
+    notify_turn_secs: u32,
+    notify_runs: String,
+    notify_remote: String,
+    remote_new_agents: bool,
 }
 
 impl Default for Config {
@@ -458,23 +465,49 @@ impl Default for Config {
             runs: true,
             runs_linger: 10,
             runs_hidden: Vec::new(),
-            runs_notify: false,
             review_prompt: String::new(),
             conversation_width: 740,
             sidebar: "pinned".into(),
             plugin_lines: "tag".into(),
             plugin_card: "normal".into(),
             plugin_projects: Default::default(),
+            notify_when: "background".into(),
+            notify_off: Vec::new(),
+            notify_sound: ["question", "permission", "plan", "password"]
+                .map(String::from)
+                .to_vec(),
+            notify_turn_secs: 60,
+            notify_runs: "failures".into(),
+            notify_remote: "keep".into(),
+            remote_new_agents: false,
         }
     }
 }
 
+fn read_config(text: &str) -> Result<Config, serde_json::Error> {
+    let mut value: serde_json::Value = serde_json::from_str(text)?;
+    if let Some(map) = value.as_object_mut()
+        && !map.contains_key("notify_runs")
+        && let Some(old) = map.remove("runs_notify").and_then(|v| v.as_bool())
+    {
+        map.insert(
+            "notify_runs".into(),
+            (if old { "all" } else { "never" }).into(),
+        );
+    }
+    serde_json::from_value(value)
+}
+
 impl Settings {
     fn load(file: PathBuf) -> Self {
-        let config = std::fs::read_to_string(&file)
-            .ok()
-            .and_then(|text| serde_json::from_str::<Config>(&text).ok())
-            .unwrap_or_default();
+        let config = match std::fs::read_to_string(&file) {
+            Ok(text) => read_config(&text).unwrap_or_else(|e| {
+                log::error!("{} is unreadable ({e}), set aside as .bak", file.display());
+                let _ = std::fs::rename(&file, file.with_extension("json.bak"));
+                Config::default()
+            }),
+            Err(_) => Config::default(),
+        };
         claude::COMPACT_WINDOW.store(config.compact_window, Ordering::Relaxed);
         Self {
             file,
@@ -499,6 +532,15 @@ impl Settings {
         }
         if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));
+        }
+        if !["background", "always", "never"].contains(&config.notify_when.as_str()) {
+            return Err(format!("Unknown notification moment: {}", config.notify_when));
+        }
+        if !["all", "failures", "never"].contains(&config.notify_runs.as_str()) {
+            return Err(format!("Unknown pipeline notification: {}", config.notify_runs));
+        }
+        if !["keep", "skip", "background"].contains(&config.notify_remote.as_str()) {
+            return Err(format!("Unknown remote notification: {}", config.notify_remote));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
@@ -525,7 +567,10 @@ impl Settings {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
         let text = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        std::fs::write(&self.file, text).map_err(|e| e.to_string())?;
+        let tmp = self.file.with_extension("json.tmp");
+        std::fs::write(&tmp, text)
+            .and_then(|_| std::fs::rename(&tmp, &self.file))
+            .map_err(|e| e.to_string())?;
         claude::COMPACT_WINDOW.store(config.compact_window, Ordering::Relaxed);
         *self.config.lock().unwrap() = config;
         Ok(())
@@ -609,6 +654,16 @@ fn scratch(app: &AppHandle) -> Result<PathBuf, String> {
             .map_err(|e| e.to_string())?;
     }
     Ok(dir)
+}
+
+#[tauri::command]
+fn claude_flags() -> std::collections::BTreeMap<String, bool> {
+    claude_flags::read_flags()
+}
+
+#[tauri::command]
+fn set_claude_flag(key: String, value: bool) -> Result<(), String> {
+    claude_flags::write_flag(&key, value)
 }
 
 #[tauri::command]
@@ -1087,6 +1142,7 @@ async fn review_checkout(
     number: u64,
     branch: String,
     base: String,
+    head: Option<String>,
 ) -> Result<PathBuf, String> {
     let name = project
         .file_name()
@@ -1100,7 +1156,7 @@ async fn review_checkout(
         .join(format!("{name}-{number}"));
     std::fs::create_dir_all(into.parent().unwrap()).map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
-        git::review_checkout(&project, &into, &branch, &base).map(|_| into)
+        git::review_checkout(&project, &into, &branch, &base, head.as_deref()).map(|_| into)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1306,7 +1362,66 @@ fn open_with(command: String, project: PathBuf, path: PathBuf) -> Result<(), Str
 #[tauri::command]
 fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    if runs_when_opened(&file) {
+        return Err("Squadron does not open from here a file the system would run.".into());
+    }
     open_path(&file)
+}
+
+const RUNNABLE: &[&str] = if cfg!(windows) {
+    &[
+        "appref-ms",
+        "bat",
+        "chm",
+        "cmd",
+        "com",
+        "cpl",
+        "exe",
+        "hta",
+        "inf",
+        "jar",
+        "js",
+        "jse",
+        "lnk",
+        "msc",
+        "msi",
+        "msix",
+        "msp",
+        "pif",
+        "ps1",
+        "psm1",
+        "reg",
+        "scf",
+        "scr",
+        "url",
+        "vb",
+        "vbe",
+        "vbs",
+        "ws",
+        "wsc",
+        "wsf",
+        "wsh",
+    ]
+} else if cfg!(target_os = "macos") {
+    &[
+        "action", "app", "command", "fileloc", "inetloc", "jar", "pkg", "mpkg", "terminal", "tool",
+        "webloc", "workflow",
+    ]
+} else {
+    &["desktop"]
+};
+
+fn runs_when_opened(path: &Path) -> bool {
+    let listed = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| RUNNABLE.contains(&e.to_ascii_lowercase().as_str()));
+    #[cfg(target_os = "macos")]
+    let listed = listed || {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(path).is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
+    };
+    listed
 }
 
 #[tauri::command]
@@ -1333,7 +1448,8 @@ fn create_agent(
         return Ok(());
     }
     let content = attach::content(&text, &files)?;
-    agents.send(&app, &settings.claude(), &id, content)
+    agents.send(&app, &settings.claude(), &id, content)?;
+    Ok(())
 }
 
 #[tauri::command]
@@ -1399,6 +1515,11 @@ fn rewind_agent(agents: State<Agents>, id: String, at: Option<String>) -> Result
 #[tauri::command]
 fn system_load(cpu: State<system::Cpu>) -> Option<system::Load> {
     cpu.load()
+}
+
+#[tauri::command]
+fn package_manager_busy() -> bool {
+    system::package_manager_busy()
 }
 
 struct AgentFiles(PathBuf);
@@ -1501,8 +1622,18 @@ fn extensions_approve(
 }
 
 #[tauri::command]
-fn extensions_set_args(args: Vec<String>) {
-    *claude::EXTENSION_ARGS.lock().unwrap() = args;
+fn extensions_set_args(args: Vec<Vec<String>>) {
+    *claude::EXTENSION_ARGS.lock().unwrap() = args
+        .into_iter()
+        .filter(|list| {
+            let allowed = claude::allowed_args(list);
+            if !allowed {
+                log::warn!("Claude Code options of an extension refused: {list:?}");
+            }
+            allowed
+        })
+        .flatten()
+        .collect();
 }
 
 #[tauri::command]
@@ -1974,7 +2105,7 @@ fn send_message(
     id: String,
     text: String,
     files: Option<Vec<PathBuf>>,
-) -> Result<(), String> {
+) -> Result<String, String> {
     let content = attach::content(&text, &files.unwrap_or_default())?;
     agents.send(&app, &settings.claude(), &id, content)
 }
@@ -2217,7 +2348,8 @@ fn resume_agent(
     id: String,
     content: Value,
 ) -> Result<(), String> {
-    agents.send(&app, &settings.claude(), &id, content)
+    agents.send(&app, &settings.claude(), &id, content)?;
+    Ok(())
 }
 
 #[cfg(any(target_os = "macos", target_os = "linux"))]
@@ -2355,6 +2487,13 @@ pub fn run() {
         let _ = std::fs::remove_dir_all(data.join(DEV_ID).join("WebKitCache"));
     }
     tauri::Builder::default()
+        .plugin(tauri_plugin_single_instance::init(|app, _, _| {
+            if let Some(main) = app.get_webview_window("main") {
+                let _ = main.unminimize();
+                let _ = main.show();
+                let _ = main.set_focus();
+            }
+        }))
         .register_asynchronous_uri_scheme_protocol("artifact", |_, request, responder| {
             let path = request.uri().path().to_string();
             std::thread::spawn(move || match artifacts::ROOT.get() {
@@ -2382,6 +2521,11 @@ pub fn run() {
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_opener::Builder::new().open_js_links_on_click(false).build())
         .plugin(links::init())
+        .on_page_load(|webview, payload| {
+            if payload.event() == tauri::webview::PageLoadEvent::Started {
+                links::keep_home(webview, payload.url());
+            }
+        })
         .plugin(tauri_plugin_updater::Builder::new().build())
         .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_notification::init())
@@ -2389,7 +2533,8 @@ pub fn run() {
         .manage(Terminals::default())
         .manage(sudo::Sudo::default())
         .manage(system::Cpu::default())
-        .invoke_handler(tauri::generate_handler![
+        .invoke_handler({
+            let commands: fn(tauri::ipc::Invoke) -> bool = tauri::generate_handler![
             agent_definition,
             plugins_installed,
             plugins_catalog,
@@ -2398,6 +2543,7 @@ pub fn run() {
             plugin_flags,
             plugin_run,
             system_load,
+            package_manager_busy,
             stop_turn,
             open_link,
             link_preview,
@@ -2443,6 +2589,8 @@ pub fn run() {
             stop_task,
             mcp_request,
             claude_config,
+            claude_flags,
+            set_claude_flag,
             cancel_permissions,
             answer_askpass,
             read_project_file,
@@ -2562,7 +2710,22 @@ pub fn run() {
             close_agents,
             sleep_agent,
             resume_agent
-        ])
+            ];
+            move |invoke: tauri::ipc::Invoke| {
+                if !invoke
+                    .message
+                    .webview_ref()
+                    .url()
+                    .is_ok_and(|url| links::from_squadron(&url))
+                {
+                    invoke
+                        .resolver
+                        .reject("Squadron's commands only answer Squadron's own pages.");
+                    return true;
+                }
+                commands(invoke)
+            }
+        })
         .setup(|app| {
             if cfg!(debug_assertions) && app.config().identifier != DEV_ID {
                 return Err("Start the dev build with `pnpm app`: it keeps its own data, apart from the installed Squadron.".into());
@@ -2694,6 +2857,7 @@ pub fn run() {
             app.manage(askpass);
             let agents = app.state::<Agents>();
             agents.endpoint(port, app.path().app_data_dir()?.join("mcp"));
+            let _ = agents::REVIEWS.set(app.path().app_data_dir()?.join("reviews"));
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
             app.manage(gate);
             app.manage(pilot);
@@ -2721,4 +2885,19 @@ pub fn run() {
                 app.state::<Terminals>().close_all();
             }
         });
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pipeline_notifications_carry_over_from_runs_notify() {
+        assert_eq!(read_config(r#"{"runs_notify":true}"#).unwrap().notify_runs, "all");
+        assert_eq!(read_config(r#"{"runs_notify":false}"#).unwrap().notify_runs, "never");
+        assert_eq!(read_config("{}").unwrap().notify_runs, "failures");
+        let kept = r#"{"runs_notify":true,"notify_runs":"failures"}"#;
+        assert_eq!(read_config(kept).unwrap().notify_runs, "failures");
+        assert!(read_config("{ nope").is_err());
+    }
 }

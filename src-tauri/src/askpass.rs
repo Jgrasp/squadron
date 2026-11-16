@@ -71,24 +71,14 @@ async fn ask(
     headers: HeaderMap,
     prompt: String,
 ) -> (StatusCode, String) {
-    let header = |name: &str| {
-        headers
-            .get(name)
-            .and_then(|v| v.to_str().ok())
-            .unwrap_or_default()
-            .to_string()
-    };
     if !question(&prompt) {
         return (StatusCode::FORBIDDEN, String::new());
     }
-    let agent = header("x-squadron-agent");
-    let command = base64::Engine::decode(
-        &base64::engine::general_purpose::STANDARD,
-        header("x-squadron-caller"),
-    )
-    .ok()
-    .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
-    .unwrap_or_default();
+    let agent = headers
+        .get("x-squadron-agent")
+        .and_then(|v| v.to_str().ok())
+        .unwrap_or_default()
+        .to_string();
     let id = gate.next.fetch_add(1, Ordering::SeqCst).to_string();
     let (tx, rx) = oneshot::channel();
     gate.pending
@@ -99,7 +89,7 @@ async fn ask(
         id,
         agent,
         prompt,
-        command,
+        command: String::new(),
     });
     match rx.await {
         Ok(yes) => (StatusCode::OK, if yes { "yes" } else { "no" }.into()),
@@ -184,26 +174,13 @@ pub fn client(prompt: &str) -> i32 {
     0
 }
 
-fn caller() -> String {
-    #[cfg(target_os = "linux")]
-    {
-        let ppid = unsafe { libc::getppid() };
-        if let Ok(raw) = std::fs::read(format!("/proc/{ppid}/cmdline")) {
-            let line = String::from_utf8_lossy(&raw).replace('\0', " ");
-            return line.trim().to_string();
-        }
-    }
-    String::new()
-}
-
 fn request(variable: &str, prompt: &str) -> Option<String> {
     let mut parts = variable.splitn(3, ':');
     let (port, token, agent) = (parts.next()?, parts.next()?, parts.next()?);
-    let caller = base64::Engine::encode(&base64::engine::general_purpose::STANDARD, caller());
     let mut stream = std::net::TcpStream::connect(("127.0.0.1", port.parse::<u16>().ok()?)).ok()?;
     write!(
         stream,
-        "POST /askpass HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Squadron-Token: {token}\r\nX-Squadron-Agent: {agent}\r\nX-Squadron-Caller: {caller}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{prompt}",
+        "POST /askpass HTTP/1.1\r\nHost: 127.0.0.1\r\nX-Squadron-Token: {token}\r\nX-Squadron-Agent: {agent}\r\nContent-Type: text/plain; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{prompt}",
         prompt.len()
     )
     .ok()?;
@@ -234,7 +211,7 @@ mod tests {
             let q = rx.recv().await.unwrap();
             assert_eq!(q.agent, "agent-1");
             assert_eq!(q.prompt, HOST);
-            assert_eq!(q.command, caller());
+            assert_eq!(q.command, "");
             answering.answer(&q.id, true).unwrap();
             let q = rx.recv().await.unwrap();
             answering.answer(&q.id, false).unwrap();

@@ -101,7 +101,7 @@ export type Goal = {
 }
 
 export type Entry =
-  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string; peer?: string; squadron?: true }
+  | { kind: 'user'; text: string; at: number; comments?: Comment[]; files?: string[]; remote?: boolean; from?: string; peer?: string; squadron?: true; queued?: string }
   | { kind: 'agent'; blocks: Block[]; uuid?: string }
   | ({ kind: 'turn'; index: number } & Usage)
   | ({ kind: 'interrupted'; at: number } & Usage)
@@ -140,6 +140,7 @@ export type Agent = {
   alive: boolean
   processCost: number
   interrupting: boolean
+  cutting?: boolean
   held: boolean
   jobs: string[]
   background: BackgroundTask[]
@@ -478,9 +479,26 @@ function priceAdvice(agent: Agent, d: Json) {
 
 export const flaggedWorktree = new Set<string>()
 
+const readEarly = new Set<string>()
+
+export function queue(entry: Entry, uuid: string) {
+  if (entry.kind !== 'user' || readEarly.delete(uuid)) return
+  entry.queued = uuid
+}
+
+export function unqueue(agent: Agent) {
+  for (const e of agent.entries) if (e.kind === 'user' && e.queued) delete e.queued
+}
+
 export function apply(agent: Agent, d: Json) {
   agent.alive = true
   switch (d.type) {
+    case 'squadron_read': {
+      const entry = agent.entries.findLast((e) => e.kind === 'user' && e.queued === d.uuid)
+      if (entry?.kind === 'user') delete entry.queued
+      else readEarly.add(String(d.uuid))
+      return
+    }
     case 'system':
       if (d.subtype === 'init' && d.session_id) {
         if (d.session_id !== agent.sessionId) agent.forkOf = agent.forkAt = null
@@ -801,7 +819,9 @@ function result(agent: Agent, d: Json) {
   priceAdvice(agent, d)
   agent.cost += cost
   agent.since = Date.now()
-  if (agent.interrupting) interrupted(agent, used)
+  const cut = agent.cutting && d.is_error
+  agent.cutting = false
+  if (agent.interrupting || cut) interrupted(agent, used)
   else if (d.is_error) {
     const message = String(d.result ?? ((d.errors ?? []).join('\n') || d.subtype))
     fail(agent, message || t('conversation.sessionStopped'))
@@ -844,6 +864,8 @@ export function exited(agent: Agent, stderr: string) {
   agent.background = []
   agent.asks = []
   agent.held = false
+  agent.cutting = false
+  unqueue(agent)
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
   if (agent.interrupting) interrupted(agent)
   else if (agent.status === 'working' || agent.status === 'waiting') {

@@ -77,7 +77,7 @@
     {@const update = updateOf(e)}
     {@const problem = problemOf(e)}
     <div class="row" class:off={!e.enabled}>
-      <ExtensionLogo id={e.id} name={nameOf(e)} />
+      <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} />
       <button class="what" onclick={() => open(e)}>
         <span class="l1">
           <strong>{nameOf(e)}</strong>

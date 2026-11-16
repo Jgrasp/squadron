@@ -3,7 +3,6 @@ export const MAX_SIDEBAR = 560
 
 export const MIN_PANEL = 420
 
-import type { ProjectSort } from './groups'
 import { projects } from './projects.svelte'
 
 export type PanelKind = 'diff' | 'editor' | 'terminal' | 'subagents' | 'artifacts' | 'kanban' | 'pulls' | `extension:${string}`
@@ -30,8 +29,7 @@ export type AgentSort = { by: 'none' | 'updated' | 'created' | 'name'; desc: boo
 let sort: AgentSort = { by: 'none', desc: false }
 let sorts: Record<string, AgentSort> = {}
 let projectsWidth = 380
-export type ProjectsView = { tab: string; sub: string; sort: ProjectSort; desc: boolean; pinnedFirst: boolean }
-let projectsView: ProjectsView = { tab: '', sub: '', sort: 'activity', desc: false, pinnedFirst: true }
+let foldedGroups: Record<string, boolean> = {}
 let orders: Record<string, string[]> = {}
 let contextShown = 'percent'
 try {
@@ -46,7 +44,7 @@ try {
   panels = read('squadron.panels')
   display = read('squadron.display')
   projectsWidth = Number(localStorage.getItem('squadron.projects-width')) || 380
-  projectsView = { ...projectsView, ...read('squadron.projects-view') }
+  foldedGroups = read('squadron.groups-folded')
   contextShown = localStorage.getItem('squadron.context-shown') ?? 'percent'
 } catch {}
 
@@ -62,7 +60,7 @@ export const layout = $state({
   sorts,
   orders,
   projectsWidth,
-  projectsView,
+  foldedGroups,
   contextShown,
   review: null as { project: string; number: number } | null,
 })
@@ -178,9 +176,8 @@ export function resizeProjects(width: number) {
   keep('squadron.projects-width', String(layout.projectsWidth))
 }
 
-export const WIDE_PROJECTS = 640
-
-export function viewProjects(next: Partial<ProjectsView>) {
-  layout.projectsView = { ...layout.projectsView, ...next }
-  keep('squadron.projects-view', JSON.stringify(layout.projectsView))
+export function foldGroup(id: string, folded: boolean) {
+  if (folded) layout.foldedGroups[id] = true
+  else delete layout.foldedGroups[id]
+  keep('squadron.groups-folded', JSON.stringify(layout.foldedGroups))
 }

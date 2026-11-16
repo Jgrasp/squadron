@@ -72,7 +72,9 @@ let tabHours = 4
 let keyMap: Record<string, string> = {}
 let editorApps: unknown[] = []
 let language = 'system'
-let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[], runs_notify: false }
+let runsConfig = { runs: true, runs_linger: 10, runs_hidden: [] as string[] }
+let notifyConfig = { notify_when: 'background', notify_off: [] as string[], notify_sound: ['question', 'permission', 'plan', 'password'], notify_turn_secs: 60, notify_runs: 'failures', notify_remote: 'keep', remote_new_agents: false }
+const claudeFlags: Record<string, boolean> = { inputNeededNotifEnabled: false, agentPushNotifEnabled: true, autoUploadSessions: false }
 
 const asks: Record<string, [string, Record<string, unknown>]> = {
   permission: ['Bash', { command: 'lando composer update sylius/channel-segmentation-plugin', description: 'Updates the plugin' }],
@@ -538,6 +540,39 @@ const orbitPull = () => ({
             })
 
 mockWindows(label)
+const JIRA_LOGO =
+  '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32"><defs><linearGradient id="g" x1="1" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#0052cc"/><stop offset="1" stop-color="#2684ff"/></linearGradient></defs><path fill="#2684ff" d="M30.4 15.2 17.6 2.4 16 .8 3.6 13.2l-2 2a1.2 1.2 0 0 0 0 1.6l8.8 8.8L16 31.2l12.4-12.4.2-.2 1.8-1.8a1.2 1.2 0 0 0 0-1.6ZM16 20.4 11.6 16 16 11.6l4.4 4.4Z"/><path fill="url(#g)" d="M16 11.6a7.4 7.4 0 0 1 0-10.4L6.4 10.8l5.2 5.2Z"/></svg>'
+
+const TICKET_DRAFT = {
+  name: 'RING-128 Card payment: 3-D Secure on iOS',
+  link: { key: 'RING-128', title: 'Card payment: 3-D Secure on iOS', url: 'https://acme.atlassian.net/browse/RING-128' },
+  context: '<ticket source="jira" key="RING-128" url="https://acme.atlassian.net/browse/RING-128">\n# RING-128 Card payment: 3-D Secure on iOS\n\nThe 3-D Secure sheet closes before the bank answers on iOS 18.\n</ticket>',
+  choices: {
+    label: { en: 'Context given to Haiku and to the agent', fr: 'Contexte donné à Haiku et à l’agent' },
+    items: ['Description', 'Comments', 'Attachments', 'Links', 'Subtasks', 'Sprint'].map((label) => ({ id: label.toLowerCase(), label, on: true })),
+  },
+  status: { state: 'running', text: { en: 'Haiku is preparing the instructions…', fr: 'Haiku prépare les instructions…' } },
+}
+
+function briefTicket(draft: string, short: boolean) {
+  setTimeout(
+    () =>
+      emit('extensions-host', {
+        extension: 'jira',
+        call: 'update-new-agent',
+        draft,
+        fields: JSON.stringify({
+          text: short
+            ? 'Fix the 3-D Secure sheet that closes before the bank answers on iOS 18.'
+            : 'Fix the 3-D Secure sheet that closes before the bank answers on iOS 18. The comments point at the WKWebView delegate: reproduce it in the simulator first, then fix it and add a UI test.',
+          goal: 'A card payment with 3-D Secure goes through on the iOS 18 simulator, with the UI test passing.',
+          status: { state: 'done', text: { en: 'Instructions prepared by Haiku', fr: 'Instructions préparées par Haiku' } },
+        }),
+      }),
+    1600,
+  )
+}
+
 const JIRA_TOKENS = 'https://id.atlassian.com/manage-profile/security/api-tokens'
 
 const DEMO_ACCOUNTS = '{"jira":[{"id":"3f9a1c2e","values":{"site":"acme.atlassian.net","email":"demo@acme.com"},"host":"acme.atlassian.net","secrets":["token"]}]}'
@@ -678,6 +713,11 @@ mockIPC(
         } else if (verb === 'uninstall') mockPlugins.splice(mockPlugins.findIndex((p) => p.id === id), 1)
         return new Promise((resolve) => setTimeout(() => resolve('✔ Done'), 250))
       }
+      case 'claude_flags':
+        return { ...claudeFlags }
+      case 'set_claude_flag':
+        claudeFlags[(args as { key: string }).key] = (args as { value: boolean }).value
+        return
       case 'claude_config':
         return new Promise((done) => setTimeout(() => done(a.setting ? `Set ${a.setting.replace('=', ' to ')}` : configUsage), 600))
       case 'stop_task': {
@@ -875,7 +915,7 @@ mockIPC(
       case 'open_in_editor':
         return
       case 'get_settings':
-        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, projects_effect: projectsEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ...runsConfig }
+        return { claude: claudePath, defaults: { model: 'opus', effort: 'high', mode: 'default' }, tab_effect: tabEffect, projects_effect: projectsEffect, tab_order: tabOrder, tab_hours: tabHours, keys: keyMap, editors: editorApps, pilot: true, pilot_all: false, language, review_prompt: reviewPrompt, ...runsConfig, ...notifyConfig }
       case 'set_settings':
         claudePath = (a as unknown as { config: { claude: string } }).config.claude
         tabEffect = (a as unknown as { config: { tab_effect: string } }).config.tab_effect
@@ -886,7 +926,8 @@ mockIPC(
         editorApps = (a as unknown as { config: { editors: unknown[] } }).config.editors
         language = (a as unknown as { config: { language: string } }).config.language
         reviewPrompt = (a as unknown as { config: { review_prompt: string } }).config.review_prompt
-        runsConfig = (({ runs, runs_linger, runs_hidden, runs_notify }) => ({ runs, runs_linger, runs_hidden, runs_notify }))((a as unknown as { config: typeof runsConfig }).config)
+        runsConfig = (({ runs, runs_linger, runs_hidden }) => ({ runs, runs_linger, runs_hidden }))((a as unknown as { config: typeof runsConfig }).config)
+        notifyConfig = (({ notify_when, notify_off, notify_sound, notify_turn_secs, notify_runs, notify_remote, remote_new_agents }) => ({ notify_when, notify_off, notify_sound, notify_turn_secs, notify_runs, notify_remote, remote_new_agents }))((a as unknown as { config: typeof notifyConfig }).config)
         return
       case 'suggest_title':
         return new Promise((resolve) => setTimeout(() => resolve('Plugin upgrade to 2.3'), 800))
@@ -1240,6 +1281,7 @@ mockIPC(
               dir: '/home/demo/.config/dev.squadron.desktop/extensions/jira',
               linked: false,
               error: null,
+              logo: `data:image/svg+xml;base64,${btoa(JIRA_LOGO)}`,
               manifest: {
                 id: 'jira',
                 version: '0.1.0',
@@ -1249,6 +1291,10 @@ mockIPC(
                 wasm: 'jira.wasm',
                 permissions: { exec: ['claude'], network: ['api.media.atlassian.com'] },
                 contributes: {
+                  items: [
+                    { slot: 'agent.tools', id: 'board', label: { en: 'Jira', fr: 'Jira' }, icon: 'logo', action: { run: 'launch' } },
+                    { slot: 'agent.menu', id: 'launch', label: { en: 'Launch an agent on RING-128', fr: 'Lancer un agent sur RING-128' }, action: { run: 'launch' } },
+                  ],
                   accounts: {
                     label: { en: 'Jira sites', fr: 'Sites Jira' },
                     fields: [
@@ -1350,8 +1396,20 @@ mockIPC(
       case 'extensions_secrets':
         return []
       case 'extensions_set_tools':
-      case 'extensions_wasm_event':
         return
+      case 'extensions_wasm_run': {
+        const { agent } = args as { agent: { id: string } | null }
+        if (a.action !== 'launch' || !agent) return
+        const draft = crypto.randomUUID()
+        emit('extensions-host', { extension: 'jira', call: 'open-new-agent', agent: agent.id, draft, fields: JSON.stringify(TICKET_DRAFT) })
+        briefTicket(draft, false)
+        return
+      }
+      case 'extensions_wasm_event': {
+        const data = JSON.parse(a.data || '{}')
+        if (a.name === 'new-agent.regenerate') briefTicket(data.draft, !data.choices.includes('comments'))
+        return
+      }
       case 'extensions_set_skills':
         return []
       case 'extensions_wasm_sync':

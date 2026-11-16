@@ -29,6 +29,8 @@
     <path d="m5 12 5 5 9-10" />
   {:else if name === 'info'}
     <circle cx="12" cy="12" r="9" /><path d="M12 11v5M12 8h.01" />
+  {:else if name === 'sound'}
+    <path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7" />
   {:else if name === 'chevron'}
     <path d="m6 9 6 6 6-6" />
   {:else if name === 'options'}

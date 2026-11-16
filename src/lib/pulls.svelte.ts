@@ -269,7 +269,7 @@ export const REVIEW_PROMPT = 'Leave out style nitpicks.\n\nEnd with a short summ
 export const reviewPrompt = (project: string) => projects.list.find((p) => p.path === project)?.review_prompt || settings.review_prompt || REVIEW_PROMPT
 
 export async function reviewWithAgent(project: string, pull: Pull) {
-  const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base })
+  const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base, head: pull.head })
   const prompt = [
     `Review pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
     `This folder is a checkout of the pull request branch: git diff origin/${pull.base}...HEAD shows what it changes. Read the code around the changes too.`,
@@ -294,7 +294,7 @@ export const reviewerOf = (dir: string, pull: Pull) => agents.list.find((a) => a
 
 export async function reviewChanges(agent: Agent, pull: Pull) {
   const review = agent.review!
-  await invoke('review_checkout', { project: review.project, number: pull.number, branch: pull.branch, base: pull.base })
+  await invoke('review_checkout', { project: review.project, number: pull.number, branch: pull.branch, base: pull.base, head: pull.head })
   const since = review.head ?? sinceOf(review.project, pull)
   const shown = since && /^[0-9a-f]{7,40}$/.test(since) ? `git diff ${since}..HEAD shows them` : `git log origin/${pull.base}..HEAD lists them`
   send(
@@ -313,7 +313,7 @@ export async function reviewChanges(agent: Agent, pull: Pull) {
 }
 
 export async function fixWithAgent(project: string, pull: Pull, summary: string, list: Comment[]) {
-  const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base })
+  const dir = await invoke<string>('review_checkout', { project, number: pull.number, branch: pull.branch, base: pull.base, head: pull.head })
   const intro = [
     `These remarks come from a review of pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
     `This folder is a detached checkout of origin/${pull.branch}: git diff origin/${pull.base}...HEAD shows what the pull request changes.`,

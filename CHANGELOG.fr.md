@@ -1,5 +1,47 @@
 # Nouveautés
 
+## 0.47.0 · 2026-11-16
+
+### Notifications
+
+- Réglages › Notifications : notifications du bureau quand un agent pose une question, demande une permission, a un plan prêt, demande un mot de passe, finit un tour, atteint son objectif « Done when » ou s’arrête sur une erreur, et pour les pipelines, les pull requests qui vous attendent, les mises à jour et les extensions. Chacune a son interrupteur, les événements d’agent leur carillon, et un clic ouvre l’agent ou la page concernée.
+- Par défaut, elles s’affichent quand Squadron est en arrière-plan. Les notifications de pipelines rejoignent cette page : si elles étaient coupées, elles le restent.
+- Une section Contrôle à distance active le contrôle à distance pour chaque nouvel agent, notifie votre téléphone quand une action est requise ou quand Claude le décide, copie chaque conversation sur claude.ai et choisit si les agents sous contrôle à distance notifient encore le bureau.
+- « Envoyer une notification de test » l’envoie 5 secondes plus tard, et un clic dessus ouvre l’agent affiché.
+
+### Projets
+
+- Le panneau Projets redevient un arbre : chaque groupe de premier niveau est une carte qui contient ses sous-groupes et ses projets, avec repli, recherche, glisser-déposer et menus comme avant, et les projets sans groupe en dessous.
+- Un bouton Nouveau groupe se trouve à côté d’Ajouter un projet, et un groupe ou un sous-groupe montre un + au survol qui crée un groupe à l’intérieur. Supprimer un groupe depuis son menu n’échoue plus.
+
+### Conversation
+
+- Un message envoyé pendant que l’agent lance une longue commande indique en dessous qu’il sera lu à la fin de l’action, avec un lien qui arrête la commande et le fait lire tout de suite. Les tâches de fond continuent.
+- La carte de permission montre en entier un message adressé à un autre agent.
+- Un worktree, un fork ou un retour en arrière demandé par l’agent est conservé quand Claude Code ne démarre pas, et Réessayer repart au bon endroit.
+- La relecture d’une pull request récupère son dernier commit et prévient quand il est introuvable.
+
+### Permissions et sécurité
+
+- Une règle « Toujours » sur une commande Bash qui en lance une autre (timeout, env, sudo, bash -c…) ne couvre plus que cette commande exacte, et les anciennes règles larges de ce genre redemandent.
+- Les commandes de Squadron ne répondent qu’à ses propres pages et les liens sont interceptés dans toutes les fenêtres : une page écrite par un agent ne peut jamais piloter l’app. Les artifacts ne peuvent plus envoyer de requêtes hors de Squadron.
+- Les agents qui relisent une pull request ne chargent plus les réglages, hooks et serveurs MCP de la branche.
+- La carte de mot de passe montre la commande Bash que l’agent lance vraiment.
+- L’éditeur externe n’ouvre plus les fichiers que le système exécuterait.
+- Rouvrir Squadron ramène la fenêtre déjà ouverte au lieu de lancer une seconde app sur les mêmes données.
+
+### Extensions
+
+- API d’extension 1.5 : host::open-new-agent ouvre la fenêtre Nouvel agent remplie depuis un brouillon (nom, premier message, Done when, un lien, des cases à cocher, un bandeau de préparation), et host::update-new-agent la complète sans écraser ce que vous avez tapé.
+- Les extensions peuvent afficher leur propre logo SVG sur leur page, dans les Réglages, Gérer les extensions, les mises à jour, Nouvel agent et sur leurs boutons.
+- Les options qu’une extension passe à Claude Code doivent correspondre à celles que vous avez approuvées et ne peuvent plus changer les permissions.
+
+### Mises à jour
+
+- Mettre à jour pendant qu’apt ou dpkg tient le verrou des paquets le signale et attend, au lieu de demander deux fois le mot de passe.
+- Le fichier de réglages de Squadron est écrit de façon atomique et mis de côté en .bak s’il est illisible, au lieu d’être perdu.
+- Les captures jointes aux cartes Kanban ne sont plus effacées au bout d’une semaine.
+
 ## 0.46.2 · 2026-11-13
 
 ### Extensions

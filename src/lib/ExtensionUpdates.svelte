@@ -62,7 +62,7 @@
       {@const step = steps[row.e.id]}
       {@const releases = notes(row)}
       <div class="row" class:joined={open === row.e.id}>
-        <ExtensionLogo id={row.e.id} name={nameOf(row.e)} />
+        <ExtensionLogo id={row.e.id} name={nameOf(row.e)} logo={row.e.logo} />
         <span class="what">
           <span class="l1">
             <strong>{nameOf(row.e)}</strong>

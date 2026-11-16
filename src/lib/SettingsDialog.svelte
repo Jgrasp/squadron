@@ -15,6 +15,7 @@
   import ProjectSettings from './ProjectSettings.svelte'
   import { reset } from './layout-slots.svelte'
   import PanelSettings from './PanelSettings.svelte'
+  import NotificationSettings from './NotificationSettings.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
   import ExtensionPage from './ExtensionPage.svelte'
   import ExtensionsDiscover from './ExtensionsDiscover.svelte'
@@ -70,6 +71,7 @@
       'settings.groupInterface',
       [
         ['preferences', 'settings.tabPreferences'],
+        ['notifications', 'settings.tabNotifications'],
         ['shortcuts', 'settings.tabShortcuts'],
         ['layout', 'settings.tabLayout'],
         ['panels', 'settings.tabPanels'],
@@ -244,7 +246,7 @@
         {#each listed as e (e.id)}
           {@const update = updateOf(e)}
           <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${e.id}`} onclick={() => (ui.settings = `ext:${e.id}`)}>
-            <ExtensionLogo id={e.id} name={nameOf(e)} size={16} />
+            <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={16} />
             <span class="name">{nameOf(e)}</span>
             {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
           </button>
@@ -329,6 +331,8 @@
           <button class="link" onclick={() => reset(slot as Slot)}>{t('settings.backToDefault')}</button>
         </section>
       {/each}
+    {:else if tab === 'notifications'}
+      <NotificationSettings />
     {:else if tab === 'panels'}
       <PanelSettings />
     {:else if tab === 'extensions'}
@@ -492,7 +496,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['rules', 'layout', 'panels', 'extensions', 'discover', 'projects', 'archived', 'changelog', 'about', 'hosting'].includes(tab) && !tab.startsWith('ext:')}
+  {#if !['rules', 'layout', 'panels', 'extensions', 'discover', 'projects', 'archived', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>

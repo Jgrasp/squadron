@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
-import { isPermissionGranted, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { clock } from './agents.svelte'
 import { projects, type Project } from './projects.svelte'
+import { notifyRun } from './notify.svelte'
 import { settings } from './settings.svelte'
 import { t, type Key } from './i18n/index.svelte'
 
@@ -66,11 +66,12 @@ const ENDED: Partial<Record<Run['status'], Key>> = {
 }
 
 async function announce(project: Project, before: Run[], after: Run[]) {
-  if (!settings.runs_notify || !project.runs_notify) return
-  const ended = after.filter((run) => ENDED[run.status] && !hiddenIn(project, run.name) && before.some((b) => b.id === run.id && active(b)))
-  if (!ended.length || !((await isPermissionGranted()) || (await requestPermission()) === 'granted')) return
+  if (settings.notify_runs === 'never' || !project.runs_notify) return
+  const ended = after.filter(
+    (run) => ENDED[run.status] && (settings.notify_runs === 'all' || run.status === 'failure') && !hiddenIn(project, run.name) && before.some((b) => b.id === run.id && active(b)),
+  )
   for (const run of ended)
-    sendNotification({ title: t(ENDED[run.status]!, { name: run.name || `#${run.number}`, project: project.name }), body: [run.title, run.branch].filter(Boolean).join(' · ') })
+    await notifyRun(t(ENDED[run.status]!, { name: run.name || `#${run.number}`, project: project.name }), [run.title, run.branch].filter(Boolean).join(' · '))
 }
 
 export function watchRuns() {

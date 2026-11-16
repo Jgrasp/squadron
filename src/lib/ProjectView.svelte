@@ -6,6 +6,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
+  import { drafts } from './drafts.svelte'
   import { archiveProject, create, ensureLoaded, ofProject, onDisk, rehome, selected, waiting } from './agents.svelte'
   import {
     bottomShare,
@@ -221,7 +222,16 @@
   {/if}
 </div>
 
-{#if ui.creating}
+{#if drafts.open?.project === project.path}
+  {#key drafts.open.id}
+    <NewAgent
+      {project}
+      linked={drafts.open}
+      start={(name, options, text, goal, worktree, files) => create(project.path, name, options, text, { goal, worktree, files })}
+      onclose={() => (drafts.open = null)}
+    />
+  {/key}
+{:else if ui.creating}
   <NewAgent {project} start={(name, options, text, goal, worktree, files) => create(project.path, name, options, text, { goal, worktree, files })} onclose={() => (ui.creating = false)} />
 {/if}
 

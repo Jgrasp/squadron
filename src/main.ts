@@ -2,6 +2,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { mount } from 'svelte'
 import './app.css'
 import { locale } from './lib/i18n/index.svelte'
+import { links } from './lib/clicks'
 
 document.documentElement.lang = locale()
 
@@ -11,6 +12,9 @@ document.addEventListener('animationstart', (event) => {
 })
 
 if (import.meta.env.DEV && !('__TAURI_INTERNALS__' in window)) await import('./dev/mock')
+addEventListener('click', links)
+addEventListener('auxclick', links)
+
 const label = getCurrentWindow().label
 const { default: App } = await (label === 'board' ? import('./BoardWindow.svelte') : label.startsWith('file-') ? import('./FileWindow.svelte') : label.startsWith('artifacts-') ? import('./ArtifactsWindow.svelte') : import('./App.svelte'))
 

@@ -387,6 +387,19 @@ impl squadron::api::host::Host for Host {
         self.tell("settings-post", json!({"message": message}));
     }
 
+    fn open_new_agent(&mut self, agent: String, draft: String) -> String {
+        let id = uuid::Uuid::new_v4().to_string();
+        self.tell(
+            "open-new-agent",
+            json!({"agent": agent, "draft": id, "fields": draft}),
+        );
+        id
+    }
+
+    fn update_new_agent(&mut self, id: String, draft: String) {
+        self.tell("update-new-agent", json!({"draft": id, "fields": draft}));
+    }
+
     fn set_timer(&mut self, seconds: u32) {
         self.timer = Some(Instant::now() + Duration::from_secs(seconds.max(MIN_TIMER).into()));
     }
@@ -1366,6 +1379,89 @@ mod tests {
         host.hooks.claude = Arc::new(|| "echo".into());
         let out = host.exec("claude".into(), vec!["hi".into()], None).unwrap();
         assert_eq!(out.stdout.trim(), "hi");
+    }
+
+    #[test]
+    #[ignore = "builds the example extension, needs the wasm32-wasip2 target"]
+    fn opens_and_fills_a_new_agent_draft() {
+        let dir = hello().expect("the example extension builds");
+        let states = std::env::temp_dir().join(format!("squadron-wasm-{}", uuid::Uuid::new_v4()));
+        let told = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let record = told.clone();
+        let runtime = Runtime::new(states, move |v| record.lock().unwrap().push(v)).unwrap();
+        assert!(
+            runtime
+                .sync(vec![Spec {
+                    id: "hello".into(),
+                    dir: dir.to_string_lossy().into(),
+                    wasm: "target/wasm32-wasip2/release/hello.wasm".into(),
+                    allowed: vec![],
+                }])
+                .is_empty()
+        );
+        let agent = AgentInfo {
+            id: "a1".into(),
+            name: "Ada".into(),
+            project: dir.to_string_lossy().into(),
+            dir: dir.to_string_lossy().into(),
+        };
+
+        runtime.run("hello", "draft", Some(agent.clone())).unwrap();
+        let draft = told
+            .lock()
+            .unwrap()
+            .iter()
+            .find(|v| v["call"] == "open-new-agent")
+            .map(|v| v["draft"].as_str().unwrap().to_string())
+            .unwrap();
+        runtime.event(
+            Some("hello"),
+            "new-agent.regenerate",
+            None,
+            &json!({"draft": draft, "choices": ["short"]}).to_string(),
+        );
+        runtime.event(
+            Some("hello"),
+            "new-agent.started",
+            Some(agent),
+            &json!({"draft": draft}).to_string(),
+        );
+        runtime.run("hello", "nope", None).unwrap_err();
+
+        let told: Vec<_> = told
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|v| v["call"] != "set-badge")
+            .cloned()
+            .collect();
+        let calls: Vec<_> = told.iter().map(|v| v["call"].as_str().unwrap()).collect();
+        assert_eq!(
+            calls,
+            [
+                "open-new-agent",
+                "update-new-agent",
+                "update-new-agent",
+                "notify"
+            ]
+        );
+        assert_eq!(told[0]["extension"], "hello");
+        assert_eq!(told[0]["agent"], "a1");
+        assert_eq!(uuid::Uuid::parse_str(&draft).map(|_| ()), Ok(()));
+        let fields = |i: usize| -> Value {
+            serde_json::from_str(told[i]["fields"].as_str().unwrap()).unwrap()
+        };
+        assert_eq!(fields(0)["name"], "Hello task");
+        assert_eq!(fields(0)["status"]["state"], "running");
+        assert_eq!(told[1]["draft"], draft.as_str());
+        assert_eq!(
+            fields(1)["text"],
+            "Say hello, then list the files you would read first."
+        );
+        assert_eq!(fields(1)["status"]["state"], "done");
+        assert_eq!(told[2]["draft"], draft.as_str());
+        assert_eq!(fields(2)["text"], "Say hello.");
+        assert_eq!(told[3]["body"], "Ada started from the Hello draft.");
     }
 
     #[test]

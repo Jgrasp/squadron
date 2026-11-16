@@ -9,7 +9,7 @@
   import { t } from './i18n/index.svelte'
   import { OFFICIAL, shownOf, type CatalogEntry, type Source } from './extensions'
   import { addSource, asks, catalog, extensions, install, loadCatalog, removeSource } from './extensions.svelte'
-  import { attempt, named, work } from './extension-pages.svelte'
+  import { attempt, brand, named, work } from './extension-pages.svelte'
 
   let query = $state('')
   let filter = $state('')
@@ -75,7 +75,7 @@
     {@const permissions = asks(c).length}
     <article class="card">
       <div class="head">
-        <ExtensionLogo id={c.id} name={named(c.name)} />
+        <ExtensionLogo id={c.id} name={named(c.name)} logo={brand(c.id).logo} />
         <strong>{named(c.name)}</strong>
         <span class="version">{c.version}</span>
       </div>

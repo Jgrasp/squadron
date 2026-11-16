@@ -75,7 +75,7 @@ const ENTRIES: [(&str, &str); 3] = [
     ("index.md", "markdown"),
     ("index.svg", "svg"),
 ];
-const CSP: &str = "default-src 'self' artifact: http://artifact.localhost https: data: blob: 'unsafe-inline' 'unsafe-eval'; form-action 'none'";
+const CSP: &str = "default-src 'self' artifact: http://artifact.localhost https: data: blob: 'unsafe-inline' 'unsafe-eval'; connect-src 'self' artifact: http://artifact.localhost data: blob:; form-action 'none'";
 
 #[derive(Serialize, Debug, PartialEq)]
 pub struct Artifact {

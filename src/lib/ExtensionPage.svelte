@@ -109,7 +109,7 @@
   {@const problem = problemOf(e)}
   {@const pending = pendingOf(e)}
   <div class="head" class:off={!e.enabled}>
-    <ExtensionLogo id={e.id} name={nameOf(e)} size={40} />
+    <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={40} />
     <div class="title">
       <span class="l1">
         <strong>{nameOf(e)}</strong>
@@ -264,6 +264,7 @@
 
   {#if about}
     <Dialog title={nameOf(e)} width={560} onclose={() => ((about = false), (work.error = ''))}>
+      {#snippet icon()}<ExtensionLogo id={e!.id} name={nameOf(e!)} logo={e!.logo} size={24} />{/snippet}
       <div class="about">
         <dl>
           <dt>{t('extensions.version')}</dt>

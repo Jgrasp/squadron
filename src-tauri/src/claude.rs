@@ -10,12 +10,59 @@ use std::thread;
 pub static COMPACT_WINDOW: AtomicU32 = AtomicU32::new(0);
 pub static CAPTURES: OnceLock<PathBuf> = OnceLock::new();
 pub static EXTENSION_ARGS: Mutex<Vec<String>> = Mutex::new(Vec::new());
+
+const RESERVED_ARGS: &[&str] = &[
+    "-p",
+    "--print",
+    "--input-format",
+    "--output-format",
+    "--replay-user-messages",
+    "--model",
+    "--effort",
+    "--permission-mode",
+    "--append-system-prompt",
+    "--agent",
+    "--advisor",
+    "-r",
+    "--resume",
+    "-c",
+    "--continue",
+    "--fork-session",
+    "--resume-session-at",
+    "--session-id",
+    "--mcp-config",
+    "--strict-mcp-config",
+    "--permission-prompt-tool",
+    "--dangerously-skip-permissions",
+    "--allow-dangerously-skip-permissions",
+    "-w",
+    "--worktree",
+    "--settings",
+    "--setting-sources",
+    "--allowedTools",
+    "--allowed-tools",
+    "--tools",
+    "--plugin-dir",
+    "--plugin-url",
+    "--agents",
+    "--system-prompt",
+    "--system-prompt-file",
+    "--append-system-prompt-file",
+];
+
+pub fn allowed_args(args: &[String]) -> bool {
+    args.first().is_some_and(|a| a.starts_with('-'))
+        && args.iter().all(|a| {
+            !a.contains(['\n', '\r'])
+                && !RESERVED_ARGS.contains(&a.split('=').next().unwrap_or_default())
+        })
+}
 pub static EXTENSION_PLUGINS: Mutex<Vec<PathBuf>> = Mutex::new(Vec::new());
 pub static ON_DEMAND: Mutex<String> = Mutex::new(String::new());
 
 pub const TESTED_VERSION: &str = "2.1.304";
 
-const PROMPT: &str = "You run inside Squadron, a desktop app that shows your replies as Markdown. When the user wants text to copy or paste (a message, a pull request or ticket description, a document, a config snippet), write it in your reply inside a fenced code block with its language, ```markdown for prose, then go on with the rest of your answer. Squadron shows each block with a Copy button. When the user has terminal commands to run one after another, put each command in its own ```bash block so each can be copied alone, and keep a command that spans several lines in a single block. Write such text to a file only when the user asks for a file. To show the user an image, such as a screenshot you took while working, save it as a PNG, JPEG or WebP file in the folder named by the SQUADRON_CAPTURES environment variable and put it in your reply as ![what it shows](/absolute/path.png): Squadron shows it in the conversation and deletes it after a week. To hand the user a file, such as a spreadsheet, a PDF or an export you made, put a link to it alone on its own line, [file name](</absolute/path/to/file.xlsx>): Squadron shows it as a card the user can open. To show the user a page, a clickable prototype, a report or a diagram they will look at, iterate on or keep, make it an artifact: a folder of its own in the folder named by the SQUADRON_ARTIFACTS environment variable, holding index.html with its CSS, scripts and images beside it under relative paths, or index.md, or index.svg. Squadron shows it in the Artifacts panel beside the conversation and reloads it each time you save one of its files; scripts run, and its <title> or first # heading names it. When the user points at an element of it, their message gives the page, the element's CSS selector and its HTML. To give an html artifact Squadron's look, put <link rel=\"stylesheet\" href=\"/__squadron/theme.css\"> in its head: Squadron's colors as CSS variables, its DM Sans and DM Mono fonts and its .btn, .btn-primary, .btn-ghost and .field classes. For a small visual proposal, such as two or three variants of a component or a layout, write each variant as a self-contained ```html block, HTML and CSS only: Squadron draws it in the conversation on its dark background with its fonts, and Squadron's colors are there as CSS variables such as var(--accent), var(--surface-2) and var(--text). When the project has a DESIGN.md, read it before you make an artifact or an html block, or change how an interface looks, and keep to its colors, type sizes and components: a mock-up of that project follows its DESIGN.md, not Squadron's colors. Run sudo, ssh and git as they are: when one needs a password, Squadron asks the user in a window of its own. Never ask the user for a password in the conversation and never pipe one into a command. To wait for a command, run it in the background and wait for the notification that it ended; never poll for it with a loop such as until ! pgrep -f, which matches its own command line and never ends.";
+const PROMPT: &str = "You run inside Squadron, a desktop app that shows your replies as Markdown. When the user wants text to copy or paste (a message, a pull request or ticket description, a document, a config snippet), write it in your reply inside a fenced code block with its language, ```markdown for prose, then go on with the rest of your answer. Squadron shows each block with a Copy button. When the user has terminal commands to run one after another, put each command in its own ```bash block so each can be copied alone, and keep a command that spans several lines in a single block. Write such text to a file only when the user asks for a file. To show the user an image, such as a screenshot you took while working, save it as a PNG, JPEG or WebP file in the folder named by the SQUADRON_CAPTURES environment variable and put it in your reply as ![what it shows](/absolute/path.png): Squadron shows it in the conversation and deletes it after a week. To hand the user a file, such as a spreadsheet, a PDF or an export you made, put a link to it alone on its own line, [file name](</absolute/path/to/file.xlsx>): Squadron shows it as a card the user can open. To show the user a page, a clickable prototype, a report or a diagram they will look at, iterate on or keep, make it an artifact: a folder of its own in the folder named by the SQUADRON_ARTIFACTS environment variable, holding index.html with its CSS, scripts and images beside it under relative paths, or index.md, or index.svg. Squadron shows it in the Artifacts panel beside the conversation and reloads it each time you save one of its files; scripts run but cannot fetch from the network, so put the data a page needs in its files, and its <title> or first # heading names it. When the user points at an element of it, their message gives the page, the element's CSS selector and its HTML. To give an html artifact Squadron's look, put <link rel=\"stylesheet\" href=\"/__squadron/theme.css\"> in its head: Squadron's colors as CSS variables, its DM Sans and DM Mono fonts and its .btn, .btn-primary, .btn-ghost and .field classes. For a small visual proposal, such as two or three variants of a component or a layout, write each variant as a self-contained ```html block, HTML and CSS only: Squadron draws it in the conversation on its dark background with its fonts, and Squadron's colors are there as CSS variables such as var(--accent), var(--surface-2) and var(--text). When the project has a DESIGN.md, read it before you make an artifact or an html block, or change how an interface looks, and keep to its colors, type sizes and components: a mock-up of that project follows its DESIGN.md, not Squadron's colors. Run sudo, ssh and git as they are: when one needs a password, Squadron asks the user in a window of its own. Never ask the user for a password in the conversation and never pipe one into a command. To wait for a command, run it in the background and wait for the notification that it ended; never poll for it with a loop such as until ! pgrep -f, which matches its own command line and never ends.";
 
 #[tauri::command]
 pub fn squadron_prompt_size() -> usize {
@@ -239,6 +286,10 @@ impl Session {
                         } = &event
                             && take(&mut own.lock().unwrap(), uuid)
                         {
+                            on_event(
+                                &json!({"type": "squadron_read", "uuid": uuid}).to_string(),
+                                Event::Other,
+                            );
                             continue;
                         }
                         on_event(&line, event);
@@ -277,11 +328,11 @@ impl Session {
             .collect()
     }
 
-    pub fn send(&mut self, text: &str) -> io::Result<()> {
+    pub fn send(&mut self, text: &str) -> io::Result<String> {
         self.send_content(json!(text))
     }
 
-    pub fn send_content(&mut self, content: Value) -> io::Result<()> {
+    pub fn send_content(&mut self, content: Value) -> io::Result<String> {
         let uuid = uuid::Uuid::new_v4().to_string();
         self.sent
             .lock()
@@ -292,7 +343,7 @@ impl Session {
         writeln!(self.stdin, "{message}")?;
         self.stdin.flush()?;
         self.busy.store(true, Ordering::SeqCst);
-        Ok(())
+        Ok(uuid)
     }
 
     /// Changes the permission mode or the model of the running session, or interrupts its turn; the effort has no such request.
@@ -358,6 +409,19 @@ fn take(sent: &mut Vec<(String, Value)>, uuid: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn refuses_extension_options_that_change_permissions() {
+        let list = |args: &[&str]| args.iter().map(|a| a.to_string()).collect::<Vec<_>>();
+        assert!(allowed_args(&list(&["--add-dir", "/tmp/x"])));
+        assert!(allowed_args(&list(&["--chrome"])));
+        assert!(!allowed_args(&list(&[])));
+        assert!(!allowed_args(&list(&["chrome"])));
+        assert!(!allowed_args(&list(&["--settings", "{}"])));
+        assert!(!allowed_args(&list(&["--allowedTools=Bash"])));
+        assert!(!allowed_args(&list(&["--add-dir", "--plugin-dir"])));
+        assert!(!allowed_args(&list(&["--add-dir", "/a\n--settings"])));
+    }
     use std::sync::mpsc::{self, RecvTimeoutError};
     use std::time::Duration;
 
@@ -454,21 +518,22 @@ mod tests {
 
     #[test]
     fn keeps_the_messages_claude_has_not_read() {
+        let (tx, rx) = mpsc::channel();
         let mut session = Session::start(
             fake_claude(
                 r#"read -r l; printf '%s\n' "$l" | sed 's/"type":"user"/"type":"user","isReplay":true/'; exec sleep 30"#,
                 "",
             ),
-            |_, _| {},
+            move |line, _| tx.send(line.to_string()).unwrap(),
             |_| {},
         )
         .unwrap();
-        session.send("read").unwrap();
-        let deadline = std::time::Instant::now() + Duration::from_secs(5);
-        while !session.sent.lock().unwrap().is_empty() {
-            assert!(std::time::Instant::now() < deadline);
-            thread::sleep(Duration::from_millis(20));
-        }
+        let uuid = session.send("read").unwrap();
+        assert_eq!(
+            rx.recv_timeout(Duration::from_secs(5)).unwrap(),
+            json!({"type": "squadron_read", "uuid": uuid}).to_string()
+        );
+        assert!(session.sent.lock().unwrap().is_empty());
         session.send("second").unwrap();
         session
             .send_content(json!([{"type": "text", "text": "third"}]))

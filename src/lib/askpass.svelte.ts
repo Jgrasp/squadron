@@ -10,7 +10,7 @@ export const asked = $state({ list: [] as Question[] })
 
 listen<Question>('askpass-request', ({ payload }) => {
   const agent = find(payload.agent)
-  if (!payload.command) payload.command = String((agent && calls(agent).findLast((c) => c.name === 'Bash' && !c.result))?.input.command ?? '')
+  payload.command = String((agent && calls(agent).findLast((c) => c.name === 'Bash' && !c.result))?.input.command ?? '')
   asked.list.push(payload)
   if (agent) agent.attention = t('shell.passwordWaiting')
 })

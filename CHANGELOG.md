@@ -1,5 +1,47 @@
 # Changelog
 
+## 0.47.0 · 2026-11-16
+
+### Notifications
+
+- Settings › Notifications: desktop notifications when an agent asks a question, needs a permission, has a plan ready, asks for a password, finishes a turn, reaches its Done when goal or stops on an error, and for pipelines, pull requests that need you, updates and extensions. Each has its own switch, agent events their own chime, and a click opens the agent or page it is about.
+- They show while Squadron is in the background by default. Pipeline notifications move to this page: if they were off, they stay off.
+- A Remote control section turns on remote control for every new agent, pushes to your phone when an action is required or when Claude decides, mirrors every conversation to claude.ai, and chooses whether agents under remote control still notify the desktop.
+- Send a test notification arrives 5 seconds later, and a click on it opens the agent on screen.
+
+### Projects
+
+- The Projects panel is a tree again: each top-level group is a card with its sub-groups and projects inside, with folding, search, drag and drop and menus as before, and ungrouped projects below.
+- A New group button sits next to Add a project, and a group or sub-group shows a + on hover that creates a group inside it. Deleting a group from its menu no longer fails.
+
+### Conversation
+
+- A message sent while the agent runs a long command says under it that it will be read once the action ends, with a link that stops the command and has it read now. Background tasks keep running.
+- The permission card shows a message to another agent in full.
+- A worktree, fork or rewind the agent asked for is kept when Claude Code fails to start, so Retry works in the right place.
+- A pull request review checks out the pull request's last commit and says when it cannot be fetched.
+
+### Permissions and security
+
+- An Always rule on a Bash command that runs another one (timeout, env, sudo, bash -c…) only covers that exact command, and older broad rules of this kind ask again.
+- Squadron's commands only answer Squadron's own pages and links are caught in every window, so a page written by an agent can never drive the app. Artifacts can no longer send requests outside Squadron.
+- Agents reviewing a pull request no longer load the branch's settings, hooks and MCP servers.
+- The password card shows the Bash command the agent really runs.
+- The external editor no longer opens files the system would run.
+- Opening Squadron again brings back the running window instead of starting a second app on the same data.
+
+### Extensions
+
+- Extension API 1.5: host::open-new-agent opens the New agent window filled from a draft (name, first message, Done when, a link, checkboxes, a preparing band), and host::update-new-agent fills it without overwriting what you typed.
+- Extensions can show their own SVG logo on their page, in Settings, Manage extensions, updates, New agent and on their buttons.
+- The options an extension passes to Claude Code must match the ones you approved and can no longer change permissions.
+
+### Updates
+
+- Updating while apt or dpkg holds the package lock says so and waits, instead of asking for the password twice.
+- Squadron's settings file is written atomically and set aside as .bak when unreadable, instead of being lost.
+- Captures attached to Kanban cards are no longer swept after a week.
+
 ## 0.46.2 · 2026-11-13
 
 ### Extensions

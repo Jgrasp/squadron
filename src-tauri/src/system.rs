@@ -80,6 +80,39 @@ impl Cpu {
     }
 }
 
+#[cfg(target_os = "linux")]
+pub fn package_manager_busy() -> bool {
+    use std::os::unix::fs::MetadataExt;
+    if std::env::var_os("APPIMAGE").is_some() {
+        return false;
+    }
+    let Ok(locks) = fs::read_to_string("/proc/locks") else {
+        return false;
+    };
+    ["/var/lib/dpkg/lock-frontend", "/var/lib/dpkg/lock"]
+        .iter()
+        .filter_map(|path| fs::metadata(path).ok())
+        .any(|m| locked(&locks, m.dev(), m.ino()))
+}
+
+#[cfg(not(target_os = "linux"))]
+pub fn package_manager_busy() -> bool {
+    false
+}
+
+#[cfg(target_os = "linux")]
+fn locked(locks: &str, dev: u64, ino: u64) -> bool {
+    let id = format!(
+        "{:02x}:{:02x}:{ino}",
+        libc::major(dev as _),
+        libc::minor(dev as _)
+    );
+    locks
+        .lines()
+        .filter_map(|l| l.split_whitespace().nth(5))
+        .any(|file| file == id)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -102,5 +135,40 @@ mod tests {
         let load = cpu.load().unwrap();
         assert!((0.0..=100.0).contains(&load.cpu));
         assert!(load.used > 0 && load.used < load.total);
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn finds_the_file_in_the_kernel_locks() {
+        let dev = libc::makedev(259, 1);
+        let locks = "1: POSIX  ADVISORY  WRITE 14024 103:01:4207979 0 EOF\n2: FLOCK  ADVISORY  WRITE 2793 103:03:6059362 0 EOF\n";
+        assert!(locked(locks, dev, 4207979));
+        assert!(!locked(locks, dev, 6059362));
+        assert!(!locked(locks, libc::makedev(259, 3), 4207979));
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn sees_a_lock_held_on_the_machine() {
+        use std::os::unix::fs::MetadataExt;
+        use std::os::unix::io::AsRawFd;
+        let path = std::env::temp_dir().join(format!("squadron-lock-{}", std::process::id()));
+        let file = fs::OpenOptions::new()
+            .create(true)
+            .truncate(false)
+            .write(true)
+            .open(&path)
+            .unwrap();
+        let meta = file.metadata().unwrap();
+        let read = || fs::read_to_string("/proc/locks").unwrap();
+        assert!(!locked(&read(), meta.dev(), meta.ino()));
+        let mut lock: libc::flock = unsafe { std::mem::zeroed() };
+        lock.l_type = libc::F_WRLCK as _;
+        assert_eq!(
+            unsafe { libc::fcntl(file.as_raw_fd(), libc::F_SETLK, &lock) },
+            0
+        );
+        assert!(locked(&read(), meta.dev(), meta.ino()));
+        fs::remove_file(path).unwrap();
     }
 }

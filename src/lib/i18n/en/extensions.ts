@@ -43,6 +43,7 @@ export default {
   badCleanup: 'Item {item}: artifact.share cleanup needs a whole number of days, and an unshare that is a "tool".',
   badShare: 'Item {item}: artifact.share needs confirm and share, each step being a prompt or a "tool" of the "wasm" module.',
   badWasm: 'wasm must be the path of a .wasm file inside the extension folder.',
+  badLogo: 'logo must be the path of an .svg file inside the extension folder, not hidden.',
   badExec: 'permissions.exec must be a list of program names, like ["git"].',
   toolNeedsWasm: 'Tool {tool}: give it a command, or a "wasm" module that answers it.',
   badToolInput: 'Tool {tool}: input must be a JSON schema of type object.',

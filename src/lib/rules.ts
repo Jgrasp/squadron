@@ -1,10 +1,15 @@
 const SHELL = /[;&|`$<>(){}\\\n]/
 
+const WRAPPERS = ['env', 'timeout', 'nice', 'nohup', 'time', 'xargs', 'stdbuf', 'ionice', 'command', 'exec', 'eval', 'builtin', 'sudo', 'doas', 'su', 'watch', 'setsid', 'unbuffer', 'strace', 'flock', 'chroot', 'find', 'bash', 'sh', 'zsh', 'dash', 'ksh', 'fish', 'npx', 'pnpx', 'bunx', 'uvx', 'pipx']
+
+const general = (words: string[]) => words.length > 0 && !WRAPPERS.includes(words[0].split('/').pop()!) && !words[0].includes('=') && !words[1]?.startsWith('-')
+
 export function ruleFor(tool: string, input: Record<string, any>): string {
   if (tool === 'Bash') {
     const command = String(input.command ?? '').trim()
-    if (SHELL.test(command)) return `Bash(${command})`
-    return `Bash(${command.split(/\s+/).slice(0, 2).join(' ')}:*)`
+    const words = command.split(/\s+/)
+    if (SHELL.test(command) || !general(words)) return `Bash(${command})`
+    return `Bash(${words.slice(0, 2).join(' ')}:*)`
   }
   if (tool === 'WebFetch') {
     try {
@@ -26,6 +31,7 @@ export function matches(rule: string, tool: string, input: Record<string, any>):
     if (!arg.endsWith(':*')) return command === arg
     if (SHELL.test(command)) return false
     const prefix = arg.slice(0, -2)
+    if (!general(prefix.split(/\s+/))) return false
     return command === prefix || command.startsWith(prefix + ' ')
   }
   if (tool === 'WebFetch' && arg.startsWith('domain:')) {

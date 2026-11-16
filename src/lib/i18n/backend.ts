@@ -56,6 +56,10 @@ export const backend: Partial<Record<Locale, Table>> = {
       'Request cancelled.': 'Demande annulée.',
       'Squadron did not answer.': 'Squadron n’a pas répondu.',
       'Squadron only opens documents and images from here.': 'Squadron n’ouvre d’ici que des documents et des images.',
+      'Squadron does not open from here a file the system would run.': 'Squadron n’ouvre pas d’ici un fichier que le système exécuterait.',
+      'The last commit of the pull request is not on origin yet.': 'Le dernier commit de la pull request n’est pas encore sur origin.',
+      'Squadron could not fetch the pull request from origin.': 'Squadron n’a pas pu récupérer la pull request depuis origin.',
+      'Unknown commit.': 'Commit inconnu.',
       'Terminal closed.': 'Terminal fermé.',
       'The commit you reviewed is no longer in the branch: it was rewritten. Here is the whole pull request.':
         'Le commit que vous avez relu n’est plus dans la branche : il a été réécrit. Voici toute la pull request.',
