@@ -94,8 +94,10 @@ fn referenced(agents: &Path) -> HashSet<String> {
         .filter_map(|dir| fs::read_dir(dir).ok())
         .flatten()
         .flatten()
-        .filter(|entry| entry.path().extension().is_some_and(|x| x == "json"))
-        .filter_map(|entry| fs::read_to_string(entry.path()).ok())
+        .map(|entry| entry.path())
+        .filter(|path| path.extension().is_some_and(|x| x == "json"))
+        .chain(std::iter::once(agents.with_file_name("projects.json")))
+        .filter_map(|path| fs::read_to_string(path).ok())
         .flat_map(|text| folders(&text))
         .collect()
 }
@@ -232,8 +234,13 @@ mod tests {
         let (store, agents) = (root.join("attachments"), root.join("agents"));
         fs::create_dir_all(agents.join("archived")).unwrap();
         let shot = |n: &str| save(&store, n, "AA==").unwrap();
-        let (kept, archived, dropped, draft) =
-            (shot("a.png"), shot("b.png"), shot("c.png"), shot("d.png"));
+        let (kept, archived, dropped, draft, card) = (
+            shot("a.png"),
+            shot("b.png"),
+            shot("c.png"),
+            shot("d.png"),
+            shot("e.png"),
+        );
         let id = |p: &Path| {
             p.parent()
                 .unwrap()
@@ -245,6 +252,11 @@ mod tests {
         let quoted = |p: &Path| format!("{{\"files\":[\"{}\"]}}", p.display());
         fs::write(agents.join("one.json"), quoted(&kept)).unwrap();
         fs::write(agents.join("archived/two.json"), quoted(&archived)).unwrap();
+        fs::write(
+            root.join("projects.json"),
+            format!("[{{\"cards\":[{}]}}]", quoted(&card)),
+        )
+        .unwrap();
         assert_eq!(folders(&quoted(&kept)), HashSet::from([id(&kept)]));
 
         forget(
@@ -255,14 +267,14 @@ mod tests {
         assert!(!dropped.exists() && kept.exists());
 
         let old = SystemTime::now() - Duration::from_secs(8 * 24 * 3600);
-        for p in [&kept, &archived, &draft] {
+        for p in [&kept, &archived, &draft, &card] {
             fs::File::open(p.parent().unwrap())
                 .unwrap()
                 .set_modified(old)
                 .unwrap();
         }
         sweep(&store, &agents, Duration::from_secs(7 * 24 * 3600));
-        assert!(kept.exists() && archived.exists() && !draft.exists());
+        assert!(kept.exists() && archived.exists() && card.exists() && !draft.exists());
     }
 
     #[test]

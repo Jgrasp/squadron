@@ -257,7 +257,7 @@ fn commit(dir: &Path, rev: &str) -> Option<String> {
     .map(|sha| sha.trim().to_string())
 }
 
-fn fetch(dir: &Path, branches: &[&str]) {
+fn fetch(dir: &Path, branches: &[&str]) -> bool {
     let go = |names: &[&str]| {
         run(git(dir)
             .env("GIT_TERMINAL_PROMPT", "0")
@@ -266,11 +266,14 @@ fn fetch(dir: &Path, branches: &[&str]) {
             .args(names))
         .is_ok()
     };
-    if !go(branches) && branches.len() > 1 {
-        branches.iter().for_each(|b| {
-            go(&[b]);
-        });
+    if go(branches) {
+        return true;
     }
+    branches.len() > 1
+        && branches
+            .iter()
+            .map(|b| go(&[b]))
+            .fold(true, |all, ok| all && ok)
 }
 
 #[derive(Serialize)]
@@ -412,6 +415,7 @@ pub fn review_checkout(
     into: &Path,
     branch: &str,
     base: &str,
+    head: Option<&str>,
 ) -> Result<(), String> {
     if [branch, base]
         .iter()
@@ -419,8 +423,27 @@ pub fn review_checkout(
     {
         return Err("Unknown branch.".into());
     }
-    fetch(project, &[branch, base]);
-    let target = format!("origin/{branch}");
+    let fetched = fetch(project, &[branch, base]) || fetch(project, &[branch]);
+    let target = match head.filter(|h| !h.is_empty()) {
+        Some(head) if head.len() < 7 || !head.bytes().all(|b| b.is_ascii_hexdigit()) => {
+            return Err("Unknown commit.".into());
+        }
+        Some(head) => {
+            if run(git(project).args(["cat-file", "-e", &format!("{head}^{{commit}}")])).is_err() {
+                return Err(if fetched {
+                    "The last commit of the pull request is not on origin yet."
+                } else {
+                    "Squadron could not fetch the pull request from origin."
+                }
+                .into());
+            }
+            head.to_string()
+        }
+        None if !fetched => {
+            return Err("Squadron could not fetch the pull request from origin.".into());
+        }
+        None => format!("origin/{branch}"),
+    };
     if into.join(".git").exists() {
         run(git(into).args(["checkout", "--quiet", "--detach", &target]))?;
     } else {
@@ -833,6 +856,29 @@ mod tests {
         restore_review_checkout(&project, &review, head.trim()).unwrap();
         assert!(drop_review_checkout(&review).unwrap());
         assert!(!review.exists());
+
+        commit(&origin, "b");
+        let first = head.trim();
+        review_checkout(&project, &review, "main", "main", Some(first)).unwrap();
+        assert_eq!(
+            run(git(&review).args(["rev-parse", "HEAD"]))
+                .unwrap()
+                .trim(),
+            first
+        );
+        let last = run(git(&origin).args(["rev-parse", "HEAD"])).unwrap();
+        review_checkout(&project, &review, "main", "main", Some(last.trim())).unwrap();
+        assert_eq!(
+            run(git(&review).args(["rev-parse", "HEAD"]))
+                .unwrap()
+                .trim(),
+            last.trim()
+        );
+        assert!(
+            review_checkout(&project, &review, "main", "main", Some("0123456789abcdef")).is_err()
+        );
+        run(git(&project).args(["remote", "set-url", "origin", "/nowhere"])).unwrap();
+        assert!(review_checkout(&project, &review, "main", "main", None).is_err());
         let _ = fs::remove_dir_all(&root);
     }
 }

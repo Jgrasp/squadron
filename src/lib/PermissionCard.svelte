@@ -116,7 +116,7 @@
     <dl>
       {#each params as [key, value] (key)}
         <dt>{key}</dt>
-        <dd class:mono={value.length < 120}>{value.length > 400 ? value.slice(0, 400) + '…' : value}</dd>
+        <dd class:mono={value.length < 120}>{value}</dd>
       {/each}
     </dl>
   {/if}

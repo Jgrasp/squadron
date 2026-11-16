@@ -192,6 +192,18 @@ impl Agents {
         Ok(())
     }
 
+    fn restore_launch(
+        &self,
+        id: &str,
+        (worktree, fork, at): (Option<String>, bool, Option<String>),
+    ) {
+        if let Some(agent) = self.list.lock().unwrap().get_mut(id) {
+            agent.worktree = agent.worktree.take().or(worktree);
+            agent.fork |= fork;
+            agent.at = agent.at.take().or(at);
+        }
+    }
+
     pub fn fork_at(&self, id: &str, at: &str) -> Result<(), String> {
         if at.len() != 36 || !at.chars().all(|c| c.is_ascii_hexdigit() || c == '-') {
             return Err("Invalid message id.".into());
@@ -488,11 +500,16 @@ fn spawn(
         let _ = std::fs::create_dir_all(&dir);
         cmd.env("SQUADRON_ARTIFACTS", dir);
     }
-    if let Some(name) = agent.worktree.take() {
-        cmd.args(["--worktree", &name]);
+    let launch = (
+        agent.worktree.take(),
+        std::mem::take(&mut agent.fork),
+        agent.at.take(),
+    );
+    if let Some(name) = &launch.0 {
+        cmd.args(["--worktree", name]);
     }
-    agent.fork = false;
-    agent.at = None;
+    let started = Arc::new(AtomicBool::new(false));
+    let (seen, unseen, pending) = (started.clone(), started, launch.clone());
     let (lines_app, exit_app) = (app.clone(), app.clone());
     let (lines_id, exit_id) = (id.to_string(), id.to_string());
     let (lines_run, exit_run) = (agent.run.clone(), agent.run.clone());
@@ -509,6 +526,7 @@ fn spawn(
             } = &event
             {
                 *session_id.lock().unwrap() = Some(s.clone());
+                seen.store(true, Ordering::SeqCst);
             }
             let _ = lines_app.emit(
                 "agent-line",
@@ -520,6 +538,9 @@ fn spawn(
         },
         move |stderr| {
             if exit_run.load(Ordering::SeqCst) == run {
+                if !unseen.load(Ordering::SeqCst) {
+                    exit_app.state::<Agents>().restore_launch(&exit_id, pending);
+                }
                 let _ = exit_app.emit(
                     "agent-exit",
                     Exit {
@@ -530,9 +551,12 @@ fn spawn(
             }
         },
     )
-    .map_err(|e| match e.kind() {
-        ErrorKind::NotFound => NOT_FOUND.to_string(),
-        _ => format!("Claude Code could not start: {e}"),
+    .map_err(|e| {
+        (agent.worktree, agent.fork, agent.at) = launch;
+        match e.kind() {
+            ErrorKind::NotFound => NOT_FOUND.to_string(),
+            _ => format!("Claude Code could not start: {e}"),
+        }
     })?;
     let mut session = session;
     let _ = session.control(serde_json::json!({"subtype": "initialize"}));

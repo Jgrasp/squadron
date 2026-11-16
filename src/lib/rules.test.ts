@@ -9,6 +9,14 @@ describe('rules', () => {
     expect(ruleFor('Bash', bash('ls'))).toBe('Bash(ls:*)')
   })
 
+  it('keeps a command that runs another one exact', () => {
+    for (const command of ['timeout 120 npm test', 'env FOO=1 make', 'FOO=1 make build', 'sudo apt update', 'bash -c ls', 'python -c "print(1)"', 'find . -name x', '/usr/bin/env node x.js'])
+      expect(ruleFor('Bash', bash(command))).toBe(`Bash(${command})`)
+    expect(matches('Bash(timeout 120:*)', 'Bash', bash('timeout 120 rm -rf ~'))).toBe(false)
+    expect(matches('Bash(python -c:*)', 'Bash', bash('python -c "import os"'))).toBe(false)
+    expect(matches(ruleFor('Bash', bash('timeout 120 npm test')), 'Bash', bash('timeout 120 npm test'))).toBe(true)
+  })
+
   it('keeps a compound command exact', () => {
     expect(ruleFor('Bash', bash('git status && rm -rf /'))).toBe('Bash(git status && rm -rf /)')
   })

@@ -471,10 +471,14 @@ impl Default for Config {
 
 impl Settings {
     fn load(file: PathBuf) -> Self {
-        let config = std::fs::read_to_string(&file)
-            .ok()
-            .and_then(|text| serde_json::from_str::<Config>(&text).ok())
-            .unwrap_or_default();
+        let config = match std::fs::read_to_string(&file) {
+            Ok(text) => serde_json::from_str::<Config>(&text).unwrap_or_else(|e| {
+                log::error!("{} is unreadable ({e}), set aside as .bak", file.display());
+                let _ = std::fs::rename(&file, file.with_extension("json.bak"));
+                Config::default()
+            }),
+            Err(_) => Config::default(),
+        };
         claude::COMPACT_WINDOW.store(config.compact_window, Ordering::Relaxed);
         Self {
             file,
@@ -525,7 +529,10 @@ impl Settings {
             std::fs::create_dir_all(dir).map_err(|e| e.to_string())?;
         }
         let text = serde_json::to_string_pretty(&config).map_err(|e| e.to_string())?;
-        std::fs::write(&self.file, text).map_err(|e| e.to_string())?;
+        let tmp = self.file.with_extension("json.tmp");
+        std::fs::write(&tmp, text)
+            .and_then(|_| std::fs::rename(&tmp, &self.file))
+            .map_err(|e| e.to_string())?;
         claude::COMPACT_WINDOW.store(config.compact_window, Ordering::Relaxed);
         *self.config.lock().unwrap() = config;
         Ok(())
@@ -1087,6 +1094,7 @@ async fn review_checkout(
     number: u64,
     branch: String,
     base: String,
+    head: Option<String>,
 ) -> Result<PathBuf, String> {
     let name = project
         .file_name()
@@ -1100,7 +1108,7 @@ async fn review_checkout(
         .join(format!("{name}-{number}"));
     std::fs::create_dir_all(into.parent().unwrap()).map_err(|e| e.to_string())?;
     tauri::async_runtime::spawn_blocking(move || {
-        git::review_checkout(&project, &into, &branch, &base).map(|_| into)
+        git::review_checkout(&project, &into, &branch, &base, head.as_deref()).map(|_| into)
     })
     .await
     .map_err(|e| e.to_string())?
@@ -1306,7 +1314,66 @@ fn open_with(command: String, project: PathBuf, path: PathBuf) -> Result<(), Str
 #[tauri::command]
 fn open_in_editor(project: PathBuf, path: PathBuf) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    if runs_when_opened(&file) {
+        return Err("Squadron does not open from here a file the system would run.".into());
+    }
     open_path(&file)
+}
+
+const RUNNABLE: &[&str] = if cfg!(windows) {
+    &[
+        "appref-ms",
+        "bat",
+        "chm",
+        "cmd",
+        "com",
+        "cpl",
+        "exe",
+        "hta",
+        "inf",
+        "jar",
+        "js",
+        "jse",
+        "lnk",
+        "msc",
+        "msi",
+        "msix",
+        "msp",
+        "pif",
+        "ps1",
+        "psm1",
+        "reg",
+        "scf",
+        "scr",
+        "url",
+        "vb",
+        "vbe",
+        "vbs",
+        "ws",
+        "wsc",
+        "wsf",
+        "wsh",
+    ]
+} else if cfg!(target_os = "macos") {
+    &[
+        "action", "app", "command", "fileloc", "inetloc", "jar", "pkg", "mpkg", "terminal", "tool",
+        "webloc", "workflow",
+    ]
+} else {
+    &["desktop"]
+};
+
+fn runs_when_opened(path: &Path) -> bool {
+    let listed = path
+        .extension()
+        .and_then(|e| e.to_str())
+        .is_some_and(|e| RUNNABLE.contains(&e.to_ascii_lowercase().as_str()));
+    #[cfg(target_os = "macos")]
+    let listed = listed || {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::metadata(path).is_ok_and(|m| m.permissions().mode() & 0o111 != 0)
+    };
+    listed
 }
 
 #[tauri::command]
