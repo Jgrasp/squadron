@@ -1,4 +1,5 @@
 import { getVersion } from '@tauri-apps/api/app'
+import { invoke } from '@tauri-apps/api/core'
 import { ask, message } from './asking.svelte'
 import { relaunch } from '@tauri-apps/plugin-process'
 import { check, type Update } from '@tauri-apps/plugin-updater'
@@ -54,6 +55,8 @@ export async function install() {
   if (!update.found || update.progress !== null) return
   update.found = (await check().catch(() => null)) ?? update.found
   const found = update.found
+  if (await invoke<boolean>('package_manager_busy'))
+    return message(t('settings.updatePackagesBusy', { version: found.version }), { title: t('settings.updateTitle'), kind: 'warning' })
   const working = agents.list.filter((a) => a.status === 'working' || a.status === 'waiting').length
   if (
     working &&

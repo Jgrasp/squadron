@@ -338,6 +338,7 @@ export default {
     one: 'Squadron restarts to install {version}. {count} agent is still at work: its turn is cut, then picks up where it left off.',
     other: 'Squadron restarts to install {version}. {count} agents are still at work: their turn is cut, then picks up where it left off.',
   },
+  updatePackagesBusy: 'An apt or dpkg install is running on this machine. Squadron {version} can be installed once it is over: try again then.',
   updateTitle: 'Update Squadron',
   updateNow: 'Update now',
   projectSections: 'Sections of the project',

@@ -340,6 +340,7 @@ export default {
     one: 'Squadron redémarre pour installer {version}. {count} agent est encore au travail : son tour est coupé, puis il reprend là où il en était.',
     other: 'Squadron redémarre pour installer {version}. {count} agents sont encore au travail : leur tour est coupé, puis ils reprennent là où ils en étaient.',
   },
+  updatePackagesBusy: 'Une installation apt ou dpkg est en cours sur cette machine. Squadron {version} s’installera une fois qu’elle sera terminée : réessayez à ce moment-là.',
   updateTitle: 'Mettre à jour Squadron',
   updateNow: 'Mettre à jour maintenant',
   projectSections: 'Sections du projet',

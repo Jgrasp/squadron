@@ -1401,6 +1401,11 @@ fn system_load(cpu: State<system::Cpu>) -> Option<system::Load> {
     cpu.load()
 }
 
+#[tauri::command]
+fn package_manager_busy() -> bool {
+    system::package_manager_busy()
+}
+
 struct AgentFiles(PathBuf);
 
 #[derive(Default)]
@@ -2398,6 +2403,7 @@ pub fn run() {
             plugin_flags,
             plugin_run,
             system_load,
+            package_manager_busy,
             stop_turn,
             open_link,
             link_preview,
