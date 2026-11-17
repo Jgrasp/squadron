@@ -28,7 +28,7 @@
   import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { COMPACT_WINDOWS, hint as keyOf, saveSettings, settings, type App, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
+  import { COLD_TOKENS, COMPACT_WINDOWS, hint as keyOf, saveSettings, settings, type App, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
   import { untrack } from 'svelte'
   import { chime } from './chime'
   import { tokens } from './format'
@@ -126,6 +126,7 @@
   let archiveAfter = $state(settings.archive_after_days)
   let artifactsAfter = $state(settings.artifacts_after_days)
   let compactWindow = $state(settings.compact_window)
+  let coldTokens = $state(settings.cold_tokens)
   let steps = $state(settings.steps)
   let thinking = $state(settings.thinking)
   let language = $state(settings.language)
@@ -200,7 +201,7 @@
 
   const withRules = $derived(projects.list.filter((p) => p.rules.length))
 
-  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, steps, thinking, language, conversation_width: width, sidebar })
+  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
@@ -458,6 +459,11 @@
         {#each COMPACT_WINDOWS as size (size)}<option value={size}>{size ? t('settings.compactAround', { tokens: tokens(size) }) : t('settings.compactDefault')}</option>{/each}
       </select>
       <p class="intro">{t('settings.compactWindowHint')}</p>
+      <label for="cold-tokens">{t('settings.coldTokens')}</label>
+      <select id="cold-tokens" class="field" bind:value={coldTokens}>
+        {#each COLD_TOKENS as size (size)}<option value={size}>{size ? t('settings.coldFrom', { tokens: tokens(size) }) : t('settings.coldNever')}</option>{/each}
+      </select>
+      <p class="intro">{t('settings.coldTokensHint')}</p>
       <label class="check">
         <input type="checkbox" bind:checked={pilot} />
         <span>

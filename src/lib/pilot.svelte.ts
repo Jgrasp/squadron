@@ -20,6 +20,7 @@ import { finish, refresh, working, workKey } from './artifacts.svelte'
 import { extensionItems } from './extensions.svelte'
 import { clip } from './shell'
 import { follow } from './sudo.svelte'
+import { messageSent } from './extensionFeed.svelte'
 
 type Call = { id: string; agent: string; tool: string; args: Record<string, any> }
 
@@ -134,7 +135,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     if (dir) await invoke('git_branch', { path: dir }).catch(() => {
       throw new Error(`${dir} is not a git checkout.`)
     })
-    const id = await create(project.path, name, options, text, { from: { by: caller.name }, goal, dir: dir || undefined })
+    const id = await create(project.path, name, options, text, { from: { by: caller.name, id: caller.id }, goal, dir: dir || undefined })
     if (card) await setCards(project.path, project.cards.map((c) => (c.id === card.id ? { ...c, agent: id, column: 'progress' } : c)))
     const until = goal ? ` It works until this goal is met: ${goal}${options.mode === 'plan' ? ' (once the user approves its plan)' : ''}.` : ''
     return `Started agent ${id} in ${project.name}.${until} Its permission requests and questions go to the user.`
@@ -279,6 +280,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     if (!message) throw new Error('The message is empty.')
     if (target.asks.length) throw new Error(`${target.name} waits for the user to answer a question or a permission request. Only the user can answer it: tell them.`)
     await send(target.id, message, [], [], caller.name)
+    messageSent(caller.id, target.id)
     return `Sent to ${target.name}. ${target.status === 'working' ? 'It reads it once its current action ends.' : 'It starts on it now.'} Read its answer later with read_agent.`
   },
 

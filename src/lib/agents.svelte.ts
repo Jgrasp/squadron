@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { SvelteSet } from 'svelte/reactivity'
+import { apiSignal, noted, type ClaudeApi } from './activity'
 import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
@@ -82,6 +83,17 @@ $effect.root(() => {
 export const clock = $state({ now: Date.now() })
 
 export type Limit = { utilization: number; resetsAt: number }
+
+export const claudeApi: ClaudeApi = $state({ state: navigator.onLine ? 'ok' : 'offline', retries: 0, since: Date.now() })
+
+const noteApi = (signal: Parameters<typeof noted>[1]) => Object.assign(claudeApi, noted(claudeApi, signal))
+
+addEventListener('offline', () => noteApi({ state: 'offline' }))
+addEventListener('online', () => noteApi({ state: 'ok' }))
+
+export const shownQuietly = { until: 0 }
+
+export const archiveShown = $state({ project: '', agent: '' })
 
 export const limits: { five_hour?: Limit; seven_day?: Limit } = $state(stored('limits', {}))
 
@@ -220,6 +232,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (d.type === 'result' || d.subtype === 'init' || d.subtype === 'compact_boundary') invoke('context_usage', { id: agent.id }).catch(() => {})
   if (d.type === 'result' || d.subtype === 'init' || d.response?.response?.maxTokens) persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
+  noteApi(apiSignal(d))
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
   if (d.type === 'control_response' && d.response?.request_id?.startsWith('mcp:')) mcpAnswered(agent.id, d.response)
   if (d.type === 'result' && agent.status === 'done') deliver(agent)
@@ -786,7 +799,7 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-type Launch = { from?: { by: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[] }
+type Launch = { from?: { by: string; id?: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[] }
 
 export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [] }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
@@ -800,6 +813,7 @@ export async function create(project: string, name: string, options: Options, te
     if (text.trim()) entitle(agent, text)
   }
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
+  if (from?.id) agent.startedBy = from.id
   else agents.current[project] = agent.id
   if (text.trim() || files.length) userMessage(agent, text, [], files)
   else {

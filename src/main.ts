@@ -16,7 +16,7 @@ addEventListener('click', links)
 addEventListener('auxclick', links)
 
 const label = getCurrentWindow().label
-const { default: App } = await (label === 'board' ? import('./BoardWindow.svelte') : label.startsWith('file-') ? import('./FileWindow.svelte') : label.startsWith('artifacts-') ? import('./ArtifactsWindow.svelte') : import('./App.svelte'))
+const { default: App } = await (label === 'board' ? import('./BoardWindow.svelte') : label.startsWith('file-') ? import('./FileWindow.svelte') : label.startsWith('artifacts-') ? import('./ArtifactsWindow.svelte') : label.startsWith('extension-') ? import('./ExtensionWindow.svelte') : import('./App.svelte'))
 
 const app = mount(App, {
   target: document.getElementById('app')!,

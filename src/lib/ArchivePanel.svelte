@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ask } from './asking.svelte'
-  import { archived, forget, unarchive, type Archived } from './agents.svelte'
+  import { archived, archiveShown, forget, unarchive, type Archived } from './agents.svelte'
   import Conversation from './Conversation.svelte'
   import Dialog from './Dialog.svelte'
   import { projects, type Project } from './projects.svelte'
@@ -20,6 +20,13 @@
     if (!list.some((a) => a.id === chosen)) chosen = list[0]?.id ?? ''
   }
   refresh()
+
+  $effect(() => {
+    if (!archiveShown.agent || archiveShown.project !== project.path) return
+    chosen = archiveShown.agent
+    archiveShown.agent = ''
+    refresh()
+  })
 
   const shown = $derived((list ?? []).filter((a) => a.name.toLowerCase().includes(search.trim().toLowerCase())))
   const current = $derived(list?.find((a) => a.id === chosen))

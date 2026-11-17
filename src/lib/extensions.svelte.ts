@@ -12,9 +12,10 @@ import { ask, message } from './asking.svelte'
 import { notify } from './notify.svelte'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { active, AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
+import { active, AGENTS, argsOf, PROJECTS, USAGE, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
+import { waitingKind } from './activity'
 import { type as typeInTerminal } from './terminals.svelte'
 
 export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
@@ -24,6 +25,10 @@ export const shownLabel = (key: string) => extensions.shown[key]?.label
 export const badgeOf = (key: string) => extensions.shown[key]?.badge
 
 const info = (agent: Agent) => ({ id: agent.id, name: agent.name, project: agent.project, dir: workdir(agent) })
+
+const told = (agent: Agent) => ({ ...info(agent), name: agent.autoName ? '' : agent.name })
+
+export const panelHovered: Record<string, boolean> = {}
 
 const stateOf = (agent: Agent) => ({
   ...info(agent),
@@ -49,7 +54,15 @@ export const commandLine = (key: string) =>
           ? t('extensions.agentsRead')
           : key === `${AGENTS}archive`
             ? t('extensions.agentsArchive')
-            : key
+            : key === `${AGENTS}activity`
+              ? t('extensions.agentsActivity')
+              : key === `${AGENTS}show`
+                ? t('extensions.agentsShow')
+                : key === `${PROJECTS}read`
+                  ? t('extensions.projectsRead')
+                  : key === `${USAGE}read`
+                    ? t('extensions.usageRead')
+                    : key
 
 const app = getVersion().catch(() => '')
 
@@ -60,7 +73,7 @@ export async function loadExtensions() {
   extensions.origins = listing.origins
   extensions.accounts = listing.accounts ?? {}
   extensions.options = listing.options ?? {}
-  for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('extension:') && !panelsOf(extensions.list).some((p) => p.key === kind)) setPanel(project, null)
+  for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('extension:') && !panelsOf(extensions.list).some((p) => p.key === kind && !p.window)) setPanel(project, null)
   for (const extension of extensions.list) {
     const key = `${extension.id}\n${extension.pending.join('\n')}`
     if (!extension.enabled || !extension.manifest || extension.problems.length || !extension.pending.length || asked.has(key)) continue
@@ -119,6 +132,8 @@ export async function runItem(item: Item, { project, agent }: Context) {
   if ('squadron' in action) return run(action.squadron, { project, agent })
   if ('url.open' in action) return invoke('open_link', { url: action['url.open'] })
   if ('panel.open' in action) {
+    const panel = panelsOf(extensions.list).find((p) => p.extension === item.extension && p.id === action['panel.open'])
+    if (panel?.window) return import('./extensionWindows.svelte').then((m) => m.openWindow(panel))
     const path = agent?.project ?? project?.path
     if (!path) return
     const kind = `extension:${item.extension}.${action['panel.open']}` as const
@@ -151,8 +166,15 @@ export function onPanelPost(extension: string, panel: string, deliver: (message:
   return () => posts.delete(listener)
 }
 
-export const panelMessage = (panel: Panel, from: Agent | string, message: unknown) =>
-  invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : info(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
+export const panelSent: Record<string, number> = {}
+
+export function panelMessage(panel: Panel, from: Agent | string | null, message: unknown) {
+  panelSent[panel.extension] = Date.now()
+  return invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : from && told(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
+}
+
+export const panelClosed = (panel: Panel) =>
+  invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.closed', agent: null, data: JSON.stringify({ panel: panel.id }) }).catch(() => {})
 
 export const SETTINGS_PAGE = ':settings'
 
@@ -234,6 +256,8 @@ export const asks = (entry: CatalogEntry) => [
   ...(entry.permissions?.exec ?? []).map((p) => commandLine(EXEC + p)),
   ...(entry.permissions?.network ?? []).map((h) => commandLine(NET + h)),
   ...(entry.permissions?.agents ?? []).map((a) => commandLine(AGENTS + a)),
+  ...(entry.permissions?.projects ?? []).map((a) => commandLine(PROJECTS + a)),
+  ...(entry.permissions?.usage ?? []).map((a) => commandLine(USAGE + a)),
 ]
 
 const TOLD = 'squadron.extension-updates'
@@ -255,7 +279,9 @@ const syncSkills = (list: Extension[]) =>
 
 const syncWasm = (list: Extension[]) =>
   invoke<Record<string, string>>('extensions_wasm_sync', {
-    list: active(list).filter((m) => m.manifest.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest.wasm, allowed: grantsOf(m) })),
+    list: active(list)
+      .filter((m) => m.manifest.wasm)
+      .map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest.wasm, allowed: grantsOf(m), panels: (m.manifest.contributes?.panels ?? []).map((p) => p.id) })),
   }).then((errors) => {
     extensions.errors = errors
   })
@@ -279,14 +305,18 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
     extensions.shown[key] = { ...extensions.shown[key], [p.call === 'set-badge' ? 'badge' : 'label']: (p.value as string | null) ?? null }
   }
   if ((p.call === 'agents' || p.call === 'archive-agent') && getCurrentWindow().label === 'main') answerHost(String(p.reply), p.call, String(p.agent))
-  if (p.call === 'insert-prompt' && find(String(p.agent))) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
+  if (p.call === 'insert-prompt' && String(p.agent) !== shownAgent()) console.warn(`${p.extension}: insert-prompt only reaches the agent on screen`)
+  if (p.call === 'insert-prompt' && find(String(p.agent)) && String(p.agent) === shownAgent()) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
   if (p.call === 'open-new-agent' && getCurrentWindow().label === 'main') openDraft(p.extension, String(p.draft), String(p.agent), String(p.fields))
   if (p.call === 'update-new-agent' && drafts.open?.id === p.draft) drafts.open?.updates.push(parseDraft(String(p.fields)))
   if (p.call === 'notify') await notify('extensions', String(p.title), String(p.body), { settings: `ext:${p.extension}` })
 })
 
 function openDraft(extension: string, id: string, from: string, fields: string) {
-  const project = find(from)?.project ?? projects.current
+  const agent = find(from)
+  if (agent && agent.id !== shownAgent()) console.warn(`${extension}: open-new-agent only opens from the agent on screen`)
+  if (agent ? agent.id !== shownAgent() : !!shownAgent()) return
+  const project = agent?.project ?? projects.current
   if (!project || !projects.list.some((p) => p.path === project && p.exists)) return
   if (drafts.open) draftClosed(drafts.open)
   ui.creating = false
@@ -344,7 +374,7 @@ $effect.root(() => {
       seen.set(agent.id, agent.status)
       if (before === undefined || before === agent.status) continue
       if (agent.status === 'done' || agent.status === 'waiting')
-        invoke('extensions_wasm_event', { id: null, name: `agent.${agent.status}`, agent: info(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action } : {}) })
+        invoke('extensions_wasm_event', { id: null, name: `agent.${agent.status}`, agent: told(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action, kind: waitingKind(agent) } : {}) })
     }
   })
 })

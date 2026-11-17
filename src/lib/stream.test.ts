@@ -559,3 +559,18 @@ describe('background work', () => {
     expect(agent.jobs).toEqual([])
   })
 })
+
+describe('cache ttl', () => {
+  const start = (cache: Record<string, number>) => ({ type: 'stream_event', event: { type: 'message_start', index: 0, message: { usage: { input_tokens: 1, cache_creation: cache } } } })
+
+  it('follows the ttl of the cache each reply writes', () => {
+    const agent = fresh()
+    expect(agent.cacheTtl).toBeUndefined()
+    apply(agent, start({ ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 9180 }))
+    expect(agent.cacheTtl).toBe(3_600_000)
+    apply(agent, start({ ephemeral_5m_input_tokens: 0, ephemeral_1h_input_tokens: 0 }))
+    expect(agent.cacheTtl).toBe(3_600_000)
+    apply(agent, start({ ephemeral_5m_input_tokens: 420, ephemeral_1h_input_tokens: 0 }))
+    expect(agent.cacheTtl).toBe(300_000)
+  })
+})

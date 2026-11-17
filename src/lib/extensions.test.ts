@@ -172,6 +172,10 @@ describe('extensions', () => {
     for (const page of ['/etc/x.html', '../x.html', 'panel/x.js', 'a//b.html'])
       expect(keys({ ...base, contributes: { panels: [{ ...panel, page }] } })).toEqual(['extensions.badPanels'])
     expect(keys({ ...base, contributes: { panels: [panel, panel] } })).toEqual(['extensions.badPanels'])
+    for (const window of ['floating', 'maximized', 'fullscreen']) expect(keys({ ...base, contributes: { panels: [{ ...panel, window }] } })).toEqual([])
+    for (const title of [{ en: 'Squad\u202eron' }, { en: 'Main', fr: '\u200b' }]) expect(keys({ ...base, contributes: { panels: [{ ...panel, title }] } })).toEqual(['extensions.badPanels'])
+    expect(keys({ ...base, name: { en: 'P\u2066' } })).toEqual(['extensions.noName'])
+    for (const window of [true, 'normal', 1]) expect(keys({ ...base, contributes: { panels: [{ ...panel, window }] } })).toEqual(['extensions.badPanels'])
     const found = [{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels: [panel] } }, error: null }]
     expect(panelsOf(load(found, [])).map((p) => p.key)).toEqual(['extension:p.main'])
     expect(panelsOf(load(found, ['p']))).toEqual([])
@@ -319,5 +323,17 @@ describe('extensions', () => {
     const found = [{ dir: '/m/jira', linked: false, manifest: both, error: null }]
     expect(load(found, [], {})[0].pending).toEqual(['agents:read', 'agents:archive'])
     expect(grantsOf(load(found, [], { jira: ['agents:read'] })[0])).toEqual(['agents:read'])
+  })
+
+  it('asks to see projects, all agents, the usage and to show an agent', () => {
+    const base = { id: 'office', version: '1.0.0', api: 1, name: { en: 'Office' } }
+    const all = { ...base, permissions: { agents: ['activity', 'show'], projects: ['read'], usage: ['read'] } }
+    expect(keys(all)).toEqual([])
+    for (const projects of [['write'], 'read', [true]]) expect(keys({ ...base, permissions: { projects } })).toEqual(['extensions.badProjects'])
+    expect(keys({ ...base, permissions: { usage: ['read', 'reset'] } })).toEqual(['extensions.badUsage'])
+    expect(keys({ ...base, permissions: { agents: ['restore'] } })).toEqual(['extensions.badAgents'])
+    const found = [{ dir: '/m/office', linked: false, manifest: all, error: null }]
+    expect(load(found, [], {})[0].pending).toEqual(['agents:activity', 'agents:show', 'projects:read', 'usage:read'])
+    expect(grantsOf(load(found, [], { office: ['projects:read', 'usage:read'] })[0])).toEqual(['projects:read', 'usage:read'])
   })
 })

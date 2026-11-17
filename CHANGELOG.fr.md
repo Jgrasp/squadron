@@ -1,10 +1,25 @@
 # Nouveautés
 
+## 0.52.0 · 2026-11-17
+
+### Extensions
+
+- Une extension peut montrer l’activité de Squadron : vos projets et groupes, l’état de chaque agent, ce qu’il attend et l’outil qu’il lance, les limites de 5 heures et de la semaine de Claude, et si l’API de Claude répond. Chacun demande une permission que vous accordez, et l’extension ne voit jamais une conversation, un dossier ni un secret.
+- Un panneau d’extension peut mettre l’un de vos agents au premier plan quand vous cliquez dedans.
+- Un panneau d’extension peut s’ouvrir dans sa propre fenêtre, flottante, agrandie ou en plein écran. Une fenêtre flottante revient à sa dernière taille et à sa dernière position.
+- API d’extension 1.7.0 : `projects`, `groups`, `all-agents`, `usage` et `show-agent`, avec leurs événements, derrière les permissions `agents: ["activity", "show"]`, `projects: ["read"]` et `usage: ["read"]`, et `"window"` sur les panneaux.
+- Une extension qui ne lit pas vos agents et ne lance aucun programme ne reçoit plus le dossier des agents, le texte d’une demande de permission ni le chemin de votre dossier personnel. Les prompts et les brouillons de nouvel agent envoyés par une extension n’atteignent que l’agent à l’écran.
+- La fenêtre d’ajout d’une extension locale se lit naturellement en français, et son bouton de dossier ne déborde plus.
+
+### Conversation
+
+- La proposition de compacter une conversation dont le cache a expiré suit la vraie durée du cache, 5 minutes ou 1 heure, à partir d’une taille réglée dans Réglages.
+
 ## 0.51.0 · 2026-11-17
 
 ### Projets
 
-- Un projet sans agent affiche le même en-tête qu’un agent : son nom, son dossier et sa branche, puis tous les outils à droite, outils d’extension comme Jira compris, pour ouvrir le terminal, l’éditeur ou le sprint Jira avant de lancer un agent.
+- Un projet sans agent affiche le même en-tête qu’un agent : son nom, son dossier et sa branche, puis tous les outils à droite, outils d’extension comme Jira compris, pour ouvrir le terminal, l’éditeur ou le sprint Jira avant de lancer un agent.
 
 ## 0.50.0 · 2026-11-16
 
