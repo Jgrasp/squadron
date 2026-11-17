@@ -119,9 +119,10 @@ export async function runItem(item: Item, { project, agent }: Context) {
   if ('squadron' in action) return run(action.squadron, { project, agent })
   if ('url.open' in action) return invoke('open_link', { url: action['url.open'] })
   if ('panel.open' in action) {
-    if (!agent) return
+    const path = agent?.project ?? project?.path
+    if (!path) return
     const kind = `extension:${item.extension}.${action['panel.open']}` as const
-    return setPanel(agent.project, layout.panels[agent.project] === kind ? null : kind)
+    return setPanel(path, layout.panels[path] === kind ? null : kind)
   }
   if ('run' in action)
     return invoke('extensions_wasm_run', { id: item.extension, action: action.run, agent: agent && info(agent) }).catch((e) => message(errorText(e), { kind: 'error', title: item.extension }))
@@ -150,8 +151,8 @@ export function onPanelPost(extension: string, panel: string, deliver: (message:
   return () => posts.delete(listener)
 }
 
-export const panelMessage = (panel: Panel, agent: Agent, message: unknown) =>
-  invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: info(agent), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
+export const panelMessage = (panel: Panel, from: Agent | string, message: unknown) =>
+  invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : info(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
 
 export const SETTINGS_PAGE = ':settings'
 
@@ -285,13 +286,13 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
 })
 
 function openDraft(extension: string, id: string, from: string, fields: string) {
-  const agent = find(from)
-  if (!agent || !projects.list.some((p) => p.path === agent.project && p.exists)) return
+  const project = find(from)?.project ?? projects.current
+  if (!project || !projects.list.some((p) => p.path === project && p.exists)) return
   if (drafts.open) draftClosed(drafts.open)
   ui.creating = false
   projects.overview = projects.board = projects.pulls = false
-  projects.current = agent.project
-  drafts.open = { id, extension, project: agent.project, agent: agent.id, draft: parseDraft(fields), updates: [] }
+  projects.current = project
+  drafts.open = { id, extension, project, agent: from, draft: parseDraft(fields), updates: [] }
 }
 
 async function answerHost(reply: string, call: string, id: string) {

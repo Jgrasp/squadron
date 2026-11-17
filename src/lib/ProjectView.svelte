@@ -23,6 +23,11 @@
   import DiffPanel from './DiffPanel.svelte'
   import EditorPanel from './EditorPanel.svelte'
   import Icon from './Icon.svelte'
+  import ItemIcon from './ItemIcon.svelte'
+  import ExtensionPanel from './ExtensionPanel.svelte'
+  import { badgeOf, extensionItem, extensionPanel, runItem } from './extensions.svelte'
+  import { detailOf, labelOf, shown } from './layout-slots.svelte'
+  import { shown as runsShown } from './pipelines.svelte'
   import Runs from './Runs.svelte'
   import { needsYou } from './pulls.svelte'
   import type { Comment } from './stream'
@@ -49,6 +54,9 @@
   let comments = $state<Comment[]>([])
   let target = $state<Comment | null>(null)
   const totals = $derived((changes?.files ?? []).reduce((t, f) => ({ add: t.add + (f.add ?? 0), del: t.del + (f.del ?? 0) }), { add: 0, del: 0 }))
+
+  let headerHeight = $state(0)
+  const ran = $derived(runsShown(project).length > 0)
 
   $effect(() => {
     if (agent || !project.exists) return
@@ -163,41 +171,79 @@
       {/if}
     {/key}
   {:else}
-    <main class="idle" style:--panel-share={bottomShare(openPanel(project.path))} style:--panel-side={sideSpan(openPanel(project.path))}>
-      <div class="center">
-      <div class="box">
-        <span class="plus" aria-hidden="true">
-          <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
-        </span>
-        <h1>{t('shell.startFirstAgent', { name: project.name })}</h1>
-        <p>{t('shell.startFirstAgentText')}</p>
-        <div class="row">
-          <button class="btn btn-primary big" onclick={() => (ui.creating = true)}>{t('common.newAgent')}</button>
-          <kbd>{hint('newAgent')}</kbd>
+    <main
+      class="idle"
+      style:--panel-top="{headerHeight}px"
+      style:--panel-share={bottomShare(openPanel(project.path))}
+      style:--panel-side={sideSpan(openPanel(project.path))}
+    >
+      <div class="pane">
+        <div class="top" bind:offsetHeight={headerHeight}>
+          <div class="title">
+            <h1><span class="square" style:background={project.color} aria-hidden="true"></span>{project.name}</h1>
+            <span class="meta">
+              <span class="mono">{project.path}</span>
+              {#if project.branch}<span class="branch"><Icon name="branch" size={12} />{project.branch}</span>{/if}
+              <span>{t('shell.noAgentYet')}</span>
+            </span>
+          </div>
+          <div class="tools" role="group" aria-label={t('shell.openTool')}>
+            {#each shown('agent.tools').filter((id) => id !== 'runs' || ran) as id (id)}
+              {#if extensionItem('agent.tools', id)}
+                {@const item = extensionItem('agent.tools', id)!}
+                <button
+                  class="btn btn-ghost"
+                  title={detailOf('agent.tools', id) || null}
+                  aria-pressed={'panel.open' in item.action ? panel === `extension:${item.extension}.${item.action['panel.open']}` : undefined}
+                  onclick={() => runItem(item, { project })}
+                >
+                  <ItemIcon icon={item.icon} extension={item.extension} />
+                  {labelOf('agent.tools', id)}
+                  {#if badgeOf(id)}<span class="count">{badgeOf(id)}</span>{/if}
+                </button>
+              {:else if id === 'editor'}
+                <button class="btn btn-ghost" aria-pressed={panel === 'editor'} title={t('shell.editorTitle', { key: hint('editor') })} onclick={() => toggle('editor')}>
+                  <Icon name="editor" />{t('shell.editor')}
+                </button>
+              {:else if id === 'terminal'}
+                <button class="btn btn-ghost" aria-pressed={panel === 'terminal'} title={t('shell.terminalTitle', { key: hint('terminal') })} onclick={() => toggle('terminal')}>
+                  <Icon name="terminal" />{t('shell.terminal')}
+                </button>
+              {:else if id === 'diff'}
+                <button class="btn btn-ghost" aria-pressed={panel === 'diff'} title={t('shell.diffTitle', { key: hint('diff') })} onclick={() => toggle('diff')}>
+                  <Icon name="diff" />{t('shell.diff')}
+                  {#if totals.add || totals.del}
+                    <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
+                  {/if}
+                </button>
+              {:else if id === 'pulls'}
+                <button class="btn btn-ghost" aria-pressed={projects.pulls} title={t('shell.pullsTitle')} onclick={togglePulls}>
+                  <Icon name="pull" />{t('shell.pullRequests')}
+                  {#if needsYou(project.path)}<span class="count">{needsYou(project.path)}</span>{/if}
+                </button>
+              {:else if id === 'kanban'}
+                <button class="btn btn-ghost" aria-pressed={projects.board} title={t('shell.kanbanTitle', { key: hint('kanban') })} onclick={toggleBoard}>
+                  <Icon name="kanban" />{t('shell.kanban')}
+                </button>
+              {:else if id === 'runs'}
+                <Runs {project} />
+              {/if}
+            {/each}
+          </div>
         </div>
-        <div class="tools" role="group" aria-label={t('shell.openTool')}>
-          <button class="btn btn-ghost" aria-pressed={panel === 'editor'} title={t('shell.editorTitle', { key: hint('editor') })} onclick={() => toggle('editor')}>
-            <Icon name="editor" />{t('shell.editor')}
-          </button>
-          <button class="btn btn-ghost" aria-pressed={panel === 'terminal'} title={t('shell.terminalTitle', { key: hint('terminal') })} onclick={() => toggle('terminal')}>
-            <Icon name="terminal" />{t('shell.terminal')}
-          </button>
-          <button class="btn btn-ghost" aria-pressed={panel === 'diff'} title={t('shell.diffTitle', { key: hint('diff') })} onclick={() => toggle('diff')}>
-            <Icon name="diff" />{t('shell.diff')}
-            {#if totals.add || totals.del}
-              <span class="mono"><span class="add">+{totals.add}</span>{#if totals.del}&nbsp;<span class="del">−{totals.del}</span>{/if}</span>
-            {/if}
-          </button>
-          <button class="btn btn-ghost" aria-pressed={projects.pulls} title={t('shell.pullsTitle')} onclick={togglePulls}>
-            <Icon name="pull" />{t('shell.pullRequests')}
-            {#if needsYou(project.path)}<span class="count">{needsYou(project.path)}</span>{/if}
-          </button>
-          <button class="btn btn-ghost" aria-pressed={projects.board} title={t('shell.kanbanTitle', { key: hint('kanban') })} onclick={toggleBoard}>
-            <Icon name="kanban" />{t('shell.kanban')}
-          </button>
-          <Runs {project} />
+        <div class="center">
+          <div class="box">
+            <span class="plus" aria-hidden="true">
+              <svg width="24" height="24" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14" /></svg>
+            </span>
+            <h1>{t('shell.startFirstAgent', { name: project.name })}</h1>
+            <p>{t('shell.startFirstAgentText')}</p>
+            <div class="row">
+              <button class="btn btn-primary big" onclick={() => (ui.creating = true)}>{t('common.newAgent')}</button>
+              <kbd>{hint('newAgent')}</kbd>
+            </div>
+          </div>
         </div>
-      </div>
       </div>
       {#if panel === 'diff'}
         <DiffPanel
@@ -216,6 +262,8 @@
         <EditorPanel project={project.path} {changes} onclose={close} />
       {:else if panel === 'terminal'}
         <TerminalPanel dir={project.path} onclose={close} />
+      {:else if extensionPanel(panel)}
+        <ExtensionPanel panel={extensionPanel(panel)!} project={project.path} onclose={close} />
       {/if}
       {@render overlay?.()}
     </main>
@@ -314,12 +362,71 @@
     background: var(--bg-main);
   }
 
-  .center {
+  .pane {
     flex: 1;
     align-self: flex-start;
     min-width: 0;
-    height: calc(100% * (1 - var(--panel-share, 0)));
-    margin-right: var(--panel-side, 0px);
+    height: calc(100% - (100% - var(--panel-top, 0px)) * var(--panel-share, 0));
+    padding-right: var(--panel-side, 0px);
+    display: flex;
+    flex-direction: column;
+  }
+
+  .top {
+    position: relative;
+    z-index: 22;
+    min-height: 60px;
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 10px 12px;
+    padding: 10px 20px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .title {
+    flex: 1;
+    min-width: min-content;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .top h1 {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    font-size: 15px;
+    font-weight: 600;
+    letter-spacing: 0;
+  }
+
+  .square {
+    flex: none;
+    width: 10px;
+    height: 10px;
+    border-radius: 2px;
+  }
+
+  .meta {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .branch {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+  }
+
+  .center {
+    flex: 1;
+    min-height: 0;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -394,12 +501,8 @@
 
   .tools {
     display: flex;
-    justify-content: center;
-    gap: 4px;
     flex-wrap: wrap;
-    margin-top: 8px;
-    padding-top: 20px;
-    border-top: 1px solid var(--border);
+    gap: 4px;
   }
 
   .tools .btn-ghost[aria-pressed='true'] {
