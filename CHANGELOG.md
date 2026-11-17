@@ -1,5 +1,20 @@
 # Changelog
 
+## 0.52.0 · 2026-11-17
+
+### Extensions
+
+- An extension can show Squadron's activity: your projects and groups, each agent's status, what it waits for and the tool it runs, Claude's 5-hour and weekly limits, and whether Claude's API answers. Each of these needs a permission you approve, and the extension never sees a conversation, a folder or a secret.
+- An extension panel can bring one of your agents to the front when you click in it.
+- An extension panel can open in its own window, floating, maximized or full screen. A floating window comes back with its last size and position.
+- Extension API 1.7.0: `projects`, `groups`, `all-agents`, `usage` and `show-agent`, with their events, behind the `agents: ["activity", "show"]`, `projects: ["read"]` and `usage: ["read"]` permissions, and `"window"` on panels.
+- An extension that neither reads your agents nor runs programs no longer gets agents' folders, the text of a permission request or the path of your home folder. Prompts and new-agent drafts sent by an extension only reach the agent on screen.
+- The dialog to add a local extension reads naturally in French, and its folder button no longer overflows.
+
+### Conversation
+
+- The offer to compact a conversation whose cache expired follows the cache's real 5-minute or 1-hour lifetime, from a size you set in Settings.
+
 ## 0.51.0 · 2026-11-17
 
 ### Projects
