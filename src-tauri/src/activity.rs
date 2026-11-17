@@ -52,9 +52,11 @@ pub fn keep_salt(file: &Path) {
     let _ = SALT.set(salt);
 }
 
-pub fn opaque(path: &str) -> String {
+pub fn opaque(extension: &str, path: &str) -> String {
     let mut hash = Sha256::new();
     hash.update(SALT.get_or_init(fresh_salt));
+    hash.update(extension.as_bytes());
+    hash.update([0]);
     hash.update(path.as_bytes());
     hash.finalize()[..8]
         .iter()
@@ -62,8 +64,8 @@ pub fn opaque(path: &str) -> String {
         .collect()
 }
 
-fn opaque_of(value: Option<String>) -> Option<String> {
-    value.filter(|v| !v.is_empty()).map(|v| opaque(&v))
+fn given(value: Option<String>) -> Option<String> {
+    value.filter(|v| !v.is_empty())
 }
 
 pub fn id(s: &str) -> bool {
@@ -112,12 +114,19 @@ pub struct Project {
 impl Project {
     pub fn clean(self) -> Option<Self> {
         (!self.id.is_empty()).then(|| Self {
-            id: opaque(&self.id),
             name: name(self.name),
             color: color(self.color),
-            group: opaque_of(self.group),
+            group: given(self.group),
             ..self
         })
+    }
+
+    pub fn masked(self, extension: &str) -> Self {
+        Self {
+            id: opaque(extension, &self.id),
+            group: self.group.map(|g| opaque(extension, &g)),
+            ..self
+        }
     }
 }
 
@@ -131,10 +140,18 @@ pub struct Group {
 impl Group {
     pub fn clean(self) -> Option<Self> {
         (!self.id.is_empty()).then(|| Self {
-            id: opaque(&self.id),
             name: name(self.name),
-            parent: opaque_of(self.parent),
+            parent: given(self.parent),
+            ..self
         })
+    }
+
+    pub fn masked(self, extension: &str) -> Self {
+        Self {
+            id: opaque(extension, &self.id),
+            parent: self.parent.map(|p| opaque(extension, &p)),
+            ..self
+        }
     }
 }
 
@@ -160,7 +177,6 @@ impl Agent {
         let at = |status: &str| self.status == status;
         let (waiting, tool, failed) = (at("waiting"), at("working"), at("error"));
         Some(Self {
-            project: opaque(&self.project),
             name: name(self.name),
             waiting: one_of(self.waiting, &WAITING).filter(|_| waiting),
             tool: self.tool.filter(|t| tool && id(t)),
@@ -174,6 +190,13 @@ impl Agent {
             by: self.by.filter(|b| id(b) && *b != self.id),
             ..self
         })
+    }
+
+    pub fn masked(self, extension: &str) -> Self {
+        Self {
+            project: opaque(extension, &self.project),
+            ..self
+        }
     }
 }
 
@@ -272,6 +295,30 @@ pub fn admit(fed: Fed) -> Option<Admitted> {
     })
 }
 
+pub fn masked(extension: &str, name: &str, data: &Value) -> Value {
+    let data = data.clone();
+    match name {
+        "agent.status" | "agent.started" | "agent.archived" => parsed::<Agent>(data)
+            .map(|a| json!(a.masked(extension)))
+            .unwrap_or_default(),
+        "project.added" | "project.changed" | "project.archived" | "project.removed" => {
+            parsed::<Project>(data)
+                .map(|p| json!(p.masked(extension)))
+                .unwrap_or_default()
+        }
+        "groups.changed" => {
+            let groups: Vec<Group> = data
+                .get("groups")
+                .cloned()
+                .and_then(parsed)
+                .unwrap_or_default();
+            let groups: Vec<Group> = groups.into_iter().map(|g| g.masked(extension)).collect();
+            json!({ "groups": groups })
+        }
+        _ => data,
+    }
+}
+
 pub fn merge(pending: &mut Vec<Admitted>, next: Admitted) {
     if let Some(known) = pending.iter_mut().find(|p| p.key == next.key) {
         if next.name == "agent.message" {
@@ -305,11 +352,16 @@ mod tests {
         });
         let admitted = agent(full).unwrap();
         assert_eq!(admitted.access, ACTIVITY);
+        let shown = masked("office", &admitted.name, &admitted.data);
         assert_eq!(
-            admitted.data,
-            json!({"id": "a1", "project": opaque("/home/me/ring"), "name": "RING-1 Cardpayment", "status": "working", "waiting": null, "tool": "mcp__jira__search", "error": null, "by": "a0", "archived": false, "since": 5})
+            shown,
+            json!({"id": "a1", "project": opaque("office", "/home/me/ring"), "name": "RING-1 Cardpayment", "status": "working", "waiting": null, "tool": "mcp__jira__search", "error": null, "by": "a0", "archived": false, "since": 5})
         );
-        assert!(!admitted.data.to_string().contains("/home"));
+        assert!(!shown.to_string().contains("/home"));
+        assert_ne!(
+            masked("other", &admitted.name, &admitted.data)["project"],
+            shown["project"]
+        );
         let waiting = json!({"id": "a1", "project": "/p", "name": "", "status": "waiting", "waiting": "Allow rm -rf /?", "tool": "Bash: rm -rf /", "error": "mcp", "by": "a1", "archived": false, "since": 5});
         let data = agent(waiting).unwrap().data;
         assert_eq!(
@@ -339,13 +391,15 @@ mod tests {
             })
             .unwrap()
         };
-        let p = project("#d08a4f");
-        assert_eq!(p.access, READ_PROJECTS);
-        assert_eq!(p.data["id"], opaque("/home/me/squadron"));
-        assert_eq!(p.data["id"].as_str().unwrap().len(), 16);
-        assert_eq!(p.data["color"], "#d08a4f");
-        assert_eq!(p.data["group"], opaque("g1"));
-        assert!(!p.data.to_string().contains("/home"));
+        let admitted = project("#d08a4f");
+        assert_eq!(admitted.access, READ_PROJECTS);
+        let p = masked("office", &admitted.name, &admitted.data);
+        assert_eq!(p["id"], opaque("office", "/home/me/squadron"));
+        assert_eq!(p["id"].as_str().unwrap().len(), 16);
+        assert_eq!(p["color"], "#d08a4f");
+        assert_eq!(p["group"], opaque("office", "g1"));
+        assert!(!p.to_string().contains("/home"));
+        assert!(p.get("path").is_none());
         assert_eq!(project("red;background:url(x)").data["color"], Value::Null);
         assert!(admit(Fed { name: "project.deleted".into(), data: json!({"id": "/p", "name": "", "archived": false, "active": 0, "week_agents": 0, "agents": 0}) }).is_none());
         let groups = admit(Fed {
@@ -353,8 +407,10 @@ mod tests {
             data: json!({"groups": [{"id": "g1", "name": "Work", "parent": ""}, {"id": "g2", "name": "Client", "parent": "g1"}]}),
         })
         .unwrap();
-        assert_eq!(groups.data["groups"][0]["parent"], Value::Null);
-        assert_eq!(groups.data["groups"][1]["parent"], opaque("g1"));
+        let groups = masked("office", &groups.name, &groups.data);
+        assert_eq!(groups["groups"][0]["parent"], Value::Null);
+        assert_eq!(groups["groups"][1]["parent"], opaque("office", "g1"));
+        assert_eq!(groups["groups"][0]["id"], opaque("office", "g1"));
     }
 
     #[test]

@@ -45,6 +45,19 @@ const usage = () => usageOf(limits, claudeApi)
 
 const GESTURE = 2000
 
+const SETTLE = 400
+
+function settle() {
+  const swallow = (e: Event) => {
+    e.stopPropagation()
+    e.preventDefault()
+  }
+  for (const kind of ['pointerdown', 'mousedown', 'click']) addEventListener(kind, swallow, true)
+  setTimeout(() => {
+    for (const kind of ['pointerdown', 'mousedown', 'click']) removeEventListener(kind, swallow, true)
+  }, SETTLE)
+}
+
 function clicked(extension: string) {
   const frame = document.activeElement
   return (
@@ -65,6 +78,7 @@ function onScreen(extension: string) {
 async function showAgent(extension: string, id: string) {
   if (!onScreen(extension) || !clicked(extension)) throw new Error('show-agent works right after the user clicked in one of the extension’s panels, while the pointer is still over it.')
   const agent = find(id)
+  settle()
   if (agent) return show(agent)
   const old = (await shelved()).find((a) => a.id === id)
   if (!old || !projects.list.some((p) => p.path === old.project && p.exists)) throw new Error(`No agent has the id ${id}.`)

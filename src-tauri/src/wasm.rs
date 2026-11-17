@@ -369,6 +369,14 @@ impl Host {
         Ok(value)
     }
 
+    fn located(&self, path: &Path) -> String {
+        let home = std::env::var_os("HOME").map(PathBuf::from);
+        match home.and_then(|h| path.strip_prefix(h).ok().map(Path::to_path_buf)) {
+            Some(rest) if !sees_files(&self.allowed) => format!("~/{}", rest.to_string_lossy()),
+            _ => path.to_string_lossy().into_owned(),
+        }
+    }
+
     fn listed<T: for<'de> Deserialize<'de>>(
         &mut self,
         call: &'static str,
@@ -551,13 +559,17 @@ impl squadron::api::host::Host for Host {
         Ok(SavedFile {
             status: sent.status,
             headers: sent.headers,
-            path: file.to_string_lossy().into_owned(),
+            path: self.located(&file),
             size: body.len() as u64,
         })
     }
 
     fn open_file(&mut self, path: String) -> Result<(), String> {
-        let file = inside_data(&self.data, Path::new(&path))?;
+        let path = match (path.strip_prefix("~/"), std::env::var_os("HOME")) {
+            (Some(rest), Some(home)) => PathBuf::from(home).join(rest),
+            _ => PathBuf::from(path),
+        };
+        let file = inside_data(&self.data, &path)?;
         crate::open_attachment(file)
     }
 
@@ -588,7 +600,7 @@ impl squadron::api::host::Host for Host {
         if let Err(e) = std::fs::create_dir_all(&self.data) {
             log::warn!("extension {}: no data folder: {e}", self.id);
         }
-        self.data.to_string_lossy().into_owned()
+        self.located(&self.data)
     }
 
     fn options(&mut self) -> String {
@@ -618,7 +630,7 @@ impl squadron::api::host::Host for Host {
             .listed::<activity::Project>("projects")?
             .into_iter()
             .filter_map(activity::Project::clean)
-            .map(Into::into)
+            .map(|v| v.masked(&self.id).into())
             .collect())
     }
 
@@ -628,7 +640,7 @@ impl squadron::api::host::Host for Host {
             .listed::<activity::Group>("groups")?
             .into_iter()
             .filter_map(activity::Group::clean)
-            .map(Into::into)
+            .map(|v| v.masked(&self.id).into())
             .collect())
     }
 
@@ -638,7 +650,7 @@ impl squadron::api::host::Host for Host {
             .listed::<activity::Agent>("all-agents")?
             .into_iter()
             .filter_map(activity::Agent::clean)
-            .map(Into::into)
+            .map(|v| v.masked(&self.id).into())
             .collect())
     }
 
@@ -1211,7 +1223,12 @@ impl Runtime {
                             .filter(|e| allowed.iter().any(|a| a == e.access))
                             .find_map(|e| {
                                 bindings
-                                    .call_on_event(&mut *store, &e.name, None, &e.data.to_string())
+                                    .call_on_event(
+                                        &mut *store,
+                                        &e.name,
+                                        None,
+                                        &activity::masked(&id, &e.name, &e.data).to_string(),
+                                    )
                                     .err()
                                     .map(trapped)
                             })
@@ -1311,7 +1328,7 @@ impl Runtime {
         if page(name) && !only.is_some_and(|id| self.page_event(id, data)) {
             return;
         }
-        for (_, l) in self
+        for (id, l) in self
             .loaded
             .lock()
             .unwrap()
@@ -1328,7 +1345,7 @@ impl Runtime {
                 count.fetch_add(1, Ordering::SeqCst);
                 bytes.fetch_add(data.len(), Ordering::SeqCst);
             }
-            let (agent, data) = withheld(name, agent.clone(), data, &l.allowed);
+            let (agent, data) = withheld(id, name, agent.clone(), data, &l.allowed);
             let _ =
                 l.tx.send(Job::Event(name.into(), agent.map(Agent::from), data));
         }
@@ -1391,25 +1408,28 @@ impl Runtime {
     }
 }
 
+fn sees_files(allowed: &[String]) -> bool {
+    allowed
+        .iter()
+        .any(|a| a == READ_AGENTS || a.starts_with("exec:"))
+}
+
 fn withheld(
+    extension: &str,
     name: &str,
     agent: Option<AgentInfo>,
     data: &str,
     allowed: &[String],
 ) -> (Option<AgentInfo>, String) {
-    if !matches!(
-        name,
-        "agent.done" | "agent.waiting" | "panel.message" | "settings.message"
-    ) || allowed.iter().any(|a| a == READ_AGENTS)
-    {
+    if agent.is_none() || sees_files(allowed) {
         return (agent, data.into());
     }
     let agent = agent.map(|a| AgentInfo {
-        project: activity::opaque(&a.project),
+        project: activity::opaque(extension, &a.project),
         dir: String::new(),
         ..a
     });
-    if page(name) {
+    if !matches!(name, "agent.done" | "agent.waiting") {
         return (agent, data.into());
     }
     let kind = serde_json::from_str::<Value>(data)
@@ -1753,8 +1773,8 @@ mod tests {
         let (mut host, told) = host(&[READ_PROJECTS, ACTIVITY, READ_USAGE, SHOW_AGENTS], window);
         let projects = host.projects().unwrap();
         assert_eq!(projects.len(), 1);
-        assert_eq!(projects[0].id, activity::opaque("/home/me/ring"));
-        assert_eq!(projects[0].group, Some(activity::opaque("g1")));
+        assert_eq!(projects[0].id, activity::opaque("jira", "/home/me/ring"));
+        assert_eq!(projects[0].group, Some(activity::opaque("jira", "g1")));
         assert_eq!(host.groups().unwrap()[0].parent, None);
         let agents = host.all_agents().unwrap();
         assert_eq!(agents[0].project, projects[0].id);
@@ -1886,7 +1906,7 @@ mod tests {
         let (project, dir, data) = got(&jobs[0]);
         assert_eq!(
             (project, dir),
-            (activity::opaque("/home/me/ring"), String::new())
+            (activity::opaque("blind", "/home/me/ring"), String::new())
         );
         assert_eq!(data, r#"{"kind":"permission"}"#);
         assert_eq!(got(&jobs[1]).2, waiting);
@@ -1916,6 +1936,49 @@ mod tests {
             .collect();
         assert!(budget[..PAGE_EVENTS as usize].iter().all(|ok| *ok));
         assert!(!budget[PAGE_EVENTS as usize]);
+    }
+
+    #[test]
+    fn shows_folders_only_to_extensions_that_can_read_files() {
+        let home = PathBuf::from(std::env::var_os("HOME").unwrap());
+        let data = home.join(".config/squadron/extensions-data/office");
+        let (blind, _) = host(&[READ_PROJECTS], |_, _| Ok(Value::Null));
+        assert_eq!(
+            blind.located(&data),
+            "~/.config/squadron/extensions-data/office"
+        );
+        let (exec, _) = host(&["exec:git"], |_, _| Ok(Value::Null));
+        assert_eq!(exec.located(&data), data.to_string_lossy());
+
+        let agent = AgentInfo {
+            id: "a1".into(),
+            name: "RING-1".into(),
+            project: "/home/me/ring".into(),
+            dir: "/home/me/ring/w".into(),
+        };
+        let waiting = r#"{"waiting":"Allow Bash","kind":"permission"}"#;
+        let (kept, data) = withheld(
+            "x",
+            "agent.waiting",
+            Some(agent.clone()),
+            waiting,
+            &["exec:git".into()],
+        );
+        assert_eq!(
+            (kept.unwrap().dir, data.as_str()),
+            ("/home/me/ring/w".into(), waiting)
+        );
+        let (hidden, data) = withheld(
+            "x",
+            "new-agent.started",
+            Some(agent),
+            r#"{"draft":"d"}"#,
+            &[],
+        );
+        assert_eq!(
+            (hidden.unwrap().dir, data.as_str()),
+            (String::new(), r#"{"draft":"d"}"#)
+        );
     }
 
     #[test]
