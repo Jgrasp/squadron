@@ -3,6 +3,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { onMount } from 'svelte'
   import SidePanel from './lib/SidePanel.svelte'
+  import { boundsKey } from './lib/extensions'
   import type { Gesture, WindowState } from './lib/extensionWindows.svelte'
   import { t } from './lib/i18n/index.svelte'
 
@@ -35,6 +36,17 @@
     if (e.data?.squadron === 'option') tell('option', { id: String(e.data.id), value: e.data.value ?? null })
   }
 
+  let keeping: ReturnType<typeof setTimeout> | undefined
+
+  function keep() {
+    clearTimeout(keeping)
+    keeping = setTimeout(async () => {
+      if ((await me.isMaximized()) || (await me.isFullscreen()) || (await me.isMinimized())) return
+      const [at, size, scale] = await Promise.all([me.outerPosition(), me.innerSize(), me.scaleFactor()])
+      localStorage.setItem(boundsKey(me.label), JSON.stringify({ x: Math.round(at.x / scale), y: Math.round(at.y / scale), width: Math.round(size.width / scale), height: Math.round(size.height / scale) }))
+    }, 300)
+  }
+
   function key(e: KeyboardEvent) {
     if (e.key === 'F11') me.isFullscreen().then((on) => me.setFullscreen(!on))
   }
@@ -54,6 +66,8 @@
         focused = payload
         later()
       }),
+      me.onMoved(keep),
+      me.onResized(keep),
       me.onCloseRequested(async () => {
         await tell('closed')
       }),

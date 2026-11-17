@@ -31,7 +31,7 @@ export type Accounts = { label: Text; fields: AccountField[]; check?: boolean }
 
 export type Account = { id: string; values: Record<string, string>; host: string | null; secrets: string[] }
 
-export const WINDOWS = ['maximized', 'fullscreen'] as const
+export const WINDOWS = ['floating', 'maximized', 'fullscreen'] as const
 
 export type ManifestPanel = { id: string; title: Text; page: string; window?: (typeof WINDOWS)[number] }
 
@@ -347,6 +347,8 @@ export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))
 
 export const windowOf = (panel: Panel) => `extension-${panel.extension}:${panel.id}`
+
+export const boundsKey = (label: string) => `extension-window:${label}`
 
 export const OFFICIAL = 'Jgrasp/squadron-extensions'
 

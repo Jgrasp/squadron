@@ -1,8 +1,8 @@
 import { emitTo, listen } from '@tauri-apps/api/event'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import { availableMonitors, getCurrentWindow } from '@tauri-apps/api/window'
 import { getAllWebviewWindows, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { find, shownAgent } from './agents.svelte'
-import { PAGE_THEME, panelsOf, text, themeOf, windowOf, type OptionValue, type Panel } from './extensions'
+import { boundsKey, PAGE_THEME, panelsOf, text, themeOf, windowOf, type OptionValue, type Panel } from './extensions'
 import { extensions, onPanelPost, panelClosed, panelMessage, setOption } from './extensions.svelte'
 import { locale } from './i18n/index.svelte'
 
@@ -40,6 +40,24 @@ function stateOf(panel: Panel): WindowState {
   }
 }
 
+export type Bounds = { x: number; y: number; width: number; height: number }
+
+async function boundsOf(label: string): Promise<Partial<Bounds> & { center?: boolean }> {
+  try {
+    const kept = JSON.parse(localStorage.getItem(boundsKey(label)) ?? 'null') as Bounds | null
+    if (!kept || ![kept.x, kept.y, kept.width, kept.height].every(Number.isFinite)) return { width: 1100, height: 760, center: true }
+    const size = { width: Math.max(480, kept.width), height: Math.max(360, kept.height) }
+    const [x, y] = [kept.x + size.width / 2, kept.y + size.height / 2]
+    const seen = (await availableMonitors()).some((m) => {
+      const [left, top] = [m.position.x / m.scaleFactor, m.position.y / m.scaleFactor]
+      return x >= left && y >= top && x < left + m.size.width / m.scaleFactor && y < top + m.size.height / m.scaleFactor
+    })
+    return seen ? { ...size, x: kept.x, y: kept.y } : { ...size, center: true }
+  } catch {
+    return { width: 1100, height: 760, center: true }
+  }
+}
+
 export async function openWindow(panel: Panel) {
   const label = windowOf(panel)
   const shown = await WebviewWindow.getByLabel(label)
@@ -47,8 +65,7 @@ export async function openWindow(panel: Panel) {
   new WebviewWindow(label, {
     url: `index.html?${new URLSearchParams({ extension: panel.extension, panel: panel.id })}`,
     title: `${text(panel.title, locale())} · ${ownerOf(panel)}`,
-    width: 1280,
-    height: 820,
+    ...(await boundsOf(label)),
     minWidth: 480,
     minHeight: 360,
     maximized: panel.window === 'maximized',

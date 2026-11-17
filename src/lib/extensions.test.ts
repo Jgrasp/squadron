@@ -172,7 +172,7 @@ describe('extensions', () => {
     for (const page of ['/etc/x.html', '../x.html', 'panel/x.js', 'a//b.html'])
       expect(keys({ ...base, contributes: { panels: [{ ...panel, page }] } })).toEqual(['extensions.badPanels'])
     expect(keys({ ...base, contributes: { panels: [panel, panel] } })).toEqual(['extensions.badPanels'])
-    for (const window of ['maximized', 'fullscreen']) expect(keys({ ...base, contributes: { panels: [{ ...panel, window }] } })).toEqual([])
+    for (const window of ['floating', 'maximized', 'fullscreen']) expect(keys({ ...base, contributes: { panels: [{ ...panel, window }] } })).toEqual([])
     for (const title of [{ en: 'Squad\u202eron' }, { en: 'Main', fr: '\u200b' }]) expect(keys({ ...base, contributes: { panels: [{ ...panel, title }] } })).toEqual(['extensions.badPanels'])
     expect(keys({ ...base, name: { en: 'P\u2066' } })).toEqual(['extensions.noName'])
     for (const window of [true, 'normal', 1]) expect(keys({ ...base, contributes: { panels: [{ ...panel, window }] } })).toEqual(['extensions.badPanels'])
