@@ -1409,15 +1409,14 @@ fn withheld(
         dir: String::new(),
         ..a
     });
+    if page(name) {
+        return (agent, data.into());
+    }
     let kind = serde_json::from_str::<Value>(data)
         .ok()
         .and_then(|d| d.get("kind")?.as_str().map(String::from))
-        .filter(|k| matches!(k.as_str(), "permission" | "question"));
-    let data = match kind {
-        _ if page(name) => data.into(),
-        Some(kind) if name == "agent.waiting" => json!({ "kind": kind }).to_string(),
-        _ => "{}".into(),
-    };
+        .filter(|k| name == "agent.waiting" && matches!(k.as_str(), "permission" | "question"));
+    let data = kind.map_or_else(|| "{}".into(), |kind| json!({ "kind": kind }).to_string());
     (agent, data)
 }
 
