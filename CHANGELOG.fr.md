@@ -4,7 +4,7 @@
 
 ### Projets
 
-- Un projet sans agent affiche le même en-tête qu’un agent : son nom, son dossier et sa branche, puis tous les outils à droite, outils d’extension comme Jira compris, pour ouvrir le terminal, l’éditeur ou le sprint Jira avant de lancer un agent.
+- Un projet sans agent affiche le même en-tête qu’un agent : son nom, son dossier et sa branche, puis tous les outils à droite, outils d’extension comme Jira compris, pour ouvrir le terminal, l’éditeur ou le sprint Jira avant de lancer un agent.
 
 ## 0.50.0 · 2026-11-16
 
