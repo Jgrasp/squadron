@@ -122,6 +122,10 @@ export default {
   compactWindow: 'Compact conversations automatically',
   compactDefault: 'When Claude Code decides (about 967k with a 1M window)',
   compactAround: 'Around {tokens} tokens',
+  coldTokens: 'Offer to compact when the cache has expired',
+  coldFrom: 'From {tokens} tokens',
+  coldNever: 'Never',
+  coldTokensHint: 'A conversation’s cache expires after 5 minutes or 1 hour without a reply, depending on Claude Code’s setting. The next message then re-reads all of it: above this size, Squadron offers to compact it before sending.',
   compactWindowHint: 'Each message re-reads the whole conversation: the bigger it is, the more every step costs. A lower size costs less but the agent keeps fewer details. Applies from the next message of each agent.',
   pilot: 'Agents can drive Squadron',
   pilotHint:

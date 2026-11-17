@@ -679,7 +679,7 @@
       run(agent, message.slice(1).trim())
       return
     }
-    if (!forced && !busy && !agent.asks.length && !message.startsWith('/') && agent.tokens >= 200_000 && Date.now() - agent.since > 3_600_000) {
+    if (!forced && !busy && !agent.asks.length && !message.startsWith('/') && settings.cold_tokens && agent.tokens >= settings.cold_tokens && Date.now() - agent.since > (agent.cacheTtl ?? 300_000)) {
       chilly = agent.id
       return
     }
