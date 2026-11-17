@@ -6,6 +6,8 @@ import type { Options } from './stream'
 
 export const COMPACT_WINDOWS = [0, 600_000, 400_000, 200_000]
 
+export const COLD_TOKENS = [20_000, 50_000, 100_000, 200_000, 0]
+
 export type TabEffect = 'pulse' | 'snake'
 
 export type ProjectsEffect = 'snake' | 'bar' | 'pulse'
@@ -39,6 +41,7 @@ export type Config = {
   artifacts_since: number
   artifacts_extensions: Record<string, number>
   compact_window: number
+  cold_tokens: number
   steps: 'grouped' | 'detailed'
   thinking: 'hidden' | 'duration' | 'summary' | 'shown'
   language: Language
@@ -77,6 +80,7 @@ export const settings = $state<Config>({
   artifacts_since: 0,
   artifacts_extensions: {},
   compact_window: 0,
+  cold_tokens: 50_000,
   steps: 'grouped',
   thinking: 'duration',
   language: 'system',

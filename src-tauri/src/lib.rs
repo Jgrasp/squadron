@@ -1,4 +1,5 @@
 pub mod account;
+pub mod activity;
 pub mod agents;
 pub mod artifacts;
 pub mod askpass;
@@ -418,6 +419,7 @@ struct Config {
     artifacts_since: u64,
     artifacts_extensions: std::collections::BTreeMap<String, i64>,
     compact_window: u32,
+    cold_tokens: u32,
     steps: String,
     thinking: String,
     language: String,
@@ -464,6 +466,7 @@ impl Default for Config {
             artifacts_since: 0,
             artifacts_extensions: Default::default(),
             compact_window: 0,
+            cold_tokens: 50_000,
             steps: "grouped".into(),
             thinking: "duration".into(),
             language: "system".into(),
@@ -1771,6 +1774,11 @@ fn extensions_wasm_event(
 }
 
 #[tauri::command]
+fn extensions_wasm_feed(runtime: State<wasm::Runtime>, list: Vec<activity::Fed>) {
+    runtime.feed(list);
+}
+
+#[tauri::command]
 fn extensions_wasm_answer(
     runtime: State<wasm::Runtime>,
     reply: String,
@@ -2754,6 +2762,7 @@ pub fn run() {
             extensions_field_link,
             extensions_wasm_sync,
             extensions_wasm_event,
+            extensions_wasm_feed,
             extensions_wasm_answer,
             extensions_set_args,
             extensions_set_skills,

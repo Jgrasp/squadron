@@ -31,7 +31,9 @@ export type Accounts = { label: Text; fields: AccountField[]; check?: boolean }
 
 export type Account = { id: string; values: Record<string, string>; host: string | null; secrets: string[] }
 
-export type ManifestPanel = { id: string; title: Text; page: string }
+export const WINDOWS = ['floating', 'maximized', 'fullscreen'] as const
+
+export type ManifestPanel = { id: string; title: Text; page: string; window?: (typeof WINDOWS)[number] }
 
 export const PAGE_THEME = ['bg-main', 'surface-1', 'surface-2', 'surface-3', 'border', 'border-focus', 'text', 'text-strong', 'text-muted', 'text-dim', 'ink', 'accent', 'accent-link', 'ok-text', 'err-text', 'sans', 'mono']
 
@@ -45,9 +47,11 @@ export type Settings = { options?: ExtensionOption[]; page?: string; title?: Tex
 
 export type Panel = ManifestPanel & { key: `extension:${string}`; extension: string }
 
-export const AGENT_ACCESS = ['read', 'archive'] as const
+export const AGENT_ACCESS = ['read', 'archive', 'activity', 'show'] as const
 
-export type Permissions = { exec?: string[]; network?: string[]; agents?: (typeof AGENT_ACCESS)[number][] }
+export const READ_ACCESS = ['read'] as const
+
+export type Permissions = { exec?: string[]; network?: string[]; agents?: (typeof AGENT_ACCESS)[number][]; projects?: (typeof READ_ACCESS)[number][]; usage?: (typeof READ_ACCESS)[number][] }
 
 export type Manifest = {
   id: string
@@ -93,6 +97,10 @@ const COLOR = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d.,%\s/]+\))$/i
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
 const isText = (v: unknown): v is Text => isObject(v) && typeof v.en === 'string' && !!v.en.trim() && Object.values(v).every((s) => typeof s === 'string')
+
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\u{e0000}-\u{e007f}]/u
+
+const isName = (v: unknown): v is Text => isText(v) && Object.values(v).every((s) => !INVISIBLE.test(s))
 
 export const text = (value: Text, locale: Locale) => value[locale] || value.en
 
@@ -176,7 +184,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   if (raw.api !== 1) problems.push(['extensions.badApi'])
   if (typeof raw.version !== 'string' || !raw.version.trim()) problems.push(['extensions.noVersion'])
   if (raw.squadron !== undefined && (typeof raw.squadron !== 'string' || !RANGE.test(raw.squadron))) problems.push(['extensions.badRange'])
-  if (!isText(raw.name)) problems.push(['extensions.noName'])
+  if (!isName(raw.name)) problems.push(['extensions.noName'])
   if (raw.description !== undefined && !isText(raw.description)) problems.push(['extensions.badDescription'])
   const wasm = raw.wasm !== undefined
   if (wasm && !inside(raw.wasm, '.wasm')) problems.push(['extensions.badWasm'])
@@ -188,6 +196,10 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   if (network !== undefined && (!Array.isArray(network) || !network.every((h) => typeof h === 'string' && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)))) problems.push(['extensions.badNetwork'])
   const access = isObject(raw.permissions) ? raw.permissions.agents : undefined
   if (access !== undefined && (!Array.isArray(access) || !access.every((a) => (AGENT_ACCESS as readonly unknown[]).includes(a)))) problems.push(['extensions.badAgents'])
+  for (const [kind, problem] of [['projects', 'extensions.badProjects'], ['usage', 'extensions.badUsage']] as const) {
+    const read = isObject(raw.permissions) ? raw.permissions[kind] : undefined
+    if (read !== undefined && (!Array.isArray(read) || !read.every((a) => (READ_ACCESS as readonly unknown[]).includes(a)))) problems.push([problem])
+  }
   const contributes = raw.contributes ?? {}
   if (!isObject(contributes)) problems.push(['extensions.badContributes'])
   else {
@@ -199,7 +211,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
       problems.push(['extensions.badSkills'])
     else if (new Set(skills.map((s) => s.split(/[\\/]/).pop())).size < skills.length) problems.push(['extensions.badSkills'])
     const panels = contributes.panels ?? []
-    if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html')))
+    if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isName(p.title) && inside(p.page, '.html') && (p.window === undefined || (WINDOWS as readonly unknown[]).includes(p.window))))
       problems.push(['extensions.badPanels'])
     else if (new Set(panels.map((p) => p.id)).size < panels.length) problems.push(['extensions.badPanels'])
     const panelIds = Array.isArray(panels) ? panels.flatMap((p) => (isObject(p) && typeof p.id === 'string' ? [p.id] : [])) : []
@@ -262,6 +274,10 @@ export const AGENTS = 'agents:'
 
 export const SKILLS = 'skills:'
 
+export const PROJECTS = 'projects:'
+
+export const USAGE = 'usage:'
+
 export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
@@ -269,12 +285,14 @@ export const commandsOf = (manifest: Manifest) => [
     ...(manifest.permissions?.exec ?? []).map((p) => EXEC + p),
     ...(manifest.permissions?.network ?? []).map((h) => NET + h),
     ...(manifest.permissions?.agents ?? []).map((a) => AGENTS + a),
+    ...(manifest.permissions?.projects ?? []).map((a) => PROJECTS + a),
+    ...(manifest.permissions?.usage ?? []).map((a) => USAGE + a),
     ...(manifest.contributes?.args?.length ? [ARGS + JSON.stringify(manifest.contributes.args)] : []),
     ...(manifest.contributes?.skills?.length ? [SKILLS + JSON.stringify(manifest.contributes.skills)] : []),
   ]),
 ]
 
-export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
+export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS, PROJECTS, USAGE].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
 
 export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}, app = ''): Extension[] {
   const taken: string[] = []
@@ -327,6 +345,10 @@ export const skillsOf = (extensions: Extension[]) =>
 
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))
+
+export const windowOf = (panel: Panel) => `extension-${panel.extension}:${panel.id}`
+
+export const boundsKey = (label: string) => `extension-window:${label}`
 
 export const OFFICIAL = 'Jgrasp/squadron-extensions'
 

@@ -137,6 +137,7 @@ export type Agent = {
   action: string
   since: number
   live: { input: number; output: number; outputDone: number; started: number }
+  cacheTtl?: number
   alive: boolean
   processCost: number
   interrupting: boolean
@@ -179,6 +180,8 @@ export type Agent = {
   guess?: string
   stored?: { count: number; created: number | null; users?: number }
   onDemand?: string[]
+  startedBy?: string
+  mcpFailed?: boolean
 }
 
 export type LegacyArtifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number; link?: string }
@@ -506,6 +509,7 @@ export function apply(agent: Agent, d: Json) {
       }
       if (d.subtype === 'init' && flaggedWorktree.delete(agent.id) && typeof d.cwd === 'string' && d.cwd.startsWith(agent.project + '/.claude/worktrees/'))
         agent.worktree = { path: d.cwd, branch: '' }
+      if (d.subtype === 'init' && Array.isArray(d.mcp_servers)) agent.mcpFailed = d.mcp_servers.some((s: Json) => s?.status === 'failed')
       if (d.subtype === 'init' && Array.isArray(d.slash_commands)) {
         agent.commands = d.slash_commands.filter((c: string) => !d.terminal_slash_commands?.includes(c))
         agent.skills = d.skills ?? []
@@ -591,6 +595,8 @@ function stream(agent: Agent, d: Json) {
     agent.live.output = u.output_tokens ?? 0
     agent.live.input = (u.input_tokens ?? 0) + (u.cache_creation_input_tokens ?? 0) + (u.cache_read_input_tokens ?? 0)
     agent.tokens = agent.live.input + agent.live.output
+    if (u.cache_creation?.ephemeral_1h_input_tokens) agent.cacheTtl = 3_600_000
+    else if (u.cache_creation?.ephemeral_5m_input_tokens) agent.cacheTtl = 300_000
   } else if (e.type === 'message_delta') {
     agent.live.output = e.usage?.output_tokens ?? agent.live.output
     agent.tokens = agent.live.input + agent.live.output

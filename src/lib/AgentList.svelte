@@ -1,6 +1,6 @@
 <script lang="ts">
   import { ask } from './asking.svelte'
-  import { agents, archive, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
+  import { agents, archive, archiveShown, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
   import { ago } from './format'
   import { layout, orderAgents, resetSort, setPanel, setSort, type AgentSort } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
@@ -74,6 +74,10 @@
   let sorting = $state(false)
   let scope = $state<'all' | 'project'>('all')
   let showArchived = $state(false)
+
+  $effect(() => {
+    if (archiveShown.agent && archiveShown.project === project.path) showArchived = true
+  })
   let showImport = $state(false)
 
   const own = $derived(layout.sorts[project.path])
