@@ -303,6 +303,7 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
     extensions.shown[key] = { ...extensions.shown[key], [p.call === 'set-badge' ? 'badge' : 'label']: (p.value as string | null) ?? null }
   }
   if ((p.call === 'agents' || p.call === 'archive-agent') && getCurrentWindow().label === 'main') answerHost(String(p.reply), p.call, String(p.agent))
+  if (p.call === 'insert-prompt' && String(p.agent) !== shownAgent()) console.warn(`${p.extension}: insert-prompt only reaches the agent on screen`)
   if (p.call === 'insert-prompt' && find(String(p.agent)) && String(p.agent) === shownAgent()) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
   if (p.call === 'open-new-agent' && getCurrentWindow().label === 'main') openDraft(p.extension, String(p.draft), String(p.agent), String(p.fields))
   if (p.call === 'update-new-agent' && drafts.open?.id === p.draft) drafts.open?.updates.push(parseDraft(String(p.fields)))
@@ -311,6 +312,7 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
 
 function openDraft(extension: string, id: string, from: string, fields: string) {
   const agent = find(from)
+  if (agent && agent.id !== shownAgent()) console.warn(`${extension}: open-new-agent only opens from the agent on screen`)
   if (agent ? agent.id !== shownAgent() : !!shownAgent()) return
   const project = agent?.project ?? projects.current
   if (!project || !projects.list.some((p) => p.path === project && p.exists)) return

@@ -370,8 +370,7 @@ impl Host {
     }
 
     fn located(&self, path: &Path) -> String {
-        let home = std::env::var_os("HOME").map(PathBuf::from);
-        match home.and_then(|h| path.strip_prefix(h).ok().map(Path::to_path_buf)) {
+        match std::env::home_dir().and_then(|h| path.strip_prefix(h).ok().map(Path::to_path_buf)) {
             Some(rest) if !sees_files(&self.allowed) => format!("~/{}", rest.to_string_lossy()),
             _ => path.to_string_lossy().into_owned(),
         }
@@ -565,8 +564,8 @@ impl squadron::api::host::Host for Host {
     }
 
     fn open_file(&mut self, path: String) -> Result<(), String> {
-        let path = match (path.strip_prefix("~/"), std::env::var_os("HOME")) {
-            (Some(rest), Some(home)) => PathBuf::from(home).join(rest),
+        let path = match (path.strip_prefix("~/"), std::env::home_dir()) {
+            (Some(rest), Some(home)) => home.join(rest),
             _ => PathBuf::from(path),
         };
         let file = inside_data(&self.data, &path)?;
@@ -741,12 +740,20 @@ fn data_file(data: &Path, name: &str) -> Result<PathBuf, String> {
 }
 
 fn inside_data(data: &Path, path: &Path) -> Result<PathBuf, String> {
+    let outside = || "Only the files of the extension's data folder open from here.".to_string();
+    if !path.starts_with(data)
+        || path
+            .components()
+            .any(|c| c == std::path::Component::ParentDir)
+    {
+        return Err(outside());
+    }
     let root = data
         .canonicalize()
         .map_err(|_| "The data folder is empty.")?;
     let file = path.canonicalize().map_err(|_| "The file is gone.")?;
     if !file.starts_with(&root) {
-        return Err("Only the files of the extension's data folder open from here.".into());
+        return Err(outside());
     }
     Ok(file)
 }
@@ -1366,8 +1373,17 @@ impl Runtime {
             .ok_or_else(|| format!("The extension {id} is not running."))
     }
 
+    fn veiled(&self, id: &str, agent: Option<AgentInfo>) -> Option<AgentInfo> {
+        let loaded = self.loaded.lock().unwrap();
+        match loaded.get(id) {
+            Some(l) if !sees_files(&l.allowed) => veil(id, agent),
+            _ => agent,
+        }
+    }
+
     pub fn run(&self, id: &str, action: &str, agent: Option<AgentInfo>) -> Result<(), String> {
         let (reply, answer) = mpsc::channel();
+        let agent = self.veiled(id, agent);
         self.sender(id)?
             .send(Job::Run(action.into(), agent.map(Agent::from), reply))
             .map_err(|_| "The extension stopped.".to_string())?;
@@ -1394,6 +1410,7 @@ impl Runtime {
         agent: Option<AgentInfo>,
     ) -> Result<String, String> {
         let (reply, answer) = mpsc::channel();
+        let agent = self.veiled(id, agent);
         self.sender(id)?
             .send(Job::Tool(
                 name.into(),
@@ -1414,6 +1431,14 @@ fn sees_files(allowed: &[String]) -> bool {
         .any(|a| a == READ_AGENTS || a.starts_with("exec:"))
 }
 
+fn veil(extension: &str, agent: Option<AgentInfo>) -> Option<AgentInfo> {
+    agent.map(|a| AgentInfo {
+        project: activity::opaque(extension, &a.project),
+        dir: String::new(),
+        ..a
+    })
+}
+
 fn withheld(
     extension: &str,
     name: &str,
@@ -1424,11 +1449,7 @@ fn withheld(
     if agent.is_none() || sees_files(allowed) {
         return (agent, data.into());
     }
-    let agent = agent.map(|a| AgentInfo {
-        project: activity::opaque(extension, &a.project),
-        dir: String::new(),
-        ..a
-    });
+    let agent = veil(extension, agent);
     if !matches!(name, "agent.done" | "agent.waiting") {
         return (agent, data.into());
     }
@@ -1897,6 +1918,14 @@ mod tests {
             project: "/home/me/ring".into(),
             dir: "/home/me/ring/w".into(),
         };
+        assert_eq!(
+            runtime.veiled("blind", Some(agent.clone())).unwrap().dir,
+            ""
+        );
+        assert_eq!(
+            runtime.veiled("reader", Some(agent.clone())).unwrap().dir,
+            "/home/me/ring/w"
+        );
         let waiting = r#"{"waiting":"Allow Bash: cat ~/.ssh/id_ed25519","kind":"permission"}"#;
         runtime.event(None, "agent.waiting", Some(agent.clone()), waiting);
         let got = |rx: &mpsc::Receiver<Job>| match rx.try_recv() {
@@ -1949,6 +1978,11 @@ mod tests {
         );
         let (exec, _) = host(&["exec:git"], |_, _| Ok(Value::Null));
         assert_eq!(exec.located(&data), data.to_string_lossy());
+        assert_eq!(
+            inside_data(&data, Path::new("/no/such/folder")).unwrap_err(),
+            inside_data(&data, &home).unwrap_err()
+        );
+        assert!(inside_data(&data, &data.join("../../../.ssh")).is_err());
 
         let agent = AgentInfo {
             id: "a1".into(),
