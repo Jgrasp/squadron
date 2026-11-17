@@ -5,7 +5,7 @@
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
 
-  let { panel, agent, onclose }: { panel: Panel; agent: Agent; onclose: () => void } = $props()
+  let { panel, agent, project = '', onclose }: { panel: Panel; agent?: Agent; project?: string; onclose: () => void } = $props()
 
   let frame = $state<HTMLIFrameElement>()
   let loaded = $state(false)
@@ -40,7 +40,7 @@
 
   function message(e: MessageEvent) {
     if (!frame || e.source !== frame.contentWindow) return
-    if (e.data?.squadron === 'extension') panelMessage(panel, agent, e.data.message)
+    if (e.data?.squadron === 'extension') panelMessage(panel, agent ?? project, e.data.message)
     if (e.data?.squadron === 'option') setOption(panel.extension, String(e.data.id), e.data.value ?? null).catch((err) => console.warn(err))
   }
 </script>

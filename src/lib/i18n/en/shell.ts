@@ -105,6 +105,7 @@ export default {
   chooseNewLocation: 'Choose the new location…',
   startFirstAgent: 'Start the first {name} agent',
   startFirstAgentText: 'Give it a name, pick the model, the effort and the permission mode, then write its first instruction.',
+  noAgentYet: 'No agent yet',
   openTool: 'Open a tool',
   editorTitle: 'Browse and edit the project files ({key})',
   editor: 'Editor',

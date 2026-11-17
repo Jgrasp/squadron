@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.51.0 · 2026-11-17
+
+### Projects
+
+- A project without agents shows the same header as an agent: its name, folder and branch, then every tool on the right, extension tools such as Jira included, so you can open the terminal, the editor or the Jira sprint before you start an agent.
+
 ## 0.50.0 · 2026-11-16
 
 ### Conversation

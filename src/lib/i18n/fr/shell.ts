@@ -107,6 +107,7 @@ export default {
   chooseNewLocation: 'Choisir le nouvel emplacement…',
   startFirstAgent: 'Lancez le premier agent du projet {name}',
   startFirstAgentText: 'Donnez-lui un nom, choisissez le modèle, l’effort et le mode d’autorisation, puis écrivez sa première consigne.',
+  noAgentYet: 'Pas encore d’agent',
   openTool: 'Ouvrir un outil',
   editorTitle: 'Parcourir et modifier les fichiers du projet ({key})',
   editor: 'Éditeur',
