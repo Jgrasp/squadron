@@ -31,7 +31,9 @@ export type Accounts = { label: Text; fields: AccountField[]; check?: boolean }
 
 export type Account = { id: string; values: Record<string, string>; host: string | null; secrets: string[] }
 
-export type ManifestPanel = { id: string; title: Text; page: string }
+export const WINDOWS = ['maximized', 'fullscreen'] as const
+
+export type ManifestPanel = { id: string; title: Text; page: string; window?: (typeof WINDOWS)[number] }
 
 export const PAGE_THEME = ['bg-main', 'surface-1', 'surface-2', 'surface-3', 'border', 'border-focus', 'text', 'text-strong', 'text-muted', 'text-dim', 'ink', 'accent', 'accent-link', 'ok-text', 'err-text', 'sans', 'mono']
 
@@ -205,7 +207,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
       problems.push(['extensions.badSkills'])
     else if (new Set(skills.map((s) => s.split(/[\\/]/).pop())).size < skills.length) problems.push(['extensions.badSkills'])
     const panels = contributes.panels ?? []
-    if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html')))
+    if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html') && (p.window === undefined || (WINDOWS as readonly unknown[]).includes(p.window))))
       problems.push(['extensions.badPanels'])
     else if (new Set(panels.map((p) => p.id)).size < panels.length) problems.push(['extensions.badPanels'])
     const panelIds = Array.isArray(panels) ? panels.flatMap((p) => (isObject(p) && typeof p.id === 'string' ? [p.id] : [])) : []
@@ -339,6 +341,8 @@ export const skillsOf = (extensions: Extension[]) =>
 
 export const panelsOf = (extensions: Extension[]): Panel[] =>
   active(extensions).flatMap((m) => (m.manifest.contributes?.panels ?? []).map((p) => ({ ...p, key: `extension:${m.manifest.id}.${p.id}` as const, extension: m.manifest.id })))
+
+export const windowOf = (panel: Panel) => `extension-${panel.extension}:${panel.id}`
 
 export const OFFICIAL = 'Jgrasp/squadron-extensions'
 

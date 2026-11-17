@@ -73,7 +73,7 @@ export async function loadExtensions() {
   extensions.origins = listing.origins
   extensions.accounts = listing.accounts ?? {}
   extensions.options = listing.options ?? {}
-  for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('extension:') && !panelsOf(extensions.list).some((p) => p.key === kind)) setPanel(project, null)
+  for (const [project, kind] of Object.entries(layout.panels)) if (kind.startsWith('extension:') && !panelsOf(extensions.list).some((p) => p.key === kind && !p.window)) setPanel(project, null)
   for (const extension of extensions.list) {
     const key = `${extension.id}\n${extension.pending.join('\n')}`
     if (!extension.enabled || !extension.manifest || extension.problems.length || !extension.pending.length || asked.has(key)) continue
@@ -132,6 +132,8 @@ export async function runItem(item: Item, { project, agent }: Context) {
   if ('squadron' in action) return run(action.squadron, { project, agent })
   if ('url.open' in action) return invoke('open_link', { url: action['url.open'] })
   if ('panel.open' in action) {
+    const panel = panelsOf(extensions.list).find((p) => p.extension === item.extension && p.id === action['panel.open'])
+    if (panel?.window) return import('./extensionWindows.svelte').then((m) => m.openWindow(panel))
     const path = agent?.project ?? project?.path
     if (!path) return
     const kind = `extension:${item.extension}.${action['panel.open']}` as const

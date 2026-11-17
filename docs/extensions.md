@@ -390,6 +390,7 @@ Pour qu'une extension parle à un service dont l'adresse dépend de l'utilisateu
 ```
 
 - **Ouverture** : l'action `panel.open` ouvre ou ferme le panneau à côté de la conversation, comme le terminal ou le diff. Elle demande un agent, donc pas de `menu.squadron`. Le panneau garde les modes et tailles des autres panneaux.
+- **Fenêtre** : `"window": "maximized"` ou `"window": "fullscreen"` sur le panneau l'ouvre dans sa propre fenêtre, agrandie ou en plein écran, au lieu du côté de la conversation. `panel.open` ouvre alors cette fenêtre, ou la ramène devant si elle est déjà ouverte, depuis n'importe quel agent. Même page, même iframe, même pont, même thème et même CSP que dans le panneau latéral. F11 bascule le plein écran quand le focus n'est pas dans la page. La fenêtre réduite ou cachée passe `document.hidden` à `true` dans la page. Squadron la ferme quand l'extension est désactivée ou que le panneau perd `window`.
 - **Page** : servie par le schéma `extension://localhost/<id>/<page>` (`http://extension.localhost/…` sous Windows), seulement pour une extension activée et seulement depuis son dossier. HTML, CSS, JS, images et polices au choix.
 - **Isolement** : iframe `sandbox="allow-scripts"`, d'origine opaque. Pas d'IPC Tauri, pas d'accès à la fenêtre de Squadron, pas de popup (`alert`, `confirm`), pas de `localStorage`. La CSP interdit tout accès réseau (`connect-src 'none'`) : les requêtes passent par le WASM et `host::fetch`.
 - **Pont** : Squadron ajoute `/_squadron/kit.js` en tête de chaque page HTML.
@@ -511,14 +512,14 @@ For an extension that draws what Squadron is doing, like the Agent Office (one b
   - A tool denied by a hook does not show apart from one denied by the user (`permission_denials` does not say who), so there is no `hook` error.
   - An MCP server that fails after start is not seen.
 - **`host::show-agent(id)`**: brings the agent to the front, as a click in the list would. An archived agent opens in the archive of its project, read only, with no way to restore it from the API. Squadron refuses it unless all of these hold, so that an extension cannot move the view under the user's cursor:
-  - one of the extension's panels is on screen in the agent view;
-  - that panel holds the focus, because the user clicked in it, and the pointer is still over it;
+  - one of the extension's panels is on screen in the agent view, or one of its panel windows is open and not minimized;
+  - that panel or window holds the focus, because the user clicked in it, and the pointer is still over it;
   - the panel sent a message less than 2 s ago;
   - the last call was more than a second ago, a limit that survives a crash of the extension.
 
   Clicks are then ignored for 400 ms, so that a second click meant for the panel never lands on the view that replaced it.
 
-  The panel's page loads again beside the shown agent, and moving to another project hides it when that project does not have it open.
+  The panel's page loads again beside the shown agent, and moving to another project hides it when that project does not have it open. A panel window stays open, and Squadron's main window comes to the front over it.
 - **Folders kept from the other events**: since 1.7, every event (`agent.done`, `agent.waiting`, `panel.message`, `settings.message`, `new-agent.started`) gives an extension that has neither `agents: ["read"]` nor `exec` the agent with an empty `dir` and the opaque id as `project`, and `agent.waiting` gives `{ "kind": "permission" }` or `{ "kind": "question" }` instead of the text of the request. An extension with `exec` keeps the folders and the text of `agent.waiting`: it can read every file of the user anyway, conversations included, and Jira needs the agent's folder to run `claude` there. The name of an agent Squadron has not titled yet is empty in these events for every extension. `run` and `call-tool` follow the same rule since 1.7.
 - **Paths of the data folder**: `data-dir` and the `path` of `download` give `~/…` instead of the home folder to an extension that has neither `exec` nor `agents: ["read"]`, so the account name stays out. `open-file` takes such a path, and refuses any path outside the data folder with one message, whether it exists or not.
 - **Acting on an agent**: `insert-prompt` and `open-new-agent` only work on the agent on screen since 1.7, now that `all-agents` lists every id. Both still need the user: the text waits in the message box, the window waits for Start. A call for another agent is dropped, with a warning in the window's console.
@@ -536,6 +537,7 @@ For an extension that draws what Squadron is doing, like the Agent Office (one b
   - A panel reaches only its own extension.
   - `squadron.send(value)` gives the WASM `panel.message` with `{ "panel", "message" }`. The WASM answers with `host::panel-post`, calls `show-agent` for an Open agent button, and keeps what the panel wants to save with `host::state-set`. A layout seed, the seed to start with, or "a new one each time" fit there, 1 MB at most. `data-dir` serves `exec` and is not needed for this.
   - New in 1.7: `panel.closed` with `{ "panel" }` when a panel closes, so that the WASM stops relaying. The panel belongs to the view of the shown agent: showing another agent or project closes it and loads its page again beside the new one, which sends a first message (`ready`) again. A page keeps what must survive that (camera, selection) through the WASM.
+  - A panel with `"window": "maximized"` or `"window": "fullscreen"` opens in its own window and does not reload when the shown agent changes. Its `panel.message` carries the agent shown in the main window, or none on the overview or while the window is minimized or hidden. `panel.closed` comes when the user closes the window. A minimized or hidden window sets `document.hidden` in the page, so the page can stop drawing; a window merely covered by another one stays visible to the page.
 
 The WIT of 1.7.0 adds the records `project`, `group`, `agent-activity`, `usage-window` and `claude-usage`, and the imports `projects`, `groups`, `all-agents`, `usage` and `show-agent` (`extensions/api/wit/squadron.wit`). No export changes, so an extension built against 1.0 to 1.6 still loads: this was checked by loading Hello built against 1.6.0 into the 1.7 host.
 

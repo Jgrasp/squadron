@@ -5,6 +5,7 @@ import { activityOf, agentChanges, groupOf, projectChanges, projectOf, usageOf, 
 import { agents, archived, archiveShown, claudeApi, find, limits, show, shownAgent, type Archived } from './agents.svelte'
 import { active, grantsOf } from './extensions'
 import { extensions, panelHovered, panelSent } from './extensions.svelte'
+import { gestures, raiseMain } from './extensionWindows.svelte'
 import { layout } from './layout.svelte'
 import { projects } from './projects.svelte'
 
@@ -52,9 +53,10 @@ function settle() {
     e.stopPropagation()
     e.preventDefault()
   }
-  for (const kind of ['pointerdown', 'mousedown', 'click']) addEventListener(kind, swallow, true)
+  const kinds = ['pointerdown', 'mousedown', 'click', 'keydown', 'keypress', 'keyup', 'beforeinput']
+  for (const kind of kinds) addEventListener(kind, swallow, true)
   setTimeout(() => {
-    for (const kind of ['pointerdown', 'mousedown', 'click']) removeEventListener(kind, swallow, true)
+    for (const kind of kinds) removeEventListener(kind, swallow, true)
   }, SETTLE)
 }
 
@@ -75,13 +77,19 @@ function onScreen(extension: string) {
   return !projects.overview && !projects.board && !projects.pulls && !!shownAgent() && !!kind?.startsWith(`extension:${extension}.`)
 }
 
+const fromWindow = (extension: string) =>
+  Object.values(gestures).some((g) => g.extension === extension && g.focused && g.hovered && g.visible) && Date.now() - (panelSent[extension] ?? 0) < GESTURE
+
 async function showAgent(extension: string, id: string) {
-  if (!onScreen(extension) || !clicked(extension)) throw new Error('show-agent works right after the user clicked in one of the extension’s panels, while the pointer is still over it.')
+  const windowed = fromWindow(extension)
+  if (!windowed && (!onScreen(extension) || !clicked(extension))) throw new Error('show-agent works right after the user clicked in one of the extension’s panels or panel windows, while the pointer is still over it.')
   const agent = find(id)
+  if (agent && windowed) await raiseMain()
   settle()
   if (agent) return show(agent)
   const old = (await shelved()).find((a) => a.id === id)
   if (!old || !projects.list.some((p) => p.path === old.project && p.exists)) throw new Error(`No agent has the id ${id}.`)
+  if (windowed) await raiseMain()
   projects.overview = projects.board = projects.pulls = false
   projects.current = old.project
   Object.assign(archiveShown, { project: old.project, agent: old.id })
