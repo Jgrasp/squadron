@@ -64,15 +64,19 @@ export function runningTool(agent: Agent) {
   return call && !call.result && !INTERNAL.includes(call.name) ? call.name : null
 }
 
-export function activityOf(agent: Agent, archived = false): AgentActivity {
+export const waitingKind = (agent: Agent) => {
   const ask = agent.asks?.[0]
+  return agent.status === 'waiting' && ask ? (QUESTIONS.includes(ask.tool_name) ? 'question' : 'permission') : null
+}
+
+export function activityOf(agent: Agent, archived = false): AgentActivity {
   const live = !archived
   return {
     id: agent.id,
     project: agent.project,
-    name: agent.name,
+    name: agent.autoName ? '' : agent.name,
     status: agent.status,
-    waiting: live && agent.status === 'waiting' && ask ? (QUESTIONS.includes(ask.tool_name) ? 'question' : 'permission') : null,
+    waiting: live ? waitingKind(agent) : null,
     tool: live && agent.status === 'working' ? runningTool(agent) : null,
     error: !live ? null : agent.status === 'error' ? (agent.alive ? 'api' : 'crash') : agent.mcpFailed ? 'mcp' : null,
     by: agent.startedBy ?? null,

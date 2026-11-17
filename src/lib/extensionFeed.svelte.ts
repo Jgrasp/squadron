@@ -4,7 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { activityOf, agentChanges, groupOf, projectChanges, projectOf, usageOf, type AgentActivity, type Fed } from './activity'
 import { agents, archived, archiveShown, claudeApi, find, limits, show, shownAgent, type Archived } from './agents.svelte'
 import { active, grantsOf } from './extensions'
-import { extensions } from './extensions.svelte'
+import { extensions, panelSent } from './extensions.svelte'
 import { layout } from './layout.svelte'
 import { projects } from './projects.svelte'
 
@@ -43,20 +43,36 @@ async function projectList() {
 
 const usage = () => usageOf(limits, claudeApi)
 
+const GESTURE = 2000
+
+function clicked(extension: string) {
+  const frame = document.activeElement
+  return (
+    document.hasFocus() &&
+    document.visibilityState === 'visible' &&
+    frame instanceof HTMLIFrameElement &&
+    new URL(frame.src).pathname.split('/')[1] === extension &&
+    Date.now() - (panelSent[extension] ?? 0) < GESTURE
+  )
+}
+
 function onScreen(extension: string) {
   const kind = layout.panels[projects.current]
-  return !projects.overview && !projects.board && !projects.pulls && !!shownAgent() && !!kind?.startsWith(`extension:${extension}.`) && document.visibilityState === 'visible'
+  return !projects.overview && !projects.board && !projects.pulls && !!shownAgent() && !!kind?.startsWith(`extension:${extension}.`)
 }
 
 async function showAgent(extension: string, id: string) {
-  if (!onScreen(extension)) throw new Error('show-agent works while one of the extension’s panels is on screen.')
+  if (!onScreen(extension) || !clicked(extension)) throw new Error('show-agent works right after the user clicked in one of the extension’s panels, while it is on screen.')
   const agent = find(id)
   if (agent) return show(agent)
-  const old = (await shelved(true)).find((a) => a.id === id)
+  const old = (await shelved()).find((a) => a.id === id)
   if (!old || !projects.list.some((p) => p.path === old.project && p.exists)) throw new Error(`No agent has the id ${id}.`)
   projects.overview = projects.board = projects.pulls = false
   projects.current = old.project
   Object.assign(archiveShown, { project: old.project, agent: old.id })
+  setTimeout(() => {
+    if (archiveShown.agent === old.id) archiveShown.agent = ''
+  }, GESTURE)
 }
 
 const CALLS: Record<string, (extension: string, args: Record<string, unknown>) => Promise<unknown> | unknown> = {

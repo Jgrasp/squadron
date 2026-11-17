@@ -15,6 +15,7 @@ import { layout, setPanel } from './layout.svelte'
 import { active, AGENTS, argsOf, PROJECTS, USAGE, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
+import { waitingKind } from './activity'
 import { type as typeInTerminal } from './terminals.svelte'
 
 export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
@@ -159,8 +160,12 @@ export function onPanelPost(extension: string, panel: string, deliver: (message:
   return () => posts.delete(listener)
 }
 
-export const panelMessage = (panel: Panel, from: Agent | string, message: unknown) =>
-  invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : info(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
+export const panelSent: Record<string, number> = {}
+
+export function panelMessage(panel: Panel, from: Agent | string, message: unknown) {
+  panelSent[panel.extension] = Date.now()
+  return invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : info(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
+}
 
 export const panelClosed = (panel: Panel) =>
   invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.closed', agent: null, data: JSON.stringify({ panel: panel.id }) }).catch(() => {})
@@ -268,7 +273,9 @@ const syncSkills = (list: Extension[]) =>
 
 const syncWasm = (list: Extension[]) =>
   invoke<Record<string, string>>('extensions_wasm_sync', {
-    list: active(list).filter((m) => m.manifest.wasm).map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest.wasm, allowed: grantsOf(m) })),
+    list: active(list)
+      .filter((m) => m.manifest.wasm)
+      .map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest.wasm, allowed: grantsOf(m), panels: (m.manifest.contributes?.panels ?? []).map((p) => p.id) })),
   }).then((errors) => {
     extensions.errors = errors
   })
@@ -357,7 +364,7 @@ $effect.root(() => {
       seen.set(agent.id, agent.status)
       if (before === undefined || before === agent.status) continue
       if (agent.status === 'done' || agent.status === 'waiting')
-        invoke('extensions_wasm_event', { id: null, name: `agent.${agent.status}`, agent: info(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action } : {}) })
+        invoke('extensions_wasm_event', { id: null, name: `agent.${agent.status}`, agent: info(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action, kind: waitingKind(agent) } : {}) })
     }
   })
 })

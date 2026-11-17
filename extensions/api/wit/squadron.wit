@@ -102,6 +102,7 @@ interface types {
     id: string,
     /// The id of its project, as `projects` gives it.
     project: string,
+    /// Empty while Squadron has not named it yet. Text anyone can set: show it as text.
     name: string,
     /// `working`, `waiting`, `done`, `interrupted` or `error`.
     status: string,
@@ -197,7 +198,7 @@ interface host {
   all-agents: func() -> result<list<agent-activity>, string>;
   /// Claude's 5-hour and weekly limits and the state of its API. Needs `usage: ["read"]` in `permissions`. Since 1.7.0.
   usage: func() -> result<claude-usage, string>;
-  /// Brings an agent to the front in Squadron, an archived one in the archive of its project, read only. Only while one of the extension's panels is on screen, once a second at most, and it never acts on the agent. Needs `agents: ["show"]` in `permissions`. Since 1.7.0.
+  /// Brings an agent to the front in Squadron, an archived one in the archive of its project, read only. Only within 2 s of a message from one of the extension's panels, while that panel is on screen and holds the focus, once a second at most. It never acts on the agent. Needs `agents: ["show"]` in `permissions`. Since 1.7.0.
   show-agent: func(agent: string) -> result<_, string>;
 }
 
@@ -206,7 +207,7 @@ world squadron-core {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`, `new-agent.regenerate` when the user clicked Regenerate or changed the choices of a draft, with `{ "draft": "…", "choices": ["…"] }`, `new-agent.started` with `{ "draft": "…" }` and the agent that started, `new-agent.closed` with `{ "draft": "…" }` when the window closed without starting one, `panel.closed` with `{ "panel": "…" }` when one of its panels closed. With `agents: ["activity"]`: `agent.status` with the `agent-activity` of an agent that changed, `agent.started` with it and `by`, `agent.archived` with it, `agent.message` with `{ "from": "…", "to": "…", "count": 1 }` when an agent sent messages to another. With `projects: ["read"]`: `project.added`, `project.changed` and `project.archived` with the `project`, `groups.changed` with `{ "groups": [ … ] }`. With `usage: ["read"]`: `usage` with the `claude-usage`. These come at most once a second, the latest state of each agent or project only. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`, `new-agent.regenerate` when the user clicked Regenerate or changed the choices of a draft, with `{ "draft": "…", "choices": ["…"] }`, `new-agent.started` with `{ "draft": "…" }` and the agent that started, `new-agent.closed` with `{ "draft": "…" }` when the window closed without starting one, `panel.closed` with `{ "panel": "…" }` when one of its panels closed. Without `agents: ["read"]`, `agent.done` and `agent.waiting` give an agent whose `dir` is empty and whose `project` is the opaque id, and `agent.waiting` gives `{ "kind": "permission" or "question" }`. With `agents: ["activity"]`: `agent.status` with the `agent-activity` of an agent that changed, `agent.started` with it and `by`, `agent.archived` with it, `agent.message` with `{ "from": "…", "to": "…", "count": 1 }` when an agent sent messages to another. With `projects: ["read"]`: `project.added`, `project.changed` and `project.archived` with the `project`, `groups.changed` with `{ "groups": [ … ] }`. With `usage: ["read"]`: `usage` with the `claude-usage`. These come at most once a second, the latest state of each agent or project only. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;

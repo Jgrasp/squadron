@@ -35,6 +35,9 @@ const MIN_TIMER: u32 = 10;
 const FLUSH: Duration = Duration::from_secs(1);
 const SHOW_EVERY: Duration = Duration::from_secs(1);
 const POSTS: u32 = 200;
+const RECENT: Duration = Duration::from_millis(500);
+const PAGE_EVENTS: u32 = 100;
+const MAX_PAGE_EVENT: usize = 1 << 20;
 const POSTED: usize = 4 << 20;
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
@@ -202,6 +205,8 @@ pub struct Spec {
     pub dir: String,
     pub wasm: String,
     pub allowed: Vec<String>,
+    #[serde(default)]
+    pub panels: Vec<String>,
 }
 
 enum Job {
@@ -214,7 +219,7 @@ enum Job {
         mpsc::Sender<Result<String, String>>,
     ),
     Check(Trial, mpsc::Sender<Result<Result<String, String>, String>>),
-    Allow(Vec<String>),
+    Allow(Vec<String>, Vec<String>),
     Timer,
     Fed,
 }
@@ -245,8 +250,16 @@ struct Host {
     timer: Option<Instant>,
     hooks: Hooks,
     trial: Option<Trial>,
+    panels: Vec<String>,
+    kept: Arc<Mutex<Kept>>,
+}
+
+#[derive(Default)]
+struct Kept {
     shown: Option<Instant>,
     posts: HashMap<String, Posted>,
+    recent: HashMap<&'static str, (Instant, Value)>,
+    stray: bool,
 }
 
 struct Posted {
@@ -285,8 +298,18 @@ impl Host {
     }
 
     fn post(&mut self, call: &str, panel: Option<&str>, message: String) {
+        let mut kept = self.kept.lock().unwrap();
+        if let Some(panel) = panel.filter(|p| !self.panels.iter().any(|known| known == p)) {
+            if !std::mem::replace(&mut kept.stray, true) {
+                log::warn!(
+                    "extension {}: no panel {panel:.64} in contributes.panels, its messages are dropped",
+                    self.id
+                );
+            }
+            return;
+        }
         let now = Instant::now();
-        let posted = self
+        let posted = kept
             .posts
             .entry(panel.unwrap_or(":settings").to_string())
             .or_insert(Posted {
@@ -314,15 +337,34 @@ impl Host {
             }
             return;
         }
+        drop(kept);
         match panel {
             Some(panel) => self.tell(call, json!({"panel": panel, "message": message})),
             None => self.tell(call, json!({"message": message})),
         }
     }
 
-    fn listed<T: for<'de> Deserialize<'de>>(&self, call: &str) -> Result<Vec<T>, String> {
+    fn recently(&mut self, call: &'static str) -> Result<Value, String> {
+        if let Some((at, value)) = self.kept.lock().unwrap().recent.get(call)
+            && at.elapsed() < RECENT
+        {
+            return Ok(value.clone());
+        }
+        let value = self.ask(call, json!({}))?;
+        self.kept
+            .lock()
+            .unwrap()
+            .recent
+            .insert(call, (Instant::now(), value.clone()));
+        Ok(value)
+    }
+
+    fn listed<T: for<'de> Deserialize<'de>>(
+        &mut self,
+        call: &'static str,
+    ) -> Result<Vec<T>, String> {
         let list: Vec<Value> =
-            serde_json::from_value(self.ask(call, json!({}))?).map_err(|e| e.to_string())?;
+            serde_json::from_value(self.recently(call)?).map_err(|e| e.to_string())?;
         Ok(list
             .into_iter()
             .filter_map(|v| serde_json::from_value(v).ok())
@@ -592,7 +634,7 @@ impl squadron::api::host::Host for Host {
 
     fn usage(&mut self) -> Result<ClaudeUsage, String> {
         self.may(READ_USAGE)?;
-        serde_json::from_value::<activity::Usage>(self.ask("usage", json!({}))?)
+        serde_json::from_value::<activity::Usage>(self.recently("usage")?)
             .ok()
             .and_then(activity::Usage::clean)
             .map(Into::into)
@@ -604,10 +646,13 @@ impl squadron::api::host::Host for Host {
         if !activity::id(&agent) {
             return Err(format!("{agent} is not an agent id."));
         }
-        if self.shown.is_some_and(|at| at.elapsed() < SHOW_EVERY) {
-            return Err("show-agent waits a second between two calls.".into());
+        {
+            let mut kept = self.kept.lock().unwrap();
+            if kept.shown.is_some_and(|at| at.elapsed() < SHOW_EVERY) {
+                return Err("show-agent waits a second between two calls.".into());
+            }
+            kept.shown = Some(Instant::now());
         }
-        self.shown = Some(Instant::now());
         self.ask("show-agent", json!({"agent": agent})).map(|_| ())
     }
 
@@ -945,6 +990,7 @@ pub fn verdict(answer: Result<Result<String, String>, String>, fields: &[String]
 pub struct Runtime {
     engine: Engine,
     loaded: Running,
+    pages: Mutex<HashMap<String, (Instant, u32)>>,
     feed: mpsc::Sender<Admitted>,
     states: PathBuf,
     emit: Emit,
@@ -983,6 +1029,7 @@ impl Runtime {
         Ok(Self {
             engine: Engine::new(&config).map_err(|e| e.to_string())?,
             loaded,
+            pages: Default::default(),
             feed,
             states,
             emit: Arc::new(emit),
@@ -1033,7 +1080,8 @@ impl Runtime {
                 .get(&spec.id)
                 .filter(|l| l.path == path && l.modified == modified)
             {
-                let _ = l.tx.send(Job::Allow(spec.allowed.clone()));
+                let _ =
+                    l.tx.send(Job::Allow(spec.allowed.clone(), spec.panels.clone()));
                 if let Some(l) = loaded.get_mut(&spec.id) {
                     l.allowed = spec.allowed;
                 }
@@ -1073,8 +1121,9 @@ impl Runtime {
             self.data_of(&spec.id),
             self.hooks.clone(),
         );
-        let mut allowed = spec.allowed.clone();
-        let host = move |allowed: &Vec<String>| Host {
+        let (mut allowed, mut panels) = (spec.allowed.clone(), spec.panels.clone());
+        let kept = Arc::new(Mutex::new(Kept::default()));
+        let host = move |allowed: &Vec<String>, panels: &Vec<String>| Host {
             id: id.clone(),
             wasi: WasiCtx::builder().build(),
             table: ResourceTable::new(),
@@ -1091,8 +1140,8 @@ impl Runtime {
             timer: None,
             hooks: hooks.clone(),
             trial: None,
-            shown: None,
-            posts: HashMap::new(),
+            panels: panels.clone(),
+            kept: kept.clone(),
         };
         let (ready_tx, ready_rx) = mpsc::channel();
         let (tx, rx) = mpsc::channel::<Job>();
@@ -1100,7 +1149,7 @@ impl Runtime {
         let inbox = Inbox::default();
         let fed = inbox.clone();
         std::thread::spawn(move || {
-            let mut current = match instantiate(&engine, &component, host(&allowed)) {
+            let mut current = match instantiate(&engine, &component, host(&allowed, &panels)) {
                 Ok(current) => current,
                 Err(e) => return ready_tx.send(Err(format!("{e:#}"))).unwrap_or(()),
             };
@@ -1114,9 +1163,11 @@ impl Runtime {
                 let (store, bindings, check) = &mut current;
                 let _ = store.set_fuel(FUEL);
                 let failure = match next {
-                    Job::Allow(list) => {
+                    Job::Allow(list, pages) => {
                         allowed = list.clone();
+                        panels = pages.clone();
                         store.data_mut().allowed = list;
+                        store.data_mut().panels = pages;
                         None
                     }
                     Job::Timer => {
@@ -1198,7 +1249,7 @@ impl Runtime {
                 if let Some(error) = failure {
                     report(json!({"extension": id, "call": "error", "error": error}));
                     let timer = current.0.data().timer;
-                    match instantiate(&engine, &component, host(&allowed)) {
+                    match instantiate(&engine, &component, host(&allowed, &panels)) {
                         Ok(mut fresh) => {
                             fresh.0.data_mut().timer = timer;
                             current = fresh;
@@ -1219,7 +1270,26 @@ impl Runtime {
         Ok((tx, inbox))
     }
 
+    fn page_event(&self, id: &str, data: &str) -> bool {
+        if data.len() > MAX_PAGE_EVENT {
+            return false;
+        }
+        let now = Instant::now();
+        let mut pages = self.pages.lock().unwrap();
+        let (since, count) = pages.entry(id.into()).or_insert((now, 0));
+        if now.duration_since(*since) >= Duration::from_secs(1) {
+            (*since, *count) = (now, 0);
+        }
+        *count += 1;
+        *count <= PAGE_EVENTS
+    }
+
     pub fn event(&self, only: Option<&str>, name: &str, agent: Option<AgentInfo>, data: &str) {
+        if matches!(name, "panel.message" | "settings.message")
+            && !only.is_some_and(|id| self.page_event(id, data))
+        {
+            return;
+        }
         for (_, l) in self
             .loaded
             .lock()
@@ -1227,11 +1297,9 @@ impl Runtime {
             .iter()
             .filter(|(id, _)| only.is_none_or(|only| only == id.as_str()))
         {
-            let _ = l.tx.send(Job::Event(
-                name.into(),
-                agent.clone().map(Agent::from),
-                data.into(),
-            ));
+            let (agent, data) = withheld(name, agent.clone(), data, &l.allowed);
+            let _ =
+                l.tx.send(Job::Event(name.into(), agent.map(Agent::from), data));
         }
     }
 
@@ -1290,6 +1358,31 @@ impl Runtime {
             .recv_timeout(ANSWER)
             .map_err(|_| "The extension did not answer.".to_string())?
     }
+}
+
+fn withheld(
+    name: &str,
+    agent: Option<AgentInfo>,
+    data: &str,
+    allowed: &[String],
+) -> (Option<AgentInfo>, String) {
+    if !matches!(name, "agent.done" | "agent.waiting") || allowed.iter().any(|a| a == READ_AGENTS) {
+        return (agent, data.into());
+    }
+    let agent = agent.map(|a| AgentInfo {
+        project: activity::opaque(&a.project),
+        dir: String::new(),
+        ..a
+    });
+    let kind = serde_json::from_str::<Value>(data)
+        .ok()
+        .and_then(|d| d.get("kind")?.as_str().map(String::from))
+        .filter(|k| matches!(k.as_str(), "permission" | "question"));
+    let data = match kind {
+        Some(kind) if name == "agent.waiting" => json!({ "kind": kind }).to_string(),
+        _ => "{}".into(),
+    };
+    (agent, data)
 }
 
 fn deliver(running: &Running, pending: Vec<Admitted>) {
@@ -1354,6 +1447,7 @@ mod tests {
             dir: dir.to_string_lossy().into(),
             wasm: "target/wasm32-wasip2/release/hello.wasm".into(),
             allowed,
+            panels: vec!["main".into()],
         };
         assert!(runtime.sync(vec![spec(vec![])]).is_empty());
         let agent = AgentInfo {
@@ -1515,8 +1609,8 @@ mod tests {
             timer: None,
             hooks: Hooks::default(),
             trial: None,
-            shown: None,
-            posts: HashMap::new(),
+            panels: vec!["main".into(), "other".into()],
+            kept: Default::default(),
         };
         (host, told)
     }
@@ -1645,6 +1739,7 @@ mod tests {
                 .unwrap_err()
                 .contains("a second")
         );
+        assert_eq!(host.projects().unwrap().len(), 1);
         let calls: Vec<_> = told
             .lock()
             .unwrap()
@@ -1718,6 +1813,64 @@ mod tests {
     }
 
     #[test]
+    fn hides_folders_and_waiting_text_from_extensions_that_do_not_read_agents() {
+        let runtime = Runtime::new(
+            std::env::temp_dir().join(format!("squadron-wasm-{}", uuid::Uuid::new_v4())),
+            |_| {},
+        )
+        .unwrap();
+        let mut jobs = Vec::new();
+        for (id, allowed) in [("blind", vec![]), ("reader", vec![READ_AGENTS.to_string()])] {
+            let (tx, rx) = mpsc::channel();
+            jobs.push(rx);
+            runtime.loaded.lock().unwrap().insert(
+                id.into(),
+                Loaded {
+                    tx,
+                    path: PathBuf::new(),
+                    modified: None,
+                    allowed,
+                    inbox: Inbox::default(),
+                },
+            );
+        }
+        let agent = AgentInfo {
+            id: "a1".into(),
+            name: "RING-1".into(),
+            project: "/home/me/ring".into(),
+            dir: "/home/me/ring/w".into(),
+        };
+        let waiting = r#"{"waiting":"Allow Bash: cat ~/.ssh/id_ed25519","kind":"permission"}"#;
+        runtime.event(None, "agent.waiting", Some(agent.clone()), waiting);
+        let got = |rx: &mpsc::Receiver<Job>| match rx.try_recv() {
+            Ok(Job::Event(_, Some(a), data)) => (a.project, a.dir, data),
+            _ => panic!("no event"),
+        };
+        let (project, dir, data) = got(&jobs[0]);
+        assert_eq!(
+            (project, dir),
+            (activity::opaque("/home/me/ring"), String::new())
+        );
+        assert_eq!(data, r#"{"kind":"permission"}"#);
+        assert_eq!(got(&jobs[1]).2, waiting);
+        runtime.event(None, "agent.done", Some(agent), "{}");
+        assert_eq!(got(&jobs[0]).1, "");
+        assert_eq!(got(&jobs[1]).1, "/home/me/ring/w");
+
+        for _ in 0..PAGE_EVENTS + 20 {
+            runtime.event(Some("blind"), "panel.message", None, "{}");
+        }
+        runtime.event(
+            Some("reader"),
+            "panel.message",
+            None,
+            &"x".repeat(MAX_PAGE_EVENT + 1),
+        );
+        assert_eq!(jobs[0].try_iter().count(), PAGE_EVENTS as usize);
+        assert_eq!(jobs[1].try_iter().count(), 0);
+    }
+
+    #[test]
     fn drops_page_messages_past_two_hundred_a_second() {
         use squadron::api::host::Host as _;
         let (mut host, told) = host(&[], |_, _| Ok(Value::Null));
@@ -1725,6 +1878,10 @@ mod tests {
             host.panel_post("main".into(), format!("{i}"));
         }
         host.panel_post("other".into(), "{}".into());
+        for i in 0..50 {
+            host.panel_post(format!("stray{i}{}", "x".repeat(1 << 20)), String::new());
+        }
+        assert_eq!(host.kept.lock().unwrap().posts.len(), 1 + 1);
         host.settings_post("x".repeat(5 << 20));
         let told = told.lock().unwrap();
         assert_eq!(
@@ -1756,10 +1913,10 @@ mod tests {
 
         let (tx, rx) = mpsc::channel();
         assert!(matches!(wait(&rx, Some(Instant::now())), Some(Job::Timer)));
-        tx.send(Job::Allow(vec![])).unwrap();
+        tx.send(Job::Allow(vec![], vec![])).unwrap();
         assert!(matches!(
             wait(&rx, Some(Instant::now() + Duration::from_secs(60))),
-            Some(Job::Allow(_))
+            Some(Job::Allow(..))
         ));
         drop(tx);
         assert!(wait(&rx, None).is_none());
@@ -2046,6 +2203,7 @@ mod tests {
                     dir: dir.to_string_lossy().into(),
                     wasm: "target/wasm32-wasip2/release/hello.wasm".into(),
                     allowed: vec![],
+                    panels: vec![],
                 }])
                 .is_empty()
         );
@@ -2186,6 +2344,7 @@ mod tests {
             dir: extension_dir,
             wasm: "broken.wasm".into(),
             allowed: vec![],
+            panels: vec![],
         }]);
         assert!(errors.contains_key("broken"));
         assert!(

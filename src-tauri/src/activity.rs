@@ -35,7 +35,18 @@ pub fn keep_salt(file: &Path) {
             if let Some(dir) = file.parent() {
                 let _ = std::fs::create_dir_all(dir);
             }
-            let _ = std::fs::write(file, &salt);
+            let part = file.with_extension(format!("{}.part", uuid::Uuid::new_v4().simple()));
+            let mut options = std::fs::OpenOptions::new();
+            options.write(true).create_new(true);
+            #[cfg(unix)]
+            std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
+            let written = options
+                .open(&part)
+                .and_then(|mut f| std::io::Write::write_all(&mut f, &salt))
+                .and_then(|_| std::fs::rename(&part, file));
+            if written.is_err() {
+                let _ = std::fs::remove_file(&part);
+            }
             salt
         });
     let _ = SALT.set(salt);
@@ -62,9 +73,14 @@ pub fn id(s: &str) -> bool {
             .all(|b| b.is_ascii_alphanumeric() || matches!(b, b'-' | b'_' | b'.' | b':'))
 }
 
+fn invisible(c: char) -> bool {
+    c.is_control()
+        || matches!(c, '\u{ad}' | '\u{61c}' | '\u{180e}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}' | '\u{feff}' | '\u{fff9}'..='\u{fffb}')
+}
+
 fn name(s: String) -> String {
     s.chars()
-        .filter(|c| !c.is_control())
+        .filter(|c| !invisible(*c))
         .take(MAX_NAME)
         .collect()
 }
@@ -283,7 +299,7 @@ mod tests {
     #[test]
     fn keeps_only_what_an_agent_does() {
         let full = json!({
-            "id": "a1", "project": "/home/me/ring", "name": "RING-1 Card\u{7}payment", "status": "working",
+            "id": "a1", "project": "/home/me/ring", "name": "RING-1 Card\u{7}pay\u{202e}ment\u{200b}", "status": "working",
             "waiting": "permission", "tool": "mcp__jira__search", "error": "crash", "by": "a0",
             "archived": false, "since": 5, "dir": "/home/me/secret", "prompt": "the user's prompt", "cost": 3.2
         });
@@ -363,6 +379,13 @@ mod tests {
         keep_salt(&file);
         let salt = std::fs::read(&file).unwrap();
         assert_eq!(salt.len(), 32);
+        #[cfg(unix)]
+        assert_eq!(
+            std::os::unix::fs::PermissionsExt::mode(
+                &std::fs::metadata(&file).unwrap().permissions()
+            ) & 0o777,
+            0o600
+        );
         keep_salt(&file);
         assert_eq!(std::fs::read(&file).unwrap(), salt);
         let _ = std::fs::remove_file(file);

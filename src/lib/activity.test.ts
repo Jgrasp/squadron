@@ -21,6 +21,7 @@ describe('activity', () => {
     expect(activityOf(agent({ status: 'error', alive: false })).error).toBe('crash')
     expect(activityOf(agent({ status: 'error', alive: true })).error).toBe('api')
     expect(activityOf(agent({ status: 'done', mcpFailed: true })).error).toBe('mcp')
+    expect(activityOf(agent({ autoName: true, name: 'fix the login of' })).name).toBe('')
     expect(activityOf(agent({ status: 'error', mcpFailed: true }), true)).toMatchObject({ archived: true, error: null, waiting: null, tool: null })
   })
 
