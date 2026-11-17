@@ -91,6 +91,8 @@ const noteApi = (signal: Parameters<typeof noted>[1]) => Object.assign(claudeApi
 addEventListener('offline', () => noteApi({ state: 'offline' }))
 addEventListener('online', () => noteApi({ state: 'ok' }))
 
+export const shownQuietly = { until: 0 }
+
 export const archiveShown = $state({ project: '', agent: '' })
 
 export const limits: { five_hour?: Limit; seven_day?: Limit } = $state(stored('limits', {}))

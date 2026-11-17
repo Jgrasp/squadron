@@ -98,6 +98,10 @@ const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'obj
 
 const isText = (v: unknown): v is Text => isObject(v) && typeof v.en === 'string' && !!v.en.trim() && Object.values(v).every((s) => typeof s === 'string')
 
+const INVISIBLE = /[\u0000-\u001f\u007f-\u009f\u00ad\u061c\u180e\u200b-\u200f\u202a-\u202e\u2060-\u2064\u2066-\u206f\ufeff\u{e0000}-\u{e007f}]/u
+
+const isName = (v: unknown): v is Text => isText(v) && Object.values(v).every((s) => !INVISIBLE.test(s))
+
 export const text = (value: Text, locale: Locale) => value[locale] || value.en
 
 const inside = (path: unknown, extension: string) =>
@@ -180,7 +184,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   if (raw.api !== 1) problems.push(['extensions.badApi'])
   if (typeof raw.version !== 'string' || !raw.version.trim()) problems.push(['extensions.noVersion'])
   if (raw.squadron !== undefined && (typeof raw.squadron !== 'string' || !RANGE.test(raw.squadron))) problems.push(['extensions.badRange'])
-  if (!isText(raw.name)) problems.push(['extensions.noName'])
+  if (!isName(raw.name)) problems.push(['extensions.noName'])
   if (raw.description !== undefined && !isText(raw.description)) problems.push(['extensions.badDescription'])
   const wasm = raw.wasm !== undefined
   if (wasm && !inside(raw.wasm, '.wasm')) problems.push(['extensions.badWasm'])
@@ -207,7 +211,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
       problems.push(['extensions.badSkills'])
     else if (new Set(skills.map((s) => s.split(/[\\/]/).pop())).size < skills.length) problems.push(['extensions.badSkills'])
     const panels = contributes.panels ?? []
-    if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isText(p.title) && inside(p.page, '.html') && (p.window === undefined || (WINDOWS as readonly unknown[]).includes(p.window))))
+    if (!Array.isArray(panels) || !panels.every((p) => isObject(p) && typeof p.id === 'string' && ID.test(p.id) && isName(p.title) && inside(p.page, '.html') && (p.window === undefined || (WINDOWS as readonly unknown[]).includes(p.window))))
       problems.push(['extensions.badPanels'])
     else if (new Set(panels.map((p) => p.id)).size < panels.length) problems.push(['extensions.badPanels'])
     const panelIds = Array.isArray(panels) ? panels.flatMap((p) => (isObject(p) && typeof p.id === 'string' ? [p.id] : [])) : []

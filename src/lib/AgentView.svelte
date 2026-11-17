@@ -2,7 +2,7 @@
   import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { tick, untrack, type Snippet } from 'svelte'
-  import { archive, askEdits, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, onScreen, persist, useServer, VALUES, type Server } from './agents.svelte'
+  import { archive, askEdits, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, shownQuietly, onScreen, persist, useServer, VALUES, type Server } from './agents.svelte'
   import { loadServers, mcp, type Listed } from './ondemand.svelte'
   import { claudeConfig, labelOf as settingLabel, loadSettings, TERMINAL } from './claudeConfig.svelte'
   import Conversation from './Conversation.svelte'
@@ -310,7 +310,7 @@
     if (staged === 'mcp') untrack(() => (mcpStatus(agent.id), loadServers().catch(() => {})))
   })
   $effect(() => {
-    if (agent.status === 'interrupted') composer?.focus()
+    if (agent.status === 'interrupted' && Date.now() > shownQuietly.until) composer?.focus()
   })
 
   function configItems(query: string): Item[] {

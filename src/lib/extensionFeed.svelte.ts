@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { activityOf, agentChanges, groupOf, projectChanges, projectOf, usageOf, type AgentActivity, type Fed } from './activity'
-import { agents, archived, archiveShown, claudeApi, find, limits, show, shownAgent, type Archived } from './agents.svelte'
+import { agents, archived, archiveShown, claudeApi, shownQuietly, find, limits, show, shownAgent, type Archived } from './agents.svelte'
 import { active, grantsOf } from './extensions'
 import { extensions, panelHovered, panelSent } from './extensions.svelte'
 import { gestures, raiseMain } from './extensionWindows.svelte'
@@ -85,6 +85,7 @@ async function showAgent(extension: string, id: string) {
   if (!windowed && (!onScreen(extension) || !clicked(extension))) throw new Error('show-agent works right after the user clicked in one of the extension’s panels or panel windows, while the pointer is still over it.')
   const agent = find(id)
   if (agent && windowed) await raiseMain()
+  shownQuietly.until = Date.now() + GESTURE
   settle()
   if (agent) return show(agent)
   const old = (await shelved()).find((a) => a.id === id)
