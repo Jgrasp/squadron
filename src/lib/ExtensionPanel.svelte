@@ -1,7 +1,7 @@
 <script lang="ts">
   import { locale, t } from './i18n/index.svelte'
   import { PAGE_THEME, text, themeOf, type Panel } from './extensions'
-  import { extensions, onPanelPost, panelClosed, panelMessage, setOption } from './extensions.svelte'
+  import { extensions, onPanelPost, panelClosed, panelHovered, panelMessage, setOption } from './extensions.svelte'
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
 
@@ -38,7 +38,23 @@
 
   $effect(() => {
     const shown = panel
-    return () => panelClosed(shown)
+    return () => {
+      panelHovered[shown.extension] = false
+      panelClosed(shown)
+    }
+  })
+
+  $effect(() => {
+    if (!frame) return
+    const [element, extension] = [frame, panel.extension]
+    const hover = (on: boolean) => () => (panelHovered[extension] = on)
+    const [enter, leave] = [hover(true), hover(false)]
+    element.addEventListener('mouseenter', enter)
+    element.addEventListener('mouseleave', leave)
+    return () => {
+      element.removeEventListener('mouseenter', enter)
+      element.removeEventListener('mouseleave', leave)
+    }
   })
 
   $effect(() => onPanelPost(panel.extension, panel.id, (message) => frame?.contentWindow?.postMessage({ squadron: 'extension', message }, '*')))

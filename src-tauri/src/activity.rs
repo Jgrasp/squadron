@@ -75,7 +75,7 @@ pub fn id(s: &str) -> bool {
 
 fn invisible(c: char) -> bool {
     c.is_control()
-        || matches!(c, '\u{ad}' | '\u{61c}' | '\u{180e}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}' | '\u{feff}' | '\u{fff9}'..='\u{fffb}')
+        || matches!(c, '\u{ad}' | '\u{61c}' | '\u{180e}' | '\u{200b}'..='\u{200f}' | '\u{202a}'..='\u{202e}' | '\u{2060}'..='\u{206f}' | '\u{2028}' | '\u{2029}' | '\u{feff}' | '\u{fff9}'..='\u{fffb}' | '\u{e0000}'..='\u{e007f}')
 }
 
 fn name(s: String) -> String {
@@ -299,7 +299,7 @@ mod tests {
     #[test]
     fn keeps_only_what_an_agent_does() {
         let full = json!({
-            "id": "a1", "project": "/home/me/ring", "name": "RING-1 Card\u{7}pay\u{202e}ment\u{200b}", "status": "working",
+            "id": "a1", "project": "/home/me/ring", "name": "RING-1 Card\u{7}pay\u{202e}ment\u{200b}\u{e0041}\u{2028}", "status": "working",
             "waiting": "permission", "tool": "mcp__jira__search", "error": "crash", "by": "a0",
             "archived": false, "since": 5, "dir": "/home/me/secret", "prompt": "the user's prompt", "cost": 3.2
         });

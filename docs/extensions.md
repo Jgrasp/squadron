@@ -490,7 +490,7 @@ For an extension that draws what Squadron is doing, like the Agent Office (one b
 - **`host::projects()`**: every project, archived ones included. `id` is opaque and stable: the first 16 hex digits of a SHA-256 of the folder salted with 32 random bytes kept in `<config>/extensions-salt` (mode 0600). WASM never reads it. An extension that may `exec` a program can read any file of the user, this one and `projects.json` included: the opaque id protects folders from extensions without `exec`. All extensions see the same ids. You also get `name`, `color` (`#rrggbb` or none), `group` (opaque id), `archived`, `active` (the last change of one of its agents, in ms), `week-agents` (distinct agents that changed over the last 7 days, archived ones included) and `agents` (all of them). There is never a folder.
 - **`host::groups()`**: `id`, `name` and `parent`, all ids opaque.
 - **`host::all-agents()`**: live and archived agents. `agents()` (1.1) keeps its name and shape, and still lists open agents with their folder for `agents: ["read"]`. Each agent has:
-  - `id`, `project` (the opaque id of `projects`), `name`, `since`. `name` is empty while Squadron has not titled the agent yet, since its first name is the first words of the prompt. It loses control and invisible characters (bidi, zero width) and keeps 300 characters at most, but an agent can rename itself: a panel shows it as text;
+  - `id`, `project` (the opaque id of `projects`), `name`, `since`. `name` is empty while Squadron has not titled the agent yet, since its first name is the first words of the prompt. It loses control and invisible characters (bidi, zero width, line separators, Unicode tags) and keeps 300 characters at most, but an agent can rename itself: a panel shows it as text;
   - `status`: `working`, `waiting`, `done`, `interrupted` or `error`;
   - `waiting`: `question` (`AskUserQuestion`, `ExitPlanMode`) or `permission` (any other request), without its content;
   - `tool`: the name of the running tool (`Bash`, `mcp__jira__search`), never its input;
@@ -512,10 +512,10 @@ For an extension that draws what Squadron is doing, like the Agent Office (one b
   - An MCP server that fails after start is not seen.
 - **`host::show-agent(id)`**: brings the agent to the front, as a click in the list would. An archived agent opens in the archive of its project, read only, with no way to restore it from the API. Squadron refuses it unless all of these hold, so that an extension cannot move the view under the user's cursor:
   - one of the extension's panels is on screen in the agent view;
-  - that panel holds the focus, because the user clicked in it;
+  - that panel holds the focus, because the user clicked in it, and the pointer is still over it, so a change of view never lands under the cursor;
   - the panel sent a message less than 2 s ago;
   - the last call was more than a second ago, a limit that survives a crash of the extension. The panel's page loads again beside the shown agent, and moving to another project hides it when that project does not have it open.
-- **Folders kept from the other events**: since 1.7, `agent.done` and `agent.waiting` give an extension without `agents: ["read"]` the agent with an empty `dir` and the opaque id as `project`, and `agent.waiting` gives `{ "kind": "permission" }` or `{ "kind": "question" }` instead of the text of the request. `run` and `call-tool` still give the folder of the agent concerned, as since 1.0: the user clicked or the agent called the tool.
+- **Folders kept from the other events**: since 1.7, `agent.done`, `agent.waiting`, `panel.message` and `settings.message` give an extension without `agents: ["read"]` the agent with an empty `dir` and the opaque id as `project`. The name of an agent Squadron has not titled yet is empty there too, for every extension. `agent.waiting` gives `{ "kind": "permission" }` or `{ "kind": "question" }` instead of the text of the request. `run` and `call-tool` still give the folder of the agent concerned, as since 1.0: the user clicked or the agent called the tool.
 - **Events**, with `agent` empty and `data` in JSON, snake_case keys:
   - with `activity`: `agent.status` (the agent of `all-agents`, when any field changed), `agent.started` (a new agent, with `by`), `agent.archived` and `agent.message` (`{ "from", "to", "count" }`, when an agent sent `count` messages to another through `message_agent`, never their text);
   - with `projects`: `project.added`, `project.changed` (name, color or group), `project.archived` and `project.removed` (the project), and `groups.changed` (`{ "groups": [ … ] }`);
@@ -525,7 +525,7 @@ For an extension that draws what Squadron is doing, like the Agent Office (one b
   - Rust gives each extension at most one batch a second, with the latest state of each agent or project only. Messages are counted by pair, and a batch holds 4096 keys at most.
   - An extension slower than the flow does not pile up events: they merge in its inbox until it is free.
   - `panel-post` and `settings-post` deliver at most 200 messages and 4 MB a second to each page and drop the rest of that second, with a line in the log. `panel-post` only reaches a panel of `contributes.panels`. These limits, like the one of `show-agent` and the 500 ms during which `projects`, `groups`, `all-agents` and `usage` answer from memory, survive a crash of the extension.
-  - `panel.message` and `settings.message` come at most 100 times a second per extension, 1 MB each.
+  - `panel.message` and `settings.message` come at most 100 times a second per extension, 1 MB each, and at most 50 of them or 8 MB wait for a busy extension: the rest is dropped.
 - **Panels**:
   - A panel reaches only its own extension.
   - `squadron.send(value)` gives the WASM `panel.message` with `{ "panel", "message" }`. The WASM answers with `host::panel-post`, calls `show-agent` for an Open agent button, and keeps what the panel wants to save with `host::state-set`. A layout seed, the seed to start with, or "a new one each time" fit there, 1 MB at most. `data-dir` serves `exec` and is not needed for this.

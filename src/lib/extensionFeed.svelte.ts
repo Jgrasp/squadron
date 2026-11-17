@@ -4,7 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { activityOf, agentChanges, groupOf, projectChanges, projectOf, usageOf, type AgentActivity, type Fed } from './activity'
 import { agents, archived, archiveShown, claudeApi, find, limits, show, shownAgent, type Archived } from './agents.svelte'
 import { active, grantsOf } from './extensions'
-import { extensions, panelSent } from './extensions.svelte'
+import { extensions, panelHovered, panelSent } from './extensions.svelte'
 import { layout } from './layout.svelte'
 import { projects } from './projects.svelte'
 
@@ -51,6 +51,7 @@ function clicked(extension: string) {
     document.hasFocus() &&
     document.visibilityState === 'visible' &&
     frame instanceof HTMLIFrameElement &&
+    !!panelHovered[extension] &&
     new URL(frame.src).pathname.split('/')[1] === extension &&
     Date.now() - (panelSent[extension] ?? 0) < GESTURE
   )
@@ -62,7 +63,7 @@ function onScreen(extension: string) {
 }
 
 async function showAgent(extension: string, id: string) {
-  if (!onScreen(extension) || !clicked(extension)) throw new Error('show-agent works right after the user clicked in one of the extension’s panels, while it is on screen.')
+  if (!onScreen(extension) || !clicked(extension)) throw new Error('show-agent works right after the user clicked in one of the extension’s panels, while the pointer is still over it.')
   const agent = find(id)
   if (agent) return show(agent)
   const old = (await shelved()).find((a) => a.id === id)

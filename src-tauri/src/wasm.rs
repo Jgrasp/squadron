@@ -4,6 +4,7 @@ use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
 use std::sync::{Arc, Mutex};
 use std::time::{Duration, Instant, SystemTime};
@@ -38,6 +39,8 @@ const POSTS: u32 = 200;
 const RECENT: Duration = Duration::from_millis(500);
 const PAGE_EVENTS: u32 = 100;
 const MAX_PAGE_EVENT: usize = 1 << 20;
+const QUEUED_PAGE_EVENTS: usize = 50;
+const QUEUED_PAGE_BYTES: usize = 8 << 20;
 const POSTED: usize = 4 << 20;
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
@@ -230,9 +233,16 @@ struct Loaded {
     modified: Option<SystemTime>,
     allowed: Vec<String>,
     inbox: Inbox,
+    queued: Queued,
 }
 
 type Inbox = Arc<Mutex<Vec<Admitted>>>;
+
+type Queued = Arc<(AtomicUsize, AtomicUsize)>;
+
+fn page(name: &str) -> bool {
+    matches!(name, "panel.message" | "settings.message")
+}
 
 type Running = Arc<Mutex<HashMap<String, Loaded>>>;
 
@@ -1088,7 +1098,7 @@ impl Runtime {
                 continue;
             }
             match self.start(&spec, &path) {
-                Ok((tx, inbox)) => {
+                Ok((tx, inbox, queued)) => {
                     let allowed = spec.allowed;
                     loaded.insert(
                         spec.id,
@@ -1098,6 +1108,7 @@ impl Runtime {
                             modified,
                             allowed,
                             inbox,
+                            queued,
                         },
                     );
                 }
@@ -1110,7 +1121,11 @@ impl Runtime {
         errors
     }
 
-    fn start(&self, spec: &Spec, path: &Path) -> Result<(mpsc::Sender<Job>, Inbox), String> {
+    fn start(
+        &self,
+        spec: &Spec,
+        path: &Path,
+    ) -> Result<(mpsc::Sender<Job>, Inbox, Queued), String> {
         let component = Component::from_file(&self.engine, path).map_err(|e| format!("{e:#}"))?;
         let engine = self.engine.clone();
         let (id, emit, answers, file, data, hooks) = (
@@ -1148,6 +1163,8 @@ impl Runtime {
         let (report, id) = (self.emit.clone(), spec.id.clone());
         let inbox = Inbox::default();
         let fed = inbox.clone();
+        let queued = Queued::default();
+        let waiting = queued.clone();
         std::thread::spawn(move || {
             let mut current = match instantiate(&engine, &component, host(&allowed, &panels)) {
                 Ok(current) => current,
@@ -1177,10 +1194,16 @@ impl Runtime {
                             .err()
                             .map(trapped)
                     }
-                    Job::Event(name, agent, data) => bindings
-                        .call_on_event(&mut *store, &name, agent.as_ref(), &data)
-                        .err()
-                        .map(trapped),
+                    Job::Event(name, agent, data) => {
+                        if page(&name) {
+                            waiting.0.fetch_sub(1, Ordering::SeqCst);
+                            waiting.1.fetch_sub(data.len(), Ordering::SeqCst);
+                        }
+                        bindings
+                            .call_on_event(&mut *store, &name, agent.as_ref(), &data)
+                            .err()
+                            .map(trapped)
+                    }
                     Job::Fed => {
                         let events = std::mem::take(&mut *fed.lock().unwrap());
                         events
@@ -1267,7 +1290,7 @@ impl Runtime {
         ready_rx
             .recv()
             .map_err(|_| "The extension did not start.".to_string())??;
-        Ok((tx, inbox))
+        Ok((tx, inbox, queued))
     }
 
     fn page_event(&self, id: &str, data: &str) -> bool {
@@ -1285,9 +1308,7 @@ impl Runtime {
     }
 
     pub fn event(&self, only: Option<&str>, name: &str, agent: Option<AgentInfo>, data: &str) {
-        if matches!(name, "panel.message" | "settings.message")
-            && !only.is_some_and(|id| self.page_event(id, data))
-        {
+        if page(name) && !only.is_some_and(|id| self.page_event(id, data)) {
             return;
         }
         for (_, l) in self
@@ -1297,6 +1318,16 @@ impl Runtime {
             .iter()
             .filter(|(id, _)| only.is_none_or(|only| only == id.as_str()))
         {
+            if page(name) {
+                let (count, bytes) = (&l.queued.0, &l.queued.1);
+                if count.load(Ordering::SeqCst) >= QUEUED_PAGE_EVENTS
+                    || bytes.load(Ordering::SeqCst) + data.len() > QUEUED_PAGE_BYTES
+                {
+                    continue;
+                }
+                count.fetch_add(1, Ordering::SeqCst);
+                bytes.fetch_add(data.len(), Ordering::SeqCst);
+            }
             let (agent, data) = withheld(name, agent.clone(), data, &l.allowed);
             let _ =
                 l.tx.send(Job::Event(name.into(), agent.map(Agent::from), data));
@@ -1366,7 +1397,11 @@ fn withheld(
     data: &str,
     allowed: &[String],
 ) -> (Option<AgentInfo>, String) {
-    if !matches!(name, "agent.done" | "agent.waiting") || allowed.iter().any(|a| a == READ_AGENTS) {
+    if !matches!(
+        name,
+        "agent.done" | "agent.waiting" | "panel.message" | "settings.message"
+    ) || allowed.iter().any(|a| a == READ_AGENTS)
+    {
         return (agent, data.into());
     }
     let agent = agent.map(|a| AgentInfo {
@@ -1379,6 +1414,7 @@ fn withheld(
         .and_then(|d| d.get("kind")?.as_str().map(String::from))
         .filter(|k| matches!(k.as_str(), "permission" | "question"));
     let data = match kind {
+        _ if page(name) => data.into(),
         Some(kind) if name == "agent.waiting" => json!({ "kind": kind }).to_string(),
         _ => "{}".into(),
     };
@@ -1769,6 +1805,7 @@ mod tests {
                     modified: None,
                     allowed: vec![allowed.into()],
                     inbox,
+                    queued: Queued::default(),
                 },
             );
         }
@@ -1831,6 +1868,7 @@ mod tests {
                     modified: None,
                     allowed,
                     inbox: Inbox::default(),
+                    queued: Queued::default(),
                 },
             );
         }
@@ -1853,12 +1891,12 @@ mod tests {
         );
         assert_eq!(data, r#"{"kind":"permission"}"#);
         assert_eq!(got(&jobs[1]).2, waiting);
-        runtime.event(None, "agent.done", Some(agent), "{}");
+        runtime.event(None, "agent.done", Some(agent.clone()), "{}");
         assert_eq!(got(&jobs[0]).1, "");
         assert_eq!(got(&jobs[1]).1, "/home/me/ring/w");
 
         for _ in 0..PAGE_EVENTS + 20 {
-            runtime.event(Some("blind"), "panel.message", None, "{}");
+            runtime.event(Some("blind"), "panel.message", Some(agent.clone()), "{}");
         }
         runtime.event(
             Some("reader"),
@@ -1866,8 +1904,19 @@ mod tests {
             None,
             &"x".repeat(MAX_PAGE_EVENT + 1),
         );
-        assert_eq!(jobs[0].try_iter().count(), PAGE_EVENTS as usize);
+        let queued: Vec<_> = jobs[0].try_iter().collect();
+        assert_eq!(queued.len(), QUEUED_PAGE_EVENTS);
+        assert!(
+            queued
+                .iter()
+                .all(|j| matches!(j, Job::Event(_, Some(a), _) if a.dir.is_empty()))
+        );
         assert_eq!(jobs[1].try_iter().count(), 0);
+        let budget: Vec<_> = (0..PAGE_EVENTS + 1)
+            .map(|_| runtime.page_event("other", "{}"))
+            .collect();
+        assert!(budget[..PAGE_EVENTS as usize].iter().all(|ok| *ok));
+        assert!(!budget[PAGE_EVENTS as usize]);
     }
 
     #[test]

@@ -26,6 +26,10 @@ export const badgeOf = (key: string) => extensions.shown[key]?.badge
 
 const info = (agent: Agent) => ({ id: agent.id, name: agent.name, project: agent.project, dir: workdir(agent) })
 
+const told = (agent: Agent) => ({ ...info(agent), name: agent.autoName ? '' : agent.name })
+
+export const panelHovered: Record<string, boolean> = {}
+
 const stateOf = (agent: Agent) => ({
   ...info(agent),
   status: agent.status,
@@ -162,9 +166,9 @@ export function onPanelPost(extension: string, panel: string, deliver: (message:
 
 export const panelSent: Record<string, number> = {}
 
-export function panelMessage(panel: Panel, from: Agent | string, message: unknown) {
+export function panelMessage(panel: Panel, from: Agent | string | null, message: unknown) {
   panelSent[panel.extension] = Date.now()
-  return invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : info(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
+  return invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : from && told(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
 }
 
 export const panelClosed = (panel: Panel) =>
@@ -364,7 +368,7 @@ $effect.root(() => {
       seen.set(agent.id, agent.status)
       if (before === undefined || before === agent.status) continue
       if (agent.status === 'done' || agent.status === 'waiting')
-        invoke('extensions_wasm_event', { id: null, name: `agent.${agent.status}`, agent: info(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action, kind: waitingKind(agent) } : {}) })
+        invoke('extensions_wasm_event', { id: null, name: `agent.${agent.status}`, agent: told(agent), data: JSON.stringify(agent.status === 'waiting' ? { waiting: agent.action, kind: waitingKind(agent) } : {}) })
     }
   })
 })
