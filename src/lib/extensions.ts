@@ -45,9 +45,11 @@ export type Settings = { options?: ExtensionOption[]; page?: string; title?: Tex
 
 export type Panel = ManifestPanel & { key: `extension:${string}`; extension: string }
 
-export const AGENT_ACCESS = ['read', 'archive'] as const
+export const AGENT_ACCESS = ['read', 'archive', 'activity', 'show'] as const
 
-export type Permissions = { exec?: string[]; network?: string[]; agents?: (typeof AGENT_ACCESS)[number][] }
+export const READ_ACCESS = ['read'] as const
+
+export type Permissions = { exec?: string[]; network?: string[]; agents?: (typeof AGENT_ACCESS)[number][]; projects?: (typeof READ_ACCESS)[number][]; usage?: (typeof READ_ACCESS)[number][] }
 
 export type Manifest = {
   id: string
@@ -188,6 +190,10 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   if (network !== undefined && (!Array.isArray(network) || !network.every((h) => typeof h === 'string' && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)))) problems.push(['extensions.badNetwork'])
   const access = isObject(raw.permissions) ? raw.permissions.agents : undefined
   if (access !== undefined && (!Array.isArray(access) || !access.every((a) => (AGENT_ACCESS as readonly unknown[]).includes(a)))) problems.push(['extensions.badAgents'])
+  for (const [kind, problem] of [['projects', 'extensions.badProjects'], ['usage', 'extensions.badUsage']] as const) {
+    const read = isObject(raw.permissions) ? raw.permissions[kind] : undefined
+    if (read !== undefined && (!Array.isArray(read) || !read.every((a) => (READ_ACCESS as readonly unknown[]).includes(a)))) problems.push([problem])
+  }
   const contributes = raw.contributes ?? {}
   if (!isObject(contributes)) problems.push(['extensions.badContributes'])
   else {
@@ -262,6 +268,10 @@ export const AGENTS = 'agents:'
 
 export const SKILLS = 'skills:'
 
+export const PROJECTS = 'projects:'
+
+export const USAGE = 'usage:'
+
 export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
@@ -269,12 +279,14 @@ export const commandsOf = (manifest: Manifest) => [
     ...(manifest.permissions?.exec ?? []).map((p) => EXEC + p),
     ...(manifest.permissions?.network ?? []).map((h) => NET + h),
     ...(manifest.permissions?.agents ?? []).map((a) => AGENTS + a),
+    ...(manifest.permissions?.projects ?? []).map((a) => PROJECTS + a),
+    ...(manifest.permissions?.usage ?? []).map((a) => USAGE + a),
     ...(manifest.contributes?.args?.length ? [ARGS + JSON.stringify(manifest.contributes.args)] : []),
     ...(manifest.contributes?.skills?.length ? [SKILLS + JSON.stringify(manifest.contributes.skills)] : []),
   ]),
 ]
 
-export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
+export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS, PROJECTS, USAGE].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
 
 export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}, app = ''): Extension[] {
   const taken: string[] = []

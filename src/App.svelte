@@ -18,6 +18,7 @@
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
   import { checkUpdates, loadExtensions } from './lib/extensions.svelte'
+import './lib/extensionFeed.svelte'
   import { sweep } from './lib/cleanup.svelte'
   import { layout, setPanel } from './lib/layout.svelte'
   import { trackHistory } from './lib/history.svelte'

@@ -124,7 +124,8 @@ Elles sont déclarées dans le manifeste, montrées à l'installation et accept�
 - `network` : les noms d'hôte que `host::fetch` peut joindre, en HTTPS.
 - **Dossier de données** : `host::data-dir` (1.2.0) rend `<config>/extensions-data/<id>`, créé au premier appel, gardé aux mises à jour et à la désinstallation comme l'état. C'est là qu'une extension pose les fichiers sur lesquels travaillent ses commandes (`exec` avec ce dossier).
 - `agents` : `read` donne les agents ouverts et ce qu'ils font (`host::agents`), `archive` permet d'en archiver (`host::archive-agent`). *Fait en 1.1.0.*
-- `agents:send`, `cards:write`, `project:read` : prévus, pour les autres données et actions de Squadron.
+- `agents` : `activity` voit tous les agents, archivés compris, et ce qu'ils font, `show` en affiche un ; `projects: ["read"]` voit projets et groupes ; `usage: ["read"]` voit les limites de Claude et l'état de son API. *Fait en 1.7.0.*
+- `agents:send`, `cards:write` : prévus, pour les autres données et actions de Squadron.
 - `tools` : outils proposés aux agents.
 
 Le sandbox ne protège que ce que l'extension ne peut pas faire. Une commande autorisée tourne avec tous les droits de l'utilisateur. Avec une marketplace, la vraie barrière est l'écran de permissions, et il doit le dire clairement.
@@ -471,6 +472,60 @@ fn check_account(account: Account) -> Result<String, String> {
 - **Quand** : à l'ouverture de Settings (comptes jamais vérifiés dans la session), à l'ouverture de la fiche (tous), sur ↻, et au clic Test the connection. Les résultats restent en mémoire, par extension et par compte, pour le point `--err` de la navigation ; un compte enregistré après un test réussi garde ce résultat.
 
 L'exemple `hello` le montre avec ses comptes GitHub.
+
+### Squadron's activity (API 1.7)
+
+For an extension that draws what Squadron is doing, like the Agent Office (one building per group, one room per project, agents moving between desks, a status wall with Claude's limits). Read only: nothing in 1.7 changes an agent or a project.
+
+```json
+"permissions": { "agents": ["activity", "show"], "projects": ["read"], "usage": ["read"] }
+```
+
+- **Permissions.** Each one is a line of the approval popup, like `exec` and `network`, and Squadron checks it in Rust on every call and before every event:
+  - `agents: ["activity"]`: "Sees all your agents, archived ones included: their names, states, the tools they run and who started them, never their conversations". It is not `agents: ["read"]`: an extension approved for `read` does not see archived agents.
+  - `agents: ["show"]`: "Shows one of your agents in Squadron while its panel is on screen".
+  - `projects: ["read"]`: "Sees your projects and groups: names, colors and how many agents work in them, never their folders".
+  - `usage: ["read"]`: "Sees how much of Claude's session and weekly limits you used, and whether Claude's API answers".
+  - Any other value puts the extension in error. A Squadron older than 0.51 does not load an extension that calls these functions, so it declares `"squadron": ">=0.51.0"`.
+- **`host::projects()`**: every project, archived ones included. `id` is opaque and stable: the first 16 hex digits of a SHA-256 of the folder salted with a random value kept in `<config>/extensions-salt`, which no extension reads. You also get `name`, `color` (`#rrggbb` or none), `group` (opaque id), `archived`, `active` (the last change of one of its agents, in ms), `week-agents` (distinct agents that changed over the last 7 days, archived ones included) and `agents` (all of them). There is never a folder.
+- **`host::groups()`**: `id`, `name` and `parent`, all ids opaque.
+- **`host::all-agents()`**: live and archived agents. `agents()` (1.1) keeps its name and shape, and still lists open agents with their folder for `agents: ["read"]`. Each agent has:
+  - `id`, `project` (the opaque id of `projects`), `name` (control characters removed, 300 characters at most), `since`;
+  - `status`: `working`, `waiting`, `done`, `interrupted` or `error`;
+  - `waiting`: `question` (`AskUserQuestion`, `ExitPlanMode`) or `permission` (any other request), without its content;
+  - `tool`: the name of the running tool (`Bash`, `mcp__jira__search`), never its input;
+  - `error`: `crash` (its process stopped or did not start), `api` (Claude's API refused the turn), or `mcp` (an MCP server reported `failed` at start, whatever the status);
+  - `by`: the id of the agent that started it with `start_agent`, none when the user did;
+  - `archived`.
+  Squadron never hands out conversations, prompts, tool inputs or outputs, costs, folders, branches or secrets.
+- **`host::usage()`**: `five-hour` and `seven-day` (`utilization` from 0 to 1, `resets-at` in ms), read from Claude Code's `rate_limit_event` as the status bar does. Also `api`, `retries` and `since`. `api` can be:
+  - `ok`;
+  - `overloaded`, with `retries` = the `attempt` of `system/api_retry` with `error: "overloaded"` or 529;
+  - `outage`: an `api_retry` or a failed result with a 5xx status;
+  - `offline`: the system says so (`navigator.onLine`), or an `api_retry` got no answer;
+  - `signed_out`: an `api_retry` or an assistant line with `authentication_failed`, or a failed result that asks for `/login`.
+  A successful result, a `rate_limit_event` or the start of a message brings it back to `ok`.
+- **What Squadron cannot know**:
+  - Nothing changes while no agent calls the API: an outage that happens while all agents rest shows once one of them sends a request.
+  - The 5-hour and weekly windows only refresh when an agent gets an answer.
+  - A tool denied by a hook does not show apart from one denied by the user (`permission_denials` does not say who), so there is no `hook` error.
+  - An MCP server that fails after start is not seen.
+- **`host::show-agent(id)`**: brings the agent to the front, as a click in the list would. An archived agent opens in the archive of its project, read only, with no way to restore it from the API. It is refused unless one of the extension's panels is on screen in the agent view, and it can be called once a second at most. The panel's page loads again beside the shown agent, and moving to another project hides it when that project does not have it open.
+- **Events**, with `agent` empty and `data` in JSON, snake_case keys:
+  - with `activity`: `agent.status` (the agent of `all-agents`, when any field changed), `agent.started` (a new agent, with `by`), `agent.archived` and `agent.message` (`{ "from", "to", "count" }`, when an agent sent `count` messages to another through `message_agent`, never their text);
+  - with `projects`: `project.added`, `project.changed` (name, color or group), `project.archived` and `project.removed` (the project), and `groups.changed` (`{ "groups": [ … ] }`);
+  - with `usage`: `usage` (what `usage()` returns).
+- **No flood**:
+  - The window compares a snapshot of agents, projects and usage once a second and sends only the differences, and only when an extension holds the permission.
+  - Rust gives each extension at most one batch a second, with the latest state of each agent or project only. Messages are counted by pair, and a batch holds 4096 keys at most.
+  - An extension slower than the flow does not pile up events: they merge in its inbox until it is free.
+  - `panel-post` and `settings-post` deliver at most 200 messages and 4 MB a second to each page and drop the rest of that second, with a line in the log.
+- **Panels**:
+  - A panel reaches only its own extension.
+  - `squadron.send(value)` gives the WASM `panel.message` with `{ "panel", "message" }`. The WASM answers with `host::panel-post`, calls `show-agent` for an Open agent button, and keeps what the panel wants to save with `host::state-set`. A layout seed, the seed to start with, or "a new one each time" fit there, 1 MB at most. `data-dir` serves `exec` and is not needed for this.
+  - New in 1.7: `panel.closed` with `{ "panel" }` when a panel closes, so that the WASM stops relaying. The panel belongs to the view of the shown agent: showing another agent or project closes it and loads its page again beside the new one, which sends a first message (`ready`) again. A page keeps what must survive that (camera, selection) through the WASM.
+
+The WIT of 1.7.0 adds the records `project`, `group`, `agent-activity`, `usage-window` and `claude-usage`, and the imports `projects`, `groups`, `all-agents`, `usage` and `show-agent` (`extensions/api/wit/squadron.wit`). No export changes, so an extension built against 1.0 to 1.6 still loads: this was checked by loading Hello built against 1.6.0 into the 1.7 host.
 
 ### Skills (`contributes.skills`)
 

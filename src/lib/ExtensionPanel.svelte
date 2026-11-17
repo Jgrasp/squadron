@@ -1,7 +1,7 @@
 <script lang="ts">
   import { locale, t } from './i18n/index.svelte'
   import { PAGE_THEME, text, themeOf, type Panel } from './extensions'
-  import { extensions, onPanelPost, panelMessage, setOption } from './extensions.svelte'
+  import { extensions, onPanelPost, panelClosed, panelMessage, setOption } from './extensions.svelte'
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
 
@@ -34,6 +34,11 @@
   $effect(() => {
     void extensions.options[panel.extension]
     options()
+  })
+
+  $effect(() => {
+    const shown = panel
+    return () => panelClosed(shown)
   })
 
   $effect(() => onPanelPost(panel.extension, panel.id, (message) => frame?.contentWindow?.postMessage({ squadron: 'extension', message }, '*')))

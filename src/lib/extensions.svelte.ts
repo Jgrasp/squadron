@@ -12,7 +12,7 @@ import { ask, message } from './asking.svelte'
 import { notify } from './notify.svelte'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { active, AGENTS, argsOf, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
+import { active, AGENTS, argsOf, PROJECTS, USAGE, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { type as typeInTerminal } from './terminals.svelte'
@@ -49,7 +49,15 @@ export const commandLine = (key: string) =>
           ? t('extensions.agentsRead')
           : key === `${AGENTS}archive`
             ? t('extensions.agentsArchive')
-            : key
+            : key === `${AGENTS}activity`
+              ? t('extensions.agentsActivity')
+              : key === `${AGENTS}show`
+                ? t('extensions.agentsShow')
+                : key === `${PROJECTS}read`
+                  ? t('extensions.projectsRead')
+                  : key === `${USAGE}read`
+                    ? t('extensions.usageRead')
+                    : key
 
 const app = getVersion().catch(() => '')
 
@@ -154,6 +162,9 @@ export function onPanelPost(extension: string, panel: string, deliver: (message:
 export const panelMessage = (panel: Panel, from: Agent | string, message: unknown) =>
   invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.message', agent: typeof from === 'string' ? { id: '', name: '', project: from, dir: from } : info(from), data: JSON.stringify({ panel: panel.id, message: message ?? null }) })
 
+export const panelClosed = (panel: Panel) =>
+  invoke('extensions_wasm_event', { id: panel.extension, name: 'panel.closed', agent: null, data: JSON.stringify({ panel: panel.id }) }).catch(() => {})
+
 export const SETTINGS_PAGE = ':settings'
 
 export const settingsMessage = (extension: string, message: unknown) =>
@@ -234,6 +245,8 @@ export const asks = (entry: CatalogEntry) => [
   ...(entry.permissions?.exec ?? []).map((p) => commandLine(EXEC + p)),
   ...(entry.permissions?.network ?? []).map((h) => commandLine(NET + h)),
   ...(entry.permissions?.agents ?? []).map((a) => commandLine(AGENTS + a)),
+  ...(entry.permissions?.projects ?? []).map((a) => commandLine(PROJECTS + a)),
+  ...(entry.permissions?.usage ?? []).map((a) => commandLine(USAGE + a)),
 ]
 
 const TOLD = 'squadron.extension-updates'

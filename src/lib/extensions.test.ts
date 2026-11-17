@@ -320,4 +320,16 @@ describe('extensions', () => {
     expect(load(found, [], {})[0].pending).toEqual(['agents:read', 'agents:archive'])
     expect(grantsOf(load(found, [], { jira: ['agents:read'] })[0])).toEqual(['agents:read'])
   })
+
+  it('asks to see projects, all agents, the usage and to show an agent', () => {
+    const base = { id: 'office', version: '1.0.0', api: 1, name: { en: 'Office' } }
+    const all = { ...base, permissions: { agents: ['activity', 'show'], projects: ['read'], usage: ['read'] } }
+    expect(keys(all)).toEqual([])
+    for (const projects of [['write'], 'read', [true]]) expect(keys({ ...base, permissions: { projects } })).toEqual(['extensions.badProjects'])
+    expect(keys({ ...base, permissions: { usage: ['read', 'reset'] } })).toEqual(['extensions.badUsage'])
+    expect(keys({ ...base, permissions: { agents: ['restore'] } })).toEqual(['extensions.badAgents'])
+    const found = [{ dir: '/m/office', linked: false, manifest: all, error: null }]
+    expect(load(found, [], {})[0].pending).toEqual(['agents:activity', 'agents:show', 'projects:read', 'usage:read'])
+    expect(grantsOf(load(found, [], { office: ['projects:read', 'usage:read'] })[0])).toEqual(['projects:read', 'usage:read'])
+  })
 })
