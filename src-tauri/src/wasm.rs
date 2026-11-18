@@ -438,7 +438,7 @@ impl Host {
         {
             cmd.current_dir(dir);
         }
-        let out = extension_tools::capture_input(cmd, input.map(String::into_bytes))?;
+        let out = extension_tools::capture_input(cmd, input.map(String::into_bytes), MAX_BODY)?;
         Ok(Output {
             code: out.status.and_then(|s| s.code()).unwrap_or(-1),
             stdout: out.stdout,
