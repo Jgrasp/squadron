@@ -181,6 +181,7 @@ export default {
   showContent: 'Show content',
   hideContent: 'Hide',
   openInWindow: 'Open in a window',
+  showInFolder: 'Show in folder',
   fileMissing: 'File not found.',
   previewLines: 'First {shown} of {total} lines.',
   moreFiles: { one: '{count} more file', other: '{count} more files' },

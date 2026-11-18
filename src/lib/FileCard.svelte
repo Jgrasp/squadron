@@ -28,6 +28,7 @@
   const lines = $derived(text?.split('\n') ?? [])
   let limit = $state(PREVIEW)
   let error = $state('')
+  let failed = $state('')
   let card: HTMLElement
   let scroller: HTMLElement | null = null
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -37,6 +38,11 @@
     const shown = await WebviewWindow.getByLabel(label)
     if (shown) return shown.setFocus()
     new WebviewWindow(label, { url: `index.html?${new URLSearchParams({ project, path })}`, title: `${name} · Squadron`, width: 760, height: 820, minWidth: 420, minHeight: 300 })
+  }
+
+  function locate() {
+    failed = ''
+    invoke('reveal_project_file', { project, path }).catch((e) => (failed = errorText(e)))
   }
 
   async function toggle() {
@@ -88,11 +94,18 @@
       {open ? t('conversation.hideContent') : t('conversation.showContent')}
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     </button>
+    <button type="button" class="btn btn-ghost folder" title={t('conversation.showInFolder')} aria-label={t('conversation.showInFolder')} onclick={locate}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+      <span class="label">{t('conversation.showInFolder')}</span>
+    </button>
     <button type="button" class="btn btn-ghost float" title={t('conversation.openInWindow')} aria-label={t('conversation.openInWindow')} onclick={float}>
       <span class="label">{t('conversation.openInWindow')}</span>
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2" /><path d="M10 3h11v11" /></svg>
     </button>
   </div>
+  {#if failed}
+    <p class="note failed">{failed}</p>
+  {/if}
   {#if open}
     <div class="body" onscrollcapture={more} transition:slide={{ duration: still ? 0 : 260 }} onintroend={reveal}>
       {#if error}
@@ -213,6 +226,12 @@
     margin-left: auto;
   }
 
+  @container (max-width: 620px) {
+    .folder .label {
+      display: none;
+    }
+  }
+
   @container (max-width: 440px) {
     .float .label {
       display: none;
@@ -245,6 +264,10 @@
     padding: 12px 15px;
     font-size: 12.5px;
     color: var(--text-dim);
+  }
+
+  .failed {
+    border-top: 1px solid var(--border);
   }
 
   .more {

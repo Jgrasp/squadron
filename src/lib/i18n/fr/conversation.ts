@@ -183,6 +183,7 @@ export default {
   showContent: 'Voir le contenu',
   hideContent: 'Masquer',
   openInWindow: 'Ouvrir dans une fenêtre',
+  showInFolder: 'Afficher dans le dossier',
   fileMissing: 'Fichier introuvable.',
   previewLines: '{shown} premières lignes sur {total}.',
   moreFiles: { one: '{count} autre fichier', other: '{count} autres fichiers' },

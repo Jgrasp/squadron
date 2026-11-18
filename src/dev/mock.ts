@@ -1020,6 +1020,7 @@ mockIPC(
         if (files.has(a.path)) return files.get(a.path)
         throw 'Not an image.'
       case 'open_attachment':
+      case 'reveal_project_file':
         return
       case 'attachment_size':
         return a.path.length * 3_917

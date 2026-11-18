@@ -880,6 +880,13 @@ fn read_project_file(project: PathBuf, path: PathBuf) -> Result<Option<String>, 
 }
 
 #[tauri::command]
+fn reveal_project_file(project: PathBuf, path: PathBuf) -> Result<(), String> {
+    let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
+    std::fs::metadata(&file).map_err(|_| "The file is gone.")?;
+    tauri_plugin_opener::reveal_item_in_dir(&file).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 fn write_project_file(project: PathBuf, path: PathBuf, text: String) -> Result<(), String> {
     let file = projects::inside(&project, &path).ok_or("File outside the project.")?;
     std::fs::write(file, text).map_err(|e| e.to_string())
@@ -2730,6 +2737,7 @@ pub fn run() {
             claude_version,
             tested_claude_version,
             suggest_title,
+            reveal_project_file,
             remove_rule,
             set_cards,
             create_agent,
