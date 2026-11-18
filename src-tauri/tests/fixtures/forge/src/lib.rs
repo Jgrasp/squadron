@@ -3,7 +3,9 @@ use squadron_extension_api::{Agent, Extension, host, squadron_extension};
 struct Forge;
 
 fn number(key: &str) -> u64 {
-    host::state_get(key).and_then(|n| n.parse().ok()).unwrap_or(0)
+    host::state_get(key)
+        .and_then(|n| n.parse().ok())
+        .unwrap_or(0)
 }
 
 fn bump(key: &str) -> u64 {

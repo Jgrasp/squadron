@@ -218,7 +218,11 @@ mod tests {
         let error: Value = serde_json::from_str(&unsupported("runs")).unwrap();
         assert_eq!(error["code"], "unsupported");
         assert_eq!(error["title"]["en"], "This extension does not answer runs.");
-        let error: Value = serde_json::from_str(&no_account(json!("Add a GitHub account"))).unwrap();
-        assert_eq!((error["code"].as_str(), error.get("detail")), (Some("account"), None));
+        let error: Value =
+            serde_json::from_str(&no_account(json!("Add a GitHub account"))).unwrap();
+        assert_eq!(
+            (error["code"].as_str(), error.get("detail")),
+            (Some("account"), None)
+        );
     }
 }
