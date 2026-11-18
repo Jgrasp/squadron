@@ -24,3 +24,4 @@ dist-ssr
 *.sw?
 .vitest
 .worktrees/
+.claude/worktrees/
