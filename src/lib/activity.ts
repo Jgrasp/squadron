@@ -16,6 +16,7 @@ export type AgentActivity = {
   by: string | null
   archived: boolean
   since: number
+  unread: boolean
 }
 
 export type ProjectActivity = { id: string; name: string; color: string | null; group: string | null; archived: boolean; active: number; week_agents: number; agents: number }
@@ -82,6 +83,7 @@ export function activityOf(agent: Agent, archived = false): AgentActivity {
     by: agent.startedBy ?? null,
     archived,
     since: Math.round(agent.since),
+    unread: live && !!agent.unread,
   }
 }
 

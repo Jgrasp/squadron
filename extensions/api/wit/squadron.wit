@@ -1,4 +1,4 @@
-package squadron:api@1.7.0;
+package squadron:api@1.8.0;
 
 interface types {
   /// The agent a call is about.
@@ -196,6 +196,8 @@ interface host {
   groups: func() -> result<list<group>, string>;
   /// Every agent, archived ones included, and what it is doing. Needs `agents: ["activity"]` in `permissions`. Since 1.7.0.
   all-agents: func() -> result<list<agent-activity>, string>;
+  /// The ids of the live agents the user has not read since their last turn, as the dot of the agent list shows them. `agent.status` events also carry `unread`. Needs `agents: ["activity"]` in `permissions`. Since 1.8.0.
+  unread-agents: func() -> result<list<string>, string>;
   /// Claude's 5-hour and weekly limits and the state of its API. Needs `usage: ["read"]` in `permissions`. Since 1.7.0.
   usage: func() -> result<claude-usage, string>;
   /// Brings an agent to the front in Squadron, an archived one in the archive of its project, read only. Only within 2 s of a message from one of the extension's panels, while that panel is on screen, holds the focus and has the pointer over it, once a second at most. It never acts on the agent. Needs `agents: ["show"]` in `permissions`. Since 1.7.0.

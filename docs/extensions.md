@@ -542,6 +542,12 @@ For an extension that draws what Squadron is doing, like the Agent Office (one b
 
 The WIT of 1.7.0 adds the records `project`, `group`, `agent-activity`, `usage-window` and `claude-usage`, and the imports `projects`, `groups`, `all-agents`, `usage` and `show-agent` (`extensions/api/wit/squadron.wit`). No export changes, so an extension built against 1.0 to 1.6 still loads: this was checked by loading Hello built against 1.6.0 into the 1.7 host.
 
+### Unread agents (API 1.8)
+
+- **`host::unread-agents()`**: the ids of the live agents the user has not read since their last turn, the dot of the agent list. Same permission as `all-agents` (`agents: ["activity"]`), same data, read once for both within 500 ms. An archived agent is never unread.
+- **Events**: `agent.status`, `agent.started` and `agent.archived` carry `unread` (`true` or `false`), so marking an agent read or unread, or opening it, sends `agent.status`.
+- `agent-activity` keeps its fields: a field more in a record would stop an extension built against 1.7.0 from loading. The WIT of 1.8.0 adds the import `unread-agents` only.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

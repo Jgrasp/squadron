@@ -653,6 +653,17 @@ impl squadron::api::host::Host for Host {
             .collect())
     }
 
+    fn unread_agents(&mut self) -> Result<Vec<String>, String> {
+        self.may(ACTIVITY)?;
+        Ok(self
+            .listed::<activity::Agent>("all-agents")?
+            .into_iter()
+            .filter_map(activity::Agent::clean)
+            .filter(|a| a.unread)
+            .map(|a| a.id)
+            .collect())
+    }
+
     fn usage(&mut self) -> Result<ClaudeUsage, String> {
         self.may(READ_USAGE)?;
         serde_json::from_value::<activity::Usage>(self.recently("usage")?)
@@ -1749,7 +1760,9 @@ mod tests {
             ])),
             "groups" => Ok(json!([{"id": "g1", "name": "Work", "parent": ""}])),
             "all-agents" => Ok(json!([
-                {"id": "a1", "project": "/home/me/ring", "name": "RING-1", "status": "waiting", "waiting": "question", "tool": null, "error": null, "by": null, "archived": true, "since": 3, "dir": "/home/me/ring/w"}
+                {"id": "a1", "project": "/home/me/ring", "name": "RING-1", "status": "waiting", "waiting": "question", "tool": null, "error": null, "by": null, "archived": true, "since": 3, "dir": "/home/me/ring/w"},
+                {"id": "a2", "project": "/home/me/ring", "name": "RING-2", "status": "done", "archived": false, "since": 4, "unread": true},
+                {"id": "a3", "project": "/home/me/ring", "name": "RING-3", "status": "done", "archived": true, "since": 4, "unread": true}
             ])),
             "usage" => Ok(
                 json!({"five_hour": {"utilization": 0.5, "resets_at": 10}, "seven_day": null, "api": "overloaded", "retries": 2, "since": 4}),
@@ -1779,6 +1792,12 @@ mod tests {
         );
         assert!(
             denied
+                .unread_agents()
+                .unwrap_err()
+                .contains(r#""activity" in permissions.agents"#)
+        );
+        assert!(
+            denied
                 .usage()
                 .unwrap_err()
                 .contains(r#""read" in permissions.usage"#)
@@ -1801,6 +1820,8 @@ mod tests {
         assert_eq!(agents[0].project, projects[0].id);
         assert_eq!(agents[0].waiting.as_deref(), Some("question"));
         assert!(agents[0].archived);
+        assert_eq!(agents.len(), 3);
+        assert_eq!(host.unread_agents().unwrap(), ["a2"]);
         let usage = host.usage().unwrap();
         assert_eq!((usage.api.as_str(), usage.retries), ("overloaded", 2));
         assert_eq!(usage.five_hour.unwrap().resets_at, Some(10));

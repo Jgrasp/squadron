@@ -58,7 +58,7 @@ export default {
   badNetwork: 'permissions.network doit être une liste de noms de domaine, comme ["api.github.com"].',
   agentsRead: 'Voit vos agents et ce qu’ils font',
   agentsArchive: 'Archive vos agents qui ne travaillent pas',
-  agentsActivity: 'Voit tous vos agents, archivés compris : leur nom, leur état, l’outil qu’ils lancent et qui les a lancés, jamais leurs conversations',
+  agentsActivity: 'Voit tous vos agents, archivés compris : leur nom, leur état, l’outil qu’ils lancent, qui les a lancés et si vous les avez lus, jamais leurs conversations',
   agentsShow: 'Affiche l’un de vos agents dans Squadron quand son panneau est à l’écran',
   projectsRead: 'Voit vos projets et vos groupes : noms, couleurs et nombre d’agents, jamais leurs dossiers',
   usageRead: 'Voit où vous en êtes des limites de session et de semaine de Claude, et si l’API de Claude répond',
