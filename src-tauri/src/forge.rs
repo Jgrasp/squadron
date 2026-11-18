@@ -158,6 +158,8 @@ pub struct Remark {
     pub reply_to: Option<String>,
     pub at: String,
     pub kind: String,
+    pub resolved: Option<bool>,
+    pub commit: Option<String>,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -751,7 +753,7 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
                     if url.starts_with(BITBUCKET) {
                         &[]
                     } else {
-                        &[("pagelen", "100"), ("fields", "next,values.id,values.content.raw,values.user.display_name,values.user.links.avatar.href,values.inline,values.parent.id,values.created_on,values.deleted")]
+                        &[("pagelen", "100"), ("fields", "next,values.id,values.content.raw,values.user.display_name,values.user.links.avatar.href,values.inline,values.parent.id,values.created_on,values.deleted,values.resolution.type")]
                     },
                     None,
                 )
@@ -804,6 +806,7 @@ fn bitbucket_remark(found: &Value) -> Option<Remark> {
     let inline = &found["inline"];
     let (to, from) = (inline["to"].as_u64(), inline["from"].as_u64());
     let current = inline["outdated"] != true;
+    let root = !found["parent"]["id"].is_u64();
     Some(Remark {
         id: found["id"].as_u64()?.to_string(),
         author: text(&found["user"]["display_name"]),
@@ -820,6 +823,8 @@ fn bitbucket_remark(found: &Value) -> Option<Remark> {
             "general"
         }
         .into(),
+        resolved: root.then(|| found["resolution"].is_object()),
+        commit: inline["src_rev"].as_str().map(str::to_string),
     })
 }
 
@@ -837,6 +842,29 @@ pub async fn reply(dir: &Path, number: u64, to: u64, body: String) -> Result<(),
             &format!("/repositories/{}/pullrequests/{number}/comments", repo.slug),
             &[],
             Some(json!({ "content": { "raw": body }, "parent": { "id": to } })),
+        )
+        .await
+        .map(|_| ()),
+    }
+}
+
+pub async fn resolve(dir: &Path, number: u64, to: u64, resolved: bool) -> Result<(), String> {
+    let repo = repo_of(dir)?;
+    match repo.host {
+        Host::GitLab => gitlab::resolve(&repo.slug, number, to, resolved).await,
+        Host::Azure => azure::resolve(&repo.slug, number, to, resolved).await,
+        Host::Bitbucket => bitbucket(
+            if resolved {
+                Method::POST
+            } else {
+                Method::DELETE
+            },
+            &format!(
+                "/repositories/{}/pullrequests/{number}/comments/{to}/resolve",
+                repo.slug
+            ),
+            &[],
+            None,
         )
         .await
         .map(|_| ()),
@@ -1257,7 +1285,7 @@ mod tests {
 
     #[test]
     fn reads_remarks_on_lines_and_on_the_whole_pull_request() {
-        let on_line = json!({ "id": 7, "content": { "raw": "Rename this" }, "user": { "display_name": "Amandine T.", "links": { "avatar": { "href": "https://a/at.png" } } }, "inline": { "path": "src/A.php", "from": null, "to": 12 }, "created_on": "2026-10-23T09:00:00Z" });
+        let on_line = json!({ "id": 7, "content": { "raw": "Rename this" }, "user": { "display_name": "Amandine T.", "links": { "avatar": { "href": "https://a/at.png" } } }, "inline": { "path": "src/A.php", "from": null, "to": 12, "src_rev": "a1b2c3d" }, "resolution": { "type": "comment_resolution" }, "created_on": "2026-10-23T09:00:00Z" });
         let removed = json!({ "id": 8, "content": { "raw": "Why?" }, "user": { "display_name": "A" }, "inline": { "path": "src/A.php", "from": 4, "to": null }, "parent": { "id": 7 }, "created_on": "t" });
         let outdated = json!({ "id": 9, "content": { "raw": "Old" }, "user": { "display_name": "A" }, "inline": { "path": "src/A.php", "to": 3, "outdated": true }, "created_on": "t" });
         let general = json!({ "id": 10, "content": { "raw": "LGTM" }, "user": { "display_name": "A" }, "created_on": "t" });
@@ -1287,6 +1315,11 @@ mod tests {
         assert_eq!(bitbucket_remark(&outdated).unwrap().line, None);
         assert_eq!(bitbucket_remark(&general).unwrap().path, None);
         assert_eq!(bitbucket_remark(&gone), None);
+        assert_eq!(
+            (a.resolved, a.commit.as_deref(), b.resolved),
+            (Some(true), Some("a1b2c3d"), None)
+        );
+        assert_eq!(bitbucket_remark(&general).unwrap().resolved, Some(false));
         assert_eq!(
             (
                 a.kind.as_str(),

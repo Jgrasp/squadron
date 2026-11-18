@@ -360,6 +360,24 @@ pub async fn reply(
     call::<Value>(app, target, "reply", args).await.map(|_| ())
 }
 
+pub async fn resolve(
+    app: &AppHandle,
+    dir: &Path,
+    number: u64,
+    to: String,
+    kind: String,
+    resolved: bool,
+) -> Result<(), String> {
+    let Some(target) = of_dir(app, dir) else {
+        let to = to.parse().map_err(|_| format!("{to} is not a remark."))?;
+        return forge::resolve(dir, number, to, resolved).await;
+    };
+    let args = json!({ "number": number, "to": to, "kind": kind, "resolved": resolved });
+    call::<Value>(app, target, "resolve", args)
+        .await
+        .map(|_| ())
+}
+
 pub async fn post(
     app: &AppHandle,
     dir: &Path,

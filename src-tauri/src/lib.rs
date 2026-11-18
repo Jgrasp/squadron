@@ -1321,6 +1321,18 @@ async fn pull_reply(
 }
 
 #[tauri::command]
+async fn pull_resolve(
+    app: AppHandle,
+    dir: PathBuf,
+    number: u64,
+    to: String,
+    kind: String,
+    resolved: bool,
+) -> Result<(), String> {
+    provider::resolve(&app, &dir, number, to, kind, resolved).await
+}
+
+#[tauri::command]
 async fn post_remarks(
     app: AppHandle,
     dir: PathBuf,
@@ -2759,6 +2771,7 @@ pub fn run() {
             pull_remarks,
             pull_me,
             pull_reply,
+            pull_resolve,
             post_remarks,
             merge_pull,
             update_pull,

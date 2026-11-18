@@ -67,6 +67,8 @@ export type Remark = {
   reply_to: string | null
   at: string
   kind: 'line' | 'general'
+  resolved?: boolean | null
+  commit?: string | null
 }
 
 export const pulls = $state<Record<string, Pull | null>>({})

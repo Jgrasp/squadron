@@ -359,7 +359,7 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
       }
       return r
     }
-    const threads = new Map<string, { id: string; author: string; at: string; path?: string; line?: number; removed?: true; outdated?: true; body: string; replies: { id: string; author: string; at: string; body: string }[] }>()
+    const threads = new Map<string, { id: string; author: string; at: string; path?: string; line?: number; removed?: true; outdated?: true; resolved?: boolean; commit?: string; body: string; replies: { id: string; author: string; at: string; body: string }[] }>()
     for (const r of remarks.filter((r) => rootOf(r) === r))
       threads.set(r.id, {
         id: r.id,
@@ -369,6 +369,8 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
         line: r.line ?? undefined,
         removed: r.removed || undefined,
         outdated: (!!r.path && r.line === null) || undefined,
+        resolved: r.resolved ?? undefined,
+        commit: r.commit ?? undefined,
         body: r.body,
         replies: [],
       })

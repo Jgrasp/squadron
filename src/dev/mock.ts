@@ -1134,15 +1134,16 @@ mockIPC(
         }))
       case 'pull_remarks':
         return [
-          { id: '1', author: 'Amandine T.', avatar: '', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z', kind: 'line' },
+          { id: '1', author: 'Amandine T.', avatar: '', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z', kind: 'line', resolved: false, commit: 'a1b2c3d' },
           { id: '2', author: 'Quentin Briais', avatar: '', body: 'The CLI import has none.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: '1', at: '2026-10-23T09:20:00Z' },
           { id: '4', author: 'Lucas M.', avatar: '', body: 'The scheduler has none either, keep it nullable.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: '1', at: '2026-10-23T09:42:00Z' },
-          { id: '5', author: 'Lucas M.', avatar: '', body: 'Why not reuse the export channel option?', path: 'src/Export/ExportService.php', line: 16, removed: false, reply_to: null, at: '2026-10-23T10:05:00Z', kind: 'line' },
+          { id: '5', author: 'Lucas M.', avatar: '', body: 'Why not reuse the export channel option?', path: 'src/Export/ExportService.php', line: 16, removed: false, reply_to: null, at: '2026-10-23T10:05:00Z', kind: 'line', resolved: true, commit: 'a1b2c3d' },
           { id: '3', author: 'Amandine T.', avatar: '', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
         ]
       case 'pull_me':
         return { name: 'Quentin Briais', avatar: '' }
       case 'pull_reply':
+      case 'pull_resolve':
         return
       case 'update_pull':
       case 'merge_pull':

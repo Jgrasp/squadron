@@ -463,7 +463,7 @@ impl Pilot {
             .await
     }
 
-    /// Returns the comments posted on a pull request on Bitbucket, GitHub, GitLab or Azure DevOps, in threads with their replies: on the whole pull request or on a file line (outdated when the line no longer exists). Squadron reads them with the user's account: no token needed.
+    /// Returns the comments posted on a pull request on Bitbucket, GitHub, GitLab or Azure DevOps, in threads with their replies: on the whole pull request or on a file line (outdated when the line no longer exists), with `resolved` when the host tracks it and the `commit` a line comment was written on. Squadron reads them with the user's account: no token needed.
     #[tool]
     async fn read_pull_comments(
         &self,
