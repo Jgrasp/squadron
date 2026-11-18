@@ -123,7 +123,7 @@
       {:else if text === null}
         <p class="note">{t('conversation.fileMissing')}</p>
       {:else if TABULAR.test(name)}
-        <CsvTable {text} {name} />
+        <CsvTable text={text ?? ''} {name} />
       {:else}
         <Markdown text={fenced(lines.slice(0, limit).join('\n'), languageOf(name)?.name.toLowerCase())} />
         {#if lines.length > limit}
