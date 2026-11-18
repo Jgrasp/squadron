@@ -1,6 +1,18 @@
 # Changelog
 
+## 0.53.2 · 2026-11-18
+
+### Fixes
+
+- What’s new lists the 0.53.0 changes under 0.53.0 again, and 0.53.1 as a build fix.
+
 ## 0.53.1 · 2026-11-18
+
+### Fixes
+
+- No change you can see: this version fixes how Squadron is built.
+
+## 0.53.0 · 2026-11-18
 
 ### Pull requests
 

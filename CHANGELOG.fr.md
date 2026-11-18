@@ -1,6 +1,18 @@
 # Nouveautés
 
+## 0.53.2 · 2026-11-18
+
+### Correctifs
+
+- Les Nouveautés rangent de nouveau les changements de la 0.53.0 sous la 0.53.0, et la 0.53.1 comme un correctif de construction.
+
 ## 0.53.1 · 2026-11-18
+
+### Correctifs
+
+- Aucun changement visible : cette version corrige la construction de Squadron.
+
+## 0.53.0 · 2026-11-18
 
 ### Pull requests
 
