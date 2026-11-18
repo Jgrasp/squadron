@@ -42,6 +42,7 @@
 
 - « Découvrir des extensions » liste les extensions en lignes, avec l’interrupteur, les réglages et la mise à jour pour celles installées, et Installer pour les autres. L’entrée Extensions du menu l’ouvre, et « Ajouter une extension locale » est à côté de « Ajouter une marketplace ».
 - API d’extension 1.8.0 : une extension peut fournir les pull requests et les pipelines d’une forge, fils résolus compris, et les extensions qui lisent l’activité des agents voient lesquels ne sont pas lus.
+- API d’extension 1.9.0 : une extension peut ouvrir un de ses panneaux, ou le ramener au premier plan, sans clic, dès le lancement de Squadron ou depuis n’importe lequel de ses événements.
 
 ## 0.52.0 · 2026-11-17
 

@@ -42,6 +42,7 @@
 
 - Discover lists extensions as rows, with the on/off switch, Settings and Update for installed ones and Install for the others. The Extensions menu item opens it, and Add a local extension sits next to Add a marketplace.
 - Extension API 1.8.0: an extension can provide the pull requests and pipelines of a forge, resolved threads included, and the extensions that read agents' activity see which agents are unread.
+- Extension API 1.9.0: an extension can open one of its panels, or bring it to the front, without a click, from Squadron's launch or any of its events.
 
 ## 0.52.0 · 2026-11-17
 
