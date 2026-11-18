@@ -2,9 +2,9 @@
 
 ## 0.53.1 · 2026-11-18
 
-### Mises à jour
+### Correctifs
 
-- Squadron 0.53.0 n’a pas été publiée : cette version apporte ses nouveautés, détaillées sous 0.53.0.
+- Aucun changement visible : cette version corrige la construction de Squadron.
 
 ## 0.53.0 · 2026-11-18
 

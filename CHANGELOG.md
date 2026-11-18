@@ -2,9 +2,9 @@
 
 ## 0.53.1 · 2026-11-18
 
-### Updates
+### Fixes
 
-- Squadron 0.53.0 did not ship: this version brings its changes, listed under 0.53.0.
+- No change you can see: this version fixes how Squadron is built.
 
 ## 0.53.0 · 2026-11-18
 
