@@ -19,8 +19,9 @@
   import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { closeRound, hostName, inRound, markReviewed, merge, openRound, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { closeRound, hostName, inRound, judgementOf, markReviewed, merge, openRound, post, reviews, rounds, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
+  import PullThreads, { stateOf, type ThreadState } from './PullThreads.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
   import Trans from './Trans.svelte'
   import { can, offers } from './forges.svelte'
@@ -142,6 +143,39 @@
     return [...list.values()]
   })
   const general = $derived(threads.filter((t) => !t.root.path || t.root.line === null))
+  let picked = $state<'threads' | 'diff' | null>(null)
+  $effect(() => {
+    void pull?.number
+    picked = null
+  })
+  const pane = $derived(reviewing ? (picked ?? (threads.length || rounds[reviewKey]?.length ? 'threads' : 'diff')) : 'diff')
+  const STATE_KEYS: Record<ThreadState, Key> = {
+    open: 'review.threadOpen',
+    answered: 'review.threadAnswered',
+    fixed: 'review.threadFixed',
+    resolved: 'review.threadResolved',
+    outdated: 'review.threadOutdated',
+  }
+  const pending = $derived(threads.filter((th) => ['open', 'answered', 'fixed'].includes(stateOf(reviewKey, th))))
+  const resolvables = $derived(pull && can(pull.host, 'resolve') ? pending.filter((th) => th.root.resolved === false) : [])
+  let toResolve = $state<string[]>([])
+  $effect(() => {
+    if (finishing) untrack(() => (toResolve = resolvables.filter((th) => stateOf(reviewKey, th) === 'fixed').map((th) => th.root.id)))
+  })
+
+  async function goToThread(th: Thread) {
+    picked = 'diff'
+    await tick()
+    const there = spots.find((s) => s.key === `thread:${th.root.id}`)
+    if (there) goToSpot(there)
+    else if (th.root.path) scrollToFile(th.root.path)
+  }
+
+  async function goToDraft(c: Comment) {
+    picked = 'diff'
+    await tick()
+    goTo(c)
+  }
   const threadsAt = (path: string, line: Line) =>
     threads.filter((t) => t.root.path === path && t.root.line === line.number && t.root.removed === (line.side === 'old'))
   const talks = (path: string) => threads.filter((t) => t.root.path === path && t.root.line !== null).length
@@ -602,6 +636,7 @@
     if (!pull || !ready) return
     const sending = [...review]
     const head = openRound(reviewKey)?.head || pull.head
+    const resolving = resolvables.filter((th) => toResolve.includes(th.root.id))
     posting = true
     postError = null
     const { done, said, error, sent } = await post(folder, pull, sending, summary, verdict, head)
@@ -610,6 +645,11 @@
     if (said) summary = ''
     if (error) return (postError = { text: error, done })
     closeRound(reviewKey, head, verdict, sending.length)
+    const failed: string[] = []
+    for (const th of resolving)
+      await invoke('pull_resolve', { dir: folder, number: pull.number, to: th.root.id, kind: th.root.kind, resolved: true }).catch((e) => failed.push(String(e)))
+    if (resolving.length) fresh++
+    if (failed.length) postError = { text: t('review.resolveFailed', { count: failed.length, error: errorText(failed[0]) }), done: 0 }
     summary = ''
     verdict = ''
     finishing = false
@@ -702,7 +742,13 @@
     >
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
     </button>
-    {#if reviewing && since}
+    {#if reviewing}
+      <div class="modes" role="group" aria-label={t('review.viewOfPull')}>
+        <button aria-pressed={pane === 'threads'} onclick={() => (picked = 'threads')}>{t('review.viewThreads')}{#if pending.length}<span class="talks">{pending.length}</span>{/if}</button>
+        <button aria-pressed={pane === 'diff'} onclick={() => (picked = 'diff')}>{t('review.viewChanges')}</button>
+      </div>
+    {/if}
+    {#if reviewing && since && pane === 'diff'}
       <div class="modes" role="group" aria-label={t('review.whatToReview')}>
         <button aria-pressed={onlyNew} onclick={() => ((onlyNew = true), (sinceError = ''))}>{t('review.sinceYourReview')}</button>
         <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>{t('review.allChanges')}</button>
@@ -737,7 +783,7 @@
       <span class="pulse" aria-hidden="true"></span>
       <span class="what">
         {#if review.length}
-          <strong>{t('review.reviewInProgress')}</strong> ·
+          <strong>{openRound(reviewKey) ? t('review.roundN', { n: openRound(reviewKey)!.n }) : t('review.reviewInProgress')}</strong> ·
           <button class="count-toggle" aria-expanded={listing} onclick={() => (listing = !listing)}
             >{t('review.commentCount', { count: review.length })} <span aria-hidden="true">{listing ? '▴' : '▾'}</span></button
           >
@@ -802,6 +848,24 @@
     {/if}
     {#if finishing}
       <div class="finish">
+        {#if resolvables.length}
+          <div class="resolve-list" role="group" aria-label={t('review.resolveOn', { host: hostName(pull) })}>
+            <span class="resolve-head">{t('review.resolveOn', { host: hostName(pull) })} <span>{t('review.resolveHelp')}</span></span>
+            {#each resolvables as th (th.root.id)}
+              {@const state = stateOf(reviewKey, th)}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={toResolve.includes(th.root.id)}
+                  onchange={(e) => (toResolve = e.currentTarget.checked ? [...toResolve, th.root.id] : toResolve.filter((id) => id !== th.root.id))}
+                />
+                <span class="state {state}">{t(STATE_KEYS[state])}</span>
+                <span class="where">{th.root.path ? `${th.root.path}:${th.root.line}` : t('review.pullRequest')}</span>
+                <span class="why">{judgementOf(reviewKey, th.root.id)?.note ?? th.root.body.split('\n')[0]}</span>
+              </label>
+            {/each}
+          </div>
+        {/if}
         <label for="review-summary" class="sr-only">{t('review.overallComment')}</label>
         <!-- svelte-ignore a11y_autofocus -->
         <textarea
@@ -834,6 +898,19 @@
       </div>
     {/if}
   {/if}
+  {#if reviewing && pull && pane === 'threads'}
+    <PullThreads
+      {pull}
+      {folder}
+      {reviewKey}
+      {threads}
+      drafts={review}
+      onfresh={() => fresh++}
+      ongo={goToThread}
+      ondraft={goToDraft}
+      ondrop={drop}
+    />
+  {:else}
   {#if reviewing && sinceError}
     <p class="ahead" role="note">{errorText(sinceError)}</p>
   {/if}
@@ -1089,6 +1166,7 @@
     </div>
   {:else}
     <p class="empty pad">{changes ? t('review.nothingChanged') : agent ? t('review.agentChangedNothing', { agent: agent.name }) : t('review.noRepositoryHere')}</p>
+  {/if}
   {/if}
 </SidePanel>
 
@@ -2112,5 +2190,87 @@
 
   kbd {
     font-family: var(--mono);
+  }
+
+  .resolve-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-main);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .resolve-head {
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .resolve-head span {
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-faint);
+  }
+
+  .resolve-list label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .resolve-list input {
+    margin: 0;
+    accent-color: var(--accent);
+  }
+
+  .resolve-list .state {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--err-bg);
+    font: 600 11px var(--sans);
+    color: var(--err-text);
+  }
+
+  .resolve-list .state.answered {
+    background: color-mix(in srgb, var(--remote-dot) 16%, transparent);
+    color: var(--remote-text);
+  }
+
+  .resolve-list .state.fixed {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+  }
+
+  .resolve-list .where {
+    flex: none;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 12px var(--mono);
+    color: var(--text-3);
+  }
+
+  .resolve-list .why {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-dim);
   }
 </style>
