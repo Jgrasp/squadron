@@ -568,6 +568,12 @@ fn forge(call: String, input: String) -> Result<String, String> {
 - **State**: one map per extension, shared by every instance and written through to its file. Memory is never shared. `state-get` then `state-set` of one key is not atomic across instances: keep a key per thing rather than a counter that several calls bump.
 - **Limits per call**: 150 s to answer, 5·10⁹ fuel, 64 MB per instance, 30 s and 8 MB per `fetch`. A trap replaces that instance only and shows on the extension's card. A change of permissions reaches the pool on its next call.
 
+### Opening a panel (API 1.9)
+
+- **`host::panel-open(panel)`**: opens one of the extension's panels, as the item `{ "panel.open": "<id>" }` does, without a click and never closing it: an open one comes to the front. A panel with `window` opens in its own window, another beside the agent on screen. No permission.
+- **Errors**: a panel missing from `contributes.panels`, answered by the host without reaching the window, and a panel without `window` while no agent is on screen (overview, board or pull requests shown, or no agent).
+- **Launch**: called from `started`, it waits until the splash is gone and the agents are restored, up to 150 s, then opens. It works the same from `options.changed`, `settings.message`, `timer` and `panel.message`.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

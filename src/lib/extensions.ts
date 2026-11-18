@@ -387,6 +387,14 @@ export const panelsOf = (extensions: Extension[]): Panel[] =>
 
 export const windowOf = (panel: Panel) => `extension-${panel.extension}:${panel.id}`
 
+export function panelOpening(panels: Panel[], extension: string, id: string, project: string | null | undefined): { panel: Panel; project?: string } | { error: string } {
+  const panel = panels.find((p) => p.extension === extension && p.id === id)
+  if (!panel) return { error: `No panel ${id} in contributes.panels.` }
+  if (panel.window) return { panel }
+  if (!project) return { error: `The panel ${id} opens beside the agent on screen, and no agent is on screen.` }
+  return { panel, project }
+}
+
 export const boundsKey = (label: string) => `extension-window:${label}`
 
 export const OFFICIAL = 'Jgrasp/squadron-extensions'

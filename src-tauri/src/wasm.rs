@@ -398,13 +398,17 @@ impl Host {
             .collect())
     }
 
-    fn ask(&self, call: &str, mut args: Value) -> Result<Value, String> {
+    fn ask(&self, call: &str, args: Value) -> Result<Value, String> {
+        self.ask_within(call, args, WINDOW)
+    }
+
+    fn ask_within(&self, call: &str, mut args: Value, within: Duration) -> Result<Value, String> {
         let id = uuid::Uuid::new_v4().to_string();
         let (tx, rx) = mpsc::channel();
         self.answers.lock().unwrap().insert(id.clone(), tx);
         args["reply"] = json!(id);
         self.tell(call, args);
-        let answer = rx.recv_timeout(WINDOW);
+        let answer = rx.recv_timeout(within);
         self.answers.lock().unwrap().remove(&id);
         answer.map_err(|_| "Squadron did not answer.".to_string())?
     }
@@ -533,6 +537,14 @@ impl squadron::api::host::Host for Host {
 
     fn panel_post(&mut self, panel: String, message: String) {
         self.post("panel-post", Some(&panel), message);
+    }
+
+    fn panel_open(&mut self, panel: String) -> Result<(), String> {
+        if !self.panels.contains(&panel) {
+            return Err(format!("No panel {panel:.64} in contributes.panels."));
+        }
+        self.ask_within("panel-open", json!({"panel": panel}), ANSWER)
+            .map(|_| ())
     }
 
     fn fetch(&mut self, request: Request) -> Result<Response, String> {
@@ -2297,6 +2309,33 @@ mod tests {
         );
         assert_eq!(told.iter().filter(|v| v["panel"] == "other").count(), 1);
         assert!(!told.iter().any(|v| v["call"] == "settings-post"));
+    }
+
+    #[test]
+    fn opens_only_its_own_panels_and_passes_the_window_error_on() {
+        use squadron::api::host::Host as _;
+        let (mut host, told) = host(&[], |_, v| match v["panel"].as_str() {
+            Some("main") => Ok(Value::Null),
+            _ => Err("No agent is on screen to open the panel other beside.".into()),
+        });
+        assert_eq!(
+            host.panel_open("stray".into()).unwrap_err(),
+            "No panel stray in contributes.panels."
+        );
+        assert!(told.lock().unwrap().is_empty());
+        assert_eq!(host.panel_open("main".into()), Ok(()));
+        assert_eq!(
+            host.panel_open("other".into()).unwrap_err(),
+            "No agent is on screen to open the panel other beside."
+        );
+        let told = told.lock().unwrap();
+        assert_eq!(
+            told.iter()
+                .map(|v| (v["call"].as_str().unwrap(), v["panel"].as_str().unwrap()))
+                .collect::<Vec<_>>(),
+            [("panel-open", "main"), ("panel-open", "other")]
+        );
+        assert!(host.answers.lock().unwrap().is_empty());
     }
 
     #[test]
