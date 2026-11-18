@@ -51,6 +51,7 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
     items: [
       ['settings', 'settings.title', 'settings.itemSettingsHint'],
       ['extensions', 'settings.tabExtensions', 'settings.itemExtensionsHint'],
+      ['plugins', 'settings.tabPlugins', 'settings.itemPluginsHint'],
       ['updates', 'settings.itemUpdates', 'settings.itemUpdatesHint'],
       ['about', 'settings.itemAbout', 'settings.itemAboutHint'],
     ],
