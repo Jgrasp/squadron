@@ -5,6 +5,7 @@ import { layout, requestPanel, setPanel } from './layout.svelte'
 import { settings } from './settings.svelte'
 import { prompt, workdir, type Agent, type Comment } from './stream'
 import { pushedTo } from './pushed'
+import { byHead } from './rounds'
 import type { Linked } from './linked.svelte'
 import { t, type Key } from './i18n/index.svelte'
 import { forgeName, providedLinks } from './forges.svelte'
@@ -131,8 +132,60 @@ export const reviewedHeads = $state<Record<string, string>>(
   })(),
 )
 
-export function markReviewed(dir: string, pull: Pull) {
-  reviewedHeads[`${dir}#${pull.number}`] = pull.head
+export type Round = { n: number; head: string; started: number; by: string; posted?: number; verdict?: string; comments?: number }
+
+export const rounds = $state<Record<string, Round[]>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.rounds') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+$effect.root(() => {
+  $effect(() => {
+    const kept = Object.fromEntries(Object.entries($state.snapshot(rounds)).map(([key, list]) => [key, list.slice(-20)]))
+    try {
+      localStorage.setItem('squadron.rounds', JSON.stringify(kept))
+    } catch {}
+  })
+})
+
+export const openRound = (key: string) => {
+  const last = rounds[key]?.at(-1)
+  return last && !last.posted ? last : null
+}
+
+export const lastPosted = (key: string) => rounds[key]?.findLast((r) => r.posted) ?? null
+
+export function roundFor(key: string, head: string, by = '') {
+  const open = openRound(key)
+  if (open && (!head || same(open.head, head))) return open
+  if (open && !reviews[key]?.some((c) => c.round === open.n)) {
+    Object.assign(open, { head, by, started: Date.now() })
+    return open
+  }
+  const list = rounds[key] ?? []
+  rounds[key] = [...list, { n: (list.at(-1)?.n ?? 0) + 1, head, started: Date.now(), by }]
+  return rounds[key].at(-1)!
+}
+
+export function inRound(key: string, head: string, by = '') {
+  const round = roundFor(key, head, by)
+  return { round: round.n, head: round.head }
+}
+
+export function closeRound(key: string, head: string, verdict: string, comments: number) {
+  const open = openRound(key) ?? roundFor(key, head)
+  const now = Date.now()
+  for (const round of rounds[key] ?? []) if (!round.posted && round !== open) round.posted = now
+  Object.assign(open, { posted: now, verdict, comments })
+}
+
+export function markReviewed(dir: string, pull: Pull, head = pull.head) {
+  reviewedHeads[`${dir}#${pull.number}`] = head
   try {
     localStorage.setItem('squadron.reviewed', JSON.stringify(reviewedHeads))
   } catch {}
@@ -231,19 +284,36 @@ function tell(pull: Pull, text: string, comments: Comment[] = []) {
       send(agent.id, text, comments, [], '', FOR_INFO)
 }
 
-export async function post(dir: string, pull: Pull, list: Comment[], summary = '', verdict = '') {
-  const drafts = list.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
+type Posted = { done: number; said: boolean; error: string | null; sent: Comment[] }
+
+export async function post(dir: string, pull: Pull, list: Comment[], summary = '', verdict = '', head = pull.head): Promise<Posted> {
+  const groups = byHead(list, head)
+  const sent: Comment[] = []
+  let said = false
   try {
-    const result = await invoke<{ done: number; said: boolean; error: string | null }>('post_remarks', { dir, number: pull.number, head: pull.head, drafts, summary, verdict })
-    if (!result.error)
-      tell(
-        pull,
-        [`The user posted a review of your pull request #${pull.number} on ${hostName(pull)}: they ${VERDICTS[verdict] ?? VERDICTS['']}.`, summary.trim()].filter(Boolean).join('\n\n'),
-        list,
-      )
-    return result
+    for (const [i, { at, items }] of groups.entries()) {
+      const last = i === groups.length - 1
+      const drafts = items.map((c) => ({ path: c.path, line: c.line, removed: c.removed, body: c.note }))
+      const result = await invoke<{ done: number; said: boolean; error: string | null }>('post_remarks', {
+        dir,
+        number: pull.number,
+        head: at,
+        drafts,
+        summary: last ? summary : '',
+        verdict: last ? verdict : '',
+      })
+      sent.push(...items.slice(0, result.done))
+      if (result.error) return { done: sent.length, said: false, error: result.error, sent }
+      said = last && result.said
+    }
+    tell(
+      pull,
+      [`The user posted a review of your pull request #${pull.number} on ${hostName(pull)}: they ${VERDICTS[verdict] ?? VERDICTS['']}.`, summary.trim()].filter(Boolean).join('\n\n'),
+      list,
+    )
+    return { done: sent.length, said, error: null, sent }
   } catch (e) {
-    return { done: 0, said: false, error: String(e) }
+    return { done: sent.length, said: false, error: String(e), sent }
   } finally {
     lookUp(dir, true)
   }
@@ -252,12 +322,14 @@ export async function post(dir: string, pull: Pull, list: Comment[], summary = '
 export async function approve(dir: string, pull: Pull) {
   const { error } = await post(dir, pull, [], '', 'approve')
   if (error) throw error
+  closeRound(`${dir}#${pull.number}`, pull.head, 'approve', 0)
   markReviewed(dir, pull)
 }
 
 export async function requestChanges(dir: string, pull: Pull) {
   const { error } = await post(dir, pull, [], '', 'request_changes')
   if (error) throw error
+  closeRound(`${dir}#${pull.number}`, pull.head, 'request_changes', 0)
   markReviewed(dir, pull)
 }
 
@@ -286,6 +358,7 @@ export async function reviewWithAgent(project: string, pull: Pull) {
   const agent = agents.list.find((a) => a.id === id)
   if (agent) {
     agent.review = { project, number: pull.number, base: pull.base, title: pull.title, head: pull.head }
+    roundFor(`${project}#${pull.number}`, pull.head, id)
     persist(agent)
   }
   return id
@@ -299,6 +372,7 @@ export async function reviewChanges(agent: Agent, pull: Pull) {
   const review = agent.review!
   await invoke('review_checkout', { project: review.project, number: pull.number, branch: pull.branch, base: pull.base, head: pull.head })
   const since = review.head ?? sinceOf(review.project, pull)
+  roundFor(`${review.project}#${pull.number}`, pull.head, agent.id)
   const shown = since && /^[0-9a-f]{7,40}$/.test(since) ? `git diff ${since}..HEAD shows them` : `git log origin/${pull.base}..HEAD lists them`
   send(
     agent.id,

@@ -11,7 +11,7 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, inspect, projects, set, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, type Remark } from './pulls.svelte'
+import { lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, inRound, reviews, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -325,9 +325,10 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     }
     const text = !path || removed ? null : await invoke<string | null>('read_project_file', { project: workdir(caller), path }).catch(() => null)
     const key = `${caller.review.project}#${caller.review.number}`
+    const round = inRound(key, caller.review.head ?? '', caller.id)
     const before = reviews[key] ?? []
-    const kept = before.filter((c) => !path || c.path !== path || c.line !== line || c.removed !== removed)
-    reviews[key] = [...kept, { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number }]
+    const kept = before.filter((c) => !path || c.round !== round.round || c.path !== path || c.line !== line || c.removed !== removed)
+    reviews[key] = [...kept, { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number, ...round }]
     const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
     return `${kept.length < before.length ? 'Replaced the comment already on that line in' : 'Added to'} the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
   },

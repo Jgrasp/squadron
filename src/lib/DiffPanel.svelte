@@ -19,7 +19,7 @@
   import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { hostName, markReviewed, merge, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { closeRound, hostName, inRound, markReviewed, merge, openRound, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
   import Trans from './Trans.svelte'
@@ -494,7 +494,7 @@
 
   function draft(): Comment {
     const { path, side, number, text } = commenting!
-    return { path, line: number, removed: side === 'old', code: text, note: note.trim(), ...(reviewing ? { pull: pull!.number } : {}) }
+    return { path, line: number, removed: side === 'old', code: text, note: note.trim(), ...(reviewing ? { pull: pull!.number, ...inRound(reviewKey, pull!.head) } : {}) }
   }
 
   function comment(event?: Event) {
@@ -535,7 +535,7 @@
 
   let generalNote = $state('')
   const mineGeneral = $derived(reviewing ? [...review, ...comments.filter(here)].filter((c) => !c.path) : [])
-  const generalDraft = (): Comment => ({ path: '', line: 0, removed: false, code: '', note: generalNote.trim(), pull: pull!.number })
+  const generalDraft = (): Comment => ({ path: '', line: 0, removed: false, code: '', note: generalNote.trim(), pull: pull!.number, ...inRound(reviewKey, pull!.head) })
 
   function addGeneral(where: 'review' | 'agent') {
     if (!generalNote.trim() || !pull) return
@@ -601,18 +601,20 @@
   async function submit() {
     if (!pull || !ready) return
     const sending = [...review]
+    const head = openRound(reviewKey)?.head || pull.head
     posting = true
     postError = null
-    const { done, said, error } = await post(folder, pull, sending, summary, verdict)
+    const { done, said, error, sent } = await post(folder, pull, sending, summary, verdict, head)
     posting = false
-    reviews[reviewKey] = review.filter((c) => !sending.slice(0, done).includes(c))
+    reviews[reviewKey] = review.filter((c) => !sent.includes(c))
     if (said) summary = ''
     if (error) return (postError = { text: error, done })
+    closeRound(reviewKey, head, verdict, sending.length)
     summary = ''
     verdict = ''
     finishing = false
-    if (!agent) markReviewed(folder, pull)
-    else if (agent.review) markReviewed(agent.review.project, pull)
+    if (!agent) markReviewed(folder, pull, head)
+    else if (agent.review) markReviewed(agent.review.project, pull, head)
     onposted?.()
   }
 
