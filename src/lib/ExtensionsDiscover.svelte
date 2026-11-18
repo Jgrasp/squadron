@@ -6,10 +6,12 @@
   import ExtensionLogo from './ExtensionLogo.svelte'
   import Icon from './Icon.svelte'
   import { ui } from './actions.svelte'
-  import { t } from './i18n/index.svelte'
-  import { OFFICIAL, shownOf, type CatalogEntry, type Source } from './extensions'
+  import { locale, t } from './i18n/index.svelte'
+  import { OFFICIAL, shownOf, type CatalogEntry, type Extension, type Source } from './extensions'
   import { addSource, asks, catalog, extensions, install, loadCatalog, removeSource } from './extensions.svelte'
-  import { attempt, brand, named, work } from './extension-pages.svelte'
+  import { attempt, brand, fromOf, named, nameOf, originOf, pendingOf, problemOf, updateOf, work } from './extension-pages.svelte'
+
+  type Item = { id: string; name: string; source?: string; words: string; entry?: CatalogEntry; ext?: Extension }
 
   let query = $state('')
   let filter = $state('')
@@ -21,8 +23,16 @@
 
   const sources = $derived<Source[]>(catalog.sources.length ? catalog.sources : [{ source: OFFICIAL, official: true }, ...extensions.sources.map((s) => ({ source: s, official: false }))])
   const entries = $derived(shownOf(catalog.entries ?? [], extensions.origins).filter((c) => !extensions.list.some((e) => e.id === c.id)))
+  const rank = (item: Item) => (item.ext && (pendingOf(item.ext).length || updateOf(item.ext)) ? 0 : 1)
+  const items = $derived<Item[]>(
+    [
+      ...extensions.list.map((e) => ({ id: e.id, name: nameOf(e), source: originOf(e), ext: e, words: [nameOf(e), named(e.manifest?.description), e.id, originOf(e) ?? ''].join(' ') })),
+      ...entries.map((c) => ({ id: c.id, name: named(c.name), source: c.source, entry: c, words: [named(c.name), named(c.description), c.id, c.source].join(' ') })),
+    ].sort((a, b) => rank(a) - rank(b) || a.name.localeCompare(b.name, locale())),
+  )
+  const keep = (item: Item, id: string) => !id || (id === 'installed' ? !!item.ext : id === 'discover' ? !item.ext : item.source === id)
   const needle = $derived(query.trim().toLowerCase())
-  const visible = $derived(entries.filter((c) => (!filter || c.source === filter) && (!needle || [named(c.name), named(c.description), c.id, c.source].join(' ').toLowerCase().includes(needle))))
+  const visible = $derived(items.filter((item) => keep(item, filter) && (!needle || item.words.toLowerCase().includes(needle))))
   const countOf = (s: string) => (catalog.entries ?? []).filter((c) => c.source === s).length
 
   async function addFrom(event: SubmitEvent) {
@@ -58,9 +68,11 @@
     <input placeholder={t('extensions.searchCatalog')} aria-label={t('extensions.searchLabel')} spellcheck="false" autocomplete="off" bind:value={query} />
   </label>
   <div class="chips" role="group" aria-label={t('extensions.filters')}>
-    <button class="chip" aria-pressed={!filter} onclick={() => (filter = '')}>{t('extensions.filterAll')}<span class="n">{entries.length}</span></button>
-    {#each sources.filter((s) => entries.some((c) => c.source === s.source)) as s (s.source)}
-      <button class="chip" aria-pressed={filter === s.source} onclick={() => (filter = s.source)}>{s.official ? '✓ ' : ''}{s.source}<span class="n">{entries.filter((c) => c.source === s.source).length}</span></button>
+    {#each [['', 'extensions.filterAll'], ['installed', 'extensions.filterInstalled'], ['discover', 'extensions.filterDiscover']] as const as [id, key] (id)}
+      <button class="chip" aria-pressed={filter === id} onclick={() => (filter = id)}>{t(key)}<span class="n">{items.filter((item) => keep(item, id)).length}</span></button>
+    {/each}
+    {#each sources.filter((s) => items.some((item) => item.source === s.source)) as s (s.source)}
+      <button class="chip" aria-pressed={filter === s.source} onclick={() => (filter = s.source)}>{s.official ? '✓ ' : ''}{s.source}<span class="n">{items.filter((item) => item.source === s.source).length}</span></button>
     {/each}
     <span class="grow"></span>
     <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'sources'))}><Icon name="plus" />{t('extensions.addMarketplace')}</button>
@@ -71,25 +83,51 @@
 {#if catalog.error}<p class="bad">{t('extensions.catalogError', { error: catalog.error })}</p>{/if}
 
 <div class="grid">
-  {#each visible as c (c.id)}
-    {@const permissions = asks(c).length}
-    <article class="card">
-      <div class="head">
-        <ExtensionLogo id={c.id} name={named(c.name)} logo={brand(c.id).logo} />
-        <strong>{named(c.name)}</strong>
-        <span class="version">{c.version}</span>
-      </div>
-      <div>
-        <span class="pill" class:official={c.official} class:imported={!c.official} title={c.official ? null : t('extensions.importedTitle', { source: c.source })}>
-          {c.official ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: c.source.split('/')[0] })}`}
-        </span>
-      </div>
-      <p class="desc">{named(c.description)}</p>
-      <div class="foot">
-        <small>{permissions ? t('extensions.permissionCount', { count: permissions }) : ''}</small>
-        <button class="btn btn-primary" disabled={!!work.busy} onclick={() => ((work.error = ''), (chosen = c))}>{work.busy === c.id ? t('extensions.installing') : t('extensions.install')}</button>
-      </div>
-    </article>
+  {#each visible as item (item.id)}
+    {#if item.ext}
+      {@const e = item.ext}
+      {@const update = updateOf(e)}
+      {@const problem = problemOf(e)}
+      <article class="card" class:off={!e.enabled}>
+        <div class="head">
+          <ExtensionLogo id={e.id} name={item.name} logo={e.logo} off={!e.enabled} />
+          <strong>{item.name}</strong>
+          <span class="version">{e.manifest?.version ?? ''}{#if update}{' → '}<b>{update.version}</b>{/if}</span>
+        </div>
+        <div class="pills">
+          <span class="pill {fromOf(e)}">{fromOf(e) === 'official' ? `✓ ${t('extensions.official')}` : fromOf(e) === 'imported' ? `⇄ ${t('extensions.imported', { owner: (item.source ?? '').split('/')[0] })}` : `▣ ${t('extensions.local')}`}</span>
+          {#if problem}<span class="pill error" title={problem}>⚠ {t('extensions.error')}</span>{:else if pendingOf(e).length}<span class="pill pending">{t('extensions.toAllow')}</span>{:else}<span class="pill installed">{t('extensions.installedTag')}</span>{/if}
+        </div>
+        <p class="desc">{named(e.manifest?.description)}</p>
+        <div class="foot">
+          <small></small>
+          {#if update}
+            <button class="btn btn-primary" disabled={!!work.busy} onclick={() => attempt(() => install(update), e.id)}>{work.busy === e.id ? t('extensions.updating') : t('extensions.updateNow')}</button>
+          {/if}
+          <button class="btn btn-secondary" onclick={() => (ui.settings = `ext:${e.id}`)}><Icon name="gear" />{t('extensions.settings')}</button>
+        </div>
+      </article>
+    {:else if item.entry}
+      {@const c = item.entry}
+      {@const permissions = asks(c).length}
+      <article class="card">
+        <div class="head">
+          <ExtensionLogo id={c.id} name={item.name} logo={brand(c.id).logo} />
+          <strong>{item.name}</strong>
+          <span class="version">{c.version}</span>
+        </div>
+        <div>
+          <span class="pill" class:official={c.official} class:imported={!c.official} title={c.official ? null : t('extensions.importedTitle', { source: c.source })}>
+            {c.official ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: c.source.split('/')[0] })}`}
+          </span>
+        </div>
+        <p class="desc">{named(c.description)}</p>
+        <div class="foot">
+          <small>{permissions ? t('extensions.permissionCount', { count: permissions }) : ''}</small>
+          <button class="btn btn-primary" disabled={!!work.busy} onclick={() => ((work.error = ''), (chosen = c))}>{work.busy === c.id ? t('extensions.installing') : t('extensions.install')}</button>
+        </div>
+      </article>
+    {/if}
   {/each}
   <button class="card new" onclick={() => ((work.error = ''), (dialog = 'local'))}>
     <span class="plus" aria-hidden="true">+</span>
@@ -98,7 +136,7 @@
   </button>
   {#if !visible.length}
     <p class="empty">
-      {needle ? t('extensions.noMatch', { query: query.trim() }) : !catalog.entries && !catalog.error ? t('extensions.catalogLoading') : t('extensions.allInstalled')}
+      {needle ? t('extensions.noMatch', { query: query.trim() }) : filter !== 'installed' && !catalog.entries && !catalog.error ? t('extensions.catalogLoading') : filter === 'discover' ? t('extensions.allInstalled') : t('extensions.noneHere')}
     </p>
   {/if}
 </div>
@@ -310,6 +348,11 @@
     color: var(--text-dim);
   }
 
+  .version b {
+    font-weight: 400;
+    color: var(--text);
+  }
+
   .pill {
     display: inline-flex;
     align-items: center;
@@ -333,6 +376,38 @@
     color: var(--accent-soft);
   }
 
+  .pill.local {
+    background: var(--background-bg);
+    box-shadow: inset 0 0 0 1px var(--background-line);
+    color: var(--remote-text);
+  }
+
+  .pill.installed {
+    background: var(--surface-3);
+    color: var(--text-2);
+  }
+
+  .pill.pending {
+    background: var(--persona);
+    color: var(--ink);
+  }
+
+  .pill.error {
+    background: var(--err);
+    color: var(--err-ink);
+  }
+
+  .pills {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .card.off .head strong,
+  .card.off .desc {
+    opacity: 0.55;
+  }
+
   .desc {
     margin: 0;
     min-height: 36px;
@@ -351,6 +426,12 @@
     align-items: center;
     gap: 8px;
     margin-top: auto;
+  }
+
+  .foot .btn {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
   }
 
   .foot small {

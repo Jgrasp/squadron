@@ -269,7 +269,7 @@ export async function checkUpdates() {
   const fresh = updatesOf(extensions.list, catalog.entries ?? [], extensions.origins).filter((c) => !told.includes(`${c.id}@${c.version}`))
   if (!fresh.length) return
   localStorage.setItem(TOLD, JSON.stringify([...told, ...fresh.map((c) => `${c.id}@${c.version}`)]))
-  for (const c of fresh) await notify('updates', t('extensions.updateTitle'), t('extensions.updateBody', { name: text(c.name, locale()), version: c.version }), { settings: 'extensions' })
+  for (const c of fresh) await notify('updates', t('extensions.updateTitle'), t('extensions.updateBody', { name: text(c.name, locale()), version: c.version }), { settings: 'discover' })
 }
 
 const syncSkills = (list: Extension[]) =>

@@ -131,13 +131,13 @@
   async function remove(x: Extension) {
     if (x.linked) {
       about = false
-      if (await attempt(() => invoke('extensions_unlink', { path: x.dir }))) ui.settings = 'extensions'
+      if (await attempt(() => invoke('extensions_unlink', { path: x.dir }))) ui.settings = 'discover'
       return
     }
     const name = nameOf(x)
     if (!(await ask(t('extensions.uninstallText', { name }), { title: t('extensions.uninstallTitle', { name }), kind: 'warning', okLabel: t('extensions.uninstall') }))) return
     about = false
-    if (await attempt(() => uninstall(x))) ui.settings = 'extensions'
+    if (await attempt(() => uninstall(x))) ui.settings = 'discover'
   }
 
   const reveal = (x: Extension) => attempt(() => invoke('reveal_attachment', { path: x.dir }))

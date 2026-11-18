@@ -166,7 +166,7 @@
             <button
               role="menuitem"
               class="item"
-              onclick={() => ((menuOpen = false), extensionItem('menu.squadron', id) ? runItem(extensionItem('menu.squadron', id)!, { project: projects.list.find((p) => p.path === projects.current) }) : id === 'updates' ? checkNow() : (ui.settings = id === 'settings' ? 'projects' : (id as SettingsTab)))}
+              onclick={() => ((menuOpen = false), extensionItem('menu.squadron', id) ? runItem(extensionItem('menu.squadron', id)!, { project: projects.list.find((p) => p.path === projects.current) }) : id === 'updates' ? checkNow() : (ui.settings = id === 'settings' ? 'projects' : id === 'extensions' ? 'discover' : (id as SettingsTab)))}
             >
               <span><strong>{labelOf('menu.squadron', id)}{#if badgeOf(id)}&nbsp;· {badgeOf(id)}{/if}</strong><small>{detailOf('menu.squadron', id)}</small></span>
             </button>
