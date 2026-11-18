@@ -2,6 +2,12 @@
 
 ## 0.53.1 · 2026-11-18
 
+### Updates
+
+- Squadron 0.53.0 did not ship: this version brings its changes, listed under 0.53.0.
+
+## 0.53.0 · 2026-11-18
+
 ### Pull requests
 
 - A reviewed pull request opens on its threads: your review rounds on the left, and on the right each thread by state (still open, answered, fixed, resolved, outdated) with what the reviewing agent found, your drafts apart.

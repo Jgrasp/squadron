@@ -2,6 +2,12 @@
 
 ## 0.53.1 · 2026-11-18
 
+### Mises à jour
+
+- Squadron 0.53.0 n’a pas été publiée : cette version apporte ses nouveautés, détaillées sous 0.53.0.
+
+## 0.53.0 · 2026-11-18
+
 ### Pull requests
 
 - Une pull request relue s’ouvre sur ses fils : vos tours de relecture à gauche, et à droite chaque fil selon son état (encore ouvert, répondu, corrigé, résolu, obsolète) avec ce qu’en a trouvé l’agent relecteur, vos brouillons à part.
