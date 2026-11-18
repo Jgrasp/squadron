@@ -1,5 +1,21 @@
 # Changelog
 
+## 0.53.4 · 2026-11-18
+
+### Pull requests
+
+- Reviewing from a pull request card or from the pull request list shows the pull request as it is now.
+- An open review of your pull request updates its checks and merge button as soon as they change.
+
+### Extensions
+
+- Extensions get the whole output of the programs they run, up to 8 MB.
+
+### Fixes
+
+- Settings open again when an extension is both installed and linked from a folder.
+- Settings and other dialogs open again after the window closed them on its own.
+
 ## 0.53.3 · 2026-11-18
 
 ### Extensions

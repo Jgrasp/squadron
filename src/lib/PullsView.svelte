@@ -146,8 +146,9 @@
     await lookUpLists(project.path, true)
     refreshing = false
   }
+  const path = $derived(project.path)
   $effect(() => {
-    lookUpLists(project.path)
+    lookUpLists(path, true)
   })
 
   const agentOn = (pull: Pull) => agents.list.find((a) => a.project === project.path && pullOf(a)?.number === pull.number)

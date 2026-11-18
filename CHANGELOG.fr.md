@@ -1,5 +1,21 @@
 # Nouveautés
 
+## 0.53.4 · 2026-11-18
+
+### Pull requests
+
+- Relire depuis une carte de pull request ou depuis la liste des pull requests montre la pull request telle qu’elle est maintenant.
+- Une relecture ouverte de votre pull request met à jour ses vérifications et son bouton de fusion dès qu’ils changent.
+
+### Extensions
+
+- Les extensions reçoivent toute la sortie des programmes qu’elles lancent, jusqu’à 8 Mo.
+
+### Correctifs
+
+- Les réglages s’ouvrent de nouveau quand une extension est à la fois installée et liée depuis un dossier.
+- Les réglages et les autres fenêtres de dialogue s’ouvrent de nouveau après que la fenêtre les a fermés d’elle-même.
+
 ## 0.53.3 · 2026-11-18
 
 ### Extensions
