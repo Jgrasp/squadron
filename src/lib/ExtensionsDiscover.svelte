@@ -82,6 +82,7 @@
       <button class="chip" aria-pressed={filter === s.source} onclick={() => (filter = s.source)}>{s.official ? '✓ ' : ''}{s.source}<span class="n">{items.filter((item) => item.source === s.source).length}</span></button>
     {/each}
     <span class="grow"></span>
+    <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'local'))}><Icon name="folder" />{t('extensions.addLocal')}</button>
     <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'sources'))}><Icon name="plus" />{t('extensions.addMarketplace')}</button>
   </div>
 </div>
@@ -153,13 +154,6 @@
       {needle ? t('extensions.noMatch', { query: query.trim() }) : filter !== 'installed' && !catalog.entries && !catalog.error ? t('extensions.catalogLoading') : filter === 'discover' ? t('extensions.allInstalled') : t('extensions.noneHere')}
     </p>
   {/each}
-  <button class="row new" onclick={() => ((work.error = ''), (dialog = 'local'))}>
-    <span class="plus" aria-hidden="true">+</span>
-    <span class="what">
-      <strong>{t('extensions.addLocal')}</strong>
-      <small>{t('extensions.addLocalSub')}</small>
-    </span>
-  </button>
 </div>
 
 {#if chosen}
@@ -552,34 +546,6 @@
   .menu button:hover {
     background: var(--menu-hover);
     color: var(--text);
-  }
-
-  .row.new {
-    border: 1px dashed var(--border-dashed);
-    background: none;
-    box-shadow: none;
-    text-align: left;
-  }
-
-  .row.new:hover {
-    border-color: var(--border-focus);
-    background: var(--surface-1);
-  }
-
-  .row.new .plus {
-    flex: none;
-    width: 34px;
-    height: 34px;
-    display: grid;
-    place-items: center;
-    font-size: 22px;
-    line-height: 1;
-    color: var(--text-2);
-  }
-
-  .row.new strong {
-    color: var(--text-strong);
-    font-weight: 600;
   }
 
   .asks {
