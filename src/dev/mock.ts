@@ -1070,6 +1070,37 @@ mockIPC(
           ],
         }
       }
+      case 'forge_coverage': {
+        const known: Record<string, [string, string | null]> = {
+          '/home/demo/agence/orbit': ['github.com/agence/orbit', null],
+          '/home/demo/agence/nova': ['bitbucket.org/agence/nova', 'bitbucket'],
+          '/home/demo/agence/lumen-absent': ['git.agence.io/lumen', null],
+        }
+        return (args as { projects: string[] }).projects.map((path) => ({ path, remote: known[path]?.[0] ?? null, by: known[path]?.[1] ?? null }))
+      }
+      case 'extensions_catalog':
+        return [
+          {
+            source: 'Jgrasp/squadron-extensions',
+            official: true,
+            index: {
+              api: 1,
+              extensions: [
+                {
+                  id: 'github',
+                  version: '0.1.0',
+                  name: { en: 'GitHub' },
+                  description: { en: 'Pull requests and GitHub Actions runs of your GitHub projects in Squadron: review, comment, merge' },
+                  repository: 'https://github.com/Jgrasp/squadron-github',
+                  archive: 'https://example.invalid/github-0.1.0.tar.gz',
+                  sha256: '0',
+                  permissions: { network: ['api.github.com'] },
+                  forge: { remotes: ['^github\\.com/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)$'] },
+                },
+              ],
+            },
+          },
+        ]
       case 'forge_accounts':
         return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, github: 'octo', gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
       case 'bitbucket_sign_in':

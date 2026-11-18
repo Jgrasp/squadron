@@ -4,8 +4,8 @@ use crate::forge::{
 use reqwest::Method;
 use serde_json::{Value, json};
 
-const NO_TOKEN: &str = "Add an Azure DevOps token in Settings › Code hosting.";
-const REFUSED: &str = "Azure DevOps refused the token: add a new one in Settings › Code hosting.";
+const NO_TOKEN: &str = "Add an Azure DevOps token in Settings › Pull requests.";
+const REFUSED: &str = "Azure DevOps refused the token: add a new one in Settings › Pull requests.";
 const SITE: &str = "https://dev.azure.com";
 
 pub fn account() -> Option<String> {

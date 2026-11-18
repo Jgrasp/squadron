@@ -1341,6 +1341,13 @@ async fn update_pull(
 }
 
 #[tauri::command]
+async fn forge_coverage(app: AppHandle, projects: Vec<PathBuf>) -> Vec<provider::Coverage> {
+    tauri::async_runtime::spawn_blocking(move || provider::coverage(&app, projects))
+        .await
+        .unwrap_or_default()
+}
+
+#[tauri::command]
 async fn forge_accounts() -> forge::Accounts {
     tauri::async_runtime::spawn_blocking(forge::accounts)
         .await
@@ -2748,6 +2755,7 @@ pub fn run() {
             merge_pull,
             update_pull,
             forge_accounts,
+            forge_coverage,
             bitbucket_sign_in,
             forge_sign_out,
             gitlab_sign_in,

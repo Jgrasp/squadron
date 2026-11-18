@@ -402,6 +402,7 @@ export type CatalogEntry = {
   squadron?: string
   permissions?: Permissions
   changelog?: Release[]
+  forge?: { remotes: string[] }
   source: string
   official: boolean
 }

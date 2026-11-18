@@ -9,7 +9,7 @@ use std::process::Stdio;
 use std::sync::Mutex;
 
 const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
-const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Code hosting.";
+const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Pull requests.";
 const NO_USER_SCOPE: &str =
     "Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.";
 const BITBUCKET_FIELDS: &str = "values.id,values.title,values.description,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.author.links.avatar.href,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.participated_on,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
@@ -82,6 +82,15 @@ fn parse(url: &str, gitlab: impl Fn() -> Option<String>) -> Option<Repo> {
             })
         }
         _ => None,
+    }
+}
+
+pub fn built_in(url: &str) -> Option<&'static str> {
+    match repo(url)?.host {
+        Host::Bitbucket => Some("bitbucket"),
+        Host::GitLab => Some("gitlab"),
+        Host::Azure => Some("azure"),
+        Host::GitHub => None,
     }
 }
 
@@ -430,7 +439,7 @@ async fn bitbucket(
     send(
         request,
         "Bitbucket",
-        "Bitbucket refused the API token: add a new one in Settings › Code hosting.",
+        "Bitbucket refused the API token: add a new one in Settings › Pull requests.",
     )
     .await
 }

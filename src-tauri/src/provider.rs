@@ -209,6 +209,37 @@ fn of_dir(app: &AppHandle, dir: &Path) -> Option<Target> {
     remote_target(&providers(app), &git::origin(dir)?)
 }
 
+#[derive(Serialize, Debug, PartialEq)]
+pub struct Coverage {
+    pub path: PathBuf,
+    pub remote: Option<String>,
+    pub by: Option<String>,
+}
+
+pub fn covered(providers: &[Provider], path: PathBuf, origin: Option<String>) -> Coverage {
+    let by = origin.as_deref().and_then(|remote| {
+        remote_target(providers, remote)
+            .map(|t| t.extension)
+            .or_else(|| forge::built_in(remote).map(str::to_string))
+    });
+    Coverage {
+        path,
+        remote: origin.as_deref().and_then(normalize),
+        by,
+    }
+}
+
+pub fn coverage(app: &AppHandle, projects: Vec<PathBuf>) -> Vec<Coverage> {
+    let list = providers(app);
+    projects
+        .into_iter()
+        .map(|path| {
+            let origin = git::origin(&path);
+            covered(&list, path, origin)
+        })
+        .collect()
+}
+
 fn owned(target: &Target, mut pull: Pull) -> Pull {
     pull.host = target.extension.clone();
     pull.mergeable &= target.calls.iter().any(|c| c == "merge");
@@ -503,6 +534,42 @@ mod tests {
         );
         assert!(link_target(&list, "https://github.com/acme/shop/pulls").is_none());
         assert!(link_target(&list, "https://github.com/acme/shop/pull/12x").is_none());
+    }
+
+    #[test]
+    fn says_which_forge_covers_a_project() {
+        let list = [github()];
+        let at = |remote: &str| covered(&list, PathBuf::from("/p"), Some(remote.into()));
+        assert_eq!(
+            at("git@github.com:acme/shop.git").by.as_deref(),
+            Some("github")
+        );
+        assert_eq!(
+            at("git@bitbucket.org:acme/shop.git").by.as_deref(),
+            Some("bitbucket")
+        );
+        let unknown = at("https://git.acme.io/team/wiki.git");
+        assert_eq!(
+            (unknown.by, unknown.remote.as_deref()),
+            (None, Some("git.acme.io/team/wiki"))
+        );
+        assert_eq!(
+            covered(
+                &[],
+                PathBuf::from("/p"),
+                Some("git@github.com:acme/shop.git".into())
+            )
+            .by,
+            None
+        );
+        assert_eq!(
+            covered(&list, PathBuf::from("/p"), None),
+            Coverage {
+                path: PathBuf::from("/p"),
+                remote: None,
+                by: None
+            }
+        );
     }
 
     #[test]

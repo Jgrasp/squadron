@@ -1,6 +1,8 @@
-import { extensions } from './extensions.svelte'
-import { active, forgePattern, VERDICTS, type Extension, type Forge, type ForgeCall, type Manifest, type Verdict } from './extensions'
+import { invoke } from '@tauri-apps/api/core'
+import { catalog, extensions } from './extensions.svelte'
+import { active, forgePattern, shownOf, VERDICTS, type CatalogEntry, type Extension, type Forge, type ForgeCall, type Manifest, type Verdict } from './extensions'
 import { nameOf } from './extension-pages.svelte'
+import { projects } from './projects.svelte'
 
 export const BUILT_IN: Record<string, string> = { bitbucket: 'Bitbucket', github: 'GitHub', gitlab: 'GitLab', azure: 'Azure DevOps' }
 
@@ -36,4 +38,39 @@ export const isProvidedLink = (url: string) => !!linkProvider(url)
 
 export function providedLinks(text: string) {
   return linkSources().flatMap((source) => [...text.matchAll(new RegExp(source, 'g'))].map((m) => ({ url: m[0], at: m.index ?? 0 })))
+}
+
+export type Coverage = { path: string; remote: string | null; by: string | null }
+
+export const coverage = $state<Record<string, Coverage>>({})
+
+export async function lookUpCoverage(paths = projects.list.map((p) => p.path)) {
+  for (const found of await invoke<Coverage[]>('forge_coverage', { projects: paths }).catch(() => [])) coverage[found.path] = found
+}
+
+export const remoteHost = (remote: string) => remote.split('/')[0]
+
+export function offerFor(remote: string, entries: CatalogEntry[] = catalog.entries ?? []): CatalogEntry | null {
+  const installed = new Set(extensions.list.map((e) => e.id))
+  return (
+    shownOf(entries, extensions.origins)
+      .filter((entry) => !installed.has(entry.id))
+      .find((entry) => (Array.isArray(entry.forge?.remotes) ? entry.forge.remotes : []).some((p) => !p.includes('{account}') && forgePattern(`^(?:${p})$`, [])?.test(remote))) ?? null
+  )
+}
+
+export type Offer = { entry: CatalogEntry; host: string; projects: string[] }
+
+export function installOffers(): Offer[] {
+  const found = new Map<string, Offer>()
+  for (const project of projects.list) {
+    const covered = coverage[project.path]
+    if (!covered?.remote || covered.by) continue
+    const entry = offerFor(covered.remote)
+    if (!entry) continue
+    const offer = found.get(entry.id) ?? { entry, host: remoteHost(covered.remote), projects: [] }
+    offer.projects.push(project.name)
+    found.set(entry.id, offer)
+  }
+  return [...found.values()]
 }

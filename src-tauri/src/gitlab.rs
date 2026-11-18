@@ -4,8 +4,8 @@ use crate::forge::{
 use reqwest::Method;
 use serde_json::{Value, json};
 
-const NO_TOKEN: &str = "Add a GitLab token in Settings › Code hosting.";
-const REFUSED: &str = "GitLab refused the token: add a new one in Settings › Code hosting.";
+const NO_TOKEN: &str = "Add a GitLab token in Settings › Pull requests.";
+const REFUSED: &str = "GitLab refused the token: add a new one in Settings › Pull requests.";
 const NO_REQUEST_CHANGES: &str =
     "The comments are on GitLab, but Squadron cannot request changes there: do it on GitLab.";
 

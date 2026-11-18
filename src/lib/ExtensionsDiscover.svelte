@@ -3,6 +3,7 @@
   import { open } from '@tauri-apps/plugin-dialog'
   import { onMount } from 'svelte'
   import Dialog from './Dialog.svelte'
+  import InstallDialog from './InstallDialog.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
   import Icon from './Icon.svelte'
   import { ui } from './actions.svelte'
@@ -39,14 +40,6 @@
   async function addFrom(event: SubmitEvent) {
     event.preventDefault()
     if (await attempt(() => addSource(source.trim()), 'source')) source = ''
-  }
-
-  async function confirm() {
-    const entry = chosen!
-    if (await attempt(() => install(entry), entry.id)) {
-      chosen = null
-      ui.settings = `ext:${entry.id}`
-    }
   }
 
   async function link() {
@@ -157,23 +150,7 @@
 </div>
 
 {#if chosen}
-  {@const lines = asks(chosen)}
-  <Dialog title={t('extensions.installTitle', { name: named(chosen.name) })} width={520} onclose={close}>
-    <div class="box">
-      <p class="sub"><span class="mono">{chosen.version}</span> · {chosen.official ? t('extensions.fromOfficial', { source: chosen.source }) : t('extensions.fromImported', { source: chosen.source })}</p>
-      {#if chosen.description}<p class="text">{named(chosen.description)}</p>{/if}
-      {#if !chosen.official}<p class="warn">{t('extensions.notReviewed', { owner: chosen.source.split('/')[0] })}</p>{/if}
-      <section>
-        <h4>{t('extensions.permissions')}</h4>
-        {#each lines as line (line)}<p class="line">{line}</p>{:else}<p class="line muted">{t('extensions.asksNothing')}</p>{/each}
-      </section>
-      {#if work.error}<p class="bad" role="alert">{work.error}</p>{/if}
-    </div>
-    <footer>
-      <button class="btn btn-secondary" onclick={close}>{t('common.cancel')}</button>
-      <button class="btn btn-primary" disabled={!!work.busy} onclick={confirm}>{work.busy ? t('extensions.installing') : t('extensions.install')}</button>
-    </footer>
-  </Dialog>
+  <InstallDialog entry={chosen} onclose={close} />
 {/if}
 
 {#if dialog === 'sources'}
@@ -602,15 +579,6 @@
     box-shadow: inset 0 0 0 1px var(--wait-border);
     color: var(--wait-muted);
     font-size: 12.5px;
-  }
-
-  h4 {
-    margin: 0 0 8px;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
   }
 
   .line {
