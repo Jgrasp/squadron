@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -179,6 +179,21 @@ describe('extensions', () => {
     const found = [{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels: [panel] } }, error: null }]
     expect(panelsOf(load(found, [])).map((p) => p.key)).toEqual(['extension:p.main'])
     expect(panelsOf(load(found, ['p']))).toEqual([])
+  })
+
+  it('opens a panel from the extension beside the agent on screen, or in its own window', () => {
+    const base = { id: 'p', version: '1.0.0', api: 1, name: { en: 'P' } }
+    const panels = [
+      { id: 'main', title: { en: 'Main' }, page: 'panel/index.html' },
+      { id: 'office', title: { en: 'Office' }, page: 'office/index.html', window: 'maximized' },
+    ]
+    const list = panelsOf(load([{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels } }, error: null }], []))
+    expect(panelOpening(list, 'p', 'main', '/home/me/ring')).toMatchObject({ panel: { key: 'extension:p.main' }, project: '/home/me/ring' })
+    expect(panelOpening(list, 'p', 'main', undefined)).toEqual({ error: 'The panel main opens beside the agent on screen, and no agent is on screen.' })
+    expect(panelOpening(list, 'p', 'office', null)).toEqual({ panel: list[1] })
+    expect(panelOpening(list, 'p', 'office', '/home/me/ring')).toEqual({ panel: list[1] })
+    expect(panelOpening(list, 'p', 'nope', '/home/me/ring')).toEqual({ error: 'No panel nope in contributes.panels.' })
+    expect(panelOpening(list, 'q', 'main', '/home/me/ring')).toEqual({ error: 'No panel main in contributes.panels.' })
   })
 
   it('keeps an extension or a catalog version to the Squadron versions it declares', () => {

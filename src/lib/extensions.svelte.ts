@@ -133,11 +133,7 @@ export async function runItem(item: Item, { project, agent }: Context) {
   if ('url.open' in action) return invoke('open_link', { url: action['url.open'] })
   if ('panel.open' in action) {
     const panel = panelsOf(extensions.list).find((p) => p.extension === item.extension && p.id === action['panel.open'])
-    if (panel?.window) return import('./extensionWindows.svelte').then((m) => m.openWindow(panel))
-    const path = agent?.project ?? project?.path
-    if (!path) return
-    const kind = `extension:${item.extension}.${action['panel.open']}` as const
-    return setPanel(path, layout.panels[path] === kind ? null : kind)
+    return panel && openPanel(panel, agent?.project ?? project?.path, true)
   }
   if ('run' in action)
     return invoke('extensions_wasm_run', { id: item.extension, action: action.run, agent: agent && info(agent) }).catch((e) => message(errorText(e), { kind: 'error', title: item.extension }))
@@ -149,6 +145,12 @@ export async function runItem(item: Item, { project, agent }: Context) {
     typeInTerminal(workdir(agent), `${action['terminal.run']}\r`)
     setPanel(agent.project, 'terminal')
   }
+}
+
+export async function openPanel(panel: Panel, project: string | undefined, toggle = false) {
+  if (panel.window) return import('./extensionWindows.svelte').then((m) => m.openWindow(panel))
+  if (!project) return
+  return setPanel(project, toggle && layout.panels[project] === panel.key ? null : panel.key)
 }
 
 const posts = new Set<(p: { extension: string; panel: string; message: string }) => void>()

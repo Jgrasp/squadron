@@ -1,4 +1,4 @@
-package squadron:api@1.8.0;
+package squadron:api@1.9.0;
 
 interface types {
   /// The agent a call is about.
@@ -164,6 +164,8 @@ interface host {
   fetch: func(request: request) -> result<response, string>;
   /// Sends a JSON message to one of the extension's open panels, which receives it in `squadron.on`.
   panel-post: func(panel: string, message: string);
+  /// Opens one of the extension's panels, or brings it to the front when it is already open. A panel with `window` opens in its own window; another opens beside the agent on screen. Since 1.9.0.
+  panel-open: func(panel: string) -> result<_, string>;
   /// The agents open in Squadron, archived ones aside. Needs `agents: ["read"]` in `permissions`. Since 1.1.0.
   agents: func() -> result<list<agent-state>, string>;
   /// Archives an agent, as the user would. Refused while it works, waits for the user, is pinned, remote or shown. Needs `agents: ["archive"]` in `permissions`. Since 1.1.0.
