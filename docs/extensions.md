@@ -546,7 +546,27 @@ The WIT of 1.7.0 adds the records `project`, `group`, `agent-activity`, `usage-w
 
 - **`host::unread-agents()`**: the ids of the live agents the user has not read since their last turn, the dot of the agent list. Same permission as `all-agents` (`agents: ["activity"]`), same data, read once for both within 500 ms. An archived agent is never unread.
 - **Events**: `agent.status`, `agent.started` and `agent.archived` carry `unread` (`true` or `false`), so marking an agent read or unread, or opening it, sends `agent.status`.
-- `agent-activity` keeps its fields: a field more in a record would stop an extension built against 1.7.0 from loading. The WIT of 1.8.0 adds the import `unread-agents` only.
+- `agent-activity` keeps its fields: a field more in a record would stop an extension built against 1.7.0 from loading. For it, the WIT of 1.8.0 adds the import `unread-agents` and no field.
+
+### Forge providers (API 1.8)
+
+For an extension that gives Squadron the pull requests and pipelines of a code host, GitHub first. The full contract, with the manifest's `contributes.forge` (`remotes`, `links`, `calls`, `verdicts`) and the JSON of each call, is `docs/contract.md` of squadron-github.
+
+```rust
+fn forge(call: String, input: String) -> Result<String, String> {
+    match call.as_str() {
+        "me" => forge::answer(&Person { name: "Ada".into(), ..Default::default() }),
+        _ => Err(forge::unsupported(&call)),
+    }
+}
+```
+
+- **Export `forge(call, input) -> result<string, string>`**: added to the world `squadron-extension` and looked up apart, like `check-account`: an extension built before 1.8.0 still loads, and a forge call gets "This extension does not export forge". The crate's default answers `{ "code": "unsupported" }`.
+- **Calls**: `pull`, `numbered`, `lists`, `remarks`, `me`, `reply`, `post`, `merge`, `update`, `runs`. `input` is `{ "host", "repo", "groups", "args" }`, never the raw remote, which can hold a token. The types are in `squadron_extension_api::forge`, every field with a default, so a field added later needs no WIT change.
+- **Errors**: plain text, or `{ "code", "title", "detail" }` with texts as strings or `{ "en", "fr" }`. `account` leads the user to Settings › Pull requests, `unsupported` hides the feature.
+- **Pool**: forge calls run on up to 4 instances of the extension, made on demand and dropped when it reloads. A fifth call waits for a free one. Events, `run`, `call-tool` and `check-account` stay on the main instance, which never takes a forge call. Pool instances get no `started` and no events, and their `set-timer` is ignored. A call identical to one in flight (same call and input) gets its answer instead of running again.
+- **State**: one map per extension, shared by every instance and written through to its file. Memory is never shared. `state-get` then `state-set` of one key is not atomic across instances: keep a key per thing rather than a counter that several calls bump.
+- **Limits per call**: 150 s to answer, 5·10⁹ fuel, 64 MB per instance, 30 s and 8 MB per `fetch`. A trap replaces that instance only and shows on the extension's card. A change of permissions reaches the pool on its next call.
 
 ### Skills (`contributes.skills`)
 

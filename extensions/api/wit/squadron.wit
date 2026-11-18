@@ -223,4 +223,6 @@ world squadron-extension {
 
   /// Tests an account, from `contributes.accounts` with `"check": true`: when the user clicks Test the connection, with an account that is not saved yet, and when the extension's page opens, with each saved one. While it runs, `{{<account.id>.<field>}}` in `fetch` gives its fields and secrets, and its `host` field is reachable; `accounts` does not list an account that is not saved. `ok` is JSON or a plain text: `{ "text": "Connected as Ada", "detail": "12 projects" }`. `err` likewise: `{ "title": "…", "detail": "…", "field": "<field id>" }`, `field` marking the field to fix. Texts are strings or `{ "en": "…", "fr": "…" }`. Since 1.6.0.
   export check-account: func(account: account) -> result<string, string>;
+  /// A call of `contributes.forge`, on one of up to 4 instances of the extension that get no events and share its state, never its memory. `call` is `pull`, `numbered`, `lists`, `remarks`, `me`, `reply`, `post`, `merge`, `update` or `runs`; `input` is JSON `{ "host": "…", "repo": "…", "groups": { … }, "args": { … } }`; `ok` is the call's JSON. `err` is a plain text or `{ "code": "account" or "unsupported", "title": "…", "detail": "…" }`, texts being strings or `{ "en": "…", "fr": "…" }`. Since 1.8.0.
+  export forge: func(call: string, input: string) -> result<string, string>;
 }
