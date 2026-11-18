@@ -93,7 +93,8 @@ fn repo_of(dir: &Path) -> Result<Repo, String> {
 
 const NOT_HOSTED: &str = "The project is not on Bitbucket, GitHub, GitLab or Azure DevOps.";
 
-#[derive(Debug, Default, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Pull {
     pub host: String,
     pub number: u64,
@@ -121,41 +122,45 @@ pub struct Pull {
     pub mergeable: bool,
 }
 
-#[derive(Debug, Default, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Reviewer {
     pub name: String,
     pub avatar: String,
     pub verdict: String,
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Lists {
     pub review: Vec<Pull>,
     pub mine: Vec<Pull>,
     pub others: Vec<Pull>,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Person {
     pub name: String,
     pub avatar: String,
 }
 
-#[derive(Debug, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Remark {
-    pub id: u64,
+    pub id: String,
     pub author: String,
     pub avatar: String,
     pub body: String,
     pub path: Option<String>,
     pub line: Option<u32>,
     pub removed: bool,
-    pub reply_to: Option<u64>,
+    pub reply_to: Option<String>,
     pub at: String,
     pub kind: String,
 }
 
-#[derive(Deserialize)]
+#[derive(Serialize, Deserialize)]
 pub struct Draft {
     pub path: String,
     pub line: u32,
@@ -163,7 +168,8 @@ pub struct Draft {
     pub body: String,
 }
 
-#[derive(Serialize)]
+#[derive(Default, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Posted {
     pub done: usize,
     pub said: bool,
@@ -1171,14 +1177,14 @@ fn bitbucket_remark(found: &Value) -> Option<Remark> {
     let (to, from) = (inline["to"].as_u64(), inline["from"].as_u64());
     let current = inline["outdated"] != true;
     Some(Remark {
-        id: found["id"].as_u64()?,
+        id: found["id"].as_u64()?.to_string(),
         author: text(&found["user"]["display_name"]),
         avatar: text(&found["user"]["links"]["avatar"]["href"]),
         body: text(&found["content"]["raw"]),
         path: inline["path"].as_str().map(str::to_string),
         line: to.or(from).filter(|_| current).map(|n| n as u32),
         removed: to.is_none() && from.is_some(),
-        reply_to: found["parent"]["id"].as_u64(),
+        reply_to: found["parent"]["id"].as_u64().map(|n| n.to_string()),
         at: text(&found["created_on"]),
         kind: if inline["path"].is_string() {
             "line"
@@ -1191,14 +1197,14 @@ fn bitbucket_remark(found: &Value) -> Option<Remark> {
 
 fn github_remark(found: &Value, kind: &str) -> Remark {
     Remark {
-        id: found["id"].as_u64().unwrap_or_default(),
+        id: found["id"].as_u64().unwrap_or_default().to_string(),
         author: text(&found["user"]["login"]),
         avatar: text(&found["user"]["avatar_url"]),
         body: text(&found["body"]),
         path: found["path"].as_str().map(str::to_string),
         line: found["line"].as_u64().map(|n| n as u32),
         removed: found["side"] == "LEFT",
-        reply_to: found["in_reply_to_id"].as_u64(),
+        reply_to: found["in_reply_to_id"].as_u64().map(|n| n.to_string()),
         at: text(&found["created_at"]),
         kind: if kind == "pulls" { "line" } else { "general" }.into(),
     }
@@ -1450,7 +1456,8 @@ pub async fn update(
     }
 }
 
-#[derive(Debug, Default, PartialEq, Serialize)]
+#[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct Run {
     pub host: String,
     pub id: String,
@@ -1920,7 +1927,10 @@ mod tests {
             )
         );
         let b = bitbucket_remark(&removed).unwrap();
-        assert_eq!((b.line, b.removed, b.reply_to), (Some(4), true, Some(7)));
+        assert_eq!(
+            (b.line, b.removed, b.reply_to.as_deref()),
+            (Some(4), true, Some("7"))
+        );
         assert_eq!(bitbucket_remark(&outdated).unwrap().line, None);
         assert_eq!(bitbucket_remark(&general).unwrap().path, None);
         assert_eq!(bitbucket_remark(&gone), None);

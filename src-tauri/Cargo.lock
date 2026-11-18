@@ -4806,6 +4806,7 @@ dependencies = [
  "libc",
  "log",
  "portable-pty",
+ "regex",
  "reqwest",
  "rmcp",
  "rustls",

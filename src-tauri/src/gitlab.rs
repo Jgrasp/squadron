@@ -315,14 +315,14 @@ pub(crate) fn gitlab_remarks(discussion: &Value) -> Vec<Remark> {
                 .as_str()
                 .or(position["old_path"].as_str());
             Some(Remark {
-                id,
+                id: id.to_string(),
                 author: text(&note["author"]["name"]),
                 avatar: text(&note["author"]["avatar_url"]),
                 body: text(&note["body"]),
                 path: path.map(str::to_string),
                 line: new.or(old).map(|n| n as u32),
                 removed: new.is_none() && old.is_some(),
-                reply_to: root.filter(|r| *r != id),
+                reply_to: root.filter(|r| *r != id).map(|r| r.to_string()),
                 at: text(&note["created_at"]),
                 kind: if path.is_some() { "line" } else { "general" }.into(),
             })
@@ -575,13 +575,21 @@ mod tests {
         let found = gitlab_remarks(&discussion);
         let seen: Vec<_> = found
             .iter()
-            .map(|r| (r.id, r.line, r.removed, r.reply_to, r.kind.as_str()))
+            .map(|r| {
+                (
+                    r.id.as_str(),
+                    r.line,
+                    r.removed,
+                    r.reply_to.as_deref(),
+                    r.kind.as_str(),
+                )
+            })
             .collect();
         assert_eq!(
             seen,
             [
-                (2, Some(4), true, None, "line"),
-                (3, Some(4), false, Some(2), "line")
+                ("2", Some(4), true, None, "line"),
+                ("3", Some(4), false, Some("2"), "line")
             ]
         );
         let general = json!({ "notes": [{ "id": 9, "body": "LGTM", "author": { "name": "A" }, "created_at": "t" }] });

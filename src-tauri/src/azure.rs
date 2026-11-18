@@ -290,7 +290,7 @@ pub(crate) fn azure_remarks(threads: &Value) -> Vec<Remark> {
             let left = context["leftFileStart"]["line"].as_u64();
             let parent = comment["parentCommentId"].as_u64().unwrap_or_default();
             Some(Remark {
-                id: tid << 16 | id,
+                id: (tid << 16 | id).to_string(),
                 author: text(&comment["author"]["displayName"]),
                 avatar: String::new(),
                 body: text(&comment["content"]),
@@ -298,7 +298,7 @@ pub(crate) fn azure_remarks(threads: &Value) -> Vec<Remark> {
                 path,
                 line: right.or(left).map(|n| n as u32),
                 removed: right.is_none() && left.is_some(),
-                reply_to: (parent > 0).then_some(tid << 16 | parent),
+                reply_to: (parent > 0).then(|| (tid << 16 | parent).to_string()),
                 at: text(&comment["publishedDate"]),
             })
         })
@@ -543,13 +543,20 @@ mod tests {
         let remarks = azure_remarks(&threads);
         let seen: Vec<_> = remarks
             .iter()
-            .map(|r| (r.id, r.path.as_deref(), r.line, r.reply_to))
+            .map(|r| {
+                (
+                    r.id.as_str(),
+                    r.path.as_deref(),
+                    r.line,
+                    r.reply_to.as_deref(),
+                )
+            })
             .collect();
         assert_eq!(
             seen,
             [
-                (11 << 16 | 1, Some("src/a.cs"), Some(12), None),
-                (11 << 16 | 2, Some("src/a.cs"), Some(12), Some(11 << 16 | 1))
+                ("720897", Some("src/a.cs"), Some(12), None),
+                ("720898", Some("src/a.cs"), Some(12), Some("720897"))
             ]
         );
     }

@@ -1,3 +1,4 @@
+use squadron_extension_api::forge::{self, Input, NoArgs, Person};
 use squadron_extension_api::{Agent, Extension, host, squadron_extension};
 
 struct Forge;
@@ -33,7 +34,17 @@ impl Extension for Forge {
             "bump" => Ok(bump("bumps").to_string()),
             "git" => host::exec("git", &["--version".into()], None).map(|out| out.stdout),
             "trap" => panic!("trapped"),
-            _ => Err(squadron_extension_api::forge::unsupported(&call)),
+            "me" => {
+                let asked: Input<NoArgs> = forge::input(&input)?;
+                forge::answer(&Person {
+                    name: format!("{} on {}", asked.repo, asked.host),
+                    avatar: String::new(),
+                })
+            }
+            _ => {
+                bump("unsupported");
+                Err(forge::unsupported(&call))
+            }
         }
     }
 }

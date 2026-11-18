@@ -23,6 +23,7 @@ pub mod plugins;
 pub mod preview;
 mod process;
 pub mod projects;
+pub mod provider;
 pub mod sessions;
 pub mod ssh;
 pub mod stored;
@@ -1141,28 +1142,40 @@ async fn git_changes(project: PathBuf) -> Result<git::Changes, String> {
 }
 
 #[tauri::command]
-async fn pull_request(dir: PathBuf, branch: Option<String>) -> Result<Option<forge::Pull>, String> {
-    forge::pull(&dir, branch).await
+async fn pull_request(
+    app: AppHandle,
+    dir: PathBuf,
+    branch: Option<String>,
+) -> Result<Option<forge::Pull>, String> {
+    provider::pull(&app, &dir, branch).await
 }
 
 #[tauri::command]
-async fn linked_pull(url: String, projects: Vec<PathBuf>) -> Result<forge::Linked, String> {
-    forge::linked(&url, projects).await
+async fn linked_pull(
+    app: AppHandle,
+    url: String,
+    projects: Vec<PathBuf>,
+) -> Result<forge::Linked, String> {
+    provider::linked(&app, &url, projects).await
 }
 
 #[tauri::command]
-async fn numbered_pull(dir: PathBuf, number: u64) -> Result<forge::Pull, String> {
-    forge::numbered(&dir, number).await
+async fn numbered_pull(app: AppHandle, dir: PathBuf, number: u64) -> Result<forge::Pull, String> {
+    provider::numbered(&app, &dir, number).await
 }
 
 #[tauri::command]
-async fn pipeline_runs(dir: PathBuf, repository: String) -> Result<Vec<forge::Run>, String> {
-    forge::runs(&dir, &repository).await
+async fn pipeline_runs(
+    app: AppHandle,
+    dir: PathBuf,
+    repository: String,
+) -> Result<Vec<forge::Run>, String> {
+    provider::runs(&app, &dir, &repository).await
 }
 
 #[tauri::command]
-async fn pull_lists(dir: PathBuf) -> Result<forge::Lists, String> {
-    forge::lists(&dir).await
+async fn pull_lists(app: AppHandle, dir: PathBuf) -> Result<forge::Lists, String> {
+    provider::lists(&app, &dir).await
 }
 
 #[tauri::command]
@@ -1273,28 +1286,34 @@ async fn pull_changes(
 }
 
 #[tauri::command]
-async fn pull_remarks(dir: PathBuf, number: u64) -> Result<Vec<forge::Remark>, String> {
-    forge::remarks(&dir, number).await
+async fn pull_remarks(
+    app: AppHandle,
+    dir: PathBuf,
+    number: u64,
+) -> Result<Vec<forge::Remark>, String> {
+    provider::remarks(&app, &dir, number).await
 }
 
 #[tauri::command]
-async fn pull_me(dir: PathBuf) -> Result<forge::Person, String> {
-    forge::me(&dir).await
+async fn pull_me(app: AppHandle, dir: PathBuf) -> Result<forge::Person, String> {
+    provider::me(&app, &dir).await
 }
 
 #[tauri::command]
 async fn pull_reply(
+    app: AppHandle,
     dir: PathBuf,
     number: u64,
-    to: u64,
+    to: String,
     kind: String,
     body: String,
 ) -> Result<(), String> {
-    forge::reply(&dir, number, to, kind, body).await
+    provider::reply(&app, &dir, number, to, kind, body).await
 }
 
 #[tauri::command]
 async fn post_remarks(
+    app: AppHandle,
     dir: PathBuf,
     number: u64,
     head: String,
@@ -1302,22 +1321,23 @@ async fn post_remarks(
     summary: String,
     verdict: String,
 ) -> Result<forge::Posted, String> {
-    forge::post(&dir, number, head, drafts, summary, verdict).await
+    provider::post(&app, &dir, number, head, drafts, summary, verdict).await
 }
 
 #[tauri::command]
-async fn merge_pull(dir: PathBuf, number: u64) -> Result<(), String> {
-    forge::merge(&dir, number).await
+async fn merge_pull(app: AppHandle, dir: PathBuf, number: u64) -> Result<(), String> {
+    provider::merge(&app, &dir, number).await
 }
 
 #[tauri::command]
 async fn update_pull(
+    app: AppHandle,
     dir: PathBuf,
     number: u64,
     title: Option<String>,
     description: Option<String>,
 ) -> Result<(), String> {
-    forge::update(&dir, number, title, description).await
+    provider::update(&app, &dir, number, title, description).await
 }
 
 #[tauri::command]

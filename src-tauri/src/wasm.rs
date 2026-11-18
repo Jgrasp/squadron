@@ -1,5 +1,6 @@
 use crate::activity::{self, ACTIVITY, Admitted, Fed, READ_PROJECTS, READ_USAGE, SHOW_AGENTS};
 use crate::extension_tools;
+use crate::provider::{ForgeSpec, Provider};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashMap};
@@ -217,6 +218,8 @@ pub struct Spec {
     pub allowed: Vec<String>,
     #[serde(default)]
     pub panels: Vec<String>,
+    #[serde(default)]
+    pub forge: Option<ForgeSpec>,
 }
 
 enum Job {
@@ -1009,6 +1012,15 @@ pub const NO_FORGE: &str =
 
 const NO_ANSWER: &str = "The extension did not answer.";
 
+fn unsupported(call: &str) -> String {
+    json!({"code": "unsupported", "title": format!("This extension does not answer {call}.")})
+        .to_string()
+}
+
+fn refused(error: &str) -> bool {
+    serde_json::from_str::<Value>(error).is_ok_and(|e| e["code"] == "unsupported")
+}
+
 #[derive(Clone)]
 struct Maker {
     engine: Engine,
@@ -1066,6 +1078,7 @@ struct Pool {
     slots: Mutex<Slots>,
     freed: Condvar,
     flying: Mutex<HashMap<String, Vec<mpsc::Sender<Answer>>>>,
+    unsupported: Mutex<Vec<String>>,
 }
 
 impl Pool {
@@ -1076,6 +1089,7 @@ impl Pool {
             slots: Mutex::default(),
             freed: Condvar::new(),
             flying: Mutex::default(),
+            unsupported: Mutex::default(),
         }
     }
 
@@ -1084,6 +1098,9 @@ impl Pool {
     }
 
     fn call(self: &Arc<Self>, call: &str, input: &str) -> Answer {
+        if self.unsupported.lock().unwrap().iter().any(|c| c == call) {
+            return Ok(Err(unsupported(call)));
+        }
         let key = format!("{call}\n{input}");
         let (tx, rx) = mpsc::channel();
         let first = {
@@ -1116,9 +1133,13 @@ impl Pool {
         store.data_mut().allowed = allowed;
         store.data_mut().panels = panels;
         let _ = store.set_fuel(FUEL);
+        let call_name = call.clone();
         match forge.call(&mut *store, (call, input)) {
             Ok((result,)) => {
                 self.give(Some(instance));
+                if result.as_ref().is_err_and(|e| refused(e)) {
+                    self.unsupported.lock().unwrap().push(call_name);
+                }
                 Ok(result)
             }
             Err(e) => {
@@ -1210,6 +1231,7 @@ pub struct Runtime {
     engine: Engine,
     loaded: Running,
     pools: Mutex<HashMap<String, Arc<Pool>>>,
+    forges: Mutex<Vec<(String, ForgeSpec)>>,
     pages: Mutex<HashMap<String, (Instant, u32)>>,
     feed: mpsc::Sender<Admitted>,
     states: PathBuf,
@@ -1250,6 +1272,7 @@ impl Runtime {
             engine: Engine::new(&config).map_err(|e| e.to_string())?,
             loaded,
             pools: Mutex::default(),
+            forges: Mutex::default(),
             pages: Default::default(),
             feed,
             states,
@@ -1285,6 +1308,10 @@ impl Runtime {
 
     pub fn sync(&self, specs: Vec<Spec>) -> HashMap<String, String> {
         let mut errors = HashMap::new();
+        *self.forges.lock().unwrap() = specs
+            .iter()
+            .filter_map(|s| Some((s.id.clone(), s.forge.clone()?)))
+            .collect();
         let mut loaded = self.loaded.lock().unwrap();
         let mut pools = self.pools.lock().unwrap();
         loaded.retain(|id, _| specs.iter().any(|s| &s.id == id));
@@ -1365,6 +1392,7 @@ impl Runtime {
         };
         let (mut allowed, mut panels) = (spec.allowed.clone(), spec.panels.clone());
         let pool = Arc::new(Pool::new(maker.clone(), allowed.clone(), panels.clone()));
+        let provides = spec.forge.is_some();
         let (ready_tx, ready_rx) = mpsc::channel();
         let (tx, rx) = mpsc::channel::<Job>();
         let id = spec.id.clone();
@@ -1374,6 +1402,9 @@ impl Runtime {
         let waiting = queued.clone();
         std::thread::spawn(move || {
             let mut current = match maker.instantiate(&allowed, &panels) {
+                Ok(current) if provides && current.forge.is_none() => {
+                    return ready_tx.send(Err(NO_FORGE.into())).unwrap_or(());
+                }
                 Ok(current) => current,
                 Err(e) => return ready_tx.send(Err(e)).unwrap_or(()),
             };
@@ -1593,6 +1624,24 @@ impl Runtime {
             .map_err(|_| "The extension did not answer.".to_string())?
     }
 
+    pub fn providers(&self) -> Vec<Provider> {
+        let running = self.pools.lock().unwrap();
+        self.forges
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, _)| running.contains_key(id))
+            .map(|(id, spec)| Provider {
+                extension: id.clone(),
+                spec: spec.clone(),
+                hosts: (self.hooks.accounts)(id)
+                    .into_iter()
+                    .filter_map(|a| a.host)
+                    .collect(),
+            })
+            .collect()
+    }
+
     pub fn forge(&self, id: &str, call: &str, input: &str) -> Answer {
         let pool = self
             .pools
@@ -1726,6 +1775,7 @@ mod tests {
             wasm: "target/wasm32-wasip2/release/hello.wasm".into(),
             allowed,
             panels: vec!["main".into()],
+            forge: None,
         };
         assert!(runtime.sync(vec![spec(vec![])]).is_empty());
         let agent = AgentInfo {
@@ -2561,6 +2611,7 @@ mod tests {
                     wasm: "target/wasm32-wasip2/release/hello.wasm".into(),
                     allowed: vec![],
                     panels: vec![],
+                    forge: None,
                 }])
                 .is_empty()
         );
@@ -2702,6 +2753,7 @@ mod tests {
             wasm: "broken.wasm".into(),
             allowed: vec![],
             panels: vec![],
+            forge: None,
         }]);
         assert!(errors.contains_key("broken"));
         assert!(
@@ -2732,6 +2784,7 @@ mod tests {
             wasm: "target/wasm32-wasip2/release/forge.wasm".into(),
             allowed,
             panels: vec![],
+            forge: None,
         }
     }
 
@@ -2778,6 +2831,11 @@ mod tests {
             serde_json::from_str(&runtime.forge("forge", "lists", "{}").unwrap().unwrap_err())
                 .unwrap();
         assert_eq!(unknown["code"], "unsupported");
+        runtime.forge("forge", "lists", "{}").unwrap().unwrap_err();
+        assert_eq!(
+            runtime.tool("forge", "unsupported", "{}", None).unwrap(),
+            "1"
+        );
 
         let four = at_once(&runtime, &["600", "601", "602", "603"]);
         assert!(four < Duration::from_millis(1500), "{four:?}");
@@ -2794,7 +2852,7 @@ mod tests {
         assert_eq!(runtime.tool("forge", "bumps", "{}", None).unwrap(), "3");
         let saved: Map<String, Value> =
             serde_json::from_slice(&std::fs::read(states.join("forge.json")).unwrap()).unwrap();
-        assert_eq!(saved.len(), 10, "{saved:?}");
+        assert_eq!(saved.len(), 11, "{saved:?}");
     }
 
     #[test]
@@ -2840,5 +2898,42 @@ mod tests {
                 .unwrap_err()
                 .contains("not running")
         );
+    }
+
+    #[test]
+    #[ignore = "builds the forge fixture, needs the wasm32-wasip2 target"]
+    fn routes_a_remote_to_the_extension_that_provides_its_forge() {
+        let (runtime, _, _, dir) = forge_fixture();
+        let runtime = runtime.with_hooks(Hooks {
+            accounts: Arc::new(|_| {
+                vec![Stored {
+                    id: "a1".into(),
+                    values: BTreeMap::new(),
+                    host: Some("git.acme.io".into()),
+                    secrets: vec![],
+                }]
+            }),
+            ..Hooks::default()
+        });
+        let spec = Spec {
+            forge: Some(ForgeSpec {
+                remotes: vec![r"(?<site>{account})/(?<path>[a-z/]+)".into()],
+                ..ForgeSpec::default()
+            }),
+            ..forge_spec(&dir, vec![])
+        };
+        assert!(runtime.sync(vec![spec]).is_empty());
+        let providers = runtime.providers();
+        assert_eq!(providers[0].hosts, ["git.acme.io"]);
+        let target =
+            crate::provider::remote_target(&providers, "git@git.acme.io:team/shop.git").unwrap();
+        let me: crate::forge::Person =
+            crate::provider::ask(&runtime, &target, "me", json!({})).unwrap();
+        assert_eq!(me.name, "git.acme.io/team/shop on git.acme.io");
+        let refused = crate::provider::ask::<Value>(&runtime, &target, "runs", json!({}));
+        assert_eq!(refused.unwrap_err(), "This extension does not answer runs.");
+
+        assert!(runtime.sync(vec![]).is_empty());
+        assert!(runtime.providers().is_empty());
     }
 }
