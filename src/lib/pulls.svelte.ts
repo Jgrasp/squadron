@@ -98,6 +98,9 @@ export function openReview(project: string, number: number) {
   projects.current = project
   setPanel(project, null)
   requestPanel('diff')
+  asked.delete(`${project}#${number}`)
+  delete numbered[`${project}#${number}`]
+  lookUpLists(project, true)
   layout.review = { project, number }
 }
 export const numbered = $state<Record<string, Pull | null>>({})
