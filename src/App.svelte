@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { untrack } from 'svelte'
   import { emitTo, listen } from '@tauri-apps/api/event'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import { getCurrentWindow } from '@tauri-apps/api/window'
@@ -36,6 +37,7 @@ import './lib/extensionWindows.svelte'
   import { showPulls } from './lib/linked.svelte'
   import { watchRuns } from './lib/pipelines.svelte'
   import { watchNotifications } from './lib/notify.svelte'
+  import { followKey, syncFollows } from './lib/plugins.svelte'
   import PullsView from './lib/PullsView.svelte'
   import PullReview from './lib/PullReview.svelte'
   import SidePanel from './lib/SidePanel.svelte'
@@ -90,6 +92,11 @@ import './lib/extensionWindows.svelte'
 
   $effect(() => {
     emitTo('board', 'board-state', boardState())
+  })
+
+  const followed = $derived(boot.settings && boot.projects ? followKey() : '')
+  $effect(() => {
+    if (followed) untrack(syncFollows)
   })
 
   $effect(() => {

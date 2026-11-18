@@ -284,6 +284,33 @@ describe('extensions', () => {
     expect(load([{ dir: '/m/jira', linked: false, manifest: { ...base, contributes: { accounts: { label: { en: 'S' }, fields: [field('s', 'host')] } } }, error: null }], [])[0].pending).toEqual([])
   })
 
+  it('checks the forge an extension provides', () => {
+    const base = { id: 'github', version: '1.0.0', api: 1, name: { en: 'GitHub' }, wasm: 'github.wasm' }
+    const accounts = { label: { en: 'Accounts' }, fields: [{ id: 'token', label: { en: 'Token' }, kind: 'secret' }] }
+    const remote = '^github\\.com/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)$'
+    const link = 'https://github\\.com/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)/pull/(?<number>[0-9]+)'
+    const forge = { remotes: [remote], links: [link], calls: ['pull', 'lists', 'later'] }
+    const with_ = (value: unknown, more: object = {}) => keys({ ...base, ...more, contributes: { accounts, forge: value } })
+    expect(with_(forge)).toEqual([])
+    expect(with_({ ...forge, verdicts: ['approve', 'comment'], remotes: ['(?<site>{account})/(?<path>[a-z/]+)'] })).toEqual([])
+    expect(with_(forge, { wasm: undefined })).toEqual(['extensions.forgeNeeds'])
+    expect(keys({ ...base, contributes: { forge } })).toEqual(['extensions.forgeNeeds'])
+    for (const bad of [
+      { ...forge, remotes: [] },
+      { ...forge, remotes: ['github\\.com/.+'] },
+      { ...forge, remotes: ['(?<repo>\\w+/\\w+)'] },
+      { ...forge, remotes: ['(?<a>x)/(?<a>y)'] },
+      { ...forge, remotes: ['(?<repo>[a-z]+'] },
+      { ...forge, remotes: [link] },
+      { ...forge, links: [remote] },
+      { ...forge, links: ['(?<repo>[a-z]+)(?=/pull)'] },
+      { ...forge, calls: 'pull' },
+      { ...forge, verdicts: ['merge'] },
+      [forge],
+    ])
+      expect(with_(bad)).toEqual(['extensions.badForge'])
+  })
+
   it('checks the options and the settings page an extension declares', () => {
     const base = { id: 'jira', version: '1.0.0', api: 1, name: { en: 'Jira' } }
     const with_ = (settings: unknown) => keys({ ...base, contributes: { settings } })

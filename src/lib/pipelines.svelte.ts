@@ -6,7 +6,7 @@ import { settings } from './settings.svelte'
 import { t, type Key } from './i18n/index.svelte'
 
 export type Run = {
-  host: 'github' | 'bitbucket' | 'gitlab' | 'azure'
+  host: string
   id: string
   number: number
   name: string

@@ -13,6 +13,7 @@
   import { projects, scratch, type Project } from './projects.svelte'
   import { approve, hostName, lists, lookUpLists, merge, moved, needsYou, openReview, requestChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
   import { hint, settings } from './settings.svelte'
+  import { offers } from './forges.svelte'
   import {
     chains,
     chats,
@@ -171,8 +172,8 @@
       query,
       {
         reviewer: !!reviewerOf(project.path, pull),
-        approve: !mine && (pull.reviewed !== 'approved' || again),
-        changes: !mine && (pull.reviewed !== 'changes_requested' || again),
+        approve: !mine && offers(pull.host, 'approve') && (pull.reviewed !== 'approved' || again),
+        changes: !mine && offers(pull.host, 'request_changes') && (pull.reviewed !== 'changes_requested' || again),
         merge: pull.mergeable,
       },
       (act) => actTitle(act, project, pull),

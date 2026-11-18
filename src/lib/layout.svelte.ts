@@ -26,16 +26,19 @@ let panels: Record<string, PanelKind> = {}
 let display: Record<string, Partial<Display>> = {}
 
 export type AgentSort = { by: 'none' | 'updated' | 'created' | 'name'; desc: boolean }
+export type AgentTab = 'agents' | 'reviews'
 let sort: AgentSort = { by: 'none', desc: false }
 let sorts: Record<string, AgentSort> = {}
 let projectsWidth = 380
 let foldedGroups: Record<string, boolean> = {}
 let orders: Record<string, string[]> = {}
+let agentTabs: Record<string, AgentTab> = {}
 let contextShown = 'percent'
 try {
   sort = { ...sort, ...read('squadron.sort') }
   sorts = read('squadron.sorts')
   orders = read('squadron.agent-orders')
+  agentTabs = read('squadron.agent-tabs')
   stored = Number(localStorage.getItem('squadron.sidebar')) || 304
   split = localStorage.getItem('squadron.diff') === 'split'
   fileTree = localStorage.getItem('squadron.diff-tree') !== 'off'
@@ -59,6 +62,7 @@ export const layout = $state({
   sort,
   sorts,
   orders,
+  agentTabs,
   projectsWidth,
   foldedGroups,
   contextShown,
@@ -75,6 +79,11 @@ export function setSort(project: string | null, next: Partial<AgentSort>) {
 export function orderAgents(project: string, ids: string[]) {
   layout.orders[project] = ids
   keep('squadron.agent-orders', JSON.stringify(layout.orders))
+}
+
+export function setAgentTab(project: string, tab: AgentTab) {
+  layout.agentTabs[project] = tab
+  keep('squadron.agent-tabs', JSON.stringify(layout.agentTabs))
 }
 
 export function resetSort(project: string) {

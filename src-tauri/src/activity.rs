@@ -167,6 +167,8 @@ pub struct Agent {
     pub by: Option<String>,
     pub archived: bool,
     pub since: u64,
+    #[serde(default)]
+    pub unread: bool,
 }
 
 impl Agent {
@@ -188,6 +190,7 @@ impl Agent {
                 }
             }),
             by: self.by.filter(|b| id(b) && *b != self.id),
+            unread: self.unread && !self.archived,
             ..self
         })
     }
@@ -355,7 +358,7 @@ mod tests {
         let shown = masked("office", &admitted.name, &admitted.data);
         assert_eq!(
             shown,
-            json!({"id": "a1", "project": opaque("office", "/home/me/ring"), "name": "RING-1 Cardpayment", "status": "working", "waiting": null, "tool": "mcp__jira__search", "error": null, "by": "a0", "archived": false, "since": 5})
+            json!({"id": "a1", "project": opaque("office", "/home/me/ring"), "name": "RING-1 Cardpayment", "status": "working", "waiting": null, "tool": "mcp__jira__search", "error": null, "by": "a0", "archived": false, "since": 5, "unread": false})
         );
         assert!(!shown.to_string().contains("/home"));
         assert_ne!(
@@ -380,6 +383,10 @@ mod tests {
         };
         assert_eq!(error("api"), "api");
         assert_eq!(error("hook"), Value::Null);
+        let unread = |archived: bool| {
+            agent(json!({"id": "a1", "project": "/p", "name": "", "status": "done", "archived": archived, "since": 1, "unread": true})).unwrap().data["unread"].clone()
+        };
+        assert_eq!([unread(false), unread(true)], [json!(true), json!(false)]);
     }
 
     #[test]

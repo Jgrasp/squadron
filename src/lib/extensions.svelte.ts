@@ -18,7 +18,7 @@ import { workdir, type Agent } from './stream'
 import { waitingKind } from './activity'
 import { type as typeInTerminal } from './terminals.svelte'
 
-export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
+export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, unloaded: [] as string[], shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
 
 export const shownLabel = (key: string) => extensions.shown[key]?.label
 
@@ -269,7 +269,7 @@ export async function checkUpdates() {
   const fresh = updatesOf(extensions.list, catalog.entries ?? [], extensions.origins).filter((c) => !told.includes(`${c.id}@${c.version}`))
   if (!fresh.length) return
   localStorage.setItem(TOLD, JSON.stringify([...told, ...fresh.map((c) => `${c.id}@${c.version}`)]))
-  for (const c of fresh) await notify('updates', t('extensions.updateTitle'), t('extensions.updateBody', { name: text(c.name, locale()), version: c.version }), { settings: 'extensions' })
+  for (const c of fresh) await notify('updates', t('extensions.updateTitle'), t('extensions.updateBody', { name: text(c.name, locale()), version: c.version }), { settings: 'discover' })
 }
 
 const syncSkills = (list: Extension[]) =>
@@ -281,9 +281,17 @@ const syncWasm = (list: Extension[]) =>
   invoke<Record<string, string>>('extensions_wasm_sync', {
     list: active(list)
       .filter((m) => m.manifest.wasm)
-      .map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest.wasm, allowed: grantsOf(m), panels: (m.manifest.contributes?.panels ?? []).map((p) => p.id) })),
+      .map((m) => ({
+        id: m.id,
+        dir: m.dir,
+        wasm: m.manifest.wasm,
+        allowed: grantsOf(m),
+        panels: (m.manifest.contributes?.panels ?? []).map((p) => p.id),
+        forge: m.manifest.contributes?.forge ?? null,
+      })),
   }).then((errors) => {
     extensions.errors = errors
+    extensions.unloaded = Object.keys(errors)
   })
 
 export async function allowed(id: string) {

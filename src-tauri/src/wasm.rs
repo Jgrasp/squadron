@@ -1,12 +1,13 @@
 use crate::activity::{self, ACTIVITY, Admitted, Fed, READ_PROJECTS, READ_USAGE, SHOW_AGENTS};
 use crate::extension_tools;
+use crate::provider::{ForgeSpec, Provider};
 use serde::Deserialize;
 use serde_json::{Map, Value, json};
 use std::collections::{BTreeMap, HashMap};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::sync::mpsc::{self, RecvTimeoutError};
-use std::sync::{Arc, Mutex};
+use std::sync::{Arc, Condvar, Mutex};
 use std::time::{Duration, Instant, SystemTime};
 use wasmtime::component::{Component, HasSelf, Linker, ResourceTable, TypedFunc};
 use wasmtime::{Config, Engine, Store, StoreLimits, StoreLimitsBuilder};
@@ -42,6 +43,7 @@ const MAX_PAGE_EVENT: usize = 1 << 20;
 const QUEUED_PAGE_EVENTS: usize = 50;
 const QUEUED_PAGE_BYTES: usize = 8 << 20;
 const POSTED: usize = 4 << 20;
+const POOL: usize = 4;
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
 
@@ -69,6 +71,12 @@ impl Default for Hooks {
 type Answers = Arc<Mutex<HashMap<String, mpsc::Sender<Result<Value, String>>>>>;
 
 type CheckAccount = TypedFunc<(Account,), (Result<String, String>,)>;
+
+type Forge = TypedFunc<(String, String), (Result<String, String>,)>;
+
+pub type Answer = Result<Result<String, String>, String>;
+
+type State = Arc<Mutex<BTreeMap<String, String>>>;
 
 pub struct Trial {
     pub account: Stored,
@@ -210,6 +218,8 @@ pub struct Spec {
     pub allowed: Vec<String>,
     #[serde(default)]
     pub panels: Vec<String>,
+    #[serde(default)]
+    pub forge: Option<ForgeSpec>,
 }
 
 enum Job {
@@ -253,7 +263,7 @@ struct Host {
     limits: StoreLimits,
     file: PathBuf,
     data: PathBuf,
-    state: BTreeMap<String, String>,
+    state: State,
     allowed: Vec<String>,
     emit: Emit,
     answers: Answers,
@@ -473,11 +483,12 @@ impl squadron::api::host::Host for Host {
     }
 
     fn state_get(&mut self, key: String) -> Option<String> {
-        self.state.get(&key).cloned()
+        self.state.lock().unwrap().get(&key).cloned()
     }
 
     fn state_set(&mut self, key: String, value: Option<String>) {
-        let mut next = self.state.clone();
+        let mut state = self.state.lock().unwrap();
+        let mut next = state.clone();
         match value {
             Some(v) => next.insert(key, v),
             None => next.remove(&key),
@@ -498,7 +509,7 @@ impl squadron::api::host::Host for Host {
         if let Err(e) = std::fs::write(&self.file, bytes) {
             log::warn!("extension {}: state not saved: {e}", self.id);
         }
-        self.state = next;
+        *state = next;
     }
 
     fn exec(
@@ -650,6 +661,17 @@ impl squadron::api::host::Host for Host {
             .into_iter()
             .filter_map(activity::Agent::clean)
             .map(|v| v.masked(&self.id).into())
+            .collect())
+    }
+
+    fn unread_agents(&mut self) -> Result<Vec<String>, String> {
+        self.may(ACTIVITY)?;
+        Ok(self
+            .listed::<activity::Agent>("all-agents")?
+            .into_iter()
+            .filter_map(activity::Agent::clean)
+            .filter(|a| a.unread)
+            .map(|a| a.id)
             .collect())
     }
 
@@ -953,11 +975,14 @@ fn send(
     })
 }
 
-fn instantiate(
-    engine: &Engine,
-    component: &Component,
-    host: Host,
-) -> wasmtime::Result<(Store<Host>, SquadronCore, Option<CheckAccount>)> {
+struct Instance {
+    store: Store<Host>,
+    bindings: SquadronCore,
+    check: Option<CheckAccount>,
+    forge: Option<Forge>,
+}
+
+fn instantiate(engine: &Engine, component: &Component, host: Host) -> wasmtime::Result<Instance> {
     let mut linker = Linker::<Host>::new(engine);
     wasmtime_wasi::p2::add_to_linker_sync(&mut linker)?;
     SquadronCore::add_to_linker::<_, HasSelf<_>>(&mut linker, |h| h)?;
@@ -969,10 +994,196 @@ fn instantiate(
     let check = instance
         .get_typed_func::<(Account,), (Result<String, String>,)>(&mut store, "check-account")
         .ok();
-    Ok((store, bindings, check))
+    let forge = instance
+        .get_typed_func::<(String, String), (Result<String, String>,)>(&mut store, "forge")
+        .ok();
+    Ok(Instance {
+        store,
+        bindings,
+        check,
+        forge,
+    })
 }
 
 pub const NO_CHECK: &str = "This extension does not export check-account. Build it against squadron_extension_api 1.6.0 or later.";
+
+pub const NO_FORGE: &str =
+    "This extension does not export forge. Build it against squadron_extension_api 1.8.0 or later.";
+
+const NO_ANSWER: &str = "The extension did not answer.";
+
+fn unsupported(call: &str) -> String {
+    json!({"code": "unsupported", "title": format!("This extension does not answer {call}.")})
+        .to_string()
+}
+
+fn refused(error: &str) -> bool {
+    serde_json::from_str::<Value>(error).is_ok_and(|e| e["code"] == "unsupported")
+}
+
+#[derive(Clone)]
+struct Maker {
+    engine: Engine,
+    component: Component,
+    id: String,
+    emit: Emit,
+    answers: Answers,
+    file: PathBuf,
+    data: PathBuf,
+    hooks: Hooks,
+    kept: Arc<Mutex<Kept>>,
+    state: State,
+}
+
+impl Maker {
+    fn host(&self, allowed: &[String], panels: &[String]) -> Host {
+        Host {
+            id: self.id.clone(),
+            wasi: WasiCtx::builder().build(),
+            table: ResourceTable::new(),
+            limits: StoreLimitsBuilder::new().memory_size(MEMORY).build(),
+            state: self.state.clone(),
+            file: self.file.clone(),
+            data: self.data.clone(),
+            allowed: allowed.to_vec(),
+            emit: self.emit.clone(),
+            answers: self.answers.clone(),
+            timer: None,
+            hooks: self.hooks.clone(),
+            trial: None,
+            panels: panels.to_vec(),
+            kept: self.kept.clone(),
+        }
+    }
+
+    fn instantiate(&self, allowed: &[String], panels: &[String]) -> Result<Instance, String> {
+        instantiate(&self.engine, &self.component, self.host(allowed, panels))
+            .map_err(|e| format!("{e:#}"))
+    }
+
+    fn report(&self, error: &str) {
+        (self.emit)(json!({"extension": self.id, "call": "error", "error": error}));
+    }
+}
+
+#[derive(Default)]
+struct Slots {
+    idle: Vec<Instance>,
+    made: usize,
+}
+
+struct Pool {
+    maker: Maker,
+    rights: Mutex<(Vec<String>, Vec<String>)>,
+    slots: Mutex<Slots>,
+    freed: Condvar,
+    flying: Mutex<HashMap<String, Vec<mpsc::Sender<Answer>>>>,
+    unsupported: Mutex<Vec<String>>,
+}
+
+impl Pool {
+    fn new(maker: Maker, allowed: Vec<String>, panels: Vec<String>) -> Self {
+        Self {
+            maker,
+            rights: Mutex::new((allowed, panels)),
+            slots: Mutex::default(),
+            freed: Condvar::new(),
+            flying: Mutex::default(),
+            unsupported: Mutex::default(),
+        }
+    }
+
+    fn allow(&self, allowed: Vec<String>, panels: Vec<String>) {
+        *self.rights.lock().unwrap() = (allowed, panels);
+    }
+
+    fn call(self: &Arc<Self>, call: &str, input: &str) -> Answer {
+        if self.unsupported.lock().unwrap().iter().any(|c| c == call) {
+            return Ok(Err(unsupported(call)));
+        }
+        let key = format!("{call}\n{input}");
+        let (tx, rx) = mpsc::channel();
+        let first = {
+            let mut flying = self.flying.lock().unwrap();
+            let waiting = flying.entry(key.clone()).or_default();
+            waiting.push(tx);
+            waiting.len() == 1
+        };
+        if first {
+            let (pool, call, input) = (self.clone(), call.to_string(), input.to_string());
+            std::thread::spawn(move || {
+                let answer = pool.serve(call, input);
+                let waiting = pool.flying.lock().unwrap().remove(&key);
+                for tx in waiting.into_iter().flatten() {
+                    let _ = tx.send(answer.clone());
+                }
+            });
+        }
+        rx.recv_timeout(ANSWER).map_err(|_| NO_ANSWER.to_string())?
+    }
+
+    fn serve(&self, call: String, input: String) -> Answer {
+        let mut instance = self.take()?;
+        let Some(forge) = instance.forge else {
+            self.give(Some(instance));
+            return Err(NO_FORGE.into());
+        };
+        let (allowed, panels) = self.rights.lock().unwrap().clone();
+        let store = &mut instance.store;
+        store.data_mut().allowed = allowed;
+        store.data_mut().panels = panels;
+        let _ = store.set_fuel(FUEL);
+        let call_name = call.clone();
+        match forge.call(&mut *store, (call, input)) {
+            Ok((result,)) => {
+                self.give(Some(instance));
+                if result.as_ref().is_err_and(|e| refused(e)) {
+                    self.unsupported.lock().unwrap().push(call_name);
+                }
+                Ok(result)
+            }
+            Err(e) => {
+                let e = trapped(e);
+                self.maker.report(&e);
+                self.give(None);
+                Err(e)
+            }
+        }
+    }
+
+    fn take(&self) -> Result<Instance, String> {
+        let deadline = Instant::now() + ANSWER;
+        let mut slots = self.slots.lock().unwrap();
+        loop {
+            if let Some(instance) = slots.idle.pop() {
+                return Ok(instance);
+            }
+            if slots.made < POOL {
+                slots.made += 1;
+                drop(slots);
+                let (allowed, panels) = self.rights.lock().unwrap().clone();
+                return self
+                    .maker
+                    .instantiate(&allowed, &panels)
+                    .inspect_err(|_| self.give(None));
+            }
+            let left = deadline.saturating_duration_since(Instant::now());
+            if left.is_zero() {
+                return Err(NO_ANSWER.into());
+            }
+            slots = self.freed.wait_timeout(slots, left).unwrap().0;
+        }
+    }
+
+    fn give(&self, instance: Option<Instance>) {
+        let mut slots = self.slots.lock().unwrap();
+        match instance {
+            Some(instance) => slots.idle.push(instance),
+            None => slots.made -= 1,
+        }
+        self.freed.notify_one();
+    }
+}
 
 fn text_of(value: &Value) -> Option<Value> {
     match value {
@@ -1019,6 +1230,8 @@ pub fn verdict(answer: Result<Result<String, String>, String>, fields: &[String]
 pub struct Runtime {
     engine: Engine,
     loaded: Running,
+    pools: Mutex<HashMap<String, Arc<Pool>>>,
+    forges: Mutex<Vec<(String, ForgeSpec)>>,
     pages: Mutex<HashMap<String, (Instant, u32)>>,
     feed: mpsc::Sender<Admitted>,
     states: PathBuf,
@@ -1058,6 +1271,8 @@ impl Runtime {
         Ok(Self {
             engine: Engine::new(&config).map_err(|e| e.to_string())?,
             loaded,
+            pools: Mutex::default(),
+            forges: Mutex::default(),
             pages: Default::default(),
             feed,
             states,
@@ -1093,13 +1308,20 @@ impl Runtime {
 
     pub fn sync(&self, specs: Vec<Spec>) -> HashMap<String, String> {
         let mut errors = HashMap::new();
+        *self.forges.lock().unwrap() = specs
+            .iter()
+            .filter_map(|s| Some((s.id.clone(), s.forge.clone()?)))
+            .collect();
         let mut loaded = self.loaded.lock().unwrap();
+        let mut pools = self.pools.lock().unwrap();
         loaded.retain(|id, _| specs.iter().any(|s| &s.id == id));
+        pools.retain(|id, _| loaded.contains_key(id));
         for spec in specs {
             let path = match resolve(&spec.dir, &spec.wasm) {
                 Ok(path) => path,
                 Err(e) => {
                     loaded.remove(&spec.id);
+                    pools.remove(&spec.id);
                     errors.insert(spec.id, e);
                     continue;
                 }
@@ -1111,13 +1333,17 @@ impl Runtime {
             {
                 let _ =
                     l.tx.send(Job::Allow(spec.allowed.clone(), spec.panels.clone()));
+                if let Some(pool) = pools.get(&spec.id) {
+                    pool.allow(spec.allowed.clone(), spec.panels.clone());
+                }
                 if let Some(l) = loaded.get_mut(&spec.id) {
                     l.allowed = spec.allowed;
                 }
                 continue;
             }
             match self.start(&spec, &path) {
-                Ok((tx, inbox, queued)) => {
+                Ok((tx, inbox, queued, pool)) => {
+                    pools.insert(spec.id.clone(), pool);
                     let allowed = spec.allowed;
                     loaded.insert(
                         spec.id,
@@ -1133,6 +1359,7 @@ impl Runtime {
                 }
                 Err(e) => {
                     loaded.remove(&spec.id);
+                    pools.remove(&spec.id);
                     errors.insert(spec.id, e);
                 }
             }
@@ -1144,59 +1371,56 @@ impl Runtime {
         &self,
         spec: &Spec,
         path: &Path,
-    ) -> Result<(mpsc::Sender<Job>, Inbox, Queued), String> {
+    ) -> Result<(mpsc::Sender<Job>, Inbox, Queued, Arc<Pool>), String> {
         let component = Component::from_file(&self.engine, path).map_err(|e| format!("{e:#}"))?;
-        let engine = self.engine.clone();
-        let (id, emit, answers, file, data, hooks) = (
-            spec.id.clone(),
-            self.emit.clone(),
-            self.answers.clone(),
-            self.states.join(format!("{}.json", spec.id)),
-            self.data_of(&spec.id),
-            self.hooks.clone(),
-        );
-        let (mut allowed, mut panels) = (spec.allowed.clone(), spec.panels.clone());
-        let kept = Arc::new(Mutex::new(Kept::default()));
-        let host = move |allowed: &Vec<String>, panels: &Vec<String>| Host {
-            id: id.clone(),
-            wasi: WasiCtx::builder().build(),
-            table: ResourceTable::new(),
-            limits: StoreLimitsBuilder::new().memory_size(MEMORY).build(),
-            state: std::fs::read(&file)
-                .ok()
-                .and_then(|b| serde_json::from_slice(&b).ok())
-                .unwrap_or_default(),
-            file: file.clone(),
-            data: data.clone(),
-            allowed: allowed.clone(),
-            emit: emit.clone(),
-            answers: answers.clone(),
-            timer: None,
-            hooks: hooks.clone(),
-            trial: None,
-            panels: panels.clone(),
-            kept: kept.clone(),
+        let file = self.states.join(format!("{}.json", spec.id));
+        let state = std::fs::read(&file)
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
+        let maker = Maker {
+            engine: self.engine.clone(),
+            component,
+            id: spec.id.clone(),
+            emit: self.emit.clone(),
+            answers: self.answers.clone(),
+            file,
+            data: self.data_of(&spec.id),
+            hooks: self.hooks.clone(),
+            kept: Arc::default(),
+            state: Arc::new(Mutex::new(state)),
         };
+        let (mut allowed, mut panels) = (spec.allowed.clone(), spec.panels.clone());
+        let pool = Arc::new(Pool::new(maker.clone(), allowed.clone(), panels.clone()));
+        let provides = spec.forge.is_some();
         let (ready_tx, ready_rx) = mpsc::channel();
         let (tx, rx) = mpsc::channel::<Job>();
-        let (report, id) = (self.emit.clone(), spec.id.clone());
+        let id = spec.id.clone();
         let inbox = Inbox::default();
         let fed = inbox.clone();
         let queued = Queued::default();
         let waiting = queued.clone();
         std::thread::spawn(move || {
-            let mut current = match instantiate(&engine, &component, host(&allowed, &panels)) {
+            let mut current = match maker.instantiate(&allowed, &panels) {
+                Ok(current) if provides && current.forge.is_none() => {
+                    return ready_tx.send(Err(NO_FORGE.into())).unwrap_or(());
+                }
                 Ok(current) => current,
-                Err(e) => return ready_tx.send(Err(format!("{e:#}"))).unwrap_or(()),
+                Err(e) => return ready_tx.send(Err(e)).unwrap_or(()),
             };
             let _ = ready_tx.send(Ok(()));
             let mut job = Some(Job::Event("started".into(), None, "{}".into()));
             loop {
-                let timer = current.0.data().timer;
+                let timer = current.store.data().timer;
                 let Some(next) = job.take().or_else(|| wait(&rx, timer)) else {
                     break;
                 };
-                let (store, bindings, check) = &mut current;
+                let Instance {
+                    store,
+                    bindings,
+                    check,
+                    ..
+                } = &mut current;
                 let _ = store.set_fuel(FUEL);
                 let failure = match next {
                     Job::Allow(list, pages) => {
@@ -1294,17 +1518,15 @@ impl Runtime {
                     }
                 };
                 if let Some(error) = failure {
-                    report(json!({"extension": id, "call": "error", "error": error}));
-                    let timer = current.0.data().timer;
-                    match instantiate(&engine, &component, host(&allowed, &panels)) {
+                    maker.report(&error);
+                    let timer = current.store.data().timer;
+                    match maker.instantiate(&allowed, &panels) {
                         Ok(mut fresh) => {
-                            fresh.0.data_mut().timer = timer;
+                            fresh.store.data_mut().timer = timer;
                             current = fresh;
                         }
                         Err(e) => {
-                            report(
-                                json!({"extension": id, "call": "error", "error": format!("{e:#}")}),
-                            );
+                            maker.report(&e);
                             break;
                         }
                     }
@@ -1314,7 +1536,7 @@ impl Runtime {
         ready_rx
             .recv()
             .map_err(|_| "The extension did not start.".to_string())??;
-        Ok((tx, inbox, queued))
+        Ok((tx, inbox, queued, pool))
     }
 
     fn page_event(&self, id: &str, data: &str) -> bool {
@@ -1400,6 +1622,35 @@ impl Runtime {
         answer
             .recv_timeout(ANSWER)
             .map_err(|_| "The extension did not answer.".to_string())?
+    }
+
+    pub fn providers(&self) -> Vec<Provider> {
+        let running = self.pools.lock().unwrap();
+        self.forges
+            .lock()
+            .unwrap()
+            .iter()
+            .filter(|(id, _)| running.contains_key(id))
+            .map(|(id, spec)| Provider {
+                extension: id.clone(),
+                spec: spec.clone(),
+                hosts: (self.hooks.accounts)(id)
+                    .into_iter()
+                    .filter_map(|a| a.host)
+                    .collect(),
+            })
+            .collect()
+    }
+
+    pub fn forge(&self, id: &str, call: &str, input: &str) -> Answer {
+        let pool = self
+            .pools
+            .lock()
+            .unwrap()
+            .get(id)
+            .cloned()
+            .ok_or_else(|| format!("The extension {id} is not running."))?;
+        pool.call(call, input)
     }
 
     pub fn tool(
@@ -1524,6 +1775,7 @@ mod tests {
             wasm: "target/wasm32-wasip2/release/hello.wasm".into(),
             allowed,
             panels: vec!["main".into()],
+            forge: None,
         };
         assert!(runtime.sync(vec![spec(vec![])]).is_empty());
         let agent = AgentInfo {
@@ -1672,7 +1924,7 @@ mod tests {
             limits: StoreLimitsBuilder::new().build(),
             file: std::env::temp_dir().join(format!("squadron-wasm-{}.json", uuid::Uuid::new_v4())),
             data: std::env::temp_dir().join(format!("squadron-data-{}", uuid::Uuid::new_v4())),
-            state: BTreeMap::new(),
+            state: State::default(),
             allowed: allowed.iter().map(|a| a.to_string()).collect(),
             emit: Arc::new(move |v: Value| {
                 record.lock().unwrap().push(v.clone());
@@ -1749,7 +2001,9 @@ mod tests {
             ])),
             "groups" => Ok(json!([{"id": "g1", "name": "Work", "parent": ""}])),
             "all-agents" => Ok(json!([
-                {"id": "a1", "project": "/home/me/ring", "name": "RING-1", "status": "waiting", "waiting": "question", "tool": null, "error": null, "by": null, "archived": true, "since": 3, "dir": "/home/me/ring/w"}
+                {"id": "a1", "project": "/home/me/ring", "name": "RING-1", "status": "waiting", "waiting": "question", "tool": null, "error": null, "by": null, "archived": true, "since": 3, "dir": "/home/me/ring/w"},
+                {"id": "a2", "project": "/home/me/ring", "name": "RING-2", "status": "done", "archived": false, "since": 4, "unread": true},
+                {"id": "a3", "project": "/home/me/ring", "name": "RING-3", "status": "done", "archived": true, "since": 4, "unread": true}
             ])),
             "usage" => Ok(
                 json!({"five_hour": {"utilization": 0.5, "resets_at": 10}, "seven_day": null, "api": "overloaded", "retries": 2, "since": 4}),
@@ -1779,6 +2033,12 @@ mod tests {
         );
         assert!(
             denied
+                .unread_agents()
+                .unwrap_err()
+                .contains(r#""activity" in permissions.agents"#)
+        );
+        assert!(
+            denied
                 .usage()
                 .unwrap_err()
                 .contains(r#""read" in permissions.usage"#)
@@ -1801,6 +2061,8 @@ mod tests {
         assert_eq!(agents[0].project, projects[0].id);
         assert_eq!(agents[0].waiting.as_deref(), Some("question"));
         assert!(agents[0].archived);
+        assert_eq!(agents.len(), 3);
+        assert_eq!(host.unread_agents().unwrap(), ["a2"]);
         let usage = host.usage().unwrap();
         assert_eq!((usage.api.as_str(), usage.retries), ("overloaded", 2));
         assert_eq!(usage.five_hour.unwrap().resets_at, Some(10));
@@ -2349,6 +2611,7 @@ mod tests {
                     wasm: "target/wasm32-wasip2/release/hello.wasm".into(),
                     allowed: vec![],
                     panels: vec![],
+                    forge: None,
                 }])
                 .is_empty()
         );
@@ -2490,6 +2753,7 @@ mod tests {
             wasm: "broken.wasm".into(),
             allowed: vec![],
             panels: vec![],
+            forge: None,
         }]);
         assert!(errors.contains_key("broken"));
         assert!(
@@ -2509,5 +2773,170 @@ mod tests {
         assert!(dir.is_dir());
         assert!(runtime.data_dir("../escape").is_err());
         std::fs::remove_dir_all(root).unwrap();
+    }
+
+    type Told = Arc<Mutex<Vec<Value>>>;
+
+    fn forge_spec(dir: &Path, allowed: Vec<String>) -> Spec {
+        Spec {
+            id: "forge".into(),
+            dir: dir.to_string_lossy().into(),
+            wasm: "target/wasm32-wasip2/release/forge.wasm".into(),
+            allowed,
+            panels: vec![],
+            forge: None,
+        }
+    }
+
+    fn forge_fixture() -> (Runtime, Told, PathBuf, PathBuf) {
+        let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("tests/fixtures/forge");
+        let built = Command::new("cargo")
+            .args(["build", "--release", "--target", "wasm32-wasip2", "--quiet"])
+            .current_dir(&dir)
+            .status()
+            .is_ok_and(|s| s.success());
+        assert!(built, "the forge fixture builds");
+        let dir = dir.canonicalize().unwrap();
+        let states = std::env::temp_dir().join(format!("squadron-wasm-{}", uuid::Uuid::new_v4()));
+        let told = Arc::new(Mutex::new(Vec::<Value>::new()));
+        let record = told.clone();
+        let runtime =
+            Runtime::new(states.clone(), move |v| record.lock().unwrap().push(v)).unwrap();
+        (runtime, told, states, dir)
+    }
+
+    fn at_once(runtime: &Arc<Runtime>, inputs: &[&str]) -> Duration {
+        let started = Instant::now();
+        let calls: Vec<_> = inputs
+            .iter()
+            .map(|input| {
+                let (runtime, input) = (runtime.clone(), input.to_string());
+                std::thread::spawn(move || runtime.forge("forge", "wait", &input))
+            })
+            .collect();
+        for call in calls {
+            assert_eq!(call.join().unwrap().unwrap().unwrap().len(), 3);
+        }
+        started.elapsed()
+    }
+
+    #[test]
+    #[ignore = "builds the forge fixture, needs the wasm32-wasip2 target"]
+    fn runs_forge_calls_on_up_to_four_instances_that_share_the_state() {
+        let (runtime, _, states, dir) = forge_fixture();
+        assert!(runtime.sync(vec![forge_spec(&dir, vec![])]).is_empty());
+        let runtime = Arc::new(runtime);
+
+        let unknown: Value =
+            serde_json::from_str(&runtime.forge("forge", "lists", "{}").unwrap().unwrap_err())
+                .unwrap();
+        assert_eq!(unknown["code"], "unsupported");
+        runtime.forge("forge", "lists", "{}").unwrap().unwrap_err();
+        assert_eq!(
+            runtime.tool("forge", "unsupported", "{}", None).unwrap(),
+            "1"
+        );
+
+        let four = at_once(&runtime, &["600", "601", "602", "603"]);
+        assert!(four < Duration::from_millis(1500), "{four:?}");
+        let five = at_once(&runtime, &["500", "501", "502", "503", "504"]);
+        assert!(five >= Duration::from_millis(1000), "{five:?}");
+
+        for _ in 0..3 {
+            runtime.forge("forge", "bump", "{}").unwrap().unwrap();
+        }
+        assert_eq!(
+            runtime.tool("forge", "wait-603", "{}", None).unwrap(),
+            "603"
+        );
+        assert_eq!(runtime.tool("forge", "bumps", "{}", None).unwrap(), "3");
+        let saved: Map<String, Value> =
+            serde_json::from_slice(&std::fs::read(states.join("forge.json")).unwrap()).unwrap();
+        assert_eq!(saved.len(), 11, "{saved:?}");
+    }
+
+    #[test]
+    #[ignore = "builds the forge fixture, needs the wasm32-wasip2 target"]
+    fn joins_a_forge_call_identical_to_one_in_flight() {
+        let (runtime, _, _, dir) = forge_fixture();
+        assert!(runtime.sync(vec![forge_spec(&dir, vec![])]).is_empty());
+        let runtime = Arc::new(runtime);
+        at_once(&runtime, &["400", "400", "400"]);
+        assert_eq!(runtime.tool("forge", "waits", "{}", None).unwrap(), "1");
+        at_once(&runtime, &["400", "401"]);
+        assert_eq!(runtime.tool("forge", "waits", "{}", None).unwrap(), "2");
+        assert_eq!(
+            runtime.tool("forge", "wait-401", "{}", None).unwrap(),
+            "401"
+        );
+    }
+
+    #[test]
+    #[ignore = "builds the forge fixture, needs the wasm32-wasip2 target"]
+    fn forge_calls_follow_permission_changes_and_outlive_a_trap() {
+        let (runtime, told, _, dir) = forge_fixture();
+        assert!(runtime.sync(vec![forge_spec(&dir, vec![])]).is_empty());
+        let refused = runtime.forge("forge", "git", "{}").unwrap().unwrap_err();
+        assert!(refused.contains("git is not allowed"), "{refused}");
+
+        assert!(
+            runtime
+                .sync(vec![forge_spec(&dir, vec!["exec:git".into()])])
+                .is_empty()
+        );
+        let version = runtime.forge("forge", "git", "{}").unwrap().unwrap();
+        assert!(version.starts_with("git version"), "{version}");
+
+        runtime.forge("forge", "bump", "{}").unwrap().unwrap();
+        let trapped = runtime.forge("forge", "trap", "{}").unwrap_err();
+        assert!(trapped.starts_with("The extension stopped"), "{trapped}");
+        assert!(told.lock().unwrap().iter().any(|v| v["call"] == "error"));
+        assert_eq!(runtime.forge("forge", "bump", "{}").unwrap().unwrap(), "2");
+        assert!(
+            runtime
+                .forge("other", "bump", "{}")
+                .unwrap_err()
+                .contains("not running")
+        );
+    }
+
+    #[test]
+    #[ignore = "builds the forge fixture, needs the wasm32-wasip2 target"]
+    fn routes_a_remote_to_the_extension_that_provides_its_forge() {
+        let (runtime, _, _, dir) = forge_fixture();
+        let runtime = runtime.with_hooks(Hooks {
+            accounts: Arc::new(|_| {
+                vec![Stored {
+                    id: "a1".into(),
+                    values: BTreeMap::new(),
+                    host: Some("git.acme.io".into()),
+                    secrets: vec![],
+                }]
+            }),
+            ..Hooks::default()
+        });
+        let spec = Spec {
+            forge: Some(ForgeSpec {
+                remotes: vec![r"(?<site>{account})/(?<path>[a-z/]+)".into()],
+                calls: vec!["me".into(), "runs".into()],
+                ..ForgeSpec::default()
+            }),
+            ..forge_spec(&dir, vec![])
+        };
+        assert!(runtime.sync(vec![spec]).is_empty());
+        let providers = runtime.providers();
+        assert_eq!(providers[0].hosts, ["git.acme.io"]);
+        let target =
+            crate::provider::remote_target(&providers, "git@git.acme.io:team/shop.git").unwrap();
+        let me: crate::forge::Person =
+            crate::provider::ask(&runtime, &target, "me", json!({})).unwrap();
+        assert_eq!(me.name, "git.acme.io/team/shop on git.acme.io");
+        let refused = crate::provider::ask::<Value>(&runtime, &target, "runs", json!({}));
+        assert_eq!(refused.unwrap_err(), "This extension does not answer runs.");
+        let undeclared = crate::provider::ask::<Value>(&runtime, &target, "merge", json!({}));
+        assert_eq!(undeclared.unwrap_err(), "forge does not answer merge.");
+
+        assert!(runtime.sync(vec![]).is_empty());
+        assert!(runtime.providers().is_empty());
     }
 }

@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { emitTo } from '@tauri-apps/api/event'
 import { setLanguage, type Language } from './i18n/index.svelte'
 import { label, pressed, binding, type Action } from './shortcuts'
+import type { Follow } from './plugins'
 import type { Options } from './stream'
 
 export const COMPACT_WINDOWS = [0, 600_000, 400_000, 200_000]
@@ -54,6 +55,7 @@ export type Config = {
   plugin_lines: 'off' | 'tag' | 'card' | 'gutter'
   plugin_card: 'normal' | 'minimal'
   plugin_projects: Record<string, string[]>
+  plugin_groups: Record<string, Follow>
   notify_when: NotifyWhen
   notify_off: string[]
   notify_sound: string[]
@@ -93,6 +95,7 @@ export const settings = $state<Config>({
   plugin_lines: 'tag',
   plugin_card: 'normal',
   plugin_projects: {},
+  plugin_groups: {},
   notify_when: 'background',
   notify_off: [],
   notify_sound: ['question', 'permission', 'plan', 'password'],

@@ -5,6 +5,8 @@
   import { clock, forkPoint, readNow, SSH_KEY, SUDO, VALUES } from './agents.svelte'
   import { namesOf } from './catalogs.svelte'
   import Attachment from './Attachment.svelte'
+  import FileCard from './FileCard.svelte'
+  import { TABULAR } from './csv'
   import CommentChip from './CommentChip.svelte'
   import type { Proposal } from './diff'
   import { highlight } from './commands'
@@ -359,7 +361,7 @@ import { fences } from './codepaste'
     {@const said = ticketBlocks(entry.text)}
     {@const cards = linkCards(said.text)}
     {#if entry.files?.length}
-      <div class="files" data-user={i}>{#each entry.files as file (file)}<Attachment path={file} large look="card" />{/each}</div>
+      <div class="files" data-user={i}>{#each entry.files as file (file)}{#if TABULAR.test(file)}<div class="sheet"><FileCard path={file} /></div>{:else}<Attachment path={file} large look="card" />{/if}{/each}</div>
     {/if}
     {#if entry.text || entry.comments?.length || !entry.files?.length}
       <div class="user" data-user={entry.files?.length ? undefined : i} oncontextmenu={(e) => openMenu(e, i, entry.text)} role="presentation">
@@ -840,6 +842,15 @@ import { fences } from './codepaste'
     flex-wrap: wrap;
     justify-content: flex-end;
     gap: 8px;
+  }
+
+  .files:has(.sheet) {
+    width: 100%;
+  }
+
+  .files .sheet {
+    flex-basis: 100%;
+    text-align: left;
   }
 
   .files:has(+ .user) {

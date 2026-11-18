@@ -156,6 +156,27 @@ struct ReviewComment {
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(rename_all = "lowercase")]
+enum ThreadState {
+    Fixed,
+    Answered,
+    Open,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct JudgeThread {
+    /// The id of the thread, as read_pull_comments gives it.
+    thread: String,
+    /// fixed: the code now does what the thread asked. answered: the author replied with a reason that holds, the code may stay. open: still to do.
+    state: ThreadState,
+    /// The commit that fixes it, when state is fixed.
+    commit: Option<String>,
+    /// One sentence the user reads next to the thread: what you checked and what you found.
+    note: String,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct ReadPullComments {
     /// The pull request number. The one you review, or else the one of your branch, when left empty.
@@ -463,7 +484,18 @@ impl Pilot {
             .await
     }
 
-    /// Returns the comments posted on a pull request on Bitbucket, GitHub, GitLab or Azure DevOps, in threads with their replies: on the whole pull request or on a file line (outdated when the line no longer exists). Squadron reads them with the user's account: no token needed.
+    /// Tells the user what you found on a thread already posted on the pull request you review: fixed by a commit, answered by the author with a reason that holds, or still open. The user decides: they read your note next to the thread, then resolve it or not when they finish the round. Call it again on the same thread to change your mind.
+    #[tool]
+    async fn judge_review_thread(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<JudgeThread>,
+    ) -> String {
+        self.forward(&parts, "judge_review_thread", json!(args))
+            .await
+    }
+
+    /// Returns the comments posted on a pull request on Bitbucket, GitHub, GitLab or Azure DevOps, in threads with their replies: on the whole pull request or on a file line (outdated when the line no longer exists), with `resolved` when the host tracks it and the `commit` a line comment was written on. Squadron reads them with the user's account: no token needed.
     #[tool]
     async fn read_pull_comments(
         &self,

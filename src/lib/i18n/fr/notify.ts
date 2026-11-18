@@ -8,7 +8,7 @@ export default {
   whenAlways: 'Toujours',
   whenNever: 'Jamais',
   agents: 'Agents',
-  codeHosting: 'Hébergement du code',
+  codeHosting: 'Pull requests',
   squadron: 'Squadron',
   chime: 'Carillon',
   questionLabel: 'Pose une question',

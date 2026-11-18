@@ -13,7 +13,7 @@ import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw
 import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
 import picker from '../../src-tauri/src/artifact-pick.js?raw'
 
-type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; tab_hidden?: boolean; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; defaults?: Record<string, string> }
+type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; tab_closed_at?: number; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; defaults?: Record<string, string> }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
@@ -59,7 +59,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ group: p.group ?? '', ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, tab_hidden: !!p.tab_hidden, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', defaults: p.defaults ?? {} }))
+const views = () => projects.map((p, i) => ({ group: p.group ?? '', ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, tab_closed_at: p.tab_closed_at ?? 0, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', defaults: p.defaults ?? {} }))
 
 const loaded = Date.now()
 const timers = new Map<string, number>()
@@ -838,8 +838,8 @@ mockIPC(
         const project = projects.find((p) => p.path === a.path)!
         const changes = (args as { changes: Partial<Project> }).changes
         Object.assign(project, changes)
-        if (changes.pinned) project.tab_hidden = false
-        if (changes.tab_hidden) project.pinned = false
+        if (changes.pinned) project.tab_closed_at = 0
+        if (changes.tab_closed_at) project.pinned = false
         localStorage.setItem('projects', JSON.stringify(projects))
         return views()
       }
@@ -914,6 +914,7 @@ mockIPC(
         return null
       case 'read_project_file':
         if (files.has(a.path)) return files.get(a.path)
+        if (a.path.endsWith('.csv')) return 'url;status;title;hits\nhttps://neogeofanatic.com/;200;Neo Geo Fanatic;12 480\nhttps://neogeofanatic.com/games/metal-slug;200;"Metal Slug, the classic";3 214\nhttps://neogeofanatic.com/old-page;404;;87\nhttps://neogeofanatic.com/shop;301;Shop;1 905\n'
         if (a.path.endsWith('.php')) return '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'
         return a.path.endsWith('resume.txt') ? '2\n' : null
       case 'open_in_editor':
@@ -1020,6 +1021,7 @@ mockIPC(
         if (files.has(a.path)) return files.get(a.path)
         throw 'Not an image.'
       case 'open_attachment':
+      case 'reveal_project_file':
         return
       case 'attachment_size':
         return a.path.length * 3_917
@@ -1068,8 +1070,39 @@ mockIPC(
           ],
         }
       }
+      case 'forge_coverage': {
+        const known: Record<string, [string, string | null]> = {
+          '/home/demo/agence/orbit': ['github.com/agence/orbit', null],
+          '/home/demo/agence/nova': ['bitbucket.org/agence/nova', 'bitbucket'],
+          '/home/demo/agence/lumen-absent': ['git.agence.io/lumen', null],
+        }
+        return (args as { projects: string[] }).projects.map((path) => ({ path, remote: known[path]?.[0] ?? null, by: known[path]?.[1] ?? null }))
+      }
+      case 'extensions_catalog':
+        return [
+          {
+            source: 'Jgrasp/squadron-extensions',
+            official: true,
+            index: {
+              api: 1,
+              extensions: [
+                {
+                  id: 'github',
+                  version: '0.1.0',
+                  name: { en: 'GitHub' },
+                  description: { en: 'Pull requests and GitHub Actions runs of your GitHub projects in Squadron: review, comment, merge' },
+                  repository: 'https://github.com/Jgrasp/squadron-github',
+                  archive: 'https://example.invalid/github-0.1.0.tar.gz',
+                  sha256: '0',
+                  permissions: { network: ['api.github.com'] },
+                  forge: { remotes: ['^github\\.com/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)$'] },
+                },
+              ],
+            },
+          },
+        ]
       case 'forge_accounts':
-        return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, github: 'octo', gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
+        return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
       case 'bitbucket_sign_in':
         if (a.token === 'bad') throw 'Bitbucket refused this email and token.'
         localStorage.setItem('bitbucket', a.email)
@@ -1101,15 +1134,16 @@ mockIPC(
         }))
       case 'pull_remarks':
         return [
-          { id: 1, author: 'Amandine T.', avatar: '', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z', kind: 'line' },
-          { id: 2, author: 'Quentin Briais', avatar: '', body: 'The CLI import has none.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: 1, at: '2026-10-23T09:20:00Z' },
-          { id: 4, author: 'Lucas M.', avatar: '', body: 'The scheduler has none either, keep it nullable.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: 1, at: '2026-10-23T09:42:00Z' },
-          { id: 5, author: 'Lucas M.', avatar: '', body: 'Why not reuse the export channel option?', path: 'src/Export/ExportService.php', line: 16, removed: false, reply_to: null, at: '2026-10-23T10:05:00Z', kind: 'line' },
-          { id: 3, author: 'Amandine T.', avatar: '', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
+          { id: '1', author: 'Amandine T.', avatar: '', body: 'Can the channel stay required here? Every caller has one.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: null, at: '2026-10-23T09:10:00Z', kind: 'line', resolved: false, commit: 'a1b2c3d' },
+          { id: '2', author: 'Quentin Briais', avatar: '', body: 'The CLI import has none.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: '1', at: '2026-10-23T09:20:00Z' },
+          { id: '4', author: 'Lucas M.', avatar: '', body: 'The scheduler has none either, keep it nullable.', path: 'src/Segmentation/ChannelSegmentResolver.php', line: 13, removed: false, reply_to: '1', at: '2026-10-23T09:42:00Z' },
+          { id: '5', author: 'Lucas M.', avatar: '', body: 'Why not reuse the export channel option?', path: 'src/Export/ExportService.php', line: 16, removed: false, reply_to: null, at: '2026-10-23T10:05:00Z', kind: 'line', resolved: true, commit: 'a1b2c3d' },
+          { id: '3', author: 'Amandine T.', avatar: '', body: 'Looks good once the test covers a missing channel.', path: null, line: null, removed: false, reply_to: null, at: '2026-10-23T09:30:00Z' },
         ]
       case 'pull_me':
         return { name: 'Quentin Briais', avatar: '' }
       case 'pull_reply':
+      case 'pull_resolve':
         return
       case 'update_pull':
       case 'merge_pull':

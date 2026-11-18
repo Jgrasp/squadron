@@ -8,6 +8,8 @@ pub mod bindings {
     });
 }
 
+pub mod forge;
+
 pub use bindings::squadron::api::host;
 pub use bindings::squadron::api::types::{Account, AgentState, BytesResponse, Output, Request, Response, SavedFile};
 pub use bindings::{Agent, Guest};
@@ -25,6 +27,10 @@ pub trait Extension {
 
     fn check_account(_account: Account) -> Result<String, String> {
         Err("This extension does not test its accounts.".into())
+    }
+
+    fn forge(call: String, _input: String) -> Result<String, String> {
+        Err(forge::unsupported(&call))
     }
 }
 
@@ -48,6 +54,10 @@ macro_rules! squadron_extension {
 
             fn check_account(account: $crate::Account) -> Result<String, String> {
                 <$extension as $crate::Extension>::check_account(account)
+            }
+
+            fn forge(call: String, input: String) -> Result<String, String> {
+                <$extension as $crate::Extension>::forge(call, input)
             }
         }
 

@@ -17,6 +17,7 @@
   import { bottomShare, layout, openPanel, setPanel, sideSpan, type PanelKind } from './layout.svelte'
   import { home, projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
+  import { composing } from './drafts.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
   import ItemIcon from './ItemIcon.svelte'
@@ -639,7 +640,7 @@
     untrack(() => ui.drops++)
     getCurrentWebview()
       .onDragDropEvent(({ payload }) => {
-        if (ui.creating) return
+        if (composing[agent.project]) return
         if (payload.type === 'over' || payload.type === 'enter') dropping = true
         else if (payload.type === 'leave') dropping = false
         else if (payload.type === 'drop') {

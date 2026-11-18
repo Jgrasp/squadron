@@ -2,6 +2,8 @@
   import { invoke } from '@tauri-apps/api/core'
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { languageOf } from './lib/CodeEditor.svelte'
+  import { TABULAR } from './lib/csv'
+  import CsvTable from './lib/CsvTable.svelte'
   import { fenced } from './lib/filelink'
   import { errorText, t } from './lib/i18n/index.svelte'
   import Markdown from './lib/Markdown.svelte'
@@ -24,13 +26,15 @@
   getCurrentWindow().onFocusChanged(({ payload }) => payload && load())
 </script>
 
-<main>
+<main class:sheet={TABULAR.test(name) && typeof text === 'string'}>
   {#if error}
     <p class="note">{error}</p>
   {:else if text === null}
     <p class="note">{t('conversation.fileMissing')}</p>
   {:else if text === undefined}
     <p class="note">{t('common.loading')}</p>
+  {:else if TABULAR.test(name)}
+    <CsvTable {text} {name} fill />
   {:else}
     <Markdown text={fenced(text, languageOf(name)?.name.toLowerCase())} />
   {/if}
@@ -44,6 +48,11 @@
     overflow: auto;
     padding: 16px;
     background: var(--bg-main);
+  }
+
+  .sheet {
+    padding: 0;
+    overflow: hidden;
   }
 
   main > :global(.prose) {

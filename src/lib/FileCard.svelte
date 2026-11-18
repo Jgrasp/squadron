@@ -9,17 +9,22 @@
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { KIND_ICONS, kindOf } from './Attachment.svelte'
   import { languageOf } from './CodeEditor.svelte'
+  import { TABULAR } from './csv'
+  import CsvTable from './CsvTable.svelte'
   import { revealFile } from './editor.svelte'
   import { fenced, windowLabel } from './filelink'
   import { errorText, t, type Key } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
 
-  let { path, project }: { path: string; project: string } = $props()
+  let { path: given, project: root = '' }: { path: string; project?: string } = $props()
 
   const PREVIEW = 300
 
+  const cut = $derived(Math.max(given.lastIndexOf('/'), given.lastIndexOf('\\')))
+  const project = $derived(root || given.slice(0, cut) || '/')
+  const path = $derived(root ? given : given.slice(cut + 1))
   const name = $derived(path.split('/').pop() ?? path)
-  const folder = $derived(path.slice(0, -name.length))
+  const folder = $derived(root ? path.slice(0, -name.length) : given.slice(0, cut + 1))
   const kind = $derived(kindOf(path))
   const label = $derived(t(`agent.kind${kind[0].toUpperCase()}${kind.slice(1)}` as Key))
 
@@ -28,6 +33,7 @@
   const lines = $derived(text?.split('\n') ?? [])
   let limit = $state(PREVIEW)
   let error = $state('')
+  let failed = $state('')
   let card: HTMLElement
   let scroller: HTMLElement | null = null
   const still = matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -37,6 +43,16 @@
     const shown = await WebviewWindow.getByLabel(label)
     if (shown) return shown.setFocus()
     new WebviewWindow(label, { url: `index.html?${new URLSearchParams({ project, path })}`, title: `${name} · Squadron`, width: 760, height: 820, minWidth: 420, minHeight: 300 })
+  }
+
+  function launch() {
+    failed = ''
+    invoke('open_attachment', { path: given }).catch((e) => (failed = errorText(e)))
+  }
+
+  function locate() {
+    failed = ''
+    invoke('reveal_project_file', { project, path }).catch((e) => (failed = errorText(e)))
   }
 
   async function toggle() {
@@ -80,25 +96,34 @@
     </span>
   </div>
   <div class="actions">
-    <button type="button" class="btn btn-primary" onclick={() => revealFile(project, path)}>
-      {t('conversation.goToFile')}
+    <button type="button" class="btn btn-primary" onclick={() => (root ? revealFile(project, path) : launch())}>
+      {root ? t('conversation.goToFile') : t('common.open')}
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9" /></svg>
     </button>
     <button type="button" class="btn btn-ghost" aria-expanded={open} onclick={toggle}>
       {open ? t('conversation.hideContent') : t('conversation.showContent')}
       <svg class="chevron" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     </button>
+    <button type="button" class="btn btn-ghost folder" title={t('conversation.showInFolder')} aria-label={t('conversation.showInFolder')} onclick={locate}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+      <span class="label">{t('conversation.showInFolder')}</span>
+    </button>
     <button type="button" class="btn btn-ghost float" title={t('conversation.openInWindow')} aria-label={t('conversation.openInWindow')} onclick={float}>
       <span class="label">{t('conversation.openInWindow')}</span>
       <svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="7" width="14" height="14" rx="2" /><path d="M10 3h11v11" /></svg>
     </button>
   </div>
+  {#if failed}
+    <p class="note failed">{failed}</p>
+  {/if}
   {#if open}
     <div class="body" onscrollcapture={more} transition:slide={{ duration: still ? 0 : 260 }} onintroend={reveal}>
       {#if error}
         <p class="note">{error}</p>
       {:else if text === null}
         <p class="note">{t('conversation.fileMissing')}</p>
+      {:else if TABULAR.test(name)}
+        <CsvTable {text} {name} />
       {:else}
         <Markdown text={fenced(lines.slice(0, limit).join('\n'), languageOf(name)?.name.toLowerCase())} />
         {#if lines.length > limit}
@@ -213,6 +238,12 @@
     margin-left: auto;
   }
 
+  @container (max-width: 620px) {
+    .folder .label {
+      display: none;
+    }
+  }
+
   @container (max-width: 440px) {
     .float .label {
       display: none;
@@ -245,6 +276,10 @@
     padding: 12px 15px;
     font-size: 12.5px;
     color: var(--text-dim);
+  }
+
+  .failed {
+    border-top: 1px solid var(--border);
   }
 
   .more {

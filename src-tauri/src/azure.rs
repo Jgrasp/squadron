@@ -4,8 +4,8 @@ use crate::forge::{
 use reqwest::Method;
 use serde_json::{Value, json};
 
-const NO_TOKEN: &str = "Add an Azure DevOps token in Settings › Code hosting.";
-const REFUSED: &str = "Azure DevOps refused the token: add a new one in Settings › Code hosting.";
+const NO_TOKEN: &str = "Add an Azure DevOps token in Settings › Pull requests.";
+const REFUSED: &str = "Azure DevOps refused the token: add a new one in Settings › Pull requests.";
 const SITE: &str = "https://dev.azure.com";
 
 pub fn account() -> Option<String> {
@@ -289,8 +289,9 @@ pub(crate) fn azure_remarks(threads: &Value) -> Vec<Remark> {
             let right = context["rightFileStart"]["line"].as_u64();
             let left = context["leftFileStart"]["line"].as_u64();
             let parent = comment["parentCommentId"].as_u64().unwrap_or_default();
+            let status = thread["status"].as_str().filter(|s| *s != "unknown");
             Some(Remark {
-                id: tid << 16 | id,
+                id: (tid << 16 | id).to_string(),
                 author: text(&comment["author"]["displayName"]),
                 avatar: String::new(),
                 body: text(&comment["content"]),
@@ -298,8 +299,12 @@ pub(crate) fn azure_remarks(threads: &Value) -> Vec<Remark> {
                 path,
                 line: right.or(left).map(|n| n as u32),
                 removed: right.is_none() && left.is_some(),
-                reply_to: (parent > 0).then_some(tid << 16 | parent),
+                reply_to: (parent > 0).then(|| (tid << 16 | parent).to_string()),
                 at: text(&comment["publishedDate"]),
+                resolved: status
+                    .filter(|_| parent == 0)
+                    .map(|s| !matches!(s, "active" | "pending")),
+                commit: None,
             })
         })
         .collect()
@@ -331,6 +336,14 @@ pub async fn reply(slug: &str, number: u64, to: u64, body: String) -> Result<(),
     let url = format!("{}/threads/{}/comments", pull_api(slug, number), to >> 16);
     let comment = json!({ "content": body, "parentCommentId": to & 0xffff, "commentType": 1 });
     api(Method::POST, &url, &[], Some(comment))
+        .await
+        .map(|_| ())
+}
+
+pub async fn resolve(slug: &str, number: u64, to: u64, resolved: bool) -> Result<(), String> {
+    let url = format!("{}/threads/{}", pull_api(slug, number), to >> 16);
+    let status = if resolved { "fixed" } else { "active" };
+    api(Method::PATCH, &url, &[], Some(json!({ "status": status })))
         .await
         .map(|_| ())
 }
@@ -494,7 +507,7 @@ mod tests {
         });
         let threads = json!({ "value": [
             { "id": 8, "comments": [{ "id": 1, "parentCommentId": 0, "content": "MerlinBot added 3 reviewers", "commentType": "system" }] },
-            { "id": 11, "threadContext": { "filePath": "/src/a.cs", "rightFileStart": { "line": 12, "offset": 1 } }, "comments": [
+            { "id": 11, "status": "fixed", "threadContext": { "filePath": "/src/a.cs", "rightFileStart": { "line": 12, "offset": 1 } }, "comments": [
                 { "id": 1, "parentCommentId": 0, "content": "Rename", "commentType": "text", "author": { "displayName": "Ann" }, "publishedDate": "t1" },
                 { "id": 2, "parentCommentId": 1, "content": "Done", "commentType": "text", "author": { "displayName": "Bob" }, "publishedDate": "t2" },
                 { "id": 3, "parentCommentId": 1, "commentType": "text", "isDeleted": true }
@@ -543,14 +556,25 @@ mod tests {
         let remarks = azure_remarks(&threads);
         let seen: Vec<_> = remarks
             .iter()
-            .map(|r| (r.id, r.path.as_deref(), r.line, r.reply_to))
+            .map(|r| {
+                (
+                    r.id.as_str(),
+                    r.path.as_deref(),
+                    r.line,
+                    r.reply_to.as_deref(),
+                )
+            })
             .collect();
         assert_eq!(
             seen,
             [
-                (11 << 16 | 1, Some("src/a.cs"), Some(12), None),
-                (11 << 16 | 2, Some("src/a.cs"), Some(12), Some(11 << 16 | 1))
+                ("720897", Some("src/a.cs"), Some(12), None),
+                ("720898", Some("src/a.cs"), Some(12), Some("720897"))
             ]
+        );
+        assert_eq!(
+            (remarks[0].resolved, remarks[1].resolved),
+            (Some(true), None)
         );
     }
 
