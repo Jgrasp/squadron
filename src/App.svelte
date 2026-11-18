@@ -33,7 +33,7 @@ import './lib/extensionWindows.svelte'
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
-  import { lists, lookUpAll, lookUpLists, lookUpNumbered, numbered, reviewWithAgent } from './lib/pulls.svelte'
+  import { awaitsChecks, lists, lookUpAll, lookUpLists, lookUpNumbered, numbered, refreshPull, reviewWithAgent } from './lib/pulls.svelte'
   import { showPulls } from './lib/linked.svelte'
   import { watchRuns } from './lib/pipelines.svelte'
   import { watchNotifications } from './lib/notify.svelte'
@@ -61,6 +61,12 @@ import './lib/extensionWindows.svelte'
     if (!(`${open.project}#${open.number}` in numbered)) return void lookUpNumbered(open.project, open.number)
     layout.review = null
     showPulls(open.project)
+  })
+  $effect(() => {
+    const open = layout.review
+    if (!open || !reviewed || !awaitsChecks(open.project, reviewed)) return
+    const timer = setInterval(() => refreshPull(open.project, open.number), 20_000)
+    return () => clearInterval(timer)
   })
   const mirrored = $derived(
     agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? activity(a) : a.attention)),

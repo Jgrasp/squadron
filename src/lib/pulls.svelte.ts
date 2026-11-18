@@ -98,10 +98,16 @@ export function openReview(project: string, number: number) {
   projects.current = project
   setPanel(project, null)
   requestPanel('diff')
-  lookUpLists(project, true)
-  if (`${project}#${number}` in numbered) lookUpNumbered(project, number, true)
+  refreshPull(project, number)
   layout.review = { project, number }
 }
+export function refreshPull(project: string, number: number) {
+  const fetched = [lookUpLists(project, true)]
+  if (`${project}#${number}` in numbered) fetched.push(lookUpNumbered(project, number, true))
+  return Promise.all(fetched)
+}
+export const awaitsChecks = (project: string, pull: Pull) =>
+  pull.state === 'open' && !pull.mergeable && pull.checks === 'pending' && !!lists[project]?.mine.some((p) => p.number === pull.number)
 export const numbered = $state<Record<string, Pull | null>>({})
 const asked = new Set<string>()
 
