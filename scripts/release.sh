@@ -25,7 +25,7 @@ watch_release() {
   declare -A last first
   while :; do
     run=$(gh run list -R "$repo" --workflow Release --limit 20 --json databaseId,displayTitle,event,status \
-      --jq "[.[] | select(.displayTitle == \"Squadron $version\")] | (map(select(.event == \"push\")) + .)[0] | \"\(.databaseId) \(.status)\"")
+      --jq "[.[] | select(.displayTitle == \"Squadron $version\")][0] | \"\(.databaseId) \(.status)\"")
     [ -n "$run" ] && [ "$run" != "null null" ] || { echo "No Release run for Squadron $version." >&2; return 1; }
     now=$(date +%s)
     while IFS='|' read -r name state conclusion started; do
