@@ -1,49 +1,5 @@
 # Changelog
 
-## 0.53.0 · 2026-11-18
-
-### Pull requests
-
-- A reviewed pull request opens on its threads: your review rounds on the left, and on the right each thread by state (still open, answered, fixed, resolved, outdated) with what the reviewing agent found, your drafts apart.
-- When the author pushes new commits, Re-review with agent sends the reviewing agent the new commits and the threads still open, and it tells for each one whether it is fixed, answered or still open.
-- Finishing a round resolves the threads you check, on Bitbucket, GitLab, Azure DevOps and GitHub. The ones the agent found fixed are checked for you, and any thread can be resolved or reopened on its own.
-- Each review round keeps its own drafts and is posted on the commit it reviewed, so commits pushed in the meantime no longer count as reviewed.
-- GitHub pull requests and Actions runs now come from the GitHub extension, to install from Discover. Settings › Pull requests lists every forge with its accounts and offers the extension a project needs, and so does the pull request view of a project no forge covers.
-- Pull requests and links of a forge extension show with its name and logo, and only the review actions it supports.
-
-### Agents
-
-- Review agents get their own Reviews tab in the agent list, grouped into To follow up, In progress and Done. A copper badge on a tab counts the agents there waiting for you, and a copper dot shows an agent that finished and that you have not opened.
-
-### Conversation
-
-- CSV and TSV files show as a table in file cards and in their window, with a row filter, sorting, resizable columns and sticky headers, also outside the project and attached to a message.
-- File cards have a Show in folder button.
-- The context panel counts images in tool results, such as browser screenshots, at their real cost.
-- Showing every plugin in the context panel no longer closes it.
-
-### New agent
-
-- The New agent window keeps its draft per project when you switch project or close it, with a Clear draft button, and shows Haiku preparing the instructions inside the message box.
-- The New agent window opened by an extension starts with Settings folded.
-- The Start agent dialog is wider, shows more of the first message and keeps the project tabs on one line.
-
-### Projects
-
-- A project removed from the tab bar comes back as soon as one of its agents starts or resumes work.
-- Project tabs move to the overflow menu before the Pull requests button pushes the window controls off screen, and that button keeps its label on one line.
-
-### Plugins
-
-- A plugin can follow project groups: projects added to a followed group get it and the ones taken out lose it. Its On switch sits in the Projects block, and a paused plugin names the projects it will come back in.
-- The Squadron menu has a Plugins entry, before Extensions.
-
-### Extensions
-
-- Discover lists extensions as rows, with the on/off switch, Settings and Update for installed ones and Install for the others. The Extensions menu item opens it, and Add a local extension sits next to Add a marketplace.
-- Extension API 1.8.0: an extension can provide the pull requests and pipelines of a forge, resolved threads included, and the extensions that read agents' activity see which agents are unread.
-- Extension API 1.9.0: an extension can open one of its panels, or bring it to the front, without a click, from Squadron's launch or any of its events.
-
 ## 0.52.0 · 2026-11-17
 
 ### Extensions
