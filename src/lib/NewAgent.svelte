@@ -7,13 +7,14 @@
   import AgentPicker from './AgentPicker.svelte'
   import { agents, find } from './agents.svelte'
   import Attachment from './Attachment.svelte'
-  import { draftClosed, draftRegenerate, draftStarted, type OpenDraft } from './drafts.svelte'
+  import { draftClosed, draftRegenerate, draftStarted, kept, type OpenDraft } from './drafts.svelte'
   import { brand, named } from './extension-pages.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
   import { fill, type Draft, type DraftStatus, type Label } from './newAgentDraft'
   import { agentTypes, catalogs, models, type Definition } from './catalogs.svelte'
   import { families, find as findCommand, options as argumentsOf } from './commands'
   import Trans from './Trans.svelte'
+  import Icon from './Icon.svelte'
   import Dialog from './Dialog.svelte'
   import { t } from './i18n/index.svelte'
   import LaunchOptions from './LaunchOptions.svelte'
@@ -38,10 +39,11 @@
     onclose: () => void
   } = $props()
 
-  let name = $state(untrack(() => linked?.draft.name ?? draft.name))
-  let text = $state(untrack(() => linked?.draft.text ?? draft.text))
-  let options = $state<Options>(untrack(() => defaultsFor(project.path)))
-  let goal = $state(untrack(() => linked?.draft.goal ?? ''))
+  const saved = untrack(() => (linked ? undefined : kept.get(project.path)))
+  let name = $state(untrack(() => linked?.draft.name ?? saved?.name ?? draft.name))
+  let text = $state(untrack(() => linked?.draft.text ?? saved?.text ?? draft.text))
+  let options = $state<Options>(untrack(() => saved?.options ?? defaultsFor(project.path)))
+  let goal = $state(untrack(() => linked?.draft.goal ?? saved?.goal ?? ''))
   let applied = untrack(() => ({ name, text, goal }))
   let tied = $state(untrack(() => !!linked))
   let link = $state(untrack(() => linked?.draft.link ?? null))
@@ -50,6 +52,17 @@
   let context = $state(untrack(() => linked?.draft.context ?? ''))
   let preparing = untrack(() => (status?.state === 'running' ? status.text : undefined))
   let started = false
+  const running = $derived(tied && status?.state === 'running')
+  let since = $state(0)
+  let now = $state(0)
+  const elapsed = $derived(`${Math.floor((now - since) / 60000)}:${String(Math.floor((now - since) / 1000) % 60).padStart(2, '0')}`)
+
+  $effect(() => {
+    if (!running) return
+    since = now = Date.now()
+    const timer = setInterval(() => (now = Date.now()), 1000)
+    return () => clearInterval(timer)
+  })
   const said = (label: Label | undefined) => (label === undefined ? '' : typeof label === 'string' ? label : named(label))
 
   function apply(update: Draft) {
@@ -94,8 +107,21 @@
     if (linked && tied && !started) draftClosed(linked)
     onclose()
   }
-  let worktree = $state<string | null>(null)
-  let files = $state<string[]>([])
+  let worktree = $state<string | null>(untrack(() => saved?.worktree ?? null))
+  let files = $state<string[]>(untrack(() => saved?.files ?? []))
+
+  $effect(() => {
+    const draft = { name, text, goal, files: $state.snapshot(files), worktree, options: $state.snapshot(options) }
+    if (!linked && !started) kept.set(project.path, draft)
+  })
+
+  function reset() {
+    name = text = goal = ''
+    applied = { name, text, goal }
+    files = []
+    attachError = ''
+    message.focus()
+  }
   let attachError = $state('')
   let prefilled = $state(false)
   let reading = $state<string | null>(null)
@@ -220,6 +246,7 @@
     event?.preventDefault()
     if (!ready) return
     started = true
+    if (!linked) kept.delete(project.path)
     const launched = start(name.trim(), $state.snapshot(options), [text.trim(), tied ? context.trim() : ''].filter(Boolean).join('\n\n'), goal.trim(), worktree, $state.snapshot(files))
     const from = tied ? linked : undefined
     if (from)
@@ -265,33 +292,46 @@
           </div>
         </details>
       {/if}
-      {#if tied && status}
-        <div class="brief" class:ok={status.state === 'done'} class:failed={status.state === 'error'} role="status">
+      {#if tied && status && !running}
+        <div class="brief" class:failed={status.state === 'error'} role="status">
           <span class="pulse" aria-hidden="true"></span>
-          <span class="what">{said(status.text) || t(status.state === 'running' ? 'board.draftRunning' : status.state === 'done' ? 'board.draftDone' : 'board.draftFailed')}</span>
-          {#if status.state !== 'running'}<button type="button" class="regen" onclick={regenerate}>↻ {t('board.draftRegenerate')}</button>{/if}
+          <span class="what">{said(status.text) || t(status.state === 'done' ? 'board.draftDone' : 'board.draftFailed')}</span>
+          <button type="button" class="regen" onclick={regenerate}>↻ {t('board.draftRegenerate')}</button>
         </div>
       {/if}
       <div class="write">
-        <div class="box">
-          <Composer
-            id="first-message"
-            label={t('board.firstMessage')}
-            bind:value={text}
-            bind:this={message}
-            placeholder={tied && status?.state === 'running' && !text ? t('board.draftWriting') : t('board.firstMessagePlaceholder')}
-            autofocus
-            onkeydown={keys}
-            onpaste={(e) => clip.paste(e, message)}
-            oncaret={mentions.track}
-            files={mentions.paths}
-          />
+        <div class="box" class:preparing={running}>
+          {#if running}
+            <div class="haiku" role="status">
+              <span class="spark" aria-hidden="true">✦</span>
+              <span class="doing">{said(status?.text) || t('board.draftRunning')}</span>
+              <span class="elapsed">{elapsed}</span>
+            </div>
+          {/if}
+          <div class="message">
+            <Composer
+              id="first-message"
+              label={t('board.firstMessage')}
+              bind:value={text}
+              bind:this={message}
+              placeholder={running ? '' : t('board.firstMessagePlaceholder')}
+              autofocus
+              onkeydown={keys}
+              onpaste={(e) => clip.paste(e, message)}
+              oncaret={mentions.track}
+              files={mentions.paths}
+            />
+            {#if running && !text}<div class="skeleton" aria-hidden="true"><span></span><span></span><span></span><span></span></div>{/if}
+          </div>
           <div class="boxbar">
             <button type="button" class="btn-icon" aria-label={t('board.attach')} title={t('board.attachTitle')} onclick={browseFiles}>
               <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"
                 ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
               >
             </button>
+            {#if !tied && (text || name || goal || files.length)}
+              <button type="button" class="clear" onclick={reset}><Icon name="retry" size={13} />{t('board.clearDraft')}</button>
+            {/if}
           </div>
         </div>
         {#if choices.length || usage}
@@ -504,16 +544,12 @@
     min-height: 34px;
     padding: 0 10px 0 12px;
     border-radius: 6px;
-    background: var(--background-bg);
-    box-shadow: inset 0 0 0 1px var(--background-line);
+    background: var(--ok-bg);
+    box-shadow: inset 0 0 0 1px var(--ok-line);
     font-size: 12.5px;
     color: var(--text-2);
   }
 
-  .brief.ok {
-    background: var(--ok-bg);
-    box-shadow: inset 0 0 0 1px var(--ok-line);
-  }
 
   .brief.failed {
     background: var(--err-bg);
@@ -526,18 +562,11 @@
     width: 8px;
     height: 8px;
     border-radius: 50%;
-    background: var(--background);
-    animation: pulse 1.2s ease-in-out infinite;
-  }
-
-  .brief.ok .pulse {
     background: var(--ok);
-    animation: none;
   }
 
   .brief.failed .pulse {
     background: var(--err);
-    animation: none;
   }
 
   .what {
@@ -742,7 +771,137 @@
 
   .boxbar {
     display: flex;
+    align-items: center;
     padding: 0 8px 8px;
+  }
+
+  .clear {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 28px;
+    margin-left: auto;
+    padding: 0 10px;
+    border-radius: 4px;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .clear:hover {
+    background: var(--surface-3);
+    color: var(--text-2);
+  }
+
+  .box.preparing {
+    position: relative;
+  }
+
+  .box.preparing::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    padding: 1.5px;
+    border-radius: 6px;
+    pointer-events: none;
+    background: conic-gradient(
+      from var(--snake),
+      color-mix(in srgb, var(--background) 25%, transparent) 0deg 230deg,
+      var(--background) 300deg,
+      color-mix(in srgb, var(--background) 15%, white) 345deg,
+      color-mix(in srgb, var(--background) 25%, transparent) 360deg
+    );
+    -webkit-mask:
+      linear-gradient(black 0 0) content-box,
+      linear-gradient(black 0 0);
+    mask:
+      linear-gradient(black 0 0) content-box,
+      linear-gradient(black 0 0);
+    -webkit-mask-composite: xor;
+    mask-composite: exclude;
+    animation: snake 2.4s linear infinite;
+  }
+
+  .haiku {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 12px 14px 0;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .spark {
+    color: var(--background);
+    animation: pulse 1.6s ease-in-out infinite;
+  }
+
+  .doing {
+    flex: 1;
+    min-width: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .elapsed {
+    font: 11.5px var(--mono);
+    color: var(--text-faint);
+  }
+
+  .message {
+    position: relative;
+  }
+
+  .skeleton {
+    position: absolute;
+    inset: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+    padding: 16px 14px;
+    pointer-events: none;
+  }
+
+  .skeleton span {
+    height: 9px;
+    border-radius: 2px;
+    background: var(--surface-3);
+    transform-origin: left;
+    animation: grow 3.6s ease-out infinite;
+  }
+
+  .skeleton span:nth-child(1) {
+    width: 92%;
+  }
+
+  .skeleton span:nth-child(2) {
+    width: 84%;
+    animation-delay: 0.5s;
+  }
+
+  .skeleton span:nth-child(3) {
+    width: 88%;
+    animation-delay: 1s;
+  }
+
+  .skeleton span:nth-child(4) {
+    width: 46%;
+    animation-delay: 1.5s;
+  }
+
+  @keyframes grow {
+    0% {
+      transform: scaleX(0);
+      opacity: 0;
+    }
+    25% {
+      transform: scaleX(1);
+      opacity: 1;
+    }
+    85% {
+      opacity: 1;
+    }
+    100% {
+      opacity: 0;
+    }
   }
 
   .files {
