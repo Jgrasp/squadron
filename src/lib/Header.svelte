@@ -30,6 +30,8 @@
 
   const appWindow = getCurrentWindow()
   let headerWidth = $state(0)
+  let startWidth = $state(0)
+  let endWidth = $state(0)
   let measures: HTMLElement[] = $state([])
   let menuOpen = $state(false)
   let moreOpen = $state(false)
@@ -39,7 +41,7 @@
   const target = $derived(projects.list.find((p) => p.path === context?.path))
 
   const fit = $derived.by(() => {
-    const available = headerWidth - 2 * 200 - 34 - 64 - 130
+    const available = headerWidth - 2 * Math.max(200, startWidth, endWidth) - 34 - 64 - 130
     let used = 0
     let count = 0
     for (const el of measures.slice(0, projects.list.length)) {
@@ -136,12 +138,35 @@
   >
 {/snippet}
 
+{#snippet marks(project: (typeof tabs)[number])}
+  {#if project.pinned}{@render pin()}{/if}
+  {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if needsYou(project.path)}<span
+      class="badge pulls"
+      role="img"
+      aria-label={t('shell.pullsWaitingForYou', { count: needsYou(project.path) })}
+      title={t('shell.pullsWaitingForYou', { count: needsYou(project.path) })}
+      ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"
+        ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4" /></svg
+      >{needsYou(project.path)}</span
+    >{/if}{#if failed(project.path)}<span
+      class="badge error"
+      role="img"
+      aria-label={t('shell.agentsInError', { count: failed(project.path) })}
+      title={t('shell.agentsInError', { count: failed(project.path) })}>!</span
+    >{/if}
+  {#if !project.exists}
+    <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label={t('shell.folderNotFound')}
+      ><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg
+    >
+  {/if}
+{/snippet}
+
 {#snippet pin()}
   <svg class="pinned" width="11" height="11" viewBox="0 0 24 24" role="img" aria-label={t('shell.pinned')}><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
 {/snippet}
 
 <header data-tauri-drag-region bind:clientWidth={headerWidth} class:build-dev={import.meta.env.DEV}>
-  <div class="start" data-tauri-drag-region>
+  <div class="start" data-tauri-drag-region bind:clientWidth={startWidth}>
     <div class="anchor" data-menu>
       <button
         class="brand"
@@ -218,26 +243,7 @@
       >
         <span class="dot" aria-hidden="true"></span>
         {project.name}
-        {#if project.pinned}{@render pin()}{/if}
-        {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if needsYou(project.path)}<span
-            class="badge pulls"
-            role="img"
-            aria-label={t('shell.pullsWaitingForYou', { count: needsYou(project.path) })}
-            title={t('shell.pullsWaitingForYou', { count: needsYou(project.path) })}
-            ><svg width="11" height="11" viewBox="0 0 24 24" aria-hidden="true"
-              ><circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4" /></svg
-            >{needsYou(project.path)}</span
-          >{/if}{#if failed(project.path)}<span
-            class="badge error"
-            role="img"
-            aria-label={t('shell.agentsInError', { count: failed(project.path) })}
-            title={t('shell.agentsInError', { count: failed(project.path) })}>!</span
-          >{/if}
-        {#if !project.exists}
-          <svg class="warn" width="14" height="14" viewBox="0 0 24 24" role="img" aria-label={t('shell.folderNotFound')}
-            ><path d="M12 3l9 16H3zM12 10v4M12 17h.01" /></svg
-          >
-        {/if}
+        {@render marks(project)}
       </button>
     {/each}
     {#if hidden.length}
@@ -292,7 +298,7 @@
     <button class="add" aria-label={t('shell.addProject')} title={t('shell.addProject')} onclick={onadd}>+</button>
   </nav>
 
-  <div class="end" data-tauri-drag-region>
+  <div class="end" data-tauri-drag-region bind:clientWidth={endWidth}>
     {#if pullTotal}
       <div class="anchor" data-menu>
         <button
@@ -346,7 +352,7 @@
 
   <div class="measure" aria-hidden="true">
     {#each tabs as project, i (project.path)}
-      <span class="tab" bind:this={measures[i]}><span class="dot"></span>{project.name}{#if project.pinned}{@render pin()}{/if}</span>
+      <span class="tab" bind:this={measures[i]}><span class="dot"></span>{project.name}{@render marks(project)}</span>
     {/each}
   </div>
 </header>
