@@ -6,7 +6,7 @@ export const BUILT_IN: Record<string, string> = { bitbucket: 'Bitbucket', github
 
 type Provider = Extension & { manifest: Manifest & { contributes: { forge: Forge } } }
 
-export const providers = (): Provider[] => active(extensions.list).filter((e): e is Provider => !!e.manifest.contributes?.forge && !extensions.errors[e.id])
+export const providers = (): Provider[] => active(extensions.list).filter((e): e is Provider => !!e.manifest.contributes?.forge && !extensions.unloaded.includes(e.id))
 
 export const providerOf = (host: string) => providers().find((e) => e.id === host) ?? null
 

@@ -341,6 +341,11 @@ pub async fn post(
     let Some(target) = of_dir(app, dir) else {
         return forge::post(dir, number, head, drafts, summary, verdict).await;
     };
+    let verdict = if verdict.is_empty() {
+        "comment"
+    } else {
+        &verdict
+    };
     let args = json!({ "number": number, "head": head, "drafts": drafts, "summary": summary.trim(), "verdict": verdict });
     call(app, target, "post", args).await
 }

@@ -18,7 +18,7 @@ import { workdir, type Agent } from './stream'
 import { waitingKind } from './activity'
 import { type as typeInTerminal } from './terminals.svelte'
 
-export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
+export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, unloaded: [] as string[], shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
 
 export const shownLabel = (key: string) => extensions.shown[key]?.label
 
@@ -291,6 +291,7 @@ const syncWasm = (list: Extension[]) =>
       })),
   }).then((errors) => {
     extensions.errors = errors
+    extensions.unloaded = Object.keys(errors)
   })
 
 export async function allowed(id: string) {
