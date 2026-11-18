@@ -2348,6 +2348,12 @@ fn open_attachment(path: PathBuf) -> Result<(), String> {
 }
 
 #[tauri::command]
+fn reveal_attachment(path: PathBuf) -> Result<(), String> {
+    std::fs::metadata(&path).map_err(|_| "The file is gone.")?;
+    tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn save_capture(data: String) -> Result<PathBuf, String> {
     let dir = claude::CAPTURES.get().ok_or("No captures folder.")?.clone();
     tauri::async_runtime::spawn_blocking(move || attach::capture(&dir, &data))
@@ -2726,6 +2732,7 @@ pub fn run() {
             cancel_permissions,
             answer_askpass,
             read_project_file,
+            reveal_project_file,
             write_project_file,
             save_text_file,
             download_attachment,
@@ -2788,7 +2795,6 @@ pub fn run() {
             claude_version,
             tested_claude_version,
             suggest_title,
-            reveal_project_file,
             remove_rule,
             set_cards,
             create_agent,
@@ -2809,6 +2815,7 @@ pub fn run() {
             extensions_unlink,
             extensions_enable,
             extensions_approve,
+            extensions_set_args,
             extensions_set_tools,
             extensions_tool_reply,
             extension_exec,
@@ -2823,7 +2830,6 @@ pub fn run() {
             extensions_wasm_event,
             extensions_wasm_feed,
             extensions_wasm_answer,
-            extensions_set_args,
             extensions_set_skills,
             extensions_wasm_run,
             extensions_wasm_tool,
@@ -2839,6 +2845,7 @@ pub fn run() {
             attachment_size,
             save_capture,
             open_attachment,
+            reveal_attachment,
             paste_image,
             copy_text,
             project_sessions,

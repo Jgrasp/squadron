@@ -1022,6 +1022,7 @@ mockIPC(
         throw 'Not an image.'
       case 'open_attachment':
       case 'reveal_project_file':
+      case 'reveal_attachment':
         return
       case 'attachment_size':
         return a.path.length * 3_917
