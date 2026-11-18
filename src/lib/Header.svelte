@@ -419,6 +419,7 @@
   .prlabel {
     font-size: 13px;
     font-weight: 600;
+    white-space: nowrap;
   }
 
   .prbtn:hover,
