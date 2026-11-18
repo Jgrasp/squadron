@@ -2288,13 +2288,43 @@ async fn paste_image(
     }
 }
 
+#[cfg(target_os = "linux")]
+thread_local! {
+    static COPY_ON_FOCUS: std::cell::RefCell<Option<(gtk::ApplicationWindow, gtk::glib::SignalHandlerId)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(target_os = "linux")]
+fn forget_copy_on_focus() {
+    use gtk::prelude::*;
+    if let Some((window, id)) = COPY_ON_FOCUS.take() {
+        window.disconnect(id);
+    }
+}
+
 #[tauri::command]
 fn copy_text(window: tauri::WebviewWindow, text: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
+        let main = window.clone();
         window
             .run_on_main_thread(move || {
-                gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text)
+                use gtk::prelude::*;
+                forget_copy_on_focus();
+                gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text);
+                let Ok(gtk_window) = main.gtk_window() else {
+                    return;
+                };
+                if gtk_window.is_active() {
+                    return;
+                }
+                let id = gtk_window.connect_is_active_notify(move |w| {
+                    if w.is_active() {
+                        gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text);
+                        forget_copy_on_focus();
+                    }
+                });
+                COPY_ON_FOCUS.set(Some((gtk_window, id)));
             })
             .map_err(|e| e.to_string())
     }
