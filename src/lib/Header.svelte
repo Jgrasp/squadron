@@ -38,6 +38,10 @@
   let pullsOpen = $state(false)
   let search = $state('')
   let context = $state<{ path: string; x: number; y: number } | null>(null)
+  const activity = (path: string) => {
+    const list = ofProject(path)
+    return { busy: list.some((a) => a.status === 'working' || calling(a)), last: Math.max(0, ...list.map((a) => a.since)) }
+  }
   const target = $derived(projects.list.find((p) => p.path === context?.path))
   const closed = $derived(!!target && tabClosed(target, activity(target.path).last))
 
@@ -55,10 +59,6 @@
   })
 
   const minute = $derived(Math.floor(clock.now / 60_000) * 60_000)
-  const activity = (path: string) => {
-    const list = ofProject(path)
-    return { busy: list.some((a) => a.status === 'working' || calling(a)), last: Math.max(0, ...list.map((a) => a.since)) }
-  }
   const tabs = $derived(ordered().filter((p) => inBar(p, projects.current, activity(p.path), minute, settings.tab_hours)))
 
   const pullProjects = $derived(projects.list.map((project) => ({ project, count: needsYou(project.path) })).filter((entry) => entry.count > 0))
