@@ -39,6 +39,15 @@ pub struct ReplyArgs {
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct ResolveArgs {
+    pub number: u64,
+    pub to: String,
+    pub kind: String,
+    pub resolved: bool,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct PostArgs {
     pub number: u64,
     pub head: String,
@@ -121,6 +130,8 @@ pub struct Remark {
     pub reply_to: Option<String>,
     pub at: String,
     pub kind: String,
+    pub resolved: Option<bool>,
+    pub commit: Option<String>,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
