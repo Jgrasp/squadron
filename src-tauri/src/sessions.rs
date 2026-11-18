@@ -263,9 +263,131 @@ pub fn transcript(project: &Path, id: &str) -> Result<String, String> {
         .map(|bytes| String::from_utf8_lossy(&bytes).into_owned())
 }
 
+fn dimensions(b: &[u8]) -> Option<(u32, u32)> {
+    let be = |i: usize| Some(u16::from_be_bytes([*b.get(i)?, *b.get(i + 1)?]) as u32);
+    let le = |i: usize| Some(u16::from_le_bytes([*b.get(i)?, *b.get(i + 1)?]) as u32);
+    let le24 = |i: usize| {
+        Some(u32::from_le_bytes([
+            *b.get(i)?,
+            *b.get(i + 1)?,
+            *b.get(i + 2)?,
+            0,
+        ]))
+    };
+    if b.starts_with(b"\x89PNG") {
+        let n = |i: usize| Some(u32::from_be_bytes(b.get(i..i + 4)?.try_into().ok()?));
+        return Some((n(16)?, n(20)?));
+    }
+    if b.starts_with(b"GIF8") {
+        return Some((le(6)?, le(8)?));
+    }
+    if b.starts_with(b"RIFF") && b.get(8..12) == Some(b"WEBP") {
+        return match b.get(12..16)? {
+            b"VP8X" => Some((le24(24)? + 1, le24(27)? + 1)),
+            b"VP8 " => Some((le(26)? & 0x3fff, le(28)? & 0x3fff)),
+            b"VP8L" => {
+                let bits = u32::from_le_bytes(b.get(21..25)?.try_into().ok()?);
+                Some(((bits & 0x3fff) + 1, ((bits >> 14) & 0x3fff) + 1))
+            }
+            _ => None,
+        };
+    }
+    if !b.starts_with(&[0xff, 0xd8]) {
+        return None;
+    }
+    let mut i = 2;
+    while *b.get(i)? == 0xff {
+        let marker = *b.get(i + 1)?;
+        if marker == 0xff {
+            i += 1;
+            continue;
+        }
+        if (0xc0..=0xcf).contains(&marker) && ![0xc4, 0xc8, 0xcc].contains(&marker) {
+            return Some((be(i + 7)?, be(i + 5)?));
+        }
+        i += 2 + be(i + 2)? as usize;
+    }
+    None
+}
+
+fn image_tokens(width: u32, height: u32) -> u64 {
+    let scale = (2576.0 / width.max(height).max(1) as f64).min(1.0);
+    ((width as f64 * scale) * (height as f64 * scale) / 750.0).ceil() as u64
+}
+
+pub fn image_excess(transcript: &str) -> HashMap<String, u64> {
+    use base64::Engine;
+    let mut names = HashMap::new();
+    let mut excess: HashMap<String, u64> = HashMap::new();
+    for line in transcript.lines() {
+        let Ok(d) = serde_json::from_str::<Value>(line) else {
+            continue;
+        };
+        if d["subtype"] == "compact_boundary" {
+            excess.clear();
+        }
+        if d["isSidechain"] == true {
+            continue;
+        }
+        let Some(content) = d["message"]["content"].as_array() else {
+            continue;
+        };
+        for block in content {
+            if block["type"] == "tool_use" {
+                names.insert(
+                    block["id"].as_str().unwrap_or_default().to_string(),
+                    block["name"].as_str().unwrap_or_default().to_string(),
+                );
+            }
+            if block["type"] != "tool_result" {
+                continue;
+            }
+            let Some(name) = block["tool_use_id"].as_str().and_then(|id| names.get(id)) else {
+                continue;
+            };
+            for image in block["content"].as_array().into_iter().flatten() {
+                let Some(data) = image["source"]["data"]
+                    .as_str()
+                    .filter(|_| image["type"] == "image")
+                else {
+                    continue;
+                };
+                let Some((w, h)) = base64::engine::general_purpose::STANDARD
+                    .decode(data)
+                    .ok()
+                    .as_deref()
+                    .and_then(dimensions)
+                else {
+                    continue;
+                };
+                *excess.entry(name.clone()).or_default() +=
+                    (data.len() as u64 / 4).saturating_sub(image_tokens(w, h));
+            }
+        }
+    }
+    excess
+}
+
+pub fn correct_usage(line: &str, excess: &HashMap<String, u64>) -> Option<String> {
+    let mut d: Value = serde_json::from_str(line).ok()?;
+    let r = &mut d["response"]["response"];
+    let mut cut = 0;
+    for tool in r["messageBreakdown"]["toolCallsByType"].as_array_mut()? {
+        let Some(over) = tool["name"].as_str().and_then(|n| excess.get(n)) else {
+            continue;
+        };
+        let tokens = tool["resultTokens"].as_u64().unwrap_or(0);
+        let less = (*over).min(tokens);
+        tool["resultTokens"] = (tokens - less).into();
+        cut += less;
+    }
+    (cut > 0).then(|| d.to_string())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+    use serde_json::json;
 
     #[test]
     fn carries_the_conversations_of_a_moved_project_and_its_worktrees() {
@@ -384,5 +506,94 @@ mod tests {
                 .iter()
                 .any(|f| f.id == "f8323701-6f0f-4443-a94b-ab9530cc9d68" && f.title.contains("T5F"))
         );
+    }
+
+    fn png(width: u32, height: u32, size: usize) -> String {
+        use base64::Engine;
+        let mut b = b"\x89PNG\r\n\x1a\n\0\0\0\x0dIHDR".to_vec();
+        b.extend(width.to_be_bytes());
+        b.extend(height.to_be_bytes());
+        b.resize(size, 0);
+        base64::engine::general_purpose::STANDARD.encode(b)
+    }
+
+    fn screenshot(id: &str, data: &str, sidechain: bool) -> String {
+        let call = json!({"type": "assistant", "isSidechain": sidechain, "message": {"content": [{"type": "tool_use", "id": id, "name": "mcp__chrome-devtools__take_screenshot"}]}});
+        let result = json!({"type": "user", "isSidechain": sidechain, "message": {"content": [{"type": "tool_result", "tool_use_id": id, "content": [{"type": "text", "text": "Took a screenshot"}, {"type": "image", "source": {"type": "base64", "media_type": "image/png", "data": data}}]}]}});
+        format!("{call}\n{result}\n")
+    }
+
+    #[test]
+    fn reads_the_size_of_png_gif_jpeg_and_webp_images() {
+        let mut jpeg = vec![0xff, 0xd8, 0xff, 0xe0, 0, 4, 0, 0, 0xff, 0xc0, 0, 17, 8];
+        jpeg.extend(982u16.to_be_bytes());
+        jpeg.extend(2000u16.to_be_bytes());
+        let mut gif = b"GIF89a".to_vec();
+        gif.extend([0xd0, 0x07, 0xd6, 0x03]);
+        let mut webp = b"RIFF\0\0\0\0WEBPVP8X\0\0\0\0\0\0\0\0".to_vec();
+        webp.extend([0xcf, 0x07, 0, 0xd5, 0x03, 0]);
+        use base64::Engine;
+        let png = base64::engine::general_purpose::STANDARD
+            .decode(png(2000, 982, 40))
+            .unwrap();
+        for image in [png, gif, jpeg, webp] {
+            assert_eq!(dimensions(&image), Some((2000, 982)));
+        }
+        assert_eq!(dimensions(b"not an image"), None);
+    }
+
+    #[test]
+    fn an_image_costs_its_pixels_not_its_base64() {
+        assert_eq!(image_tokens(2000, 982), 2619);
+        assert_eq!(image_tokens(5152, 2000), 3435);
+    }
+
+    #[test]
+    fn counts_only_the_images_still_in_the_main_context() {
+        let shot = png(2000, 982, 240_000);
+        let one = shot.len() as u64 / 4 - 2619;
+        let before = screenshot("a", &shot, false);
+        let boundary = json!({"type": "system", "subtype": "compact_boundary"});
+        let after = format!(
+            "{}{}",
+            screenshot("b", &shot, false),
+            screenshot("c", &shot, true)
+        );
+        let tool = "mcp__chrome-devtools__take_screenshot";
+        assert_eq!(image_excess(&format!("{before}{after}"))[tool], 2 * one);
+        assert_eq!(
+            image_excess(&format!("{before}{boundary}\n{after}"))[tool],
+            one
+        );
+    }
+
+    #[test]
+    fn takes_the_image_excess_out_of_the_context_usage() {
+        let line = json!({"type": "control_response", "response": {"response": {
+            "totalTokens": 400_000, "maxTokens": 1_000_000, "percentage": 40,
+            "categories": [{"id": "system_prompt", "tokens": 10_000}, {"id": "messages", "tokens": 390_000}, {"id": "free_space", "tokens": 567_000}],
+            "messageBreakdown": {"toolCallsByType": [
+                {"name": "Read", "callTokens": 100, "resultTokens": 5_000},
+                {"name": "mcp__chrome-devtools__take_screenshot", "callTokens": 200, "resultTokens": 300_000}
+            ]}
+        }}});
+        let excess = HashMap::from([
+            ("mcp__chrome-devtools__take_screenshot".to_string(), 290_000),
+            ("Gone".to_string(), 9),
+        ]);
+        let fixed: Value =
+            serde_json::from_str(&correct_usage(&line.to_string(), &excess).unwrap()).unwrap();
+        let r = &fixed["response"]["response"];
+        assert_eq!(r["totalTokens"], 400_000);
+        assert_eq!(r["categories"][1]["tokens"], 390_000);
+        assert_eq!(
+            r["messageBreakdown"]["toolCallsByType"][0]["resultTokens"],
+            5_000
+        );
+        assert_eq!(
+            r["messageBreakdown"]["toolCallsByType"][1]["resultTokens"],
+            10_000
+        );
+        assert_eq!(correct_usage(&line.to_string(), &HashMap::new()), None);
     }
 }
