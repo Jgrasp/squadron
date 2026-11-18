@@ -214,6 +214,11 @@ describe('extensions', () => {
     expect(pick('0.44.0')).toEqual(['share@0.1.0'])
     expect(catalogOf([{ source: OFFICIAL, official: true, index }], '0.45.0').entries[0]).toMatchObject({ name: { en: 'Share' }, archive: 'https://x/0.2.1', squadron: '>=0.45.0', changelog: [{ version: '0.2.1', date: '2026-11-13', notes: { en: ['Fix'] } }] })
     expect(updatesOf(old, catalogOf([{ source: OFFICIAL, official: true, index }], '0.45.0').entries, {})).toEqual([])
+    const svg = 'data:image/svg+xml;base64,PHN2Zz48L3N2Zz4='
+    const logos = (logo: unknown) => catalogOf([{ source: OFFICIAL, official: true, index: { extensions: index.extensions.map((e) => ({ ...e, logo })) } }], '0.45.0').entries.map((e) => e.logo)
+    expect(logos(svg)).toEqual([svg])
+    for (const logo of ['https://example.com/logo.svg', 'data:image/png;base64,AAAA', 'data:image/svg+xml,<svg onload=x>', `data:image/svg+xml;base64,${'A'.repeat(100_000)}`, 42])
+      expect(logos(logo)).toEqual([undefined])
   })
 
   it('merges the sources and takes updates only from the source an extension came from', () => {
