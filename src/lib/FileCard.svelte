@@ -16,12 +16,15 @@
   import { errorText, t, type Key } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
 
-  let { path, project }: { path: string; project: string } = $props()
+  let { path: given, project: root = '' }: { path: string; project?: string } = $props()
 
   const PREVIEW = 300
 
+  const cut = $derived(Math.max(given.lastIndexOf('/'), given.lastIndexOf('\\')))
+  const project = $derived(root || given.slice(0, cut) || '/')
+  const path = $derived(root ? given : given.slice(cut + 1))
   const name = $derived(path.split('/').pop() ?? path)
-  const folder = $derived(path.slice(0, -name.length))
+  const folder = $derived(root ? path.slice(0, -name.length) : given.slice(0, cut + 1))
   const kind = $derived(kindOf(path))
   const label = $derived(t(`agent.kind${kind[0].toUpperCase()}${kind.slice(1)}` as Key))
 
@@ -40,6 +43,11 @@
     const shown = await WebviewWindow.getByLabel(label)
     if (shown) return shown.setFocus()
     new WebviewWindow(label, { url: `index.html?${new URLSearchParams({ project, path })}`, title: `${name} · Squadron`, width: 760, height: 820, minWidth: 420, minHeight: 300 })
+  }
+
+  function launch() {
+    failed = ''
+    invoke('open_attachment', { path: given }).catch((e) => (failed = errorText(e)))
   }
 
   function locate() {
@@ -88,8 +96,8 @@
     </span>
   </div>
   <div class="actions">
-    <button type="button" class="btn btn-primary" onclick={() => revealFile(project, path)}>
-      {t('conversation.goToFile')}
+    <button type="button" class="btn btn-primary" onclick={() => (root ? revealFile(project, path) : launch())}>
+      {root ? t('conversation.goToFile') : t('common.open')}
       <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9" /></svg>
     </button>
     <button type="button" class="btn btn-ghost" aria-expanded={open} onclick={toggle}>

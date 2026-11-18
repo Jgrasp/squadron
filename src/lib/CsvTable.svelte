@@ -78,7 +78,7 @@
     {#if !rows.length}
       <p class="note">{t('conversation.csvEmpty')}</p>
     {:else}
-      <table bind:this={table} class:fixed={!!widths} style:width={widths && `${widths.reduce((sum, width) => sum + width, 52)}px`}>
+      <table class="grid" bind:this={table} class:fixed={!!widths} style:width={widths && `${widths.reduce((sum, width) => sum + width, 52)}px`}>
         {#if widths}
           <colgroup>
             <col class="index" />
@@ -181,47 +181,55 @@
     max-height: none;
   }
 
-  table {
+  .sheet .grid {
+    display: table;
+    margin: 0;
+    width: auto;
+    max-width: none;
+    overflow: visible;
+    border: none;
+    border-radius: 0;
     border-collapse: separate;
     border-spacing: 0;
     font-size: 12.5px;
     line-height: 1.4;
   }
 
-  table.fixed {
+  .sheet .grid.fixed {
     table-layout: fixed;
   }
 
-  col.index {
+  .sheet .grid col.index {
     width: 52px;
   }
 
-  th,
-  td {
+  .sheet .grid th,
+  .sheet .grid td {
     max-width: 360px;
     padding: 6px 12px;
     overflow: hidden;
     text-overflow: ellipsis;
     white-space: nowrap;
     text-align: left;
+    vertical-align: middle;
     border-bottom: 1px solid var(--border);
     border-right: 1px solid var(--border);
   }
 
-  .fixed :is(th, td) {
+  .sheet .grid.fixed :is(th, td) {
     max-width: none;
   }
 
-  td {
+  .sheet .grid td {
     color: var(--text);
   }
 
-  .number {
+  .sheet .grid .number {
     text-align: right;
     font-variant-numeric: tabular-nums;
   }
 
-  th {
+  .sheet .grid th {
     position: sticky;
     top: 0;
     z-index: 1;
@@ -229,7 +237,7 @@
     background: var(--surface-2);
   }
 
-  th button {
+  .sheet .grid th button {
     width: 100%;
     display: flex;
     align-items: center;
@@ -240,22 +248,22 @@
     text-align: inherit;
   }
 
-  th.number button {
+  .sheet .grid th.number button {
     flex-direction: row-reverse;
   }
 
-  th button span {
+  .sheet .grid th button span {
     min-width: 0;
     overflow: hidden;
     text-overflow: ellipsis;
   }
 
-  th button:hover,
-  th[aria-sort] button {
+  .sheet .grid th button:hover,
+  .sheet .grid th[aria-sort] button {
     color: var(--text-strong);
   }
 
-  th svg {
+  .sheet .grid th svg {
     flex: none;
     width: 11px;
     height: 11px;
@@ -267,19 +275,19 @@
     opacity: 0;
   }
 
-  th button:hover svg {
+  .sheet .grid th button:hover svg {
     opacity: 0.5;
   }
 
-  th[aria-sort] svg {
+  .sheet .grid th[aria-sort] svg {
     opacity: 1;
   }
 
-  th[aria-sort='ascending'] svg {
+  .sheet .grid th[aria-sort='ascending'] svg {
     transform: rotate(180deg);
   }
 
-  .grip {
+  .sheet .grid .grip {
     position: absolute;
     inset: 0 -4px 0 auto;
     z-index: 1;
@@ -287,7 +295,7 @@
     cursor: col-resize;
   }
 
-  .index {
+  .sheet .grid .index {
     position: sticky;
     left: 0;
     z-index: 1;
@@ -300,12 +308,12 @@
     background: var(--bg-main);
   }
 
-  th.index {
+  .sheet .grid th.index {
     z-index: 2;
     background: var(--surface-2);
   }
 
-  tbody tr:hover td {
+  .sheet .grid tbody tr:hover td {
     background: var(--surface-1);
   }
 

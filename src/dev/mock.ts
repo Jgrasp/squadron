@@ -914,6 +914,7 @@ mockIPC(
         return null
       case 'read_project_file':
         if (files.has(a.path)) return files.get(a.path)
+        if (a.path.endsWith('.csv')) return 'url;status;title;hits\nhttps://neogeofanatic.com/;200;Neo Geo Fanatic;12 480\nhttps://neogeofanatic.com/games/metal-slug;200;"Metal Slug, the classic";3 214\nhttps://neogeofanatic.com/old-page;404;;87\nhttps://neogeofanatic.com/shop;301;Shop;1 905\n'
         if (a.path.endsWith('.php')) return '<?php\n\nfinal class ChannelSegmentResolver\n{\n    public function resolve(CustomerInterface $customer): array\n    {\n        return [];\n    }\n}\n'
         return a.path.endsWith('resume.txt') ? '2\n' : null
       case 'open_in_editor':
