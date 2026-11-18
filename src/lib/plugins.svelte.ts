@@ -1,6 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { errorText } from './i18n/index.svelte'
-import { ALL, activeIn, after, everywhere, plan, type Details, type Entry, type Flags, type Installed, type Marketplace, type Target } from './plugins'
+import { contained } from './groups'
+import { ALL, activeIn, after, everywhere, followed, plan, type Details, type Entry, type Flags, type Follow, type Installed, type Marketplace, type Target } from './plugins'
 import type { Kind, PluginRef } from './pluginuse'
 import { projects } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
@@ -18,6 +19,8 @@ export const plugins = $state({
 })
 
 const paths = () => projects.list.map((p) => p.path)
+
+export const members = (group: string) => contained(projects.groups, projects.list, group).map((p) => p.path)
 
 export async function loadPlugins() {
   if (plugins.loading) return
@@ -73,6 +76,8 @@ export const where = (id: string) => {
 
 export const remembered = (id: string) => settings.plugin_projects[id]
 
+export const followOf = (id: string): Follow | undefined => settings.plugin_groups[id]
+
 async function attempt(busy: string, work: () => Promise<unknown>) {
   plugins.busy = busy
   plugins.error = ''
@@ -101,17 +106,30 @@ async function remember(id: string, kept: string[] | null) {
   await saveSettings({ ...$state.snapshot(settings), plugin_projects: next })
 }
 
-export const choose = (id: string, target: Target) =>
+async function follow(id: string, next: Follow | null) {
+  if (!next?.groups.length && !followOf(id)) return
+  const all = { ...$state.snapshot(settings.plugin_groups) }
+  if (next?.groups.length) all[id] = next
+  else delete all[id]
+  await saveSettings({ ...$state.snapshot(settings), plugin_groups: all })
+}
+
+const following = (target: Target, groups: string[]): Follow | null =>
+  Array.isArray(target) && groups.length ? { groups, paths: target.filter((p) => !groups.some((g) => members(g).includes(p))) } : null
+
+export const choose = (id: string, target: Target, groups: string[] = []) =>
   attempt(id, async () => {
     await steps(id, target)
     if (target !== 'off' && remembered(id)) await remember(id, null)
+    await follow(id, following(target, groups))
   })
 
 export const toggle = (id: string, on: boolean) =>
   attempt(id, async () => {
     if (on) {
       const kept = remembered(id)
-      await steps(id, !kept || kept.includes(ALL) ? 'all' : kept)
+      const f = followOf(id)
+      await steps(id, f ? followed(f, members, paths()) : !kept || kept.includes(ALL) ? 'all' : kept)
       await remember(id, null)
     } else {
       const now = where(id)
@@ -120,15 +138,59 @@ export const toggle = (id: string, on: boolean) =>
     }
   })
 
-export const install = (id: string, target: Target) =>
+export const install = (id: string, target: Target, groups: string[] = []) =>
   attempt(id, async () => {
     await invoke('plugin_run', { args: ['install', id, '--scope', 'user'], dir: null })
     plugins.flags = after(plugins.flags, [{ args: ['enable', id, '--scope', 'user'] }])
     await steps(id, target)
+    await follow(id, following(target, groups))
   })
 
 export const uninstall = (plugin: Installed) =>
-  attempt(plugin.id, () => invoke('plugin_run', { args: ['uninstall', plugin.id, '--scope', plugin.scope], dir: plugin.projectPath ?? null }))
+  attempt(plugin.id, async () => {
+    await invoke('plugin_run', { args: ['uninstall', plugin.id, '--scope', plugin.scope], dir: plugin.projectPath ?? null })
+    await follow(plugin.id, null)
+  })
+
+export const followKey = () =>
+  JSON.stringify([projects.list.map((p) => [p.path, p.group]), projects.groups.map((g) => [g.id, g.parent]), settings.plugin_groups])
+
+let syncing = false
+let again = false
+
+export async function syncFollows() {
+  const ids = Object.keys(settings.plugin_groups).filter((id) => !remembered(id))
+  if (!ids.length) return
+  if (syncing) return void (again = true)
+  syncing = true
+  try {
+    const all = paths()
+    const [installed, flags] = await Promise.all([invoke<Installed[]>('plugins_installed'), invoke<Flags>('plugin_flags', { projects: all })])
+    plugins.flags = flags
+    for (const id of ids) {
+      const f = followOf(id)
+      if (!f) continue
+      if (!installed.some((p) => p.id === id)) {
+        await follow(id, null)
+        continue
+      }
+      const alive = f.groups.filter((g) => projects.groups.some((x) => x.id === g))
+      const target = followed({ groups: alive, paths: f.paths }, members, all)
+      const kept = alive.length < f.groups.length ? activeIn(flags, id, all).filter((p) => !target.includes(p)) : []
+      if (alive.length < f.groups.length) await follow(id, { groups: alive, paths: [...f.paths, ...kept] })
+      const want = [...target, ...kept]
+      if (plan(plugins.flags, id, all, want).length) await attempt(id, () => steps(id, want))
+    }
+  } catch (e) {
+    plugins.error = errorText(e)
+  } finally {
+    syncing = false
+    if (again) {
+      again = false
+      syncFollows()
+    }
+  }
+}
 
 export const update = (plugin: Installed) =>
   attempt(plugin.id, async () => {

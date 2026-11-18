@@ -403,6 +403,13 @@ struct Settings {
     config: Mutex<Config>,
 }
 
+#[derive(Clone, Default, Serialize, serde::Deserialize)]
+#[serde(default)]
+struct PluginFollow {
+    groups: Vec<String>,
+    paths: Vec<String>,
+}
+
 #[derive(Clone, Serialize, serde::Deserialize)]
 #[serde(default)]
 struct Config {
@@ -435,6 +442,7 @@ struct Config {
     plugin_lines: String,
     plugin_card: String,
     plugin_projects: std::collections::BTreeMap<String, Vec<String>>,
+    plugin_groups: std::collections::BTreeMap<String, PluginFollow>,
     notify_when: String,
     notify_off: Vec<String>,
     notify_sound: Vec<String>,
@@ -482,6 +490,7 @@ impl Default for Config {
             plugin_lines: "tag".into(),
             plugin_card: "normal".into(),
             plugin_projects: Default::default(),
+            plugin_groups: Default::default(),
             notify_when: "background".into(),
             notify_off: Vec::new(),
             notify_sound: ["question", "permission", "plan", "password"]

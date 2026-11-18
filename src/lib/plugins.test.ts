@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { activeIn, after, everywhere, plan, type Flags } from './plugins'
+import { activeIn, after, everywhere, followed, plan, type Flags } from './plugins'
 
 const id = 'shop@m'
 const paths = ['/a', '/b', '/c']
@@ -43,5 +43,12 @@ describe('plugin projects', () => {
     const steps = plan(flags, id, paths, 'off')
     expect(activeIn(after(flags, steps), id, paths)).toEqual([])
     expect(plan(flags, id, paths, [])).toEqual(steps)
+  })
+
+  it('follows groups on top of projects picked one by one', () => {
+    const members = (group: string) => ({ g: ['/a'], sub: ['/b'], empty: [] as string[] })[group] ?? []
+    expect(followed({ groups: ['g', 'sub'], paths: ['/c'] }, members, paths)).toEqual(['/a', '/b', '/c'])
+    expect(followed({ groups: ['g'], paths: ['/a'] }, members, paths)).toEqual(['/a'])
+    expect(followed({ groups: ['empty', 'gone'], paths: [] }, members, paths)).toEqual([])
   })
 })
