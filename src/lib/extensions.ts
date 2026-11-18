@@ -411,6 +411,7 @@ export type CatalogEntry = {
   permissions?: Permissions
   changelog?: Release[]
   forge?: { remotes: string[] }
+  logo?: string
   source: string
   official: boolean
 }
@@ -432,9 +433,13 @@ export type Source = { source: string; official: boolean; error?: string }
 const entryOf = (e: unknown): e is Published =>
   isObject(e) && typeof e.id === 'string' && ID.test(e.id) && typeof e.version === 'string' && isText(e.name) && typeof e.archive === 'string' && typeof e.sha256 === 'string'
 
+const SVG_DATA = /^data:image\/svg\+xml;base64,[A-Za-z0-9+/]+={0,2}$/
+
+const logoOf = (logo: unknown) => (typeof logo === 'string' && logo.length <= 90_000 && SVG_DATA.test(logo) ? logo : undefined)
+
 const pickOf = (e: Published & { versions?: unknown }, app: string) => {
-  const { id, name, description, repository } = e
-  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v): unknown => ({ name, description, repository, ...v, id })).filter(entryOf) : [e]
+  const { id, name, description, repository, logo } = e
+  const list = Array.isArray(e.versions) ? e.versions.filter(isObject).map((v): unknown => ({ name, description, repository, logo, ...v, id })).filter(entryOf) : [e]
   return list.sort((x, y) => (newer(x.version, y.version) ? -1 : 1)).find((r) => fits(r.squadron, app))
 }
 
@@ -446,7 +451,7 @@ export function catalogOf(raw: unknown, app = ''): { entries: CatalogEntry[]; so
     const official = s.official === true
     sources.push({ source: s.source, official, error: typeof s.error === 'string' ? s.error : undefined })
     const found = isObject(s.index) && Array.isArray(s.index.extensions) ? s.index.extensions.filter(entryOf) : []
-    entries.push(...found.flatMap((e) => pickOf(e, app) ?? []).map((e) => ({ ...e, changelog: Array.isArray(e.changelog) ? e.changelog.filter(releaseOf) : undefined, source: s.source as string, official })))
+    entries.push(...found.flatMap((e) => pickOf(e, app) ?? []).map((e) => ({ ...e, changelog: Array.isArray(e.changelog) ? e.changelog.filter(releaseOf) : undefined, logo: logoOf(e.logo), source: s.source as string, official })))
   }
   return { entries, sources }
 }

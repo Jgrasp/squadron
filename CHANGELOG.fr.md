@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.53.3 · 2026-11-18
+
+### Extensions
+
+- Les extensions pas encore installées affichent leur logo dans le catalogue, et non plus seulement la première lettre de leur nom.
+
 ## 0.53.2 · 2026-11-18
 
 ### Correctifs

@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.53.3 · 2026-11-18
+
+### Extensions
+
+- Extensions you have not installed yet show their logo in the catalog, not just the first letter of their name.
+
 ## 0.53.2 · 2026-11-18
 
 ### Fixes
