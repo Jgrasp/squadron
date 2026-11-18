@@ -10,7 +10,7 @@ const call = (name: string, result?: unknown) => ({ kind: 'agent', blocks: [{ ty
 describe('activity', () => {
   it('tells what an agent does without its content', () => {
     const working = activityOf(agent({ status: 'working', entries: [call('Bash')], startedBy: 'a0' }))
-    expect(working).toEqual({ id: 'a1', project: '/home/me/ring', name: 'RING-1 Card payment', status: 'working', waiting: null, tool: 'Bash', error: null, by: 'a0', archived: false, since: 10 })
+    expect(working).toEqual({ id: 'a1', project: '/home/me/ring', name: 'RING-1 Card payment', status: 'working', waiting: null, tool: 'Bash', error: null, by: 'a0', archived: false, since: 10, unread: false })
     expect(JSON.stringify(working)).not.toContain('rm -rf')
     expect(activityOf(agent({ status: 'working', entries: [call('Bash', { text: 'ok' })] })).tool).toBeNull()
     expect(activityOf(agent({ status: 'working', entries: [call('TaskCreate')] })).tool).toBeNull()
@@ -22,7 +22,8 @@ describe('activity', () => {
     expect(activityOf(agent({ status: 'error', alive: true })).error).toBe('api')
     expect(activityOf(agent({ status: 'done', mcpFailed: true })).error).toBe('mcp')
     expect(activityOf(agent({ autoName: true, name: 'fix the login of' })).name).toBe('')
-    expect(activityOf(agent({ status: 'error', mcpFailed: true }), true)).toMatchObject({ archived: true, error: null, waiting: null, tool: null })
+    expect(activityOf(agent({ status: 'error', mcpFailed: true, unread: true }), true)).toMatchObject({ archived: true, error: null, waiting: null, tool: null, unread: false })
+    expect(activityOf(agent({ unread: true })).unread).toBe(true)
   })
 
   it('counts the agents of a project over the last week, archived ones included', () => {

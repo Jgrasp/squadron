@@ -5,24 +5,24 @@ type Table = { exact: Record<string, string>; patterns: [RegExp, string][] }
 export const backend: Partial<Record<Locale, Table>> = {
   fr: {
     exact: {
-      'Add a Bitbucket API token in Settings › Code hosting.': 'Ajoutez un token d’API Bitbucket dans Réglages › Hébergement du code.',
+      'Add a Bitbucket API token in Settings › Pull requests.': 'Ajoutez un token d’API Bitbucket dans Réglages › Pull requests.',
       'Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.':
         'Ajoutez la portée read:user:bitbucket au token d’API Bitbucket pour lister vos pull requests.',
-      'Bitbucket refused the API token: add a new one in Settings › Code hosting.':
-        'Bitbucket a refusé le token d’API : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
+      'Bitbucket refused the API token: add a new one in Settings › Pull requests.':
+        'Bitbucket a refusé le token d’API : ajoutez-en un nouveau dans Réglages › Pull requests.',
       'Add the read:pipeline:bitbucket scope to the Bitbucket API token to see pipelines.':
         'Ajoutez la portée read:pipeline:bitbucket au token d’API Bitbucket pour voir les pipelines.',
       'The repository is not a Bitbucket, GitHub, GitLab or Azure DevOps address.': 'Ce dépôt n’est pas une adresse Bitbucket, GitHub, GitLab ou Azure DevOps.',
-      'Add a GitLab token in Settings › Code hosting.': 'Ajoutez un token GitLab dans Réglages › Hébergement du code.',
-      'GitLab refused the token: add a new one in Settings › Code hosting.':
-        'GitLab a refusé le token : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
+      'Add a GitLab token in Settings › Pull requests.': 'Ajoutez un token GitLab dans Réglages › Pull requests.',
+      'GitLab refused the token: add a new one in Settings › Pull requests.':
+        'GitLab a refusé le token : ajoutez-en un nouveau dans Réglages › Pull requests.',
       'GitLab refused this token.': 'GitLab a refusé ce token.',
       'The comments are on GitLab, but Squadron cannot request changes there: do it on GitLab.':
         'Les commentaires sont sur GitLab, mais Squadron ne peut pas y demander des modifications : faites-le sur GitLab.',
       'This GitLab address is not valid.': 'Cette adresse GitLab n’est pas valide.',
-      'Add an Azure DevOps token in Settings › Code hosting.': 'Ajoutez un token Azure DevOps dans Réglages › Hébergement du code.',
-      'Azure DevOps refused the token: add a new one in Settings › Code hosting.':
-        'Azure DevOps a refusé le token : ajoutez-en un nouveau dans Réglages › Hébergement du code.',
+      'Add an Azure DevOps token in Settings › Pull requests.': 'Ajoutez un token Azure DevOps dans Réglages › Pull requests.',
+      'Azure DevOps refused the token: add a new one in Settings › Pull requests.':
+        'Azure DevOps a refusé le token : ajoutez-en un nouveau dans Réglages › Pull requests.',
       'Azure DevOps refused this token.': 'Azure DevOps a refusé ce token.',
       'Enter the Azure DevOps organization.': 'Indiquez l’organisation Azure DevOps.',
       'Bitbucket refused this email and token.': 'Bitbucket a refusé cet e-mail et ce token.',
@@ -36,8 +36,6 @@ export const backend: Partial<Record<Locale, Table>> = {
       'Folder outside the project.': 'Ce dossier est en dehors du projet.',
       'Give the project a name.': 'Donnez un nom au projet.',
       'Image too large to preview.': 'Image trop volumineuse pour l’aperçu.',
-      'Install the GitHub CLI and run gh auth login to see pull requests.':
-        'Installez la CLI GitHub et lancez gh auth login pour voir les pull requests.',
       'Invalid agent id.': 'Identifiant d’agent invalide.',
       'Invalid message id.': 'Identifiant de message invalide.',
       'Invalid permission answer.': 'Réponse d’autorisation invalide.',

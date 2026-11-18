@@ -50,7 +50,7 @@ export default {
   draftDone: 'First message ready',
   draftFailed: 'The extension could not prepare the first message.',
   draftRegenerate: 'Regenerate',
-  draftWriting: 'The extension is writing the first message…',
+  clearDraft: 'Clear draft',
   draftAll: 'All',
   draftChoices: '{count} of {total}',
   draftAdded: '{key} is added after the message.',

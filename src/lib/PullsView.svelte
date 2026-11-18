@@ -15,6 +15,13 @@
   import PullReview from './PullReview.svelte'
   import type { Agent } from './stream'
   import Trans from './Trans.svelte'
+  import { coverage, lookUpCoverage, offerFor, offers, remoteHost } from './forges.svelte'
+  import { catalog, extensions, loadCatalog } from './extensions.svelte'
+  import type { CatalogEntry } from './extensions'
+  import { named } from './extension-pages.svelte'
+  import HostLogo from './HostLogo.svelte'
+  import ExtensionLogo from './ExtensionLogo.svelte'
+  import InstallDialog from './InstallDialog.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
   let { project, onclose, controls }: { project: Project; onclose?: () => void; controls?: Snippet } = $props()
@@ -22,6 +29,19 @@
   let refreshing = $state(false)
   let opened = $state<Pull | null>(null)
   const found = $derived(lists[project.path])
+  const covered = $derived(coverage[project.path])
+  const bare = $derived(!!covered && !covered.by)
+  const offer = $derived(bare && covered?.remote ? offerFor(covered.remote) : null)
+  let chosen = $state<CatalogEntry | null>(null)
+
+  $effect(() => {
+    void extensions.list
+    void lookUpCoverage([project.path])
+  })
+
+  $effect(() => {
+    if (bare && !catalog.entries) void loadCatalog()
+  })
 
   let launched = $state<{ id: string; number: number } | null>(null)
   const launchedAgent = $derived(launched && find(launched.id))
@@ -97,7 +117,7 @@
       ? [{ label: busy?.number === pull.number && busy.doing === 'approve' ? t('review.approving') : t('review.verdictApprove'), run: () => act(pull, 'approve', () => approve(project.path, pull)) }]
       : []
 
-  const approvable = (pull: Pull) => pull.reviewed !== 'approved' || moved(project.path, pull)
+  const approvable = (pull: Pull) => offers(pull.host, 'approve') && (pull.reviewed !== 'approved' || moved(project.path, pull))
 
   const requesting = (pull: Pull): Choice[] =>
     requestable(pull)
@@ -109,7 +129,7 @@
         ]
       : []
 
-  const requestable = (pull: Pull) => pull.reviewed !== 'changes_requested' || moved(project.path, pull)
+  const requestable = (pull: Pull) => offers(pull.host, 'request_changes') && (pull.reviewed !== 'changes_requested' || moved(project.path, pull))
 
   async function mergeIt(pull: Pull) {
     const confirmed = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {
@@ -196,12 +216,14 @@
   {#if !opened}{@render flashes()}{/if}
 
   <div class="scroll">
-    {#if !found}
+    {#if bare && covered}
+      {@render noForge(covered.remote)}
+    {:else if !found}
       <p class="empty">{t('review.lookingForPulls')}</p>
     {:else if found.error}
       <div class="problem">
         <p>{errorText(found.error)}</p>
-        {#if /token|scope/i.test(found.error)}
+        {#if /token|scope|account/i.test(found.error)}
           <button class="btn btn-secondary" onclick={() => (ui.settings = 'hosting')}>{t('review.openHostingSettings')}</button>
         {/if}
       </div>
@@ -392,6 +414,32 @@
       >
     {/if}
   </span>
+{/snippet}
+
+{#snippet noForge(remote: string | null)}
+  <div class="no-forge">
+    {#if offer && remote}
+      {@const name = named(offer.name)}
+      <span class="no-forge-logo">
+        {#if ['github', 'bitbucket', 'gitlab', 'azure'].includes(offer.id)}<HostLogo host={offer.id as 'github'} size={26} />{:else}<ExtensionLogo id={offer.id} {name} size={26} />{/if}
+      </span>
+      <h3>{t('review.onForge', { project: project.name, name })}</h3>
+      <p>{t('review.installForge', { name })}</p>
+      <div class="no-forge-actions">
+        <button class="btn btn-secondary" onclick={() => invoke('open_link', { url: `https://${remote}` })}>{t('review.openOn', { host: name })}</button>
+        <button class="btn btn-primary" onclick={() => (chosen = offer)}>{t('settings.forgeInstall', { name })}</button>
+      </div>
+    {:else}
+      <span class="no-forge-logo dim"><Icon name="jump" size={24} /></span>
+      <h3>{remote ? t('review.noForgeKnows', { host: remoteHost(remote) }) : t('review.noRemote', { project: project.name })}</h3>
+      <p>{t('review.noForgeWhy')}</p>
+      <div class="no-forge-actions">
+        <button class="btn btn-secondary" onclick={() => (ui.settings = 'hosting')}>{t('review.openHostingSettings')}</button>
+        <button class="btn btn-primary" onclick={() => (ui.settings = 'discover')}>{t('review.findForge')}</button>
+      </div>
+    {/if}
+  </div>
+  {#if chosen}<InstallDialog entry={chosen} onclose={() => (chosen = null)} />{/if}
 {/snippet}
 
 <style>
@@ -927,6 +975,48 @@
       grid-column: 3;
       grid-row: 1 / span 2;
     }
+  }
+
+  .no-forge {
+    margin: 64px auto 0;
+    width: 460px;
+    max-width: 100%;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 10px;
+    text-align: center;
+  }
+
+  .no-forge-logo {
+    display: grid;
+    place-items: center;
+    width: 48px;
+    height: 48px;
+    border-radius: 8px;
+    background: var(--surface-3);
+  }
+
+  .no-forge-logo.dim {
+    color: var(--text-dim);
+  }
+
+  .no-forge h3 {
+    margin: 6px 0 0;
+    font-size: 18px;
+    font-weight: 700;
+    color: var(--text-strong);
+  }
+
+  .no-forge p {
+    margin: 0;
+    color: var(--text-muted);
+  }
+
+  .no-forge-actions {
+    display: flex;
+    gap: 8px;
+    margin-top: 8px;
   }
 
   .problem {

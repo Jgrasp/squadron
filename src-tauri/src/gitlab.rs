@@ -4,8 +4,8 @@ use crate::forge::{
 use reqwest::Method;
 use serde_json::{Value, json};
 
-const NO_TOKEN: &str = "Add a GitLab token in Settings › Code hosting.";
-const REFUSED: &str = "GitLab refused the token: add a new one in Settings › Code hosting.";
+const NO_TOKEN: &str = "Add a GitLab token in Settings › Pull requests.";
+const REFUSED: &str = "GitLab refused the token: add a new one in Settings › Pull requests.";
 const NO_REQUEST_CHANGES: &str =
     "The comments are on GitLab, but Squadron cannot request changes there: do it on GitLab.";
 
@@ -305,6 +305,8 @@ pub(crate) fn gitlab_remarks(discussion: &Value) -> Vec<Remark> {
         .filter(|n| n["system"] != true)
         .collect();
     let root = notes.first().and_then(|n| n["id"].as_u64());
+    let resolvable = notes.first().is_some_and(|n| n["resolvable"] == true);
+    let resolved = notes.first().is_some_and(|n| n["resolved"] == true);
     notes
         .iter()
         .filter_map(|note| {
@@ -315,16 +317,18 @@ pub(crate) fn gitlab_remarks(discussion: &Value) -> Vec<Remark> {
                 .as_str()
                 .or(position["old_path"].as_str());
             Some(Remark {
-                id,
+                id: id.to_string(),
                 author: text(&note["author"]["name"]),
                 avatar: text(&note["author"]["avatar_url"]),
                 body: text(&note["body"]),
                 path: path.map(str::to_string),
                 line: new.or(old).map(|n| n as u32),
                 removed: new.is_none() && old.is_some(),
-                reply_to: root.filter(|r| *r != id),
+                reply_to: root.filter(|r| *r != id).map(|r| r.to_string()),
                 at: text(&note["created_at"]),
                 kind: if path.is_some() { "line" } else { "general" }.into(),
+                resolved: (resolvable && root == Some(id)).then_some(resolved),
+                commit: position["head_sha"].as_str().map(str::to_string),
             })
         })
         .collect()
@@ -364,6 +368,30 @@ pub async fn reply(slug: &str, iid: u64, to: u64, body: String) -> Result<(), St
     api(Method::POST, slug, &url, &[], Some(json!({ "body": body })))
         .await
         .map(|_| ())
+}
+
+pub async fn resolve(slug: &str, iid: u64, to: u64, resolved: bool) -> Result<(), String> {
+    let path = request(slug, iid);
+    let thread = discussions(slug, iid).await?.into_iter().find(|d| {
+        d["notes"]
+            .as_array()
+            .into_iter()
+            .flatten()
+            .any(|n| n["id"].as_u64() == Some(to))
+    });
+    let Some(id) = thread.as_ref().and_then(|d| d["id"].as_str()) else {
+        return Err(format!("GitLab has no thread with the note {to}."));
+    };
+    let resolved = if resolved { "true" } else { "false" };
+    api(
+        Method::PUT,
+        slug,
+        &format!("{path}/discussions/{id}"),
+        &[("resolved", resolved)],
+        None,
+    )
+    .await
+    .map(|_| ())
 }
 
 pub async fn post(
@@ -569,23 +597,40 @@ mod tests {
     fn reads_remarks_of_a_discussion() {
         let discussion = json!({ "id": "6a9c", "notes": [
             { "id": 1, "system": true, "body": "added 1 commit", "author": { "name": "A" }, "created_at": "t0" },
-            { "id": 2, "type": "DiffNote", "body": "Rename", "author": { "name": "Ann", "avatar_url": "https://a/ann.png" }, "created_at": "t1", "position": { "new_path": "src/a.go", "old_path": "src/a.go", "new_line": null, "old_line": 4 } },
+            { "id": 2, "type": "DiffNote", "body": "Rename", "author": { "name": "Ann", "avatar_url": "https://a/ann.png" }, "created_at": "t1", "resolvable": true, "resolved": true, "position": { "new_path": "src/a.go", "old_path": "src/a.go", "new_line": null, "old_line": 4, "head_sha": "a1b2c3d" } },
             { "id": 3, "type": "DiffNote", "body": "Done", "author": { "name": "Bob" }, "created_at": "t2", "position": { "new_path": "src/a.go", "new_line": 4 } }
         ] });
         let found = gitlab_remarks(&discussion);
         let seen: Vec<_> = found
             .iter()
-            .map(|r| (r.id, r.line, r.removed, r.reply_to, r.kind.as_str()))
+            .map(|r| {
+                (
+                    r.id.as_str(),
+                    r.line,
+                    r.removed,
+                    r.reply_to.as_deref(),
+                    r.kind.as_str(),
+                )
+            })
             .collect();
         assert_eq!(
             seen,
             [
-                (2, Some(4), true, None, "line"),
-                (3, Some(4), false, Some(2), "line")
+                ("2", Some(4), true, None, "line"),
+                ("3", Some(4), false, Some("2"), "line")
             ]
         );
         let general = json!({ "notes": [{ "id": 9, "body": "LGTM", "author": { "name": "A" }, "created_at": "t" }] });
         assert_eq!(gitlab_remarks(&general)[0].kind, "general");
+        assert_eq!(
+            (
+                found[0].resolved,
+                found[0].commit.as_deref(),
+                found[1].resolved
+            ),
+            (Some(true), Some("a1b2c3d"), None)
+        );
+        assert_eq!(gitlab_remarks(&general)[0].resolved, None);
     }
 
     #[test]

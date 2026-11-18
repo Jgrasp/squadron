@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -181,6 +181,21 @@ describe('extensions', () => {
     expect(panelsOf(load(found, ['p']))).toEqual([])
   })
 
+  it('opens a panel from the extension beside the agent on screen, or in its own window', () => {
+    const base = { id: 'p', version: '1.0.0', api: 1, name: { en: 'P' } }
+    const panels = [
+      { id: 'main', title: { en: 'Main' }, page: 'panel/index.html' },
+      { id: 'office', title: { en: 'Office' }, page: 'office/index.html', window: 'maximized' },
+    ]
+    const list = panelsOf(load([{ dir: '/m/p', linked: false, manifest: { ...base, contributes: { panels } }, error: null }], []))
+    expect(panelOpening(list, 'p', 'main', '/home/me/ring')).toMatchObject({ panel: { key: 'extension:p.main' }, project: '/home/me/ring' })
+    expect(panelOpening(list, 'p', 'main', undefined)).toEqual({ error: 'The panel main opens beside the agent on screen, and no agent is on screen.' })
+    expect(panelOpening(list, 'p', 'office', null)).toEqual({ panel: list[1] })
+    expect(panelOpening(list, 'p', 'office', '/home/me/ring')).toEqual({ panel: list[1] })
+    expect(panelOpening(list, 'p', 'nope', '/home/me/ring')).toEqual({ error: 'No panel nope in contributes.panels.' })
+    expect(panelOpening(list, 'q', 'main', '/home/me/ring')).toEqual({ error: 'No panel main in contributes.panels.' })
+  })
+
   it('keeps an extension or a catalog version to the Squadron versions it declares', () => {
     expect([fits(undefined, '0.45.0'), fits('>=0.45.0', '0.45.0'), fits('>=0.45.0', '0.44.9'), fits('>=0.45.0 <0.50.0', '0.50.0'), fits('>=0.45.0 <0.50.0', '0.49.3'), fits('>=0.46.0', '')]).toEqual([true, true, false, false, true, true])
     const manifest = { id: 'share', version: '0.3.0', api: 1, name: { en: 'Share' } }
@@ -282,6 +297,33 @@ describe('extensions', () => {
     ])
       expect(with_(bad)).toEqual(['extensions.badAccounts'])
     expect(load([{ dir: '/m/jira', linked: false, manifest: { ...base, contributes: { accounts: { label: { en: 'S' }, fields: [field('s', 'host')] } } }, error: null }], [])[0].pending).toEqual([])
+  })
+
+  it('checks the forge an extension provides', () => {
+    const base = { id: 'github', version: '1.0.0', api: 1, name: { en: 'GitHub' }, wasm: 'github.wasm' }
+    const accounts = { label: { en: 'Accounts' }, fields: [{ id: 'token', label: { en: 'Token' }, kind: 'secret' }] }
+    const remote = '^github\\.com/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)$'
+    const link = 'https://github\\.com/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)/pull/(?<number>[0-9]+)'
+    const forge = { remotes: [remote], links: [link], calls: ['pull', 'lists', 'later'] }
+    const with_ = (value: unknown, more: object = {}) => keys({ ...base, ...more, contributes: { accounts, forge: value } })
+    expect(with_(forge)).toEqual([])
+    expect(with_({ ...forge, verdicts: ['approve', 'comment'], remotes: ['(?<site>{account})/(?<path>[a-z/]+)'] })).toEqual([])
+    expect(with_(forge, { wasm: undefined })).toEqual(['extensions.forgeNeeds'])
+    expect(keys({ ...base, contributes: { forge } })).toEqual(['extensions.forgeNeeds'])
+    for (const bad of [
+      { ...forge, remotes: [] },
+      { ...forge, remotes: ['github\\.com/.+'] },
+      { ...forge, remotes: ['(?<repo>\\w+/\\w+)'] },
+      { ...forge, remotes: ['(?<a>x)/(?<a>y)'] },
+      { ...forge, remotes: ['(?<repo>[a-z]+'] },
+      { ...forge, remotes: [link] },
+      { ...forge, links: [remote] },
+      { ...forge, links: ['(?<repo>[a-z]+)(?=/pull)'] },
+      { ...forge, calls: 'pull' },
+      { ...forge, verdicts: ['merge'] },
+      [forge],
+    ])
+      expect(with_(bad)).toEqual(['extensions.badForge'])
   })
 
   it('checks the options and the settings page an extension declares', () => {

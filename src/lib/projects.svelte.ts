@@ -15,7 +15,7 @@ export type Project = {
   cards: Card[]
   color: string
   pinned: boolean
-  tab_hidden: boolean
+  tab_closed_at: number
   archived: boolean
   group: string
   runs: boolean
@@ -110,7 +110,7 @@ export async function editProject(path: string, changes: {
     name?: string
     color?: string
     pinned?: boolean
-    tab_hidden?: boolean
+    tab_closed_at?: number
     archived?: boolean
     runs?: boolean
     runs_notify?: boolean

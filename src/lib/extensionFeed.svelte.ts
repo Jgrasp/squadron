@@ -3,8 +3,9 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { activityOf, agentChanges, groupOf, projectChanges, projectOf, usageOf, type AgentActivity, type Fed } from './activity'
 import { agents, archived, archiveShown, claudeApi, shownQuietly, find, limits, show, shownAgent, type Archived } from './agents.svelte'
-import { active, grantsOf } from './extensions'
-import { extensions, panelHovered, panelSent } from './extensions.svelte'
+import { boot, finished } from './boot.svelte'
+import { active, grantsOf, panelOpening, panelsOf } from './extensions'
+import { extensions, openPanel, panelHovered, panelSent } from './extensions.svelte'
 import { gestures, raiseMain } from './extensionWindows.svelte'
 import { layout } from './layout.svelte'
 import { projects } from './projects.svelte'
@@ -99,12 +100,32 @@ async function showAgent(extension: string, id: string) {
   }, GESTURE)
 }
 
+const restored = new Promise<void>((resolve) =>
+  $effect.root(() => {
+    $effect(() => {
+      if (boot.agents >= 0) resolve()
+    })
+  }),
+)
+
+const ready = Promise.all([finished, restored])
+
+async function openFromHost(extension: string, id: string) {
+  await ready
+  const target = panelOpening(panelsOf(extensions.list), extension, id, onScreenAgent()?.project)
+  if ('error' in target) throw new Error(target.error)
+  await openPanel(target.panel, target.project)
+}
+
+const onScreenAgent = () => (projects.overview || projects.board || projects.pulls ? undefined : find(shownAgent() ?? ''))
+
 const CALLS: Record<string, (extension: string, args: Record<string, unknown>) => Promise<unknown> | unknown> = {
   projects: () => projectList(),
   groups: () => projects.groups.map(groupOf),
   'all-agents': () => everyone(),
   usage: () => usage(),
   'show-agent': (extension, args) => showAgent(extension, String(args.agent)).then(() => null),
+  'panel-open': (extension, args) => openFromHost(extension, String(args.panel)).then(() => null),
 }
 
 if (main)

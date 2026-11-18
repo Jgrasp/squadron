@@ -1,12 +1,12 @@
 <script lang="ts">
-  import type { Snippet } from 'svelte'
+  import { untrack, type Snippet } from 'svelte'
   import { open } from '@tauri-apps/plugin-dialog'
   import { ask } from './asking.svelte'
   import AgentList from './AgentList.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
-  import { drafts } from './drafts.svelte'
+  import { composing, drafts } from './drafts.svelte'
   import { archiveProject, create, ensureLoaded, ofProject, onDisk, rehome, selected, waiting } from './agents.svelte'
   import {
     bottomShare,
@@ -39,6 +39,14 @@
 
   let { project, overlay }: { project: Project; overlay?: Snippet } = $props()
   let error = $state('')
+
+  $effect(() => {
+    if (!ui.creating) return
+    untrack(() => {
+      ui.creating = false
+      composing[project.path] = true
+    })
+  })
 
   const agent = $derived(selected(project.path))
   $effect(() => {
@@ -279,8 +287,8 @@
       onclose={() => (drafts.open = null)}
     />
   {/key}
-{:else if ui.creating}
-  <NewAgent {project} start={(name, options, text, goal, worktree, files) => create(project.path, name, options, text, { goal, worktree, files })} onclose={() => (ui.creating = false)} />
+{:else if composing[project.path]}
+  <NewAgent {project} start={(name, options, text, goal, worktree, files) => create(project.path, name, options, text, { goal, worktree, files })} onclose={() => delete composing[project.path]} />
 {/if}
 
 <style>

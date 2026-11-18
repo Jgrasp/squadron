@@ -1,4 +1,4 @@
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize};
 use std::fs;
 use std::io;
 use std::path::{Path, PathBuf};
@@ -38,8 +38,13 @@ pub struct Project {
     pub pinned: bool,
     #[serde(default)]
     pub archived: bool,
-    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
-    pub tab_hidden: bool,
+    #[serde(
+        default,
+        alias = "tab_hidden",
+        deserialize_with = "closed_at",
+        skip_serializing_if = "is_zero"
+    )]
+    pub tab_closed_at: u64,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub group: String,
     #[serde(default, skip_serializing_if = "std::ops::Not::not")]
@@ -56,12 +61,32 @@ pub struct Project {
     pub defaults: Defaults,
 }
 
+fn is_zero(at: &u64) -> bool {
+    *at == 0
+}
+
+fn closed_at<'de, D: Deserializer<'de>>(deserializer: D) -> Result<u64, D::Error> {
+    #[derive(Deserialize)]
+    #[serde(untagged)]
+    enum Closed {
+        Hidden(bool),
+        At(u64),
+    }
+    Ok(match Closed::deserialize(deserializer)? {
+        Closed::Hidden(true) => std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map_or(1, |d| d.as_millis() as u64),
+        Closed::Hidden(false) => 0,
+        Closed::At(at) => at,
+    })
+}
+
 #[derive(Deserialize)]
 pub struct Edit {
     pub name: Option<String>,
     pub color: Option<String>,
     pub pinned: Option<bool>,
-    pub tab_hidden: Option<bool>,
+    pub tab_closed_at: Option<u64>,
     pub archived: Option<bool>,
     pub runs: Option<bool>,
     pub runs_notify: Option<bool>,
@@ -264,7 +289,7 @@ pub struct Folder {
     pub cards: Vec<Card>,
     pub color: String,
     pub pinned: bool,
-    pub tab_hidden: bool,
+    pub tab_closed_at: u64,
     pub archived: bool,
     pub group: String,
     pub runs: bool,
@@ -288,7 +313,7 @@ impl Folder {
             cards: project.cards.clone(),
             color: project.color.clone(),
             pinned: project.pinned,
-            tab_hidden: project.tab_hidden,
+            tab_closed_at: project.tab_closed_at,
             archived: project.archived,
             group: project.group.clone(),
             runs: !project.runs_off,
@@ -518,7 +543,7 @@ mod tests {
             }],
             color: "#A78BFA".into(),
             pinned: true,
-            tab_hidden: false,
+            tab_closed_at: 0,
             archived: false,
             group: "g1".into(),
             runs_off: true,
@@ -544,6 +569,15 @@ mod tests {
         fs::write(&file, "{not json").unwrap();
         assert!(load(&file).is_empty());
         assert!(dir.join("projects.json.bak").exists());
+    }
+
+    #[test]
+    fn a_hidden_tab_becomes_a_tab_closed_now() {
+        let read = |json: &str| serde_json::from_str::<Project>(json).unwrap().tab_closed_at;
+        assert!(read(r#"{"name":"a","path":"/a","tab_hidden":true}"#) > 1_700_000_000_000);
+        assert_eq!(read(r#"{"name":"a","path":"/a","tab_hidden":false}"#), 0);
+        assert_eq!(read(r#"{"name":"a","path":"/a","tab_closed_at":42}"#), 42);
+        assert_eq!(read(r#"{"name":"a","path":"/a"}"#), 0);
     }
 
     fn group(id: &str, parent: &str) -> Group {

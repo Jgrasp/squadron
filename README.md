@@ -16,12 +16,12 @@ curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | b
 
 Squadron checks for updates every ten minutes, and on demand from its menu with **Check for updates**: when one is out, the status bar shows **Update**, and one click downloads it, installs it and restarts. The `.deb` asks for your password to install the update.
 
-## Code hosting
+## Pull requests
 
-To follow pull requests, Squadron needs to reach Bitbucket or GitHub:
+To follow pull requests, Squadron needs to reach the forge of each project, from **Settings › Pull requests**:
 
-- **GitHub**: install the [GitHub CLI](https://cli.github.com) and run `gh auth login`.
-- **Bitbucket**: in **Settings › Code hosting**, sign in with your Atlassian email and an API token; the page lists the four scopes it needs. The token stays in the system keyring.
+- **GitHub**: install the GitHub extension, which the page offers for a project on github.com, then add a personal access token to it.
+- **Bitbucket**, **GitLab** and **Azure DevOps**: sign in on the page with a token; it lists the scopes each one needs. The token stays in the system keyring.
 
 ## Develop
 

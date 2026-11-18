@@ -23,6 +23,8 @@ export type Step = { args: string[]; dir?: string }
 
 export type Target = 'all' | 'off' | string[]
 
+export type Follow = { groups: string[]; paths: string[] }
+
 export const OFFICIAL = 'claude-plugins-official'
 
 const COLORS = ['#e08a5b', '#4fa3e0', '#a78bfa', '#7cc47c', '#e3b341', '#6fa0d0', '#3cc39a', '#e07a9b']
@@ -65,6 +67,11 @@ export function plan(flags: Flags, id: string, paths: string[], target: Target):
     if (now !== want.has(p)) local(want.has(p) ? 'enable' : 'disable', p)
   }
   return steps
+}
+
+export function followed(follow: Follow, members: (group: string) => string[], paths: string[]) {
+  const want = new Set([...follow.paths, ...follow.groups.flatMap(members)])
+  return paths.filter((p) => want.has(p))
 }
 
 export function after(flags: Flags, steps: Step[]): Flags {

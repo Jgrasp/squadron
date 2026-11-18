@@ -514,6 +514,7 @@ fn spawn(
     let (lines_id, exit_id) = (id.to_string(), id.to_string());
     let (lines_run, exit_run) = (agent.run.clone(), agent.run.clone());
     let session_id = agent.session_id.clone();
+    let project = agent.project.clone();
     let session = Session::start(
         cmd,
         move |line, event| {
@@ -528,11 +529,19 @@ fn spawn(
                 *session_id.lock().unwrap() = Some(s.clone());
                 seen.store(true, Ordering::SeqCst);
             }
+            let corrected = line
+                .contains("\"messageBreakdown\"")
+                .then(|| session_id.lock().unwrap().clone())
+                .flatten()
+                .and_then(|id| crate::sessions::transcript(&project, &id).ok())
+                .and_then(|t| {
+                    crate::sessions::correct_usage(line, &crate::sessions::image_excess(&t))
+                });
             let _ = lines_app.emit(
                 "agent-line",
                 Line {
                     id: &lines_id,
-                    line,
+                    line: corrected.as_deref().unwrap_or(line),
                 },
             );
         },

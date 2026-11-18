@@ -59,7 +59,7 @@ describe('spotlight actions', () => {
 
   it('opens a settings tab', () => {
     expect(ids('set lay')).toEqual(['settings:layout'])
-    expect(ids('settings hosting')).toEqual(['settings:hosting'])
+    expect(ids('settings pull requests')).toEqual(['settings:hosting'])
     expect(ids('set')).toHaveLength(6)
   })
 

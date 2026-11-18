@@ -1,5 +1,49 @@
 # Nouveautés
 
+## 0.53.0 · 2026-11-18
+
+### Pull requests
+
+- Une pull request relue s’ouvre sur ses fils : vos tours de relecture à gauche, et à droite chaque fil selon son état (encore ouvert, répondu, corrigé, résolu, obsolète) avec ce qu’en a trouvé l’agent relecteur, vos brouillons à part.
+- Quand l’auteur pousse de nouveaux commits, « Faire relire par l’agent » envoie à l’agent relecteur les nouveaux commits et les fils encore ouverts, et il dit pour chacun s’il est corrigé, répondu ou encore ouvert.
+- Terminer un tour résout les fils que vous cochez, sur Bitbucket, GitLab, Azure DevOps et GitHub. Ceux que l’agent a jugés corrigés sont déjà cochés, et chaque fil peut aussi être résolu ou rouvert seul.
+- Chaque tour de relecture garde ses brouillons et se publie sur le commit relu : les commits poussés entre-temps ne comptent plus comme relus.
+- Les pull requests et les runs Actions de GitHub viennent maintenant de l’extension GitHub, à installer depuis « Découvrir des extensions ». Réglages › Pull requests liste chaque forge avec ses comptes et propose l’extension dont un projet a besoin, comme la vue des pull requests d’un projet qu’aucune forge ne couvre.
+- Les pull requests et les liens d’une extension de forge s’affichent avec son nom et son logo, et seulement les actions de relecture qu’elle gère.
+
+### Agents
+
+- Les agents de relecture ont leur propre onglet Relectures dans la liste des agents, groupés en À suivre, En cours et Terminées. Une pastille cuivre sur un onglet compte ses agents qui vous attendent, et un point cuivre signale un agent qui a fini et que vous n’avez pas ouvert.
+
+### Conversation
+
+- Les fichiers CSV et TSV s’affichent en tableau dans les cartes de fichier et dans leur fenêtre, avec un filtre de lignes, le tri, des colonnes redimensionnables et des en-têtes fixes, aussi hors du projet et joints à un message.
+- Les cartes de fichier ont un bouton « Afficher dans le dossier ».
+- Le panneau de contexte compte les images des résultats d’outils, comme les captures du navigateur, à leur coût réel.
+- Afficher tous les plugins dans le panneau de contexte ne le ferme plus.
+
+### Nouvel agent
+
+- La fenêtre Nouvel agent garde son brouillon par projet quand vous changez de projet ou la fermez, avec un bouton « Effacer le brouillon », et montre Haiku qui prépare les instructions dans le champ du message.
+- La fenêtre Nouvel agent ouverte par une extension démarre avec les réglages repliés.
+- La fenêtre de lancement d’un agent par un autre est plus large, montre davantage du premier message et garde les onglets des projets sur une ligne.
+
+### Projets
+
+- Un projet retiré de la barre d’onglets revient dès qu’un de ses agents démarre ou reprend le travail.
+- Les onglets des projets passent dans le menu de débordement avant que le bouton Pull requests ne pousse les boutons de la fenêtre hors de l’écran, et ce bouton garde son libellé sur une ligne.
+
+### Plugins
+
+- Un plugin peut suivre des groupes de projets : les projets ajoutés à un groupe suivi le reçoivent et ceux qu’on en retire le perdent. Son interrupteur est dans le bloc Projets, et un plugin en pause nomme les projets où il reviendra.
+- Le menu Squadron a une entrée Plugins, avant Extensions.
+
+### Extensions
+
+- « Découvrir des extensions » liste les extensions en lignes, avec l’interrupteur, les réglages et la mise à jour pour celles installées, et Installer pour les autres. L’entrée Extensions du menu l’ouvre, et « Ajouter une extension locale » est à côté de « Ajouter une marketplace ».
+- API d’extension 1.8.0 : une extension peut fournir les pull requests et les pipelines d’une forge, fils résolus compris, et les extensions qui lisent l’activité des agents voient lesquels ne sont pas lus.
+- API d’extension 1.9.0 : une extension peut ouvrir un de ses panneaux, ou le ramener au premier plan, sans clic, dès le lancement de Squadron ou depuis n’importe lequel de ses événements.
+
 ## 0.52.0 · 2026-11-17
 
 ### Extensions

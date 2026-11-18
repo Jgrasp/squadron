@@ -13,16 +13,19 @@
   import DiffView, { type Line } from './DiffView.svelte'
   import ChangedFiles, { type Note } from './ChangedFiles.svelte'
   import Avatar from './Avatar.svelte'
+  import Icon from './Icon.svelte'
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
   import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { hostName, markReviewed, merge, post, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { behind, closeRound, hostName, inRound, judgementOf, markReviewed, merge, openRound, post, reviewChanges, reviews, rounds, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
+  import PullThreads, { stateOf, type ThreadState } from './PullThreads.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
   import Trans from './Trans.svelte'
+  import { can, offers } from './forges.svelte'
   import { date, errorText, t, type Key } from './i18n/index.svelte'
 
   let {
@@ -132,7 +135,7 @@
       for (let i = 0; r.reply_to !== null && byId.has(r.reply_to) && i < 100; i++) r = byId.get(r.reply_to)!
       return r
     }
-    const list = new Map<number, Thread>()
+    const list = new Map<string, Thread>()
     for (const r of remarks) {
       const root = rootOf(r)
       if (!list.has(root.id)) list.set(root.id, { root, all: [] })
@@ -141,12 +144,62 @@
     return [...list.values()]
   })
   const general = $derived(threads.filter((t) => !t.root.path || t.root.line === null))
+  let picked = $state<'threads' | 'diff' | null>(null)
+  $effect(() => {
+    void pull?.number
+    picked = null
+  })
+  const pane = $derived(reviewing ? (picked ?? (threads.length || rounds[reviewKey]?.length ? 'threads' : 'diff')) : 'diff')
+  const STATE_KEYS: Record<ThreadState, Key> = {
+    open: 'review.threadOpen',
+    answered: 'review.threadAnswered',
+    fixed: 'review.threadFixed',
+    resolved: 'review.threadResolved',
+    outdated: 'review.threadOutdated',
+  }
+  const pending = $derived(threads.filter((th) => ['open', 'answered', 'fixed'].includes(stateOf(reviewKey, th))))
+  const resolvables = $derived(pull && can(pull.host, 'resolve') ? pending.filter((th) => th.root.resolved === false) : [])
+  let toResolve = $state<string[]>([])
+
+  const rereader = $derived(reviewer ?? (agent?.review ? agent : null))
+  const rereadable = $derived(!!pull && !!rereader?.review && rereader.status !== 'working' && behind(rereader, pull))
+  let rereading = $state(false)
+
+  async function reReview() {
+    if (!pull || !rereader) return
+    rereading = true
+    postError = null
+    try {
+      await reviewChanges(rereader, pull)
+    } catch (e) {
+      postError = { text: String(e), done: 0 }
+    } finally {
+      rereading = false
+    }
+  }
+  $effect(() => {
+    if (finishing) untrack(() => (toResolve = resolvables.filter((th) => stateOf(reviewKey, th) === 'fixed').map((th) => th.root.id)))
+  })
+
+  async function goToThread(th: Thread) {
+    picked = 'diff'
+    await tick()
+    const there = spots.find((s) => s.key === `thread:${th.root.id}`)
+    if (there) goToSpot(there)
+    else if (th.root.path) scrollToFile(th.root.path)
+  }
+
+  async function goToDraft(c: Comment) {
+    picked = 'diff'
+    await tick()
+    goTo(c)
+  }
   const threadsAt = (path: string, line: Line) =>
     threads.filter((t) => t.root.path === path && t.root.line === line.number && t.root.removed === (line.side === 'old'))
   const talks = (path: string) => threads.filter((t) => t.root.path === path && t.root.line !== null).length
   const when = (at: string) => date(new Date(at), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-  let handed = $state<number[]>([])
-  let replying = $state<number | null>(null)
+  let handed = $state<string[]>([])
+  let replying = $state<string | null>(null)
   let answer = $state('')
   let answering = $state(false)
   let replyError = $state('')
@@ -493,7 +546,7 @@
 
   function draft(): Comment {
     const { path, side, number, text } = commenting!
-    return { path, line: number, removed: side === 'old', code: text, note: note.trim(), ...(reviewing ? { pull: pull!.number } : {}) }
+    return { path, line: number, removed: side === 'old', code: text, note: note.trim(), ...(reviewing ? { pull: pull!.number, ...inRound(reviewKey, pull!.head) } : {}) }
   }
 
   function comment(event?: Event) {
@@ -534,7 +587,7 @@
 
   let generalNote = $state('')
   const mineGeneral = $derived(reviewing ? [...review, ...comments.filter(here)].filter((c) => !c.path) : [])
-  const generalDraft = (): Comment => ({ path: '', line: 0, removed: false, code: '', note: generalNote.trim(), pull: pull!.number })
+  const generalDraft = (): Comment => ({ path: '', line: 0, removed: false, code: '', note: generalNote.trim(), pull: pull!.number, ...inRound(reviewKey, pull!.head) })
 
   function addGeneral(where: 'review' | 'agent') {
     if (!generalNote.trim() || !pull) return
@@ -600,18 +653,26 @@
   async function submit() {
     if (!pull || !ready) return
     const sending = [...review]
+    const head = openRound(reviewKey)?.head || pull.head
+    const resolving = resolvables.filter((th) => toResolve.includes(th.root.id))
     posting = true
     postError = null
-    const { done, said, error } = await post(folder, pull, sending, summary, verdict)
+    const { done, said, error, sent } = await post(folder, pull, sending, summary, verdict, head)
     posting = false
-    reviews[reviewKey] = review.filter((c) => !sending.slice(0, done).includes(c))
+    reviews[reviewKey] = review.filter((c) => !sent.includes(c))
     if (said) summary = ''
     if (error) return (postError = { text: error, done })
+    closeRound(reviewKey, head, verdict, sending.length)
+    const failed: string[] = []
+    for (const th of resolving)
+      await invoke('pull_resolve', { dir: folder, number: pull.number, to: th.root.id, kind: th.root.kind, resolved: true }).catch((e) => failed.push(String(e)))
+    if (resolving.length) fresh++
+    if (failed.length) postError = { text: t('review.resolveFailed', { count: failed.length, error: errorText(failed[0]) }), done: 0 }
     summary = ''
     verdict = ''
     finishing = false
-    if (!agent) markReviewed(folder, pull)
-    else if (agent.review) markReviewed(agent.review.project, pull)
+    if (!agent) markReviewed(folder, pull, head)
+    else if (agent.review) markReviewed(agent.review.project, pull, head)
     onposted?.()
   }
 
@@ -699,7 +760,13 @@
     >
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
     </button>
-    {#if reviewing && since}
+    {#if reviewing}
+      <div class="modes" role="group" aria-label={t('review.viewOfPull')}>
+        <button aria-pressed={pane === 'threads'} onclick={() => (picked = 'threads')}>{t('review.viewThreads')}{#if pending.length}<span class="talks">{pending.length}</span>{/if}</button>
+        <button aria-pressed={pane === 'diff'} onclick={() => (picked = 'diff')}>{t('review.viewChanges')}</button>
+      </div>
+    {/if}
+    {#if reviewing && since && pane === 'diff'}
       <div class="modes" role="group" aria-label={t('review.whatToReview')}>
         <button aria-pressed={onlyNew} onclick={() => ((onlyNew = true), (sinceError = ''))}>{t('review.sinceYourReview')}</button>
         <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>{t('review.allChanges')}</button>
@@ -734,7 +801,7 @@
       <span class="pulse" aria-hidden="true"></span>
       <span class="what">
         {#if review.length}
-          <strong>{t('review.reviewInProgress')}</strong> ·
+          <strong>{openRound(reviewKey) ? t('review.roundN', { n: openRound(reviewKey)!.n }) : t('review.reviewInProgress')}</strong> ·
           <button class="count-toggle" aria-expanded={listing} onclick={() => (listing = !listing)}
             >{t('review.commentCount', { count: review.length })} <span aria-hidden="true">{listing ? '▴' : '▾'}</span></button
           >
@@ -772,12 +839,19 @@
           onclick={askAgent}>{starting ? t('review.starting') : t('review.askAgent')}</button
         >
       {/if}
+      {#if rereadable}
+        <button class="btn btn-secondary rereview" disabled={rereading} title={t('review.reviewNewChangesTitle', { name: rereader!.name })} onclick={reReview}
+          ><Icon name="persona" size={14} />{rereading ? t('review.starting') : t('review.reReviewWithAgent')}</button
+        >
+      {/if}
       {#if review.length}<button class="btn btn-secondary" onclick={discard}>{t('review.discard')}</button>{/if}
       {#if own && pull.mergeable && !review.length}
         <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
       {/if}
-      {#if !own && !closed}
+      {#if !own && !closed && offers(pull.host, 'request_changes')}
         <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'request_changes'} onclick={() => ((verdict = 'request_changes'), (finishing = true))}>{t('review.verdictRequestChanges')}</button>
+      {/if}
+      {#if !own && !closed && offers(pull.host, 'approve')}
         <button class="btn btn-secondary" disabled={posting} onclick={approveNow}>{posting && verdict === 'approve' ? t('review.posting') : t('review.verdictApprove')}</button>
       {/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>{t('review.finishReview')}</button>
@@ -797,6 +871,24 @@
     {/if}
     {#if finishing}
       <div class="finish">
+        {#if resolvables.length}
+          <div class="resolve-list" role="group" aria-label={t('review.resolveOn', { host: hostName(pull) })}>
+            <span class="resolve-head">{t('review.resolveOn', { host: hostName(pull) })} <span>{t('review.resolveHelp')}</span></span>
+            {#each resolvables as th (th.root.id)}
+              {@const state = stateOf(reviewKey, th)}
+              <label>
+                <input
+                  type="checkbox"
+                  checked={toResolve.includes(th.root.id)}
+                  onchange={(e) => (toResolve = e.currentTarget.checked ? [...toResolve, th.root.id] : toResolve.filter((id) => id !== th.root.id))}
+                />
+                <span class="state {state}">{t(STATE_KEYS[state])}</span>
+                <span class="where">{th.root.path ? `${th.root.path}:${th.root.line}` : t('review.pullRequest')}</span>
+                <span class="why">{judgementOf(reviewKey, th.root.id)?.note ?? th.root.body.split('\n')[0]}</span>
+              </label>
+            {/each}
+          </div>
+        {/if}
         <label for="review-summary" class="sr-only">{t('review.overallComment')}</label>
         <!-- svelte-ignore a11y_autofocus -->
         <textarea
@@ -812,11 +904,13 @@
             {@const to = agent ?? (handTo === 'new' ? null : handTo)}
             {@const where = to ? t('review.theConversation') : t('review.newAgent')}
             <span class="hint">{t('review.sendOrPost', { count: handing.length, agent: where, host: hostName(pull) })}</span>
-            <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
+            {#if can(pull.host, 'post')}
+              <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
+            {/if}
             <button class="btn btn-primary" title={to?.name} disabled={posting || !(ready || handing.length)} onclick={handOver}>{t('review.sendTo', { agent: where })}</button>
-          {:else}
+          {:else if can(pull.host, 'post')}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
-              {#each own || closed ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
+              {#each (own || closed ? VERDICTS.slice(0, 1) : VERDICTS).filter(([id]) => offers(pull.host, id || 'comment')) as [id, label] (id)}
                 <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{t(label)}</button>
               {/each}
             </div>
@@ -827,6 +921,19 @@
       </div>
     {/if}
   {/if}
+  {#if reviewing && pull && pane === 'threads'}
+    <PullThreads
+      {pull}
+      {folder}
+      {reviewKey}
+      {threads}
+      drafts={review}
+      onfresh={() => fresh++}
+      ongo={goToThread}
+      ondraft={goToDraft}
+      ondrop={drop}
+    />
+  {:else}
   {#if reviewing && sinceError}
     <p class="ahead" role="note">{errorText(sinceError)}</p>
   {/if}
@@ -1083,6 +1190,7 @@
   {:else}
     <p class="empty pad">{changes ? t('review.nothingChanged') : agent ? t('review.agentChangedNothing', { agent: agent.name }) : t('review.noRepositoryHere')}</p>
   {/if}
+  {/if}
 </SidePanel>
 
 {#snippet below(line: Line)}
@@ -1152,7 +1260,9 @@
       </form>
     {:else}
       <div class="thread-actions">
-        <button class="btn btn-secondary" onclick={() => ((replying = th.root.id), (answer = ''), (replyError = ''))}>{t('review.reply')}</button>
+        {#if pull && can(pull.host, 'reply')}
+          <button class="btn btn-secondary" onclick={() => ((replying = th.root.id), (answer = ''), (replyError = ''))}>{t('review.reply')}</button>
+        {/if}
         {#if agent}
           {#if handed.includes(th.root.id)}
             <span class="handed">{t('review.inYourNextMessageTo', { agent: agent.name })}</span>
@@ -1194,9 +1304,11 @@
       {:else if reviewing && pull}
         {#if postError}<span class="hint bad" role="alert">{problem}</span>{:else}<span class="hint"><Trans k="review.ctrlEnterStarts">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>{/if}
         <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
-        <button type="button" class="btn btn-ghost" title={t('review.postNowTitle', { host: hostName(pull) })} disabled={!note.trim() || posting} onclick={postNow}>
-          {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
-        </button>
+        {#if can(pull.host, 'post')}
+          <button type="button" class="btn btn-ghost" title={t('review.postNowTitle', { host: hostName(pull) })} disabled={!note.trim() || posting} onclick={postNow}>
+            {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
+          </button>
+        {/if}
         {#if agent}
           <button type="button" class="btn btn-secondary" title={t('review.addToNextMessageTitle', { agent: agent.name })} disabled={!note.trim()} onclick={forAgent}>{t('review.addComment')}</button>
         {/if}
@@ -2101,5 +2213,95 @@
 
   kbd {
     font-family: var(--mono);
+  }
+
+  .resolve-list {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 10px 12px;
+    border-radius: 6px;
+    background: var(--bg-main);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .resolve-head {
+    margin-bottom: 4px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-muted);
+  }
+
+  .resolve-head span {
+    margin-left: 6px;
+    font-size: 12px;
+    font-weight: 400;
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-faint);
+  }
+
+  .resolve-list label {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 30px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .resolve-list input {
+    margin: 0;
+    accent-color: var(--accent);
+  }
+
+  .resolve-list .state {
+    flex: none;
+    padding: 1px 6px;
+    border-radius: 3px;
+    background: var(--err-bg);
+    font: 600 11px var(--sans);
+    color: var(--err-text);
+  }
+
+  .resolve-list .state.answered {
+    background: color-mix(in srgb, var(--remote-dot) 16%, transparent);
+    color: var(--remote-text);
+  }
+
+  .resolve-list .state.fixed {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+  }
+
+  .resolve-list .where {
+    flex: none;
+    max-width: 45%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 12px var(--mono);
+    color: var(--text-3);
+  }
+
+  .resolve-list .why {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    text-align: right;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .rereview {
+    gap: 7px;
+  }
+
+  .rereview :global(svg) {
+    color: var(--persona);
   }
 </style>
