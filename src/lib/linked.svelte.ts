@@ -2,6 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { projects } from './projects.svelte'
 import { requestPanel, setPanel } from './layout.svelte'
 import type { Pull } from './pulls.svelte'
+import { isProvidedLink } from './forges.svelte'
 
 export type Linked = {
   repo: string
@@ -12,9 +13,9 @@ export type Linked = {
   project: string | null
 }
 
-const PULL = /^https?:\/\/(www\.)?(github\.com\/[\w.-]+\/[\w.-]+\/pull|bitbucket\.org\/[\w.-]+\/[\w.-]+\/pull-requests|[\w.-]+(?:\/[\w.-]+){2,}\/-\/merge_requests|(?:dev\.azure\.com\/[\w.-]+|[\w-]+\.visualstudio\.com(?:\/DefaultCollection)?)\/[\w.%-]+\/_git\/[\w.%-]+\/pullrequest)\/\d+([/?#].*)?$/
+const PULL = /^https?:\/\/(www\.)?(bitbucket\.org\/[\w.-]+\/[\w.-]+\/pull-requests|[\w.-]+(?:\/[\w.-]+){2,}\/-\/merge_requests|(?:dev\.azure\.com\/[\w.-]+|[\w-]+\.visualstudio\.com(?:\/DefaultCollection)?)\/[\w.%-]+\/_git\/[\w.%-]+\/pullrequest)\/\d+([/?#].*)?$/
 
-export const isPullLink = (url: string) => PULL.test(url)
+export const isPullLink = (url: string) => PULL.test(url) || isProvidedLink(url)
 
 const found = new Map<string, { at: number; linked: Promise<Linked> }>()
 

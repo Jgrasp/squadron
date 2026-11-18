@@ -2,9 +2,9 @@
   import { ask } from './asking.svelte'
   import { agents, archive, archiveShown, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
   import { ago } from './format'
-  import { layout, orderAgents, resetSort, setPanel, setSort, type AgentSort } from './layout.svelte'
+  import { layout, orderAgents, resetSort, setAgentTab, setPanel, setSort, type AgentSort, type AgentTab } from './layout.svelte'
   import { sortable } from './layout-slots.svelte'
-  import { projects, type Project } from './projects.svelte'
+  import { projects, togglePulls, type Project } from './projects.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
   import ImportPanel from './ImportPanel.svelte'
@@ -103,7 +103,24 @@
     if (by !== 'none') rest.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
     return [...all.filter((a) => a.pinned), ...rest]
   })
-  const pinned = $derived(list.filter((a) => a.pinned).length)
+  const tabbed = $derived(list.some((a) => a.review))
+  const tab = $derived<AgentTab>(tabbed && layout.agentTabs[project.path] === 'reviews' ? 'reviews' : 'agents')
+  const ofTab = (id: AgentTab) => list.filter((a) => !!a.review === (id === 'reviews'))
+  const shown = $derived(tabbed ? ofTab(tab) : list)
+  const pinned = $derived(shown.filter((a) => a.pinned).length)
+  const TABS: [AgentTab, Key][] = [
+    ['agents', 'shell.tabAgents'],
+    ['reviews', 'shell.tabReviews'],
+  ]
+
+  let seen = ''
+  $effect(() => {
+    const agent = current
+    if (!agent || agent.id === seen) return
+    seen = agent.id
+    const want: AgentTab = agent.review ? 'reviews' : 'agents'
+    if (tabbed && tab !== want) setAgentTab(project.path, want)
+  })
 
   let chosen = $state<string[]>([])
   let anchor = ''
@@ -111,13 +128,14 @@
 
   $effect(() => {
     void project.path
+    void tab
     chosen = []
   })
 
   function sweep(event: PointerEvent, agent: Agent) {
     if (event.button !== 0 || !(event.ctrlKey || event.metaKey || event.shiftKey)) return
     event.preventDefault()
-    const ids = list.map((a) => a.id)
+    const ids = rows.map((a) => a.id)
     const base = [...chosen]
     const extend = event.shiftKey && ids.includes(anchor)
     const from = ids.indexOf(extend ? anchor : agent.id)
@@ -167,14 +185,14 @@
 
 
   function drop(id: string, index: number) {
-    const ids = list.map((a) => a.id).filter((a) => a !== id)
+    const ids = shown.map((a) => a.id).filter((a) => a !== id)
     ids.splice(index, 0, id)
-    const pinnedIds = list.filter((a) => a.pinned).map((a) => a.id)
+    const pinnedIds = shown.filter((a) => a.pinned).map((a) => a.id)
     if (sort.by !== 'none' && pinnedIds.includes(id)) {
       const pins = ids.filter((a) => pinnedIds.includes(a))
       return orderAgents(project.path, [...pins, ...(layout.orders[project.path] ?? []).filter((a) => !pins.includes(a))])
     }
-    orderAgents(project.path, ids)
+    orderAgents(project.path, [...ids, ...list.map((a) => a.id).filter((a) => !ids.includes(a))])
   }
   $effect(() => {
     if (ofProject(project.path).some((a) => a.review)) lookUpLists(project.path)
@@ -191,6 +209,33 @@
     return [agent.review?.title, pull && (behind(agent, pull) ? t('review.newCommits') : t('review.upToDate'))].filter(Boolean).join(' · ')
   }
   const pending = $derived(waiting(project.path))
+
+  function reviewState(agent: Agent) {
+    if (agent.status !== 'done' || blocked(agent)) return label(agent)
+    const pull = reviewed(agent)
+    if (!pull) return t('shell.doneAgo', { ago: ago(agent.since, clock.now) })
+    return behind(agent, pull) ? t('shell.newCommitsSinceItsReview') : t('shell.reviewUpToDate')
+  }
+  const moved = (agent: Agent) => {
+    const pull = agent.status === 'done' && reviewed(agent)
+    return !!pull && behind(agent, pull)
+  }
+  const follows = (agent: Agent) =>
+    look(agent) === 'waiting' || agent.status === 'error' || agent.status === 'interrupted' || (agent.status === 'done' && (agent.unread || moved(agent)))
+  const groups = $derived.by((): [Key, Agent[]][] => {
+    if (tab !== 'reviews') return []
+    const follow = shown.filter(follows)
+    const running = shown.filter((a) => !follows(a) && a.status === 'working')
+    const rest = shown.filter((a) => !follows(a) && a.status !== 'working')
+    return (
+      [
+        ['shell.reviewsToFollow', follow],
+        ['shell.reviewsRunning', running],
+        ['shell.reviewsDone', rest],
+      ] as [Key, Agent[]][]
+    ).filter(([, group]) => group.length)
+  })
+  const rows = $derived(tab === 'reviews' ? groups.flatMap(([, group]) => group) : shown)
 
   const blocked = (agent: Agent) => !!agent.attention && agent.status !== 'working' && agent.status !== 'error' && !agent.asks.length
   const look = (agent: Agent) => (blocked(agent) ? 'waiting' : agent.status === 'working' && agent.held ? 'background' : agent.status)
@@ -272,6 +317,18 @@
       </span>
     {/if}
   {/if}
+{/snippet}
+
+{#snippet reviewRow(agent: Agent)}
+  {@const verdict = verdictOf(agent)}
+  <span class="line">
+    <StatusIcon status={look(agent)} />
+    {#if agent.unread}<span class="unread" role="img" aria-label={t('shell.unread')} title={t('shell.unread')}></span>{/if}
+    <span class="number">#{agent.review!.number}</span>
+    <span class="name">{agent.review!.title || agent.name}</span>
+    {#if verdict && verdict[0] !== 'run'}<span class="verdict {verdict[0]}">{verdict[1]}</span>{/if}
+  </span>
+  <span class="state" class:moved={moved(agent)}>{#if moved(agent)}<Icon name="retry" size={11} />{/if}{reviewState(agent)}</span>
 {/snippet}
 
 <svelte:window
@@ -365,9 +422,47 @@
     </div>
   </div>
 
-  {#if list.length}
-    <div class="list" use:sortable={{ enabled: list.length > 1 && !editing, onplace: drop }}>
-      {#each list as agent, i (agent.id)}
+  {#if tabbed}
+    <div class="tabs" role="tablist" aria-label={t('shell.agentKinds')}>
+      {#each TABS as [id, key] (id)}
+        {@const group = ofTab(id)}
+        {@const waits = group.filter((a) => look(a) === 'waiting').length}
+        {@const fresh = id !== tab && group.some((a) => a.unread)}
+        <button role="tab" aria-selected={tab === id} class:fresh onclick={() => setAgentTab(project.path, id)}>
+          {#if fresh}<span class="dot" role="img" aria-label={t('shell.unread')} title={t('shell.unread')}></span>{/if}
+          {t(key)}
+          {#if waits}<span class="badge" title={t('shell.waitingInTab', { count: waits })}>{waits}</span>{/if}
+        </button>
+      {/each}
+    </div>
+  {/if}
+
+  {#if tab === 'reviews'}
+    <div class="list" role="tabpanel">
+      {#each groups as [key, group] (key)}
+        <span class="group">{t(key)}</span>
+        {#each group as agent (agent.id)}
+          <button
+            class="agent review {look(agent)}"
+            class:picked={chosen.includes(agent.id)}
+            class:fresh={agent.status === 'done' && agent.unread}
+            data-item={agent.id}
+            title={agent.name}
+            aria-current={agent.id === current?.id ? 'true' : undefined}
+            aria-pressed={chosen.length ? chosen.includes(agent.id) : undefined}
+            onpointerdown={(e) => sweep(e, agent)}
+            onclick={(e) => openAgent(e, agent)}
+            oncontextmenu={(e) => open(agent, e)}
+          >
+            {@render reviewRow(agent)}
+          </button>
+        {/each}
+      {/each}
+      <button class="new review-pull" onclick={() => projects.pulls || togglePulls()}><Icon name="plus" size={12} />{t('shell.reviewPull')}</button>
+    </div>
+  {:else if list.length}
+    <div class="list" role={tabbed ? 'tabpanel' : undefined} use:sortable={{ enabled: shown.length > 1 && !editing, onplace: drop }}>
+      {#each shown as agent, i (agent.id)}
         {#if pinned && i === pinned}<span class="divider" aria-hidden="true"></span>{/if}
         {#if editing === agent.id}
           <div class="agent {look(agent)}" data-item={agent.id} data-keep={sort.by !== 'none' && !agent.pinned ? '' : undefined} aria-current={agent.id === current?.id ? 'true' : undefined}>
@@ -394,24 +489,24 @@
         {/if}
       {/each}
     </div>
-    {#if picked.length}
-      {@const pinAll = picked.some((a) => !a.pinned)}
-      {@const readAll = picked.some((a) => a.unread)}
-      <div class="bulk" role="toolbar" aria-label={t('shell.bulkActions')}>
-        <span class="selection">{t('shell.selectedCount', { count: picked.length })}</span>
-        <button onclick={() => ((value) => bulk((id) => pin(id, value)))(pinAll)}>{pinAll ? t('shell.pinToTop') : t('shell.unpin')}</button>
-        <button onclick={() => ((value) => bulk((id) => markUnread(id, value)))(!readAll)}>{readAll ? t('shell.markRead') : t('shell.markUnread')}</button>
-        <button onclick={() => bulk((id) => archive(id))}>{t('common.archive')}</button>
-        <button class="danger" onclick={eraseAll}>{t('common.deleteEllipsis')}</button>
-        <button class="clear" aria-label={t('shell.clearSelection')} title={t('shell.clearSelection')} onclick={() => (chosen = [])}>×</button>
-      </div>
-    {/if}
   {:else}
     <div class="empty">
       <svg width="28" height="28" viewBox="0 0 24 24" aria-hidden="true"
         ><rect x="4" y="4" width="16" height="6" rx="2" /><rect x="4" y="14" width="16" height="6" rx="2" stroke-dasharray="3 3" /></svg
       >
       {project.exists ? t('shell.agentsShowHere', { name: project.name }) : t('shell.agentsOnceFound')}
+    </div>
+  {/if}
+  {#if picked.length}
+    {@const pinAll = picked.some((a) => !a.pinned)}
+    {@const readAll = picked.some((a) => a.unread)}
+    <div class="bulk" role="toolbar" aria-label={t('shell.bulkActions')}>
+      <span class="selection">{t('shell.selectedCount', { count: picked.length })}</span>
+      <button onclick={() => ((value) => bulk((id) => pin(id, value)))(pinAll)}>{pinAll ? t('shell.pinToTop') : t('shell.unpin')}</button>
+      <button onclick={() => ((value) => bulk((id) => markUnread(id, value)))(!readAll)}>{readAll ? t('shell.markRead') : t('shell.markUnread')}</button>
+      <button onclick={() => bulk((id) => archive(id))}>{t('common.archive')}</button>
+      <button class="danger" onclick={eraseAll}>{t('common.deleteEllipsis')}</button>
+      <button class="clear" aria-label={t('shell.clearSelection')} title={t('shell.clearSelection')} onclick={() => (chosen = [])}>×</button>
     </div>
   {/if}
 </aside>
@@ -1005,4 +1100,104 @@
     stroke-width: 1.6;
   }
 
+  .tabs {
+    flex: none;
+    display: flex;
+    margin: 0 0 6px;
+    border-radius: 4px;
+    overflow: hidden;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .tabs button {
+    flex: 1;
+    height: 30px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    gap: 7px;
+    font-size: 12.5px;
+    font-weight: 500;
+    color: var(--text-2);
+  }
+
+  .tabs button + button {
+    box-shadow: inset 1px 0 0 var(--border-strong);
+  }
+
+  .tabs button:hover {
+    color: var(--text-strong);
+  }
+
+  .tabs button[aria-selected='true'] {
+    background: var(--text);
+    color: var(--ink);
+    font-weight: 700;
+  }
+
+  .tabs .fresh {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  .tabs .dot {
+    flex: none;
+    width: 7px;
+    height: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .tabs .badge {
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 9px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font: 700 11px var(--sans);
+  }
+
+  .group {
+    flex: none;
+    padding: 8px 12px 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .agent.review {
+    gap: 3px;
+    padding: 8px 12px;
+  }
+
+  .number {
+    flex: none;
+    font: 600 11.5px var(--mono);
+    color: var(--remote-text);
+  }
+
+  .state.moved {
+    display: flex;
+    align-items: center;
+    gap: 5px;
+    color: var(--remote-text);
+  }
+
+  .review-pull {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    height: 28px;
+    margin: 6px 0 0;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
 </style>

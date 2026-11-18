@@ -66,9 +66,14 @@ describe('inBar', () => {
     expect(inBar({ path: '/a', pinned: false }, '', idle, now, 4)).toBe(false)
   })
 
-  it('leaves out a project removed from the bar, unless it is the current one', () => {
-    expect(inBar({ path: '/a', pinned: false, tab_hidden: true }, '', { busy: true, last: now }, now, ALWAYS)).toBe(false)
-    expect(inBar({ path: '/a', pinned: false, tab_hidden: true }, '/a', idle, now, 4)).toBe(true)
+  it('leaves out a project removed from the bar until new activity, unless it is the current one', () => {
+    const closed = { path: '/a', pinned: false, tab_closed_at: now - 1000 }
+    expect(inBar(closed, '', { busy: true, last: now - 2000 }, now, ALWAYS)).toBe(false)
+    expect(inBar(closed, '', { busy: false, last: now - 1000 }, now, 4)).toBe(false)
+    expect(inBar(closed, '/a', idle, now, 4)).toBe(true)
+    expect(inBar(closed, '', { busy: true, last: now }, now, 4)).toBe(true)
+    expect(inBar(closed, '', { busy: false, last: now - 500 }, now, 4)).toBe(true)
+    expect(inBar(closed, '', { busy: false, last: now - 500 }, now + 5 * 3_600_000, 4)).toBe(false)
   })
 
   it('keeps every project when the delay is always', () => {

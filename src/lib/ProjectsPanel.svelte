@@ -2,7 +2,7 @@
   import { cubicOut } from 'svelte/easing'
   import { ui } from './actions.svelte'
   import { failed, ofProject, waiting } from './agents.svelte'
-  import { contained, groupOf, parentOf, rollup, rows, within, type Row, type Stat } from './groups'
+  import { contained, groupOf, parentOf, rollup, rows, tabClosed, within, type Row, type Stat } from './groups'
   import { foldGroup, layout, MIN_PROJECTS, resizeProjects } from './layout.svelte'
   import { addGroup, editGroup, editProject, moveProjects, orderProjects, projects, removeGroup, type Project } from './projects.svelte'
   import { hint, settings } from './settings.svelte'
@@ -162,10 +162,12 @@
     if (first) act(() => Promise.all(paths.map((path) => editProject(path, { pinned: !first.pinned }))))
   }
 
+  const closed = (project: Project) => tabClosed(project, Math.max(0, ...ofProject(project.path).map((a) => a.since)))
+
   function hide(paths: string[]) {
     menu = null
     const first = projects.list.find((p) => p.path === paths[0])
-    if (first) act(() => Promise.all(paths.map((path) => editProject(path, { tab_hidden: !first.tab_hidden }))))
+    if (first) act(() => Promise.all(paths.map((path) => editProject(path, { tab_closed_at: closed(first) ? 0 : Date.now() }))))
   }
 
   function context(event: MouseEvent, row: Row | null) {
@@ -489,7 +491,7 @@
       </button>
       <button role="menuitem" onclick={() => hide(paths)}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
-        {row.project.tab_hidden ? t('shell.showInTabBar') : t('shell.removeFromTabBar')}
+        {closed(row.project) ? t('shell.showInTabBar') : t('shell.removeFromTabBar')}
       </button>
       <span class="rule" aria-hidden="true"></span>
       <span class="section">{t('shell.groupMoveTo')}</span>

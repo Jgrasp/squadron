@@ -52,7 +52,7 @@ export default {
   draftDone: 'Premier message prêt',
   draftFailed: 'L’extension n’a pas pu préparer le premier message.',
   draftRegenerate: 'Régénérer',
-  draftWriting: 'L’extension écrit le premier message…',
+  clearDraft: 'Effacer le brouillon',
   draftAll: 'Tout',
   draftChoices: '{count} sur {total}',
   draftAdded: '{key} est ajouté après le message.',

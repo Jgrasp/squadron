@@ -12,6 +12,7 @@
   let { agent }: { agent: Agent } = $props()
 
   let open = $state(false)
+  let anchor: HTMLElement
 
   $effect(() => {
     fetchDetails((agent.plugins ?? []).filter((r) => !r.id.endsWith('@inline')).map((r) => r.id))
@@ -96,9 +97,9 @@
 
 </script>
 
-<svelte:window onclick={(e) => open && !(e.target as HTMLElement).closest('[data-context]') && (open = false)} onkeydown={(e) => e.key === 'Escape' && (open = false)} />
+<svelte:window onclick={(e) => open && !e.composedPath().includes(anchor) && (open = false)} onkeydown={(e) => e.key === 'Escape' && (open = false)} />
 
-<span class="anchor" data-context>
+<span class="anchor" bind:this={anchor}>
   <button class="gauge {tone}" aria-haspopup="dialog" aria-expanded={open} title={when} onclick={toggle}>
     <svg class="ring" class:eating width="22" height="22" viewBox="3 3 24 24" aria-hidden="true">
       <clipPath id="context-{agent.id}"><circle cx="15" cy="15" r="9.6" /></clipPath>

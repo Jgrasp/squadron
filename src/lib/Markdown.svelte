@@ -128,6 +128,7 @@
   import PullCard from './PullCard.svelte'
   import TaskRef from './TaskRef.svelte'
   import FileCard from './FileCard.svelte'
+  import { TABULAR } from './csv'
   import FileMore from './FileMore.svelte'
   import TaskDialog from './TaskDialog.svelte'
   import { projects } from './projects.svelte'
@@ -232,7 +233,7 @@
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-file]') ?? []) {
         slot.querySelector('a')?.setAttribute('hidden', '')
         const path = within(slot.dataset.file!, project)
-        mounted.push(path ? mount(FileCard, { target: slot, props: { path, project } }) : mount(Attachment, { target: slot, props: { path: slot.dataset.file!, look: 'card', large: true } }))
+        mounted.push(path ? mount(FileCard, { target: slot, props: { path, project } }) : TABULAR.test(slot.dataset.file!) ? mount(FileCard, { target: slot, props: { path: slot.dataset.file! } }) : mount(Attachment, { target: slot, props: { path: slot.dataset.file!, look: 'card', large: true } }))
       }
       const files = new Set<string>()
       for (const slot of box?.querySelectorAll<HTMLElement>('[data-project-file]') ?? []) {

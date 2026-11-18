@@ -71,15 +71,18 @@ export function rollup(groups: Group[], list: Project[], id: string, stat: (path
 export const HOURS = 3_600_000
 export const ALWAYS = 4_294_967_295
 
+export const tabClosed = (project: Partial<Pick<Project, 'tab_closed_at'>>, last: number) =>
+  !!project.tab_closed_at && last <= project.tab_closed_at
+
 export function inBar(
-  project: Pick<Project, 'path' | 'pinned'> & Partial<Pick<Project, 'tab_hidden'>>,
+  project: Pick<Project, 'path' | 'pinned'> & Partial<Pick<Project, 'tab_closed_at'>>,
   current: string,
   activity: { busy: boolean; last: number },
   now: number,
   hours: number,
 ) {
   if (project.pinned || project.path === current) return true
-  if (project.tab_hidden) return false
+  if (tabClosed(project, activity.last)) return false
   if (hours === ALWAYS) return true
   if (hours <= 0) return false
   return activity.busy || (activity.last > 0 && now - activity.last < hours * HOURS)

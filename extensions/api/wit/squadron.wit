@@ -1,4 +1,4 @@
-package squadron:api@1.7.0;
+package squadron:api@1.9.0;
 
 interface types {
   /// The agent a call is about.
@@ -164,6 +164,8 @@ interface host {
   fetch: func(request: request) -> result<response, string>;
   /// Sends a JSON message to one of the extension's open panels, which receives it in `squadron.on`.
   panel-post: func(panel: string, message: string);
+  /// Opens one of the extension's panels, or brings it to the front when it is already open. A panel with `window` opens in its own window; another opens beside the agent on screen. Since 1.9.0.
+  panel-open: func(panel: string) -> result<_, string>;
   /// The agents open in Squadron, archived ones aside. Needs `agents: ["read"]` in `permissions`. Since 1.1.0.
   agents: func() -> result<list<agent-state>, string>;
   /// Archives an agent, as the user would. Refused while it works, waits for the user, is pinned, remote or shown. Needs `agents: ["archive"]` in `permissions`. Since 1.1.0.
@@ -196,6 +198,8 @@ interface host {
   groups: func() -> result<list<group>, string>;
   /// Every agent, archived ones included, and what it is doing. Needs `agents: ["activity"]` in `permissions`. Since 1.7.0.
   all-agents: func() -> result<list<agent-activity>, string>;
+  /// The ids of the live agents the user has not read since their last turn, as the dot of the agent list shows them. `agent.status` events also carry `unread`. Needs `agents: ["activity"]` in `permissions`. Since 1.8.0.
+  unread-agents: func() -> result<list<string>, string>;
   /// Claude's 5-hour and weekly limits and the state of its API. Needs `usage: ["read"]` in `permissions`. Since 1.7.0.
   usage: func() -> result<claude-usage, string>;
   /// Brings an agent to the front in Squadron, an archived one in the archive of its project, read only. Only within 2 s of a message from one of the extension's panels, while that panel is on screen, holds the focus and has the pointer over it, once a second at most. It never acts on the agent. Needs `agents: ["show"]` in `permissions`. Since 1.7.0.
@@ -221,4 +225,6 @@ world squadron-extension {
 
   /// Tests an account, from `contributes.accounts` with `"check": true`: when the user clicks Test the connection, with an account that is not saved yet, and when the extension's page opens, with each saved one. While it runs, `{{<account.id>.<field>}}` in `fetch` gives its fields and secrets, and its `host` field is reachable; `accounts` does not list an account that is not saved. `ok` is JSON or a plain text: `{ "text": "Connected as Ada", "detail": "12 projects" }`. `err` likewise: `{ "title": "…", "detail": "…", "field": "<field id>" }`, `field` marking the field to fix. Texts are strings or `{ "en": "…", "fr": "…" }`. Since 1.6.0.
   export check-account: func(account: account) -> result<string, string>;
+  /// A call of `contributes.forge`, on one of up to 4 instances of the extension that get no events and share its state, never its memory. `call` is `pull`, `numbered`, `lists`, `remarks`, `me`, `reply`, `post`, `merge`, `update` or `runs`; `input` is JSON `{ "host": "…", "repo": "…", "groups": { … }, "args": { … } }`; `ok` is the call's JSON. `err` is a plain text or `{ "code": "account" or "unsupported", "title": "…", "detail": "…" }`, texts being strings or `{ "en": "…", "fr": "…" }`. Since 1.8.0.
+  export forge: func(call: string, input: string) -> result<string, string>;
 }

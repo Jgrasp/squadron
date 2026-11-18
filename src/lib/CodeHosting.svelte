@@ -8,9 +8,17 @@
   import { errorText, t, type Key } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
   import HostLogo from './HostLogo.svelte'
+  import ExtensionLogo from './ExtensionLogo.svelte'
+  import InstallDialog from './InstallDialog.svelte'
+  import { onMount } from 'svelte'
+  import { ui } from './actions.svelte'
+  import type { CatalogEntry, Extension } from './extensions'
+  import { catalog, checkAccounts, checks, extensions, loadCatalog, type AccountCheck } from './extensions.svelte'
+  import { named, nameOf } from './extension-pages.svelte'
+  import { installOffers, lookUpCoverage, providers } from './forges.svelte'
 
-  type Host = 'bitbucket' | 'gitlab' | 'azure' | 'github'
-  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; github: string | null; gitlab: string | null; azure: string | null }
+  type Host = 'bitbucket' | 'gitlab' | 'azure'
+  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; gitlab: string | null; azure: string | null }
 
   let accounts = $state<Accounts | null>(null)
   let email = $state('')
@@ -21,16 +29,35 @@
   let tokens = $state({ gitlab: '', azure: '' })
   let failed = $state({ bitbucket: '', gitlab: '', azure: '' })
   let open = $state<Host | null>(null)
-  const ROWS: [Host, string, Key][][] = [
-    [
-      ['bitbucket', 'Bitbucket', 'settings.bitbucketHint'],
-      ['gitlab', 'GitLab', 'settings.gitlabHint'],
-    ],
-    [
-      ['azure', 'Azure DevOps', 'settings.azureHint'],
-      ['github', 'GitHub', 'settings.githubHint'],
-    ],
+  const BUILT_IN_ROWS: [Host, string, Key][] = [
+    ['bitbucket', 'Bitbucket', 'settings.bitbucketHint'],
+    ['gitlab', 'GitLab', 'settings.gitlabHint'],
+    ['azure', 'Azure DevOps', 'settings.azureHint'],
   ]
+  let chosen = $state<CatalogEntry | null>(null)
+
+  onMount(() => {
+    if (!catalog.entries) void loadCatalog()
+    for (const e of providers()) checkAccounts(e, true)
+  })
+
+  $effect(() => {
+    void extensions.list
+    void lookUpCoverage()
+  })
+
+  function stateOf(e: Extension): { text: string; bad: boolean } {
+    const list = extensions.accounts[e.id] ?? []
+    if (!list.length) return { text: t('settings.forgeNoAccount'), bad: false }
+    const found = list.map((a) => checks[e.id]?.[a.id])
+    const failed = found.find((c) => c && !c.running && !c.ok)
+    if (failed && !failed.running) return { text: said(failed.title) || t('settings.forgeFailed'), bad: true }
+    const ok = found.find((c) => c && !c.running && c.ok)
+    if (ok && !ok.running) return { text: [said(ok.title), list.length > 1 ? t('settings.forgeAccountsCount', { count: list.length }) : ''].filter(Boolean).join(' · '), bad: false }
+    return { text: found.some((c) => c?.running) ? t('extensions.accountChecking') : t('settings.forgeAccountsCount', { count: list.length }), bad: false }
+  }
+
+  const said = (value: AccountCheck['title']) => (typeof value === 'string' ? value : named(value ?? undefined))
   let busy = $state(false)
   let copied = $state('')
   const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket', 'read:pipeline:bitbucket']
@@ -99,148 +126,173 @@
 
 <p class="intro">{t('settings.hostingIntro')}</p>
 
-<div class="cards">
-  {#each ROWS as row, r (r)}
-    {#each row as [host, name, hint] (host)}
-      {@const who = accounts?.[host]}
-      <div class="card" class:selected={open === host}>
-        <span class="top">
-          <HostLogo {host} />
-          <span><strong>{name}</strong><small>{t(hint)}</small></span>
+<section>
+  <h4>{t('settings.forges')}</h4>
+  <div class="rows">
+    {#each providers() as e (e.id)}
+      {@const state = stateOf(e)}
+      <div class="line">
+        <span class="mark"><ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={18} /></span>
+        <span class="what">
+          <strong>{nameOf(e)}<span class="pill ext">{t('settings.forgeExtension')}</span></strong>
+          <small class:bad={state.bad}>{state.text}</small>
         </span>
-        <span class="foot">
-          {#if !accounts}
-            <span class="status">{t('common.checking')}</span>
-          {:else if who}
-            <span class="status on"><span class="dot"></span>{who}</span>
-            {#if host !== 'github'}<button class="btn btn-ghost" onclick={() => signOut(host)}>{t('settings.signOut')}</button>{/if}
-          {:else}
-            <span class="status">{t('settings.notConnected')}</span>
-            <button class="btn btn-ghost" aria-expanded={open === host} onclick={() => (open = open === host ? null : host)}>
-              {t(host === 'github' ? 'settings.howTo' : 'settings.connect')}
-            </button>
-          {/if}
-        </span>
+        <button class="btn btn-ghost" onclick={() => (ui.settings = `ext:${e.id}`)}>{t('settings.forgeAccounts')}</button>
       </div>
     {/each}
-    {#if open && accounts && !accounts[open] && row.some(([host]) => host === open)}
-      <div class="drawer">
-        <div class="drawer-head">
-          <HostLogo host={open} size={20} />
-          <strong>{t(open === 'github' ? 'settings.githubTitle' : 'settings.connectHost', { name: row.find(([host]) => host === open)?.[1] ?? '' })}</strong>
-          <button class="btn btn-ghost" onclick={() => (open = null)}>{open === 'github' ? t('common.close') : t('common.cancel')}</button>
-        </div>
-        {#if open === 'bitbucket'}
-          <form onsubmit={signIn}>
-            <ol class="steps">
-              <li>
-                <div>
-                  <button type="button" class="btn btn-secondary" onclick={() => invoke('open_link', { url: 'https://id.atlassian.com/manage-profile/security/api-tokens' })}>
-                    {t('settings.openTokens')}
-                  </button>
-                </div>
-              </li>
-              <li>
-                <div>
-                  <span><Trans k="settings.stepCreate">{#snippet create()}<strong>Create API token with scopes</strong>{/snippet}{#snippet bitbucket()}<strong>Bitbucket</strong>{/snippet}</Trans></span>
-                </div>
-              </li>
-              <li>
-                <div>
-                  <span>{t('settings.stepScopes')}</span>
-                  <span class="scopes">
-                    {#each SCOPES as scope (scope)}
-                      <button type="button" class="scope" onclick={() => copy(scope)}>{copied === scope ? t('common.copied') : scope}</button>
-                    {/each}
-                  </span>
-                </div>
-              </li>
-              <li>
-                <div>
-                  <span>{t('settings.stepPaste')}</span>
-                  <input class="field" type="email" autocomplete="off" placeholder={t('settings.atlassianEmail')} aria-label={t('settings.atlassianEmail')} bind:value={email} />
-                  <span class="row">
-                    <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={token} />
-                    <button class="btn btn-primary" disabled={busy || !email.trim() || !token.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </form>
-        {:else if open === 'gitlab'}
-          <form onsubmit={(e) => connect(e, 'gitlab', { site })}>
-            <ol class="steps">
-              <li>
-                <div>
-                  <span>{t('settings.gitlabSite')}</span>
-                  <input class="field" autocomplete="off" spellcheck="false" placeholder="https://gitlab.com" aria-label={t('settings.gitlabSite')} bind:value={site} />
-                </div>
-              </li>
-              <li>
-                <div>
-                  <span><Trans k="settings.gitlabStep">{#snippet scope()}<code>api</code>{/snippet}</Trans></span>
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    onclick={() => invoke('open_link', { url: `${(site.trim() || 'https://gitlab.com').replace(/\/+$/, '')}/-/user_settings/personal_access_tokens?name=Squadron&scopes=api` })}
-                  >
-                    {t('settings.openTokens')}
-                  </button>
-                </div>
-              </li>
-              <li>
-                <div>
-                  <span>{t('settings.stepPasteToken')}</span>
-                  <span class="row">
-                    <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.gitlab} />
-                    <button class="btn btn-primary" disabled={busy || !tokens.gitlab.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </form>
-        {:else if open === 'azure'}
-          <form onsubmit={(e) => connect(e, 'azure', { organization })}>
-            <ol class="steps">
-              <li>
-                <div>
-                  <span>{t('settings.azureOrganization')}</span>
-                  <input class="field" autocomplete="off" spellcheck="false" placeholder="https://dev.azure.com/…" aria-label={t('settings.azureOrganization')} bind:value={organization} />
-                </div>
-              </li>
-              <li>
-                <div>
-                  <span><Trans k="settings.azureStep">{#snippet code()}<strong>Code (Read &amp; write)</strong>{/snippet}{#snippet build()}<strong>Build (Read)</strong>{/snippet}</Trans></span>
-                  <button
-                    type="button"
-                    class="btn btn-secondary"
-                    disabled={!organization.trim()}
-                    onclick={() => invoke('open_link', { url: `https://dev.azure.com/${organization.trim().replace(/\/+$/, '').split('/').at(-1)}/_usersSettings/tokens` })}
-                  >
-                    {t('settings.openTokens')}
-                  </button>
-                </div>
-              </li>
-              <li>
-                <div>
-                  <span>{t('settings.stepPasteToken')}</span>
-                  <span class="row">
-                    <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.azure} />
-                    <button class="btn btn-primary" disabled={busy || !organization.trim() || !tokens.azure.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
-                  </span>
-                </div>
-              </li>
-            </ol>
-          </form>
-        {:else}
-          <p class="intro"><Trans k="settings.githubHow">{#snippet command()}<code>gh auth login</code>{/snippet}</Trans></p>
-        {/if}
-        {#if open !== 'github'}<p class="keyring">{t('settings.keyring')}</p>{/if}
-        {#if open !== 'github' && failed[open]}<p class="bad" role="alert">{failed[open]}</p>{/if}
+    {#each installOffers() as offer (offer.entry.id)}
+      <div class="line offer">
+        <span class="mark">{@render logo(offer.entry.id, named(offer.entry.name))}</span>
+        <span class="what">
+          <strong>{named(offer.entry.name)}<span class="pill ext">{t('settings.forgeExtension')}</span></strong>
+          <small>{t('settings.forgeWaiting', { count: offer.projects.length, host: offer.host })}</small>
+          <span class="projects">{offer.projects.join(' · ')}</span>
+        </span>
+        <button class="btn btn-primary" onclick={() => (chosen = offer.entry)}>{t('settings.forgeInstall', { name: named(offer.entry.name) })}</button>
       </div>
+    {/each}
+    {#each BUILT_IN_ROWS as [host, name, hint] (host)}
+      {@const who = accounts?.[host]}
+      <div class="line" class:selected={open === host}>
+        <span class="mark"><HostLogo {host} size={18} /></span>
+        <span class="what"><strong>{name}<span class="pill built">{t('settings.forgeBuiltIn')}</span></strong><small>{t(hint)}</small></span>
+        {#if !accounts}
+          <span class="status">{t('common.checking')}</span>
+        {:else if who}
+          <span class="status on"><span class="dot"></span>{who}</span>
+          <button class="btn btn-ghost" onclick={() => signOut(host)}>{t('settings.signOut')}</button>
+        {:else}
+          <span class="status">{t('settings.notConnected')}</span>
+          <button class="btn btn-ghost" aria-expanded={open === host} onclick={() => (open = open === host ? null : host)}>{t('settings.connect')}</button>
+        {/if}
+      </div>
+      {#if open === host && accounts && !who}
+        <div class="drawer">
+          <div class="drawer-head">
+            <HostLogo {host} size={20} />
+            <strong>{t('settings.connectHost', { name })}</strong>
+            <button class="btn btn-ghost" onclick={() => (open = null)}>{t('common.cancel')}</button>
+          </div>
+    {#if open === 'bitbucket'}
+      <form onsubmit={signIn}>
+        <ol class="steps">
+          <li>
+            <div>
+              <button type="button" class="btn btn-secondary" onclick={() => invoke('open_link', { url: 'https://id.atlassian.com/manage-profile/security/api-tokens' })}>
+                {t('settings.openTokens')}
+              </button>
+            </div>
+          </li>
+          <li>
+            <div>
+              <span><Trans k="settings.stepCreate">{#snippet create()}<strong>Create API token with scopes</strong>{/snippet}{#snippet bitbucket()}<strong>Bitbucket</strong>{/snippet}</Trans></span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <span>{t('settings.stepScopes')}</span>
+              <span class="scopes">
+                {#each SCOPES as scope (scope)}
+                  <button type="button" class="scope" onclick={() => copy(scope)}>{copied === scope ? t('common.copied') : scope}</button>
+                {/each}
+              </span>
+            </div>
+          </li>
+          <li>
+            <div>
+              <span>{t('settings.stepPaste')}</span>
+              <input class="field" type="email" autocomplete="off" placeholder={t('settings.atlassianEmail')} aria-label={t('settings.atlassianEmail')} bind:value={email} />
+              <span class="row">
+                <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={token} />
+                <button class="btn btn-primary" disabled={busy || !email.trim() || !token.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+              </span>
+            </div>
+          </li>
+        </ol>
+      </form>
+    {:else if open === 'gitlab'}
+      <form onsubmit={(e) => connect(e, 'gitlab', { site })}>
+        <ol class="steps">
+          <li>
+            <div>
+              <span>{t('settings.gitlabSite')}</span>
+              <input class="field" autocomplete="off" spellcheck="false" placeholder="https://gitlab.com" aria-label={t('settings.gitlabSite')} bind:value={site} />
+            </div>
+          </li>
+          <li>
+            <div>
+              <span><Trans k="settings.gitlabStep">{#snippet scope()}<code>api</code>{/snippet}</Trans></span>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                onclick={() => invoke('open_link', { url: `${(site.trim() || 'https://gitlab.com').replace(/\/+$/, '')}/-/user_settings/personal_access_tokens?name=Squadron&scopes=api` })}
+              >
+                {t('settings.openTokens')}
+              </button>
+            </div>
+          </li>
+          <li>
+            <div>
+              <span>{t('settings.stepPasteToken')}</span>
+              <span class="row">
+                <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.gitlab} />
+                <button class="btn btn-primary" disabled={busy || !tokens.gitlab.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+              </span>
+            </div>
+          </li>
+        </ol>
+      </form>
+    {:else if open === 'azure'}
+      <form onsubmit={(e) => connect(e, 'azure', { organization })}>
+        <ol class="steps">
+          <li>
+            <div>
+              <span>{t('settings.azureOrganization')}</span>
+              <input class="field" autocomplete="off" spellcheck="false" placeholder="https://dev.azure.com/…" aria-label={t('settings.azureOrganization')} bind:value={organization} />
+            </div>
+          </li>
+          <li>
+            <div>
+              <span><Trans k="settings.azureStep">{#snippet code()}<strong>Code (Read &amp; write)</strong>{/snippet}{#snippet build()}<strong>Build (Read)</strong>{/snippet}</Trans></span>
+              <button
+                type="button"
+                class="btn btn-secondary"
+                disabled={!organization.trim()}
+                onclick={() => invoke('open_link', { url: `https://dev.azure.com/${organization.trim().replace(/\/+$/, '').split('/').at(-1)}/_usersSettings/tokens` })}
+              >
+                {t('settings.openTokens')}
+              </button>
+            </div>
+          </li>
+          <li>
+            <div>
+              <span>{t('settings.stepPasteToken')}</span>
+              <span class="row">
+                <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.azure} />
+                <button class="btn btn-primary" disabled={busy || !organization.trim() || !tokens.azure.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
+              </span>
+            </div>
+          </li>
+        </ol>
+      </form>
     {/if}
-  {/each}
-</div>
+          <p class="keyring">{t('settings.keyring')}</p>
+          {#if failed[host]}<p class="bad" role="alert">{failed[host]}</p>{/if}
+        </div>
+      {/if}
+    {/each}
+    <button class="discover" onclick={() => (ui.settings = 'discover')}>{t('settings.forgeDiscover')}</button>
+  </div>
+</section>
+{#if chosen}<InstallDialog entry={chosen} onclose={() => (chosen = null)} />{/if}
+
+{#snippet logo(id: string, name: string)}
+  {#if ['github', 'bitbucket', 'gitlab', 'azure'].includes(id)}
+    <HostLogo host={id as 'github'} size={18} />
+  {:else}
+    <ExtensionLogo {id} {name} size={18} />
+  {/if}
+{/snippet}
 {#if accounts?.bitbucket && !accounts.bitbucket_user}
   <p class="intro">
     <Trans k="settings.tokenLacksScope">{#snippet scope()}<code>read:user:bitbucket</code>{/snippet}</Trans>
@@ -389,48 +441,115 @@
     font-size: 12.5px;
   }
 
-  .cards {
-    display: grid;
-    grid-template-columns: repeat(2, 1fr);
-    gap: 10px;
+  h4 {
+    margin: 14px 0 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
   }
 
-  .card {
+  .rows {
     display: flex;
     flex-direction: column;
-    gap: 10px;
-    padding: 14px;
+    gap: 6px;
+  }
+
+  .line {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
     border-radius: 6px;
     background: var(--surface-1);
     box-shadow: inset 0 0 0 1px var(--border);
   }
 
-  .card.selected {
+  .line.offer {
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .line.selected {
     box-shadow: inset 0 0 0 1.5px var(--border-focus);
   }
 
-  .top {
-    display: flex;
-    align-items: center;
-    gap: 12px;
+  .line .btn {
+    height: 30px;
+    padding: 0 12px;
   }
 
-  .top span {
+  .mark {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 34px;
+    height: 34px;
+    border-radius: 6px;
+    background: var(--surface-3);
+  }
+
+  .what {
+    flex: 1;
+    min-width: 0;
     display: flex;
     flex-direction: column;
   }
 
-  .top small {
+  .what strong {
+    font-weight: 600;
+  }
+
+  .what small {
     font-size: 12px;
     color: var(--text-dim);
   }
 
-  .foot {
-    display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 8px;
-    min-height: 30px;
+  .what small.bad {
+    color: var(--err-text);
+  }
+
+  .pill {
+    margin-left: 8px;
+    padding: 1px 7px;
+    border-radius: 10px;
+    font-size: 11px;
+    font-weight: 600;
+    vertical-align: 1px;
+  }
+
+  .pill.ext {
+    background: var(--background-bg);
+    color: var(--background);
+  }
+
+  .pill.built {
+    background: var(--surface-3);
+    color: var(--text-2);
+  }
+
+  .projects {
+    margin-top: 2px;
+    font: 11.5px var(--mono);
+    color: var(--text-dim);
+    overflow-wrap: anywhere;
+  }
+
+  .discover {
+    height: 34px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    box-shadow: inset 0 0 0 1px var(--border-dashed);
+    color: var(--text-dim);
+    font: inherit;
+    font-size: 12.5px;
+    cursor: pointer;
+  }
+
+  .discover:hover {
+    color: var(--text-2);
+    background: var(--surface-1);
   }
 
   .status {
@@ -456,7 +575,6 @@
   }
 
   .drawer {
-    grid-column: 1 / -1;
     display: flex;
     flex-direction: column;
     gap: 14px;

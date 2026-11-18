@@ -6,7 +6,7 @@ export default {
   whenAlways: 'Always',
   whenNever: 'Never',
   agents: 'Agents',
-  codeHosting: 'Code hosting',
+  codeHosting: 'Pull requests',
   squadron: 'Squadron',
   chime: 'Chime',
   questionLabel: 'Asks a question',

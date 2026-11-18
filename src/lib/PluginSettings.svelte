@@ -2,10 +2,11 @@
   import { onMount, tick } from 'svelte'
   import { ui } from './actions.svelte'
   import Dialog from './Dialog.svelte'
+  import Icon from './Icon.svelte'
   import { t } from './i18n/index.svelte'
   import PluginProjects from './PluginProjects.svelte'
-  import { ALL, OFFICIAL, SHOWS, marketplaceOf, nameOf, pluginColor, type Entry, type Installed } from './plugins'
-  import { addMarketplace, choose, detailsOf, fetchDetails, install, loadCatalog, loadPlugins, plugins, remembered, removeMarketplace, toggle, uninstall, update, where } from './plugins.svelte'
+  import { ALL, OFFICIAL, SHOWS, followed, marketplaceOf, nameOf, pluginColor, type Entry, type Installed } from './plugins'
+  import { addMarketplace, choose, detailsOf, fetchDetails, followOf, install, loadCatalog, members, loadPlugins, plugins, remembered, removeMarketplace, toggle, uninstall, update, where } from './plugins.svelte'
   import { projects } from './projects.svelte'
   import { saveSettings, settings, type Config } from './settings.svelte'
   import { tokens } from './format'
@@ -96,13 +97,16 @@
   const setShow = (plugin_lines: Config['plugin_lines']) => saveSettings({ ...$state.snapshot(settings), plugin_lines })
   const setCard = (plugin_card: Config['plugin_card']) => saveSettings({ ...$state.snapshot(settings), plugin_card })
 
-  function save(paths: string[]) {
+  function save(paths: string[], groups: string[]) {
     const target = picking
     picking = null
     if (!target) return
-    if (target.install) install(target.id, paths.length ? paths : 'off')
-    else choose(target.id, paths.length ? paths : 'off')
+    if (target.install) install(target.id, paths.length ? paths : 'off', groups)
+    else choose(target.id, paths.length ? paths : 'off', groups)
   }
+
+  const groupNames = (ids: string[]) => ids.map((id) => projects.groups.find((g) => g.id === id)?.name).filter(Boolean).join(', ')
+  const projectNames = (paths: string[]) => projects.list.filter((p) => paths.includes(p.path)).map((p) => p.name).join(', ')
 
   function addFrom(e: SubmitEvent) {
     e.preventDefault()
@@ -217,20 +221,33 @@
   <Dialog title={detail.name} width={680} onclose={() => (shown = null)}>
     {#snippet badge()}{#if detail.version}<span class="version">{detail.version}</span>{/if}<span class="badges">{@render badges(detail)}</span>{/snippet}
     <div class="sheet">
-      {#if installed}
-        <label class="enabled">{t('plugins.enabled')}<input class="switch" type="checkbox" role="switch" checked={isOn(detail)} disabled={!!plugins.busy} onchange={(e) => toggle(detail.id, e.currentTarget.checked)} /></label>
-      {/if}
       {#if detail.description}<p class="about">{detail.description}</p>{/if}
       {#if installed}
-        <div class="where">
+        {@const on = isOn(detail)}
+        {@const kept = remembered(detail.id)}
+        {@const f = followOf(detail.id)}
+        {@const back = f ? followed(f, members, projects.list.map((p) => p.path)) : kept?.includes(ALL) ? null : (kept ?? [])}
+        <div class="where" class:off={!on}>
+          <label class="state">
+            <input class="switch" type="checkbox" role="switch" checked={on} disabled={!!plugins.busy} aria-label={t('plugins.enabledFor', { name: detail.name })} onchange={(e) => toggle(detail.id, e.currentTarget.checked)} />
+            {on ? t('plugins.stateOn') : t('plugins.stateOff')}
+          </label>
           <div class="big">
-            <b>{k.tone === 'all' ? t('plugins.everyShort') : w.on.length}</b>
-            <span>{k.tone === 'all' ? t('plugins.everyProjectLong') : t('plugins.projectsOutOf', { count: w.on.length, total: w.total })}</span>
+            {#if on}
+              <b>{k.tone === 'all' ? t('plugins.everyShort') : w.on.length}</b>
+              <span>{k.tone === 'all' ? t('plugins.everyProjectLong') : t('plugins.projectsOutOf', { count: w.on.length, total: w.total })}</span>
+            {:else}
+              <b>{back ? back.length : t('plugins.everyShort')}</b>
+              <span>{t('plugins.projectsPaused', { count: back ? back.length : 2 })}</span>
+            {/if}
           </div>
-          <p class="names">
-            {#if k.tone === 'all'}{t('plugins.everyProjectHint')}{:else if w.on.length}{projects.list.filter((p) => w.on.includes(p.path)).map((p) => p.name).join(', ')}{:else}{t('plugins.noProjectHint')}{/if}
-          </p>
-          <button class="btn btn-primary" disabled={!!plugins.busy} onclick={() => (picking = { id: detail.id, install: false })}>{t('plugins.chooseProjects')}</button>
+          <div class="names">
+            {#if f}<span class="follows"><Icon name="link" size={11} />{t('plugins.followsGroups', { groups: groupNames(f.groups) })}</span>{/if}
+            <p>
+              {#if !on}{!back ? t('plugins.pausedAllHint') : back.length ? t('plugins.pausedHint', { names: projectNames(back) }) : t('plugins.noProjectHint')}{:else if k.tone === 'all'}{t('plugins.everyProjectHint')}{:else if w.on.length}{projectNames(w.on)}{:else}{t('plugins.noProjectHint')}{/if}
+            </p>
+          </div>
+          <button class="btn" class:btn-primary={on} class:btn-secondary={!on} disabled={!!plugins.busy} onclick={() => (picking = { id: detail.id, install: false })}>{t('plugins.chooseProjects')}</button>
         </div>
         <div class="duo">
           <section>
@@ -279,6 +296,7 @@
     title={install ? t('plugins.installTitle', { name: picked.name }) : t('plugins.projectsTitle', { name: picked.name })}
     intro={install ? t('plugins.installIntro') : t('plugins.projectsIntro')}
     chosen={install ? projects.list.filter((p) => p.path === projects.current).map((p) => p.path) : w.on.length ? w.on : kept && !kept.includes(ALL) ? kept : kept ? projects.list.map((p) => p.path) : []}
+    groups={install ? [] : (followOf(picked.id)?.groups ?? [])}
     confirm={(n) => (install ? t('plugins.installIn', { count: n }) : t('common.save'))}
     onsave={save}
     onclose={() => (picking = null)}
@@ -849,15 +867,6 @@
     padding: 4px 20px 20px;
   }
 
-  .enabled {
-    align-self: flex-end;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    margin-top: -6px;
-    color: var(--text-muted);
-  }
-
   .about {
     margin: 0;
     color: var(--text-muted);
@@ -894,12 +903,49 @@
     color: var(--text-dim);
   }
 
+  .where.off {
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .where.off .big b {
+    color: var(--text-faint);
+  }
+
+  .state {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    min-width: 52px;
+    padding-right: 18px;
+    border-right: 1px solid var(--border-strong);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--accent-soft);
+    cursor: pointer;
+  }
+
+  .where.off .state {
+    color: var(--text-faint);
+  }
+
   .names {
     flex: 1;
     min-width: 0;
-    margin: 0;
+    display: flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
     padding-left: 20px;
     border-left: 1px solid var(--border-strong);
+  }
+
+  .names p {
+    margin: 0;
     color: var(--text-muted);
     font-size: 12.5px;
     display: -webkit-box;
@@ -907,6 +953,21 @@
     line-clamp: 3;
     -webkit-box-orient: vertical;
     overflow: hidden;
+  }
+
+  .follows {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    height: 20px;
+    padding: 0 7px;
+    border-radius: 3px;
+    background: var(--ok-bg);
+    box-shadow: inset 0 0 0 1px var(--ok-line);
+    color: var(--ok-text);
+    font-size: 11.5px;
+    font-weight: 600;
+    white-space: nowrap;
   }
 
   .duo {

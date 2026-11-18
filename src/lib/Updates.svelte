@@ -63,7 +63,7 @@
 
   function manage() {
     onclose()
-    ui.settings = 'extensions'
+    ui.settings = 'discover'
   }
 </script>
 
