@@ -281,7 +281,14 @@ const syncWasm = (list: Extension[]) =>
   invoke<Record<string, string>>('extensions_wasm_sync', {
     list: active(list)
       .filter((m) => m.manifest.wasm)
-      .map((m) => ({ id: m.id, dir: m.dir, wasm: m.manifest.wasm, allowed: grantsOf(m), panels: (m.manifest.contributes?.panels ?? []).map((p) => p.id) })),
+      .map((m) => ({
+        id: m.id,
+        dir: m.dir,
+        wasm: m.manifest.wasm,
+        allowed: grantsOf(m),
+        panels: (m.manifest.contributes?.panels ?? []).map((p) => p.id),
+        forge: m.manifest.contributes?.forge ?? null,
+      })),
   }).then((errors) => {
     extensions.errors = errors
   })

@@ -27,6 +27,13 @@ describe('pushedTo', () => {
     })
   })
 
+  it('takes a link an extension recognizes, the last one printed', () => {
+    const forge = (text: string) => [...text.matchAll(/https:\/\/git\.acme\.io\/[\w.-]+\/[\w.-]+\/pulls\/\d+/g)].map((m) => ({ url: m[0], at: m.index }))
+    const agent = ran(['gh pr create --fill', 'https://github.com/o/r/pull/3\nhttps://git.acme.io/o/r/pulls/9'])
+    expect(pushedTo(agent, forge)).toEqual({ url: 'https://git.acme.io/o/r/pulls/9' })
+    expect(pushedTo(agent)).toEqual({ url: 'https://github.com/o/r/pull/3' })
+  })
+
   it('takes the branch of the last push', () => {
     expect(pushedTo(ran(['cd /w && rtk git push -u origin ia/T41 2>&1 | tail -2', 'ok']))).toEqual({ branch: 'ia/T41' })
     expect(pushedTo(ran(['git push --force-with-lease origin HEAD:refs/heads/fix/x', '']))).toEqual({ branch: 'fix/x' })

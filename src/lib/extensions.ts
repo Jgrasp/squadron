@@ -23,6 +23,16 @@ export type ExtensionTool = { name: string; description: string; command?: strin
 
 export type ExtensionSecret = { id: string; label: Text; hint?: Text; url?: string }
 
+export const FORGE_CALLS = ['pull', 'numbered', 'lists', 'remarks', 'me', 'reply', 'post', 'merge', 'update', 'runs'] as const
+
+export type ForgeCall = (typeof FORGE_CALLS)[number]
+
+export const VERDICTS = ['approve', 'request_changes', 'comment'] as const
+
+export type Verdict = (typeof VERDICTS)[number]
+
+export type Forge = { remotes: string[]; links: string[]; calls: string[]; verdicts?: Verdict[] }
+
 export const FIELD_KINDS = ['text', 'host', 'secret'] as const
 
 export type AccountField = { id: string; label: Text; hint?: Text; url?: string; kind?: (typeof FIELD_KINDS)[number] }
@@ -63,7 +73,7 @@ export type Manifest = {
   logo?: string
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string> }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string>; forge?: Forge }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null; logo?: string | null }
@@ -168,6 +178,33 @@ function settingsProblems(value: unknown): Problem[] {
 
 const helpOk = (f: Record<string, unknown>) => (f.hint === undefined || isText(f.hint)) && (f.url === undefined || isHttps(f.url))
 
+const GROUP = /\(\?<([A-Za-z][A-Za-z0-9_]*)>/g
+
+export function forgePattern(source: string, hosts: string[]): RegExp | null {
+  if (source.includes('{account}') && !hosts.length) return null
+  const expanded = source.replaceAll('{account}', `(?:${hosts.map((h) => h.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`)
+  try {
+    return new RegExp(expanded)
+  } catch {
+    return null
+  }
+}
+
+function patternsOk(value: unknown, link: boolean) {
+  if (!Array.isArray(value) || !value.length) return false
+  return value.every((p) => {
+    if (typeof p !== 'string' || /\\w|\(\?[=!]|\(\?<[=!]/.test(p) || !forgePattern(p, ['example.com'])) return false
+    const names = [...p.matchAll(GROUP)].map((m) => m[1])
+    return new Set(names).size === names.length && names.some((n) => n !== 'number') && names.includes('number') === link
+  })
+}
+
+function forgeOk(value: unknown) {
+  if (!isObject(value) || !patternsOk(value.remotes, false) || !patternsOk(value.links, true)) return false
+  if (!Array.isArray(value.calls) || !value.calls.every((c) => typeof c === 'string')) return false
+  return value.verdicts === undefined || (Array.isArray(value.verdicts) && value.verdicts.every((v) => (VERDICTS as readonly unknown[]).includes(v)))
+}
+
 function accountsOk(value: unknown) {
   if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length || (value.check !== undefined && typeof value.check !== 'boolean')) return false
   const fields = value.fields
@@ -256,6 +293,8 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
     else if (new Set(secrets.map((s) => s.id)).size < secrets.length) problems.push(['extensions.badSecrets'])
     if (contributes.accounts !== undefined && !accountsOk(contributes.accounts)) problems.push(['extensions.badAccounts'])
     else if (isObject(contributes.accounts) && contributes.accounts.check === true && !wasm) problems.push(['extensions.checkNeedsWasm'])
+    if (contributes.forge !== undefined && !forgeOk(contributes.forge)) problems.push(['extensions.badForge'])
+    else if (contributes.forge !== undefined && (!wasm || contributes.accounts === undefined)) problems.push(['extensions.forgeNeeds'])
     if (contributes.settings !== undefined) problems.push(...settingsProblems(contributes.settings))
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))

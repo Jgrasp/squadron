@@ -2918,6 +2918,7 @@ mod tests {
         let spec = Spec {
             forge: Some(ForgeSpec {
                 remotes: vec![r"(?<site>{account})/(?<path>[a-z/]+)".into()],
+                calls: vec!["me".into(), "runs".into()],
                 ..ForgeSpec::default()
             }),
             ..forge_spec(&dir, vec![])
@@ -2932,6 +2933,8 @@ mod tests {
         assert_eq!(me.name, "git.acme.io/team/shop on git.acme.io");
         let refused = crate::provider::ask::<Value>(&runtime, &target, "runs", json!({}));
         assert_eq!(refused.unwrap_err(), "This extension does not answer runs.");
+        let undeclared = crate::provider::ask::<Value>(&runtime, &target, "merge", json!({}));
+        assert_eq!(undeclared.unwrap_err(), "forge does not answer merge.");
 
         assert!(runtime.sync(vec![]).is_empty());
         assert!(runtime.providers().is_empty());

@@ -27,6 +27,7 @@ pub struct Provider {
 #[derive(Debug, Clone, PartialEq)]
 pub struct Target {
     pub extension: String,
+    pub calls: Vec<String>,
     pub host: String,
     pub repo: String,
     pub groups: BTreeMap<String, String>,
@@ -91,6 +92,7 @@ fn found(provider: &Provider, re: &Regex, text: &str) -> Option<(Target, Option<
     Some((
         Target {
             extension: provider.extension.clone(),
+            calls: provider.spec.calls.clone(),
             host: String::new(),
             repo: parts.join("/"),
             groups,
@@ -171,6 +173,9 @@ pub fn ask<T: DeserializeOwned>(
     call: &str,
     args: Value,
 ) -> Result<T, String> {
+    if !target.calls.iter().any(|c| c == call) {
+        return Err(format!("{} does not answer {call}.", target.extension));
+    }
     let answer = runtime
         .forge(&target.extension, call, &input(target, args))?
         .map_err(|raw| failure(&raw))?;
@@ -206,6 +211,7 @@ fn of_dir(app: &AppHandle, dir: &Path) -> Option<Target> {
 
 fn owned(target: &Target, mut pull: Pull) -> Pull {
     pull.host = target.extension.clone();
+    pull.mergeable &= target.calls.iter().any(|c| c == "merge");
     pull
 }
 
@@ -229,6 +235,9 @@ pub async fn pull(
     let Some(branch) = branch.or_else(|| projects::branch(dir)) else {
         return Ok(None);
     };
+    if !target.calls.iter().any(|c| c == "pull") {
+        return Ok(None);
+    }
     let found: Option<Pull> =
         call(app, target.clone(), "pull", json!({ "branch": branch })).await?;
     Ok(found.map(|p| owned(&target, p)))
@@ -385,6 +394,9 @@ pub async fn runs(app: &AppHandle, dir: &Path, repository: &str) -> Result<Vec<R
     let Some(target) = remote.and_then(|r| remote_target(&providers(app), &r)) else {
         return forge::runs(dir, repository).await;
     };
+    if !target.calls.iter().any(|c| c == "runs") {
+        return Ok(Vec::new());
+    }
     let found: Vec<Run> = call(app, target.clone(), "runs", json!({})).await?;
     Ok(found
         .into_iter()

@@ -23,6 +23,7 @@
   import SidePanel from './SidePanel.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
   import Trans from './Trans.svelte'
+  import { can, offers } from './forges.svelte'
   import { date, errorText, t, type Key } from './i18n/index.svelte'
 
   let {
@@ -132,7 +133,7 @@
       for (let i = 0; r.reply_to !== null && byId.has(r.reply_to) && i < 100; i++) r = byId.get(r.reply_to)!
       return r
     }
-    const list = new Map<number, Thread>()
+    const list = new Map<string, Thread>()
     for (const r of remarks) {
       const root = rootOf(r)
       if (!list.has(root.id)) list.set(root.id, { root, all: [] })
@@ -145,8 +146,8 @@
     threads.filter((t) => t.root.path === path && t.root.line === line.number && t.root.removed === (line.side === 'old'))
   const talks = (path: string) => threads.filter((t) => t.root.path === path && t.root.line !== null).length
   const when = (at: string) => date(new Date(at), { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })
-  let handed = $state<number[]>([])
-  let replying = $state<number | null>(null)
+  let handed = $state<string[]>([])
+  let replying = $state<string | null>(null)
   let answer = $state('')
   let answering = $state(false)
   let replyError = $state('')
@@ -776,8 +777,10 @@
       {#if own && pull.mergeable && !review.length}
         <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
       {/if}
-      {#if !own && !closed}
+      {#if !own && !closed && offers(pull.host, 'request_changes')}
         <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'request_changes'} onclick={() => ((verdict = 'request_changes'), (finishing = true))}>{t('review.verdictRequestChanges')}</button>
+      {/if}
+      {#if !own && !closed && offers(pull.host, 'approve')}
         <button class="btn btn-secondary" disabled={posting} onclick={approveNow}>{posting && verdict === 'approve' ? t('review.posting') : t('review.verdictApprove')}</button>
       {/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>{t('review.finishReview')}</button>
@@ -812,11 +815,13 @@
             {@const to = agent ?? (handTo === 'new' ? null : handTo)}
             {@const where = to ? t('review.theConversation') : t('review.newAgent')}
             <span class="hint">{t('review.sendOrPost', { count: handing.length, agent: where, host: hostName(pull) })}</span>
-            <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
+            {#if can(pull.host, 'post')}
+              <button class="btn btn-secondary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}</button>
+            {/if}
             <button class="btn btn-primary" title={to?.name} disabled={posting || !(ready || handing.length)} onclick={handOver}>{t('review.sendTo', { agent: where })}</button>
-          {:else}
+          {:else if can(pull.host, 'post')}
             <div class="modes verdicts" role="radiogroup" aria-label={t('review.verdict')}>
-              {#each own || closed ? VERDICTS.slice(0, 1) : VERDICTS as [id, label] (id)}
+              {#each (own || closed ? VERDICTS.slice(0, 1) : VERDICTS).filter(([id]) => offers(pull.host, id || 'comment')) as [id, label] (id)}
                 <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{t(label)}</button>
               {/each}
             </div>
@@ -1152,7 +1157,9 @@
       </form>
     {:else}
       <div class="thread-actions">
-        <button class="btn btn-secondary" onclick={() => ((replying = th.root.id), (answer = ''), (replyError = ''))}>{t('review.reply')}</button>
+        {#if pull && can(pull.host, 'reply')}
+          <button class="btn btn-secondary" onclick={() => ((replying = th.root.id), (answer = ''), (replyError = ''))}>{t('review.reply')}</button>
+        {/if}
         {#if agent}
           {#if handed.includes(th.root.id)}
             <span class="handed">{t('review.inYourNextMessageTo', { agent: agent.name })}</span>
@@ -1194,9 +1201,11 @@
       {:else if reviewing && pull}
         {#if postError}<span class="hint bad" role="alert">{problem}</span>{:else}<span class="hint"><Trans k="review.ctrlEnterStarts">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>{/if}
         <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
-        <button type="button" class="btn btn-ghost" title={t('review.postNowTitle', { host: hostName(pull) })} disabled={!note.trim() || posting} onclick={postNow}>
-          {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
-        </button>
+        {#if can(pull.host, 'post')}
+          <button type="button" class="btn btn-ghost" title={t('review.postNowTitle', { host: hostName(pull) })} disabled={!note.trim() || posting} onclick={postNow}>
+            {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
+          </button>
+        {/if}
         {#if agent}
           <button type="button" class="btn btn-secondary" title={t('review.addToNextMessageTitle', { agent: agent.name })} disabled={!note.trim()} onclick={forAgent}>{t('review.addComment')}</button>
         {/if}

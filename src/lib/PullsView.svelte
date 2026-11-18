@@ -15,6 +15,7 @@
   import PullReview from './PullReview.svelte'
   import type { Agent } from './stream'
   import Trans from './Trans.svelte'
+  import { offers } from './forges.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
   let { project, onclose, controls }: { project: Project; onclose?: () => void; controls?: Snippet } = $props()
@@ -97,7 +98,7 @@
       ? [{ label: busy?.number === pull.number && busy.doing === 'approve' ? t('review.approving') : t('review.verdictApprove'), run: () => act(pull, 'approve', () => approve(project.path, pull)) }]
       : []
 
-  const approvable = (pull: Pull) => pull.reviewed !== 'approved' || moved(project.path, pull)
+  const approvable = (pull: Pull) => offers(pull.host, 'approve') && (pull.reviewed !== 'approved' || moved(project.path, pull))
 
   const requesting = (pull: Pull): Choice[] =>
     requestable(pull)
@@ -109,7 +110,7 @@
         ]
       : []
 
-  const requestable = (pull: Pull) => pull.reviewed !== 'changes_requested' || moved(project.path, pull)
+  const requestable = (pull: Pull) => offers(pull.host, 'request_changes') && (pull.reviewed !== 'changes_requested' || moved(project.path, pull))
 
   async function mergeIt(pull: Pull) {
     const confirmed = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {

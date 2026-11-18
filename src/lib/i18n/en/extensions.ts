@@ -76,6 +76,9 @@ export default {
   accountRemoveTitle: 'Remove the account?',
   accountRemoveText: '{name} and its secrets leave Squadron and the system keyring.',
   checkNeedsWasm: 'contributes.accounts.check needs "wasm": its WebAssembly tests the accounts.',
+  badForge:
+    'contributes.forge must be { "remotes": ["…"], "links": ["…"], "calls": ["…"] }, with an optional "verdicts" among approve, request_changes and comment. Each pattern is a valid regex with named groups, each name once, no \\w and no lookaround; each link has a number group, no remote has one.',
+  forgeNeeds: 'contributes.forge needs "wasm" and contributes.accounts: its WebAssembly answers the calls with the user’s account.',
   accountTest: 'Test the connection',
   accountTestAgain: 'Test again',
   accountTesting: 'Testing the connection to {host}…',

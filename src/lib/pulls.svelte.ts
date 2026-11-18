@@ -7,9 +7,10 @@ import { prompt, workdir, type Agent, type Comment } from './stream'
 import { pushedTo } from './pushed'
 import type { Linked } from './linked.svelte'
 import { t, type Key } from './i18n/index.svelte'
+import { forgeName, providedLinks } from './forges.svelte'
 
 export type Pull = {
-  host: 'bitbucket' | 'github' | 'gitlab' | 'azure'
+  host: string
   number: number
   title: string
   description: string
@@ -56,14 +57,14 @@ export function standing(pull: Pull): [string, string] {
 export type Lists = { review: Pull[]; mine: Pull[]; others: Pull[]; error: string }
 
 export type Remark = {
-  id: number
+  id: string
   author: string
   avatar: string
   body: string
   path: string | null
   line: number | null
   removed: boolean
-  reply_to: number | null
+  reply_to: string | null
   at: string
   kind: 'line' | 'general'
 }
@@ -194,7 +195,7 @@ const ownChecked: Record<string, number> = {}
 async function lookUpOwned(agent: Agent, force = false) {
   if (!force && Date.now() - (ownChecked[agent.id] ?? 0) < 60_000) return
   ownChecked[agent.id] = Date.now()
-  const ref = pushedTo(agent)
+  const ref = pushedTo(agent, providedLinks)
   try {
     const found = !ref
       ? null
@@ -322,9 +323,7 @@ export async function fixWithAgent(project: string, pull: Pull, summary: string,
   return create(project, t('review.fixAgentName', { number: String(pull.number) }), defaultsFor(project), `${intro}\n\n${prompt(summary, list)}`, { dir })
 }
 
-const HOSTS: Record<Pull['host'], string> = { bitbucket: 'Bitbucket', github: 'GitHub', gitlab: 'GitLab', azure: 'Azure DevOps' }
-
-export const hostName = (on: { host: Pull['host'] }) => HOSTS[on.host]
+export const hostName = (on: { host: string }) => forgeName(on.host)
 
 const STATES: Record<Pull['state'], Key> = {
   open: 'review.stateOpen',

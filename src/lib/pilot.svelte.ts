@@ -352,14 +352,14 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     const remarks = await invoke<Remark[]>('pull_remarks', { dir: project.path, number })
     const byId = new Map(remarks.map((r) => [r.id, r]))
     const rootOf = (r: Remark): Remark => {
-      const seen = new Set<number>()
+      const seen = new Set<string>()
       while (r.reply_to && byId.has(r.reply_to) && !seen.has(r.id)) {
         seen.add(r.id)
         r = byId.get(r.reply_to)!
       }
       return r
     }
-    const threads = new Map<number, { id: number; author: string; at: string; path?: string; line?: number; removed?: true; outdated?: true; body: string; replies: { id: number; author: string; at: string; body: string }[] }>()
+    const threads = new Map<string, { id: string; author: string; at: string; path?: string; line?: number; removed?: true; outdated?: true; body: string; replies: { id: string; author: string; at: string; body: string }[] }>()
     for (const r of remarks.filter((r) => rootOf(r) === r))
       threads.set(r.id, {
         id: r.id,
