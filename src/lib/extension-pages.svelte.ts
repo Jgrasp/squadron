@@ -15,6 +15,8 @@ export function brand(id: string) {
   return { id, name: e ? nameOf(e) : id, logo: e?.logo ?? null }
 }
 
+export const pageOf = (e: Extension) => (extensions.list.find((x) => x.id === e.id)?.dir === e.dir ? e.id : e.dir)
+
 export const nameOf = (e: Extension) => (e.manifest ? named(e.manifest.name) : e.id)
 
 export const originOf = (e: Extension) => (e.linked ? undefined : extensions.origins[e.id])

@@ -18,9 +18,10 @@
   import { home } from './projects.svelte'
   import { saveSettings, settings } from './settings.svelte'
 
-  let { id }: { id: string } = $props()
+  let { target }: { target: string } = $props()
 
-  const e = $derived(extensions.list.find((x) => x.id === id))
+  const e = $derived(extensions.list.find((x) => x.dir === target) ?? extensions.list.find((x) => x.id === target))
+  const id = $derived(e?.id ?? target)
   const update = $derived(e && updateOf(e))
   const contributes = $derived(e?.manifest?.contributes)
   const cleanup = $derived(contributes?.items?.flatMap((i) => ('artifact.share' in i.action && i.action['artifact.share'].cleanup ? [i.action['artifact.share'].cleanup.days] : []))[0])
@@ -48,14 +49,13 @@
   onDestroy(() => clearInterval(clock))
 
   $effect(() => {
-    void id
+    void target
     about = false
     draft = null
     typed = {}
     work.error = ''
     untrack(() => {
-      const x = extensions.list.find((x) => x.id === id)
-      if (x) checkAccounts(x)
+      if (e) checkAccounts(e)
     })
   })
 
