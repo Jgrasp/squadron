@@ -18,17 +18,35 @@ jobs:
       contents: read
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: runner.os == 'Linux'
+        with:
+          path: ~/apt-archives
+          key: apt-noble-${{ github.run_id }}
+          restore-keys: apt-noble-
       - name: System libraries
         if: runner.os == 'Linux'
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
-          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99ci
-          sudo apt-get update
-          for i in 1 2 3; do
-            sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf && break
-            [ "$i" = 3 ] && exit 1
-            sleep 15
+          packages='libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf'
+          mkdir -p ~/apt-archives/partial
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nDir::Cache::Archives "%s/";\n' ~/apt-archives | sudo tee /etc/apt/apt.conf.d/99ci
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            cp /etc/apt/apt-mirrors.txt ~/apt-mirrors.txt
+            mirrors='http://archive.ubuntu.com/ubuntu/ http://mirrors.edge.kernel.org/ubuntu/ http://azure.archive.ubuntu.com/ubuntu/ original'
+          else
+            mirrors=default
+          fi
+          for mirror in $mirrors; do
+            case $mirror in
+              original) sudo cp ~/apt-mirrors.txt /etc/apt/apt-mirrors.txt ;;
+              http*) echo "$mirror" | sudo tee /etc/apt/apt-mirrors.txt ;;
+            esac
+            sudo timeout 60 apt-get update && sudo timeout 150 apt-get install -y --no-install-recommends --download-only $packages && break
           done
+          sudo apt-get install -y --no-install-recommends --no-download $packages
+          sudo apt-get autoclean
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: 12.9.1
@@ -100,17 +118,35 @@ jobs:
       contents: write
     steps:
       - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/cache@55cc8345863c7cc4c66a329aec7e433d2d1c52a9 # v6.1.0
+        if: runner.os == 'Linux'
+        with:
+          path: ~/apt-archives
+          key: apt-noble-${{ github.run_id }}
+          restore-keys: apt-noble-
       - name: System libraries
         if: runner.os == 'Linux'
-        timeout-minutes: 15
+        timeout-minutes: 20
         run: |
-          echo 'Acquire::Retries "5"; Acquire::http::Timeout "30";' | sudo tee /etc/apt/apt.conf.d/99ci
-          sudo apt-get update
-          for i in 1 2 3; do
-            sudo apt-get install -y --no-install-recommends libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf && break
-            [ "$i" = 3 ] && exit 1
-            sleep 15
+          packages='libwebkit2gtk-4.1-dev libappindicator3-dev librsvg2-dev patchelf'
+          mkdir -p ~/apt-archives/partial
+          printf 'Acquire::Retries "5";\nAcquire::http::Timeout "30";\nDir::Cache::Archives "%s/";\n' ~/apt-archives | sudo tee /etc/apt/apt.conf.d/99ci
+          if [ -f /etc/apt/apt-mirrors.txt ]; then
+            cp /etc/apt/apt-mirrors.txt ~/apt-mirrors.txt
+            mirrors='http://archive.ubuntu.com/ubuntu/ http://mirrors.edge.kernel.org/ubuntu/ http://azure.archive.ubuntu.com/ubuntu/ original'
+          else
+            mirrors=default
+          fi
+          for mirror in $mirrors; do
+            case $mirror in
+              original) sudo cp ~/apt-mirrors.txt /etc/apt/apt-mirrors.txt ;;
+              http*) echo "$mirror" | sudo tee /etc/apt/apt-mirrors.txt ;;
+            esac
+            sudo timeout 60 apt-get update && sudo timeout 150 apt-get install -y --no-install-recommends --download-only $packages && break
           done
+          sudo apt-get install -y --no-install-recommends --no-download $packages
+          sudo apt-get autoclean
+          sudo chown -R "$(id -u):$(id -g)" ~/apt-archives
       - uses: pnpm/action-setup@73e46992e05b19abd31f2f3c20e0e7370d762115 # v6.1.1
         with:
           version: 12.9.1
