@@ -27,7 +27,7 @@ fi
 version=${1:?usage: scripts/release.sh <version> [notes] [fr=notes ...], or scripts/release.sh tag once the pull request is merged}
 notes=${2:-}
 branch=release/v$version
-work=$root/.worktrees/release-v$version
+work=$root/.claude/worktrees/release-v$version
 tag_merged
 git worktree add -q --detach "$work" HEAD
 trap 'git -C "$root" worktree remove --force "$work"' EXIT
