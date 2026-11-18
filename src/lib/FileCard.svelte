@@ -9,6 +9,8 @@
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { KIND_ICONS, kindOf } from './Attachment.svelte'
   import { languageOf } from './CodeEditor.svelte'
+  import { TABULAR } from './csv'
+  import CsvTable from './CsvTable.svelte'
   import { revealFile } from './editor.svelte'
   import { fenced, windowLabel } from './filelink'
   import { errorText, t, type Key } from './i18n/index.svelte'
@@ -112,6 +114,8 @@
         <p class="note">{error}</p>
       {:else if text === null}
         <p class="note">{t('conversation.fileMissing')}</p>
+      {:else if TABULAR.test(name)}
+        <CsvTable {text} {name} />
       {:else}
         <Markdown text={fenced(lines.slice(0, limit).join('\n'), languageOf(name)?.name.toLowerCase())} />
         {#if lines.length > limit}
