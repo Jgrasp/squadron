@@ -11,7 +11,7 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, inspect, projects, set, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, inRound, reviews, type Remark } from './pulls.svelte'
+import { inRound, judge, lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, threadRoots, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -331,6 +331,24 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     reviews[key] = [...kept, { path, line, removed, code: text?.split('\n')[line - 1] ?? '', note: body, pull: caller.review.number, ...round }]
     const count = `${reviews[key].length} comment${reviews[key].length > 1 ? 's' : ''}`
     return `${kept.length < before.length ? 'Replaced the comment already on that line in' : 'Added to'} the user's draft review of pull request #${caller.review.number} (${count} so far). The user sees it in Squadron: Pull requests, then Review on #${caller.review.number}; your header chip leads there too.`
+  },
+
+  judge_review_thread: async (caller, args) => {
+    if (!caller.review) throw new Error('You were not asked to review a pull request.')
+    const thread = String(args.thread ?? '').trim()
+    const state = String(args.state ?? '')
+    const note = String(args.note ?? '').trim()
+    if (state !== 'fixed' && state !== 'answered' && state !== 'open') throw new Error('state is fixed, answered or open.')
+    if (!note) throw new Error('Add a note: what you checked and what you found.')
+    const { project, number } = caller.review
+    const remarks = await invoke<Remark[]>('pull_remarks', { dir: project, number })
+    if (!threadRoots(remarks).some((r) => r.id === thread))
+      throw new Error(`Pull request #${number} has no thread ${thread}. Use the ids read_pull_comments gives.`)
+    const key = `${project}#${number}`
+    const { round } = inRound(key, caller.review.head ?? '', caller.id)
+    const commit = state === 'fixed' ? String(args.commit ?? '').trim() || undefined : undefined
+    judge(key, { thread, state, commit, note, round, by: caller.id, at: Date.now() })
+    return `Noted on thread ${thread}: ${state}${commit ? ` in ${commit}` : ''}. The user reads your note next to the thread and decides whether to resolve it when they finish the round.`
   },
 
   update_pull: async (caller, args) => {

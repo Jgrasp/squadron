@@ -184,6 +184,39 @@ export function closeRound(key: string, head: string, verdict: string, comments:
   Object.assign(open, { posted: now, verdict, comments })
 }
 
+export type Judgement = { thread: string; state: 'fixed' | 'answered' | 'open'; commit?: string; note: string; round: number; by: string; at: number }
+
+export const judgements = $state<Record<string, Judgement[]>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.judged') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+$effect.root(() => {
+  $effect(() => {
+    const kept = Object.fromEntries(Object.entries($state.snapshot(judgements)).map(([key, list]) => [key, list.slice(-200)]))
+    try {
+      localStorage.setItem('squadron.judged', JSON.stringify(kept))
+    } catch {}
+  })
+})
+
+export function judge(key: string, judgement: Judgement) {
+  const list = (judgements[key] ?? []).filter((j) => j.thread !== judgement.thread || j.round !== judgement.round)
+  judgements[key] = [...list, judgement]
+}
+
+export const judgementOf = (key: string, thread: string) => judgements[key]?.findLast((j) => j.thread === thread) ?? null
+
+export const threadRoots = (remarks: Remark[]) => {
+  const ids = new Set(remarks.map((r) => r.id))
+  return remarks.filter((r) => !r.reply_to || !ids.has(r.reply_to))
+}
+
 export function markReviewed(dir: string, pull: Pull, head = pull.head) {
   reviewedHeads[`${dir}#${pull.number}`] = head
   try {
@@ -373,13 +406,27 @@ export async function reviewChanges(agent: Agent, pull: Pull) {
   await invoke('review_checkout', { project: review.project, number: pull.number, branch: pull.branch, base: pull.base, head: pull.head })
   const since = review.head ?? sinceOf(review.project, pull)
   roundFor(`${review.project}#${pull.number}`, pull.head, agent.id)
+  const remarks = await invoke<Remark[]>('pull_remarks', { dir: review.project, number: pull.number }).catch(() => null)
+  const open = remarks && threadRoots(remarks).filter((r) => r.resolved !== true && !(r.path && r.line === null))
+  const threads = !open
+    ? 'Check whether the remarks already posted on the pull request are addressed: read_pull_comments shows them.'
+    : open.length
+      ? [
+          'These threads are still open on the pull request (read_pull_comments shows them with their replies):',
+          open.map((r) => `- ${r.id}: ${r.path ? `${r.path}:${r.line}` : 'whole pull request'}, by ${r.author}: ${r.body.split('\n')[0].slice(0, 120)}`).join('\n'),
+          'For each of them, call judge_review_thread: fixed (with the commit that fixes it), answered (the author replied with a reason that holds), or open.',
+        ].join('\n')
+      : ''
   const shown = since && /^[0-9a-f]{7,40}$/.test(since) ? `git diff ${since}..HEAD shows them` : `git log origin/${pull.base}..HEAD lists them`
   send(
     agent.id,
     [
       `${pull.author} pushed new commits to pull request #${pull.number} since your review. This folder now holds them: ${shown}.`,
-      'Look only at what changed. Check whether the remarks already posted on the pull request are addressed (read_pull_comments shows them), and raise what is new and wrong with add_review_comment, as before. Do not change any file.',
-    ].join('\n\n'),
+      threads,
+      'Look only at what changed, and raise what is new and wrong with add_review_comment, as before. Do not change any file.',
+    ]
+      .filter(Boolean)
+      .join('\n\n'),
     [],
     [],
     '',
