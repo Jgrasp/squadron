@@ -5,8 +5,8 @@
   import Icon from './Icon.svelte'
   import { t } from './i18n/index.svelte'
   import PluginProjects from './PluginProjects.svelte'
-  import { ALL, OFFICIAL, SHOWS, marketplaceOf, nameOf, pluginColor, type Entry, type Installed } from './plugins'
-  import { addMarketplace, choose, detailsOf, fetchDetails, followOf, install, loadCatalog, loadPlugins, plugins, remembered, removeMarketplace, toggle, uninstall, update, where } from './plugins.svelte'
+  import { ALL, OFFICIAL, SHOWS, followed, marketplaceOf, nameOf, pluginColor, type Entry, type Installed } from './plugins'
+  import { addMarketplace, choose, detailsOf, fetchDetails, followOf, install, loadCatalog, members, loadPlugins, plugins, remembered, removeMarketplace, toggle, uninstall, update, where } from './plugins.svelte'
   import { projects } from './projects.svelte'
   import { saveSettings, settings, type Config } from './settings.svelte'
   import { tokens } from './format'
@@ -226,6 +226,7 @@
         {@const on = isOn(detail)}
         {@const kept = remembered(detail.id)}
         {@const f = followOf(detail.id)}
+        {@const back = f ? followed(f, members, projects.list.map((p) => p.path)) : kept?.includes(ALL) ? null : (kept ?? [])}
         <div class="where" class:off={!on}>
           <label class="state">
             <input class="switch" type="checkbox" role="switch" checked={on} disabled={!!plugins.busy} aria-label={t('plugins.enabledFor', { name: detail.name })} onchange={(e) => toggle(detail.id, e.currentTarget.checked)} />
@@ -236,14 +237,14 @@
               <b>{k.tone === 'all' ? t('plugins.everyShort') : w.on.length}</b>
               <span>{k.tone === 'all' ? t('plugins.everyProjectLong') : t('plugins.projectsOutOf', { count: w.on.length, total: w.total })}</span>
             {:else}
-              <b>{k.tone === 'off' && k.n < 0 ? t('plugins.everyShort') : k.tone === 'off' ? k.n : 0}</b>
-              <span>{t('plugins.projectsPaused', { count: k.tone === 'off' && k.n >= 0 ? k.n : 2 })}</span>
+              <b>{back ? back.length : t('plugins.everyShort')}</b>
+              <span>{t('plugins.projectsPaused', { count: back ? back.length : 2 })}</span>
             {/if}
           </div>
           <div class="names">
             {#if f}<span class="follows"><Icon name="link" size={11} />{t('plugins.followsGroups', { groups: groupNames(f.groups) })}</span>{/if}
             <p>
-              {#if !on}{kept?.includes(ALL) ? t('plugins.pausedAllHint') : kept?.length ? t('plugins.pausedHint', { names: projectNames(kept) }) : t('plugins.noProjectHint')}{:else if k.tone === 'all'}{t('plugins.everyProjectHint')}{:else if w.on.length}{projectNames(w.on)}{:else}{t('plugins.noProjectHint')}{/if}
+              {#if !on}{!back ? t('plugins.pausedAllHint') : back.length ? t('plugins.pausedHint', { names: projectNames(back) }) : t('plugins.noProjectHint')}{:else if k.tone === 'all'}{t('plugins.everyProjectHint')}{:else if w.on.length}{projectNames(w.on)}{:else}{t('plugins.noProjectHint')}{/if}
             </p>
           </div>
           <button class="btn" class:btn-primary={on} class:btn-secondary={!on} disabled={!!plugins.busy} onclick={() => (picking = { id: detail.id, install: false })}>{t('plugins.chooseProjects')}</button>
