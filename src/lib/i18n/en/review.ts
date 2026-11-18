@@ -280,4 +280,5 @@ export default {
   resolveOn: 'Resolve on {host}',
   resolveHelp: 'checked threads are resolved once the round is posted',
   resolveFailed: { one: '{count} thread could not be resolved: {error}', other: '{count} threads could not be resolved: {error}' },
+  reReviewWithAgent: 'Re-review with agent',
 }

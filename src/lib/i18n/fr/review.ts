@@ -282,4 +282,5 @@ export default {
   resolveOn: 'Résoudre sur {host}',
   resolveHelp: 'les fils cochés sont résolus une fois le tour publié',
   resolveFailed: { one: '{count} fil n’a pas pu être résolu : {error}', other: '{count} fils n’ont pas pu être résolus : {error}' },
+  reReviewWithAgent: 'Faire relire par l’agent',
 } satisfies Catalog['review']

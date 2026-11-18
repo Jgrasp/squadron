@@ -13,13 +13,14 @@
   import DiffView, { type Line } from './DiffView.svelte'
   import ChangedFiles, { type Note } from './ChangedFiles.svelte'
   import Avatar from './Avatar.svelte'
+  import Icon from './Icon.svelte'
   import { layout, setFileTree, setSplit } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
   import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { closeRound, hostName, inRound, judgementOf, markReviewed, merge, openRound, post, reviews, rounds, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { behind, closeRound, hostName, inRound, judgementOf, markReviewed, merge, openRound, post, reviewChanges, reviews, rounds, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import PullThreads, { stateOf, type ThreadState } from './PullThreads.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
@@ -159,6 +160,23 @@
   const pending = $derived(threads.filter((th) => ['open', 'answered', 'fixed'].includes(stateOf(reviewKey, th))))
   const resolvables = $derived(pull && can(pull.host, 'resolve') ? pending.filter((th) => th.root.resolved === false) : [])
   let toResolve = $state<string[]>([])
+
+  const rereader = $derived(reviewer ?? (agent?.review ? agent : null))
+  const rereadable = $derived(!!pull && !!rereader?.review && rereader.status !== 'working' && behind(rereader, pull))
+  let rereading = $state(false)
+
+  async function reReview() {
+    if (!pull || !rereader) return
+    rereading = true
+    postError = null
+    try {
+      await reviewChanges(rereader, pull)
+    } catch (e) {
+      postError = { text: String(e), done: 0 }
+    } finally {
+      rereading = false
+    }
+  }
   $effect(() => {
     if (finishing) untrack(() => (toResolve = resolvables.filter((th) => stateOf(reviewKey, th) === 'fixed').map((th) => th.root.id)))
   })
@@ -819,6 +837,11 @@
             ? t('review.askAgentTitle')
             : t('review.askAgentNeedsPilot')}
           onclick={askAgent}>{starting ? t('review.starting') : t('review.askAgent')}</button
+        >
+      {/if}
+      {#if rereadable}
+        <button class="btn btn-secondary rereview" disabled={rereading} title={t('review.reviewNewChangesTitle', { name: rereader!.name })} onclick={reReview}
+          ><Icon name="persona" size={14} />{rereading ? t('review.starting') : t('review.reReviewWithAgent')}</button
         >
       {/if}
       {#if review.length}<button class="btn btn-secondary" onclick={discard}>{t('review.discard')}</button>{/if}
@@ -2272,5 +2295,13 @@
     text-align: right;
     font-size: 12px;
     color: var(--text-dim);
+  }
+
+  .rereview {
+    gap: 7px;
+  }
+
+  .rereview :global(svg) {
+    color: var(--persona);
   }
 </style>
