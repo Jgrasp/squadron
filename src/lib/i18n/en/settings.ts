@@ -207,7 +207,7 @@ export default {
   slotSquadron: 'Squadron menu',
   slotSquadronHint: 'The menu under the Squadron logo',
   itemExtensionsHint: 'Install, update and set up extensions',
-  itemPluginsHint: 'Claude Code plugins, their skills and marketplaces',
+  itemPluginsHint: 'Claude Code plugins and their skills',
   itemSettingsHint: 'Projects, agents, tools and interface',
   itemUpdates: 'Check for updates',
   itemUpdatesHint: 'Looks for a new version of Squadron',
