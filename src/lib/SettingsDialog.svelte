@@ -242,7 +242,7 @@
           <span>{t('settings.tabExtensions')}</span>
           <button class="tool" role="tab" aria-selected={tab === 'discover'} title={t('extensions.discoverTitle')} aria-label={t('extensions.discoverTitle')} onclick={() => (ui.settings = 'discover')}><Icon name="plus" size={15} /></button>
         </div>
-        {#each listed as e (e.id)}
+        {#each listed as e (e.dir)}
           {@const update = updateOf(e)}
           <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${e.id}`} onclick={() => (ui.settings = `ext:${e.id}`)}>
             <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={16} />

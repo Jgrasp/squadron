@@ -207,12 +207,13 @@ pub struct Captured {
 }
 
 pub fn capture(cmd: std::process::Command) -> Result<Captured, String> {
-    capture_input(cmd, None)
+    capture_input(cmd, None, MAX_OUTPUT)
 }
 
 pub fn capture_input(
     mut cmd: std::process::Command,
     input: Option<Vec<u8>>,
+    max: usize,
 ) -> Result<Captured, String> {
     cmd.stdin(if input.is_some() {
         std::process::Stdio::piped()
@@ -262,7 +263,7 @@ pub fn capture_input(
         }
         std::thread::sleep(Duration::from_millis(50));
     };
-    let text = |out: Vec<u8>| tail(String::from_utf8_lossy(&out).into_owned());
+    let text = |out: Vec<u8>| tail(String::from_utf8_lossy(&out).into_owned(), max);
     Ok(Captured {
         status,
         stdout: text(stdout.join().unwrap_or_default()),
@@ -270,9 +271,9 @@ pub fn capture_input(
     })
 }
 
-fn tail(mut out: String) -> String {
-    if out.len() > MAX_OUTPUT {
-        let mut cut = out.len() - MAX_OUTPUT;
+fn tail(mut out: String, max: usize) -> String {
+    if out.len() > max {
+        let mut cut = out.len() - max;
         while !out.is_char_boundary(cut) {
             cut += 1;
         }
@@ -289,7 +290,7 @@ pub fn exec(dir: &Path, command: &str, env: &[(String, String)]) -> Result<(bool
         stdout,
         stderr,
     } = capture(cmd)?;
-    let out = tail(stdout + &stderr);
+    let out = tail(stdout + &stderr, MAX_OUTPUT);
     Ok(match status {
         None => (
             false,
@@ -325,6 +326,15 @@ mod tests {
         let (ok, out) = exec(&std::env::temp_dir(), "yes line | head -n 20000", &[]).unwrap();
         assert!(ok);
         assert!(out.starts_with("[…]") && out.len() <= MAX_OUTPUT + 8);
+    }
+
+    #[test]
+    fn captures_up_to_the_limit_it_is_given() {
+        let mut cmd = shell("yes line | head -n 20000");
+        cmd.current_dir(std::env::temp_dir());
+        let out = capture_input(cmd, None, 1 << 20).unwrap();
+        assert_eq!(out.stdout.len(), 100_000);
+        assert!(!out.stdout.starts_with("[…]"));
     }
 
     #[tokio::test(flavor = "multi_thread")]

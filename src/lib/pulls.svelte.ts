@@ -98,16 +98,24 @@ export function openReview(project: string, number: number) {
   projects.current = project
   setPanel(project, null)
   requestPanel('diff')
+  refreshPull(project, number)
   layout.review = { project, number }
 }
+export function refreshPull(project: string, number: number) {
+  const fetched = [lookUpLists(project, true)]
+  if (`${project}#${number}` in numbered) fetched.push(lookUpNumbered(project, number, true))
+  return Promise.all(fetched)
+}
+export const awaitsChecks = (project: string, pull: Pull) =>
+  pull.state === 'open' && !pull.mergeable && pull.checks === 'pending' && !!lists[project]?.mine.some((p) => p.number === pull.number)
 export const numbered = $state<Record<string, Pull | null>>({})
 const asked = new Set<string>()
 
-export async function lookUpNumbered(project: string, number: number) {
+export async function lookUpNumbered(project: string, number: number, force = false) {
   const key = `${project}#${number}`
-  if (asked.has(key)) return
+  if (!force && asked.has(key)) return
   asked.add(key)
-  numbered[key] = await invoke<Pull>('numbered_pull', { dir: project, number }).catch(() => null)
+  numbered[key] = await invoke<Pull>('numbered_pull', { dir: project, number }).catch(() => numbered[key] ?? null)
 }
 export const lists = $state<Record<string, Lists>>({})
 const listed: Record<string, number> = {}

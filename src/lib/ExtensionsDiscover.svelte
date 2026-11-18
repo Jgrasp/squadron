@@ -84,7 +84,7 @@
 {#if catalog.error}<p class="bad">{t('extensions.catalogError', { error: catalog.error })}</p>{/if}
 
 <div class="rows">
-  {#each visible as item (item.id)}
+  {#each visible as item (item.ext?.dir ?? item.id)}
     {#if item.ext}
       {@const e = item.ext}
       {@const update = updateOf(e)}
