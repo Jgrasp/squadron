@@ -43,6 +43,7 @@
 
   $effect(() => {
     void extensions.list
+    void extensions.unloaded
     void lookUpCoverage()
   })
 

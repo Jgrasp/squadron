@@ -36,6 +36,7 @@
 
   $effect(() => {
     void extensions.list
+    void extensions.unloaded
     void lookUpCoverage([project.path])
   })
 
@@ -143,7 +144,7 @@
 
   async function refresh() {
     refreshing = true
-    await lookUpLists(project.path, true)
+    await Promise.all([lookUpCoverage([project.path]), lookUpLists(project.path, true)])
     refreshing = false
   }
   const path = $derived(project.path)
@@ -220,7 +221,11 @@
     {#if bare && covered}
       {@render noForge(covered.remote)}
     {:else if !found}
-      <p class="empty">{t('review.lookingForPulls')}</p>
+      <div class="fetching" role="status">
+        <svg class="ring" width="34" height="34" viewBox="0 0 34 34" aria-hidden="true"><circle class="track" cx="17" cy="17" r="14" /><circle class="arc" cx="17" cy="17" r="14" /></svg>
+        <strong>{t('review.lookingForPulls')}</strong>
+        <span class="why">{t('review.lookingWhy', { project: project.name })}</span>
+      </div>
     {:else if found.error}
       <div class="problem">
         <p>{errorText(found.error)}</p>
@@ -976,6 +981,45 @@
       grid-column: 3;
       grid-row: 1 / span 2;
     }
+  }
+
+  .fetching {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 8px;
+    padding: 24px;
+    text-align: center;
+  }
+
+  .fetching strong {
+    margin-top: 8px;
+    font-size: 15px;
+    color: var(--text-strong);
+  }
+
+  .why {
+    max-width: 420px;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .ring {
+    fill: none;
+    stroke-width: 3;
+    animation: spin 1.1s linear infinite;
+  }
+
+  .ring .track {
+    stroke: var(--surface-4);
+  }
+
+  .ring .arc {
+    stroke: var(--accent);
+    stroke-linecap: round;
+    stroke-dasharray: 22 66;
   }
 
   .no-forge {
