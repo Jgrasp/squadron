@@ -19,12 +19,63 @@ tag_merged() {
   fi
 }
 
+watch_release() {
+  local version=$1 run line name state conclusion started now since seen
+  local queue_max=${QUEUE_MAX:-300} run_max=${RUN_MAX:-900}
+  declare -A last first
+  while :; do
+    run=$(gh run list -R "$repo" --workflow Release --limit 20 --json databaseId,displayTitle,event,status \
+      --jq "[.[] | select(.displayTitle == \"Squadron $version\")] | (map(select(.event == \"push\")) + .)[0] | \"\(.databaseId) \(.status)\"")
+    [ -n "$run" ] && [ "$run" != "null null" ] || { echo "No Release run for Squadron $version." >&2; return 1; }
+    now=$(date +%s)
+    while IFS='|' read -r name state conclusion started; do
+      [ -n "$name" ] || continue
+      [ "$conclusion" = - ] && conclusion=
+      if [ "${last[$name]:-}" != "$state $conclusion" ]; then
+        if [ -z "${last[$name]:-}" ] && [ -n "$started" ]; then first[$name]=$(date -d "$started" +%s); else first[$name]=$now; fi
+        last[$name]="$state $conclusion"
+        echo "$(date +%T) $name: $state${conclusion:+ ($conclusion)}"
+      fi
+      case $conclusion in failure | cancelled | timed_out) echo "Squadron $version: $name ended $conclusion. https://github.com/$repo/actions/runs/${run%% *}" >&2; return 1 ;; esac
+      since=$((now - first[$name]))
+      if [ "$state" = queued ] && [ "$since" -gt "$queue_max" ]; then
+        echo "Squadron $version: $name has waited for a runner for $((since / 60)) min." >&2
+        return 2
+      fi
+      if [ "$state" = in_progress ] && [ "$since" -gt "$run_max" ]; then
+        echo "Squadron $version: $name has run for $((since / 60)) min." >&2
+        return 2
+      fi
+    done < <(gh run view -R "$repo" "${run%% *}" --json jobs --jq '.jobs[] | [.name, .status, (if (.conclusion // "") == "" then "-" else .conclusion end), .startedAt] | join("|")')
+    case $run in
+      *" completed")
+        seen=$(gh run view -R "$repo" "${run%% *}" --json conclusion --jq .conclusion)
+        echo "Squadron $version: Release run $seen. https://github.com/$repo/actions/runs/${run%% *}"
+        [ "$seen" = success ] && return 0 || return 1
+        ;;
+      *)
+        if [ -z "${last[*]}" ]; then
+          seen=${first[__run]:-$now}
+          first[__run]=$seen
+          [ $((now - seen)) -gt "$queue_max" ] && { echo "Squadron $version: the Release run has waited $(((now - seen) / 60)) min to start." >&2; return 2; }
+        fi
+        ;;
+    esac
+    sleep 30
+  done
+}
+
 if [ "${1:-}" = tag ]; then
   tag_merged
   exit
 fi
 
-version=${1:?usage: scripts/release.sh <version> [notes] [fr=notes ...], or scripts/release.sh tag once the pull request is merged}
+if [ "${1:-}" = watch ]; then
+  watch_release "${2:?usage: scripts/release.sh watch <version>}"
+  exit
+fi
+
+version=${1:?usage: scripts/release.sh <version> [notes] [fr=notes ...], scripts/release.sh tag once the pull request is merged, or scripts/release.sh watch <version>}
 notes=${2:-}
 branch=release/v$version
 work=$root/.claude/worktrees/release-v$version
