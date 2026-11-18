@@ -1373,16 +1373,9 @@ async fn forge_accounts() -> forge::Accounts {
     tauri::async_runtime::spawn_blocking(forge::accounts)
         .await
         .unwrap_or(forge::Accounts {
-            bitbucket: None,
-            bitbucket_user: false,
             gitlab: None,
             azure: None,
         })
-}
-
-#[tauri::command]
-async fn bitbucket_sign_in(email: String, token: String) -> Result<(), String> {
-    forge::sign_in(email.trim().to_string(), token.trim().to_string()).await
 }
 
 #[tauri::command]
@@ -2814,7 +2807,6 @@ pub fn run() {
             update_pull,
             forge_accounts,
             forge_coverage,
-            bitbucket_sign_in,
             forge_sign_out,
             gitlab_sign_in,
             azure_sign_in,
@@ -2923,6 +2915,9 @@ pub fn run() {
                 }
             }
             restore_place(app, &config);
+            std::thread::spawn(|| {
+                let _ = forge::write_secret("bitbucket", None);
+            });
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
             }

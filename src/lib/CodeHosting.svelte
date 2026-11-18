@@ -1,5 +1,4 @@
 <script lang="ts">
-  import { copyText } from './clipboard'
   import { invoke } from '@tauri-apps/api/core'
   import { lookUpAll, REVIEW_PROMPT } from './pulls.svelte'
   import { projects } from './projects.svelte'
@@ -17,20 +16,17 @@
   import { named, nameOf } from './extension-pages.svelte'
   import { installOffers, lookUpCoverage, providers } from './forges.svelte'
 
-  type Host = 'bitbucket' | 'gitlab' | 'azure'
-  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; gitlab: string | null; azure: string | null }
+  type Host = 'gitlab' | 'azure'
+  type Accounts = { gitlab: string | null; azure: string | null }
 
   let accounts = $state<Accounts | null>(null)
-  let email = $state('')
-  let token = $state('')
   let error = $state('')
   let site = $state('')
   let organization = $state('')
   let tokens = $state({ gitlab: '', azure: '' })
-  let failed = $state({ bitbucket: '', gitlab: '', azure: '' })
+  let failed = $state({ gitlab: '', azure: '' })
   let open = $state<Host | null>(null)
   const BUILT_IN_ROWS: [Host, string, Key][] = [
-    ['bitbucket', 'Bitbucket', 'settings.bitbucketHint'],
     ['gitlab', 'GitLab', 'settings.gitlabHint'],
     ['azure', 'Azure DevOps', 'settings.azureHint'],
   ]
@@ -60,14 +56,6 @@
 
   const said = (value: AccountCheck['title']) => (typeof value === 'string' ? value : named(value ?? undefined))
   let busy = $state(false)
-  let copied = $state('')
-  const SCOPES = ['read:repository:bitbucket', 'read:pullrequest:bitbucket', 'write:pullrequest:bitbucket', 'read:user:bitbucket', 'read:pipeline:bitbucket']
-
-  function copy(scope: string) {
-    copyText(scope)
-    copied = scope
-    setTimeout(() => copied === scope && (copied = ''), 1500)
-  }
 
   const LINGERS = [1, 2, 5, 10, 15, 30, 60]
   let hide = $state('')
@@ -84,24 +72,7 @@
   const refresh = () => invoke<Accounts>('forge_accounts').then((found) => (accounts = found))
   refresh()
 
-  async function signIn(event: Event) {
-    event.preventDefault()
-    failed.bitbucket = ''
-    busy = true
-    try {
-      await invoke('bitbucket_sign_in', { email, token })
-      token = ''
-      open = null
-      await refresh()
-      lookUpAll(true)
-    } catch (e) {
-      failed.bitbucket = errorText(e)
-    } finally {
-      busy = false
-    }
-  }
-
-  async function connect(event: Event, host: 'gitlab' | 'azure', args: Record<string, string>) {
+  async function connect(event: Event, host: Host, args: Record<string, string>) {
     event.preventDefault()
     failed[host] = ''
     busy = true
@@ -118,7 +89,7 @@
     }
   }
 
-  async function signOut(account = 'bitbucket') {
+  async function signOut(account: Host) {
     await invoke('forge_sign_out', { account })
     await refresh()
     lookUpAll(true)
@@ -174,44 +145,7 @@
             <strong>{t('settings.connectHost', { name })}</strong>
             <button class="btn btn-ghost" onclick={() => (open = null)}>{t('common.cancel')}</button>
           </div>
-    {#if open === 'bitbucket'}
-      <form onsubmit={signIn}>
-        <ol class="steps">
-          <li>
-            <div>
-              <button type="button" class="btn btn-secondary" onclick={() => invoke('open_link', { url: 'https://id.atlassian.com/manage-profile/security/api-tokens' })}>
-                {t('settings.openTokens')}
-              </button>
-            </div>
-          </li>
-          <li>
-            <div>
-              <span><Trans k="settings.stepCreate">{#snippet create()}<strong>Create API token with scopes</strong>{/snippet}{#snippet bitbucket()}<strong>Bitbucket</strong>{/snippet}</Trans></span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <span>{t('settings.stepScopes')}</span>
-              <span class="scopes">
-                {#each SCOPES as scope (scope)}
-                  <button type="button" class="scope" onclick={() => copy(scope)}>{copied === scope ? t('common.copied') : scope}</button>
-                {/each}
-              </span>
-            </div>
-          </li>
-          <li>
-            <div>
-              <span>{t('settings.stepPaste')}</span>
-              <input class="field" type="email" autocomplete="off" placeholder={t('settings.atlassianEmail')} aria-label={t('settings.atlassianEmail')} bind:value={email} />
-              <span class="row">
-                <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={token} />
-                <button class="btn btn-primary" disabled={busy || !email.trim() || !token.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
-              </span>
-            </div>
-          </li>
-        </ol>
-      </form>
-    {:else if open === 'gitlab'}
+    {#if open === 'gitlab'}
       <form onsubmit={(e) => connect(e, 'gitlab', { site })}>
         <ol class="steps">
           <li>
@@ -288,17 +222,12 @@
 {#if chosen}<InstallDialog entry={chosen} onclose={() => (chosen = null)} />{/if}
 
 {#snippet logo(id: string, name: string)}
-  {#if ['github', 'bitbucket', 'gitlab', 'azure'].includes(id)}
+  {#if ['github', 'gitlab', 'azure'].includes(id)}
     <HostLogo host={id as 'github'} size={18} />
   {:else}
     <ExtensionLogo {id} {name} size={18} />
   {/if}
 {/snippet}
-{#if accounts?.bitbucket && !accounts.bitbucket_user}
-  <p class="intro">
-    <Trans k="settings.tokenLacksScope">{#snippet scope()}<code>read:user:bitbucket</code>{/snippet}</Trans>
-  </p>
-{/if}
 {#if error}<p class="bad" role="alert">{error}</p>{/if}
 
 <section>
@@ -649,27 +578,6 @@
     margin: 0;
     font-size: 12px;
     color: var(--text-faint);
-  }
-
-  .scopes {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-    margin-top: 6px;
-  }
-
-  .scope {
-    height: 28px;
-    padding: 0 10px;
-    border-radius: 4px;
-    background: var(--surface-3);
-    color: var(--text-2);
-    font: 12.5px var(--mono);
-  }
-
-  .scope:hover {
-    background: var(--surface-5);
-    color: var(--text-strong);
   }
 
   label {

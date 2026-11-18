@@ -562,9 +562,10 @@ mod tests {
             at("git@github.com:acme/shop.git").by.as_deref(),
             Some("github")
         );
+        let bitbucket = at("git@bitbucket.org:acme/shop.git");
         assert_eq!(
-            at("git@bitbucket.org:acme/shop.git").by.as_deref(),
-            Some("bitbucket")
+            (bitbucket.by, bitbucket.remote.as_deref()),
+            (None, Some("bitbucket.org/acme/shop"))
         );
         let unknown = at("https://git.acme.io/team/wiki.git");
         assert_eq!(
