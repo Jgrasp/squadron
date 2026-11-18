@@ -18,6 +18,7 @@
   let dialog = $state<'sources' | 'local' | null>(null)
   let chosen = $state<CatalogEntry | null>(null)
   let source = $state('')
+  let menu = $state<string | null>(null)
 
   onMount(loadCatalog)
 
@@ -58,8 +59,14 @@
     if (added) ui.settings = `ext:${added.id}`
   }
 
+  const settingsOf = (e: Extension) => (ui.settings = `ext:${e.id}`)
+  const enable = (e: Extension, on: boolean) => attempt(() => invoke('extensions_enable', { id: e.id, on }))
+  const pick = (c: CatalogEntry) => ((work.error = ''), (chosen = c))
+
   const close = () => ((dialog = null), (chosen = null), (work.error = ''))
 </script>
+
+<svelte:window onclick={(e) => menu && !(e.target as HTMLElement).closest('.pair') && (menu = null)} />
 
 <div class="discover">
 <div class="top">
@@ -82,63 +89,77 @@
 {#if work.error && !dialog && !chosen}<p class="bad" role="alert">{work.error}</p>{/if}
 {#if catalog.error}<p class="bad">{t('extensions.catalogError', { error: catalog.error })}</p>{/if}
 
-<div class="grid">
+<div class="rows">
   {#each visible as item (item.id)}
     {#if item.ext}
       {@const e = item.ext}
       {@const update = updateOf(e)}
       {@const problem = problemOf(e)}
-      <article class="card" class:off={!e.enabled}>
-        <div class="head">
-          <ExtensionLogo id={e.id} name={item.name} logo={e.logo} off={!e.enabled} />
-          <strong>{item.name}</strong>
-          <span class="version">{e.manifest?.version ?? ''}{#if update}{' → '}<b>{update.version}</b>{/if}</span>
-        </div>
-        <div class="pills">
-          <span class="pill {fromOf(e)}">{fromOf(e) === 'official' ? `✓ ${t('extensions.official')}` : fromOf(e) === 'imported' ? `⇄ ${t('extensions.imported', { owner: (item.source ?? '').split('/')[0] })}` : `▣ ${t('extensions.local')}`}</span>
-          {#if problem}<span class="pill error" title={problem}>⚠ {t('extensions.error')}</span>{:else if pendingOf(e).length}<span class="pill pending">{t('extensions.toAllow')}</span>{:else}<span class="pill installed">{t('extensions.installedTag')}</span>{/if}
-        </div>
-        <p class="desc">{named(e.manifest?.description)}</p>
-        <div class="foot">
-          <small></small>
-          {#if update}
-            <button class="btn btn-primary" disabled={!!work.busy} onclick={() => attempt(() => install(update), e.id)}>{work.busy === e.id ? t('extensions.updating') : t('extensions.updateNow')}</button>
+      <div class="row" class:off={!e.enabled}>
+        <ExtensionLogo id={e.id} name={item.name} logo={e.logo} />
+        <button class="what" onclick={() => settingsOf(e)}>
+          <span class="l1">
+            <strong>{item.name}</strong>
+            <span class="version">{e.manifest?.version ?? ''}{#if update}{' → '}<b>{update.version}</b>{/if}</span>
+            <span class="pill {fromOf(e)}">{fromOf(e) === 'official' ? `✓ ${t('extensions.official')}` : fromOf(e) === 'imported' ? `⇄ ${t('extensions.imported', { owner: (item.source ?? '').split('/')[0] })}` : `▣ ${t('extensions.local')}`}</span>
+            {#if problem}<span class="pill error" title={problem}>⚠ {t('extensions.error')}</span>{:else if pendingOf(e).length}<span class="pill pending">{t('extensions.toAllow')}</span>{/if}
+          </span>
+          <small>{named(e.manifest?.description)}</small>
+        </button>
+        <span class="tail">
+          {#if e.manifest}
+            <input class="switch" type="checkbox" role="switch" checked={e.enabled} aria-label={t('extensions.enabledFor', { name: item.name })} onchange={(event) => enable(e, event.currentTarget.checked)} />
           {/if}
-          <button class="btn btn-secondary" onclick={() => (ui.settings = `ext:${e.id}`)}><Icon name="gear" />{t('extensions.settings')}</button>
-        </div>
-      </article>
+          <span class="pair">
+            {#if update}
+              <button class="main up" disabled={!!work.busy} title={t('extensions.update', { version: update.version })} onclick={() => attempt(() => install(update), e.id)}>
+                <Icon name="arrow-up" />{work.busy === e.id ? t('extensions.updating') : t('extensions.updateNow')}
+              </button>
+              <button class="caret" aria-label={t('extensions.moreFor', { name: item.name })} aria-expanded={menu === e.id} onclick={() => (menu = menu === e.id ? null : e.id)}><Icon name="chevron" /></button>
+              {#if menu === e.id}
+                <div class="menu" role="menu">
+                  <button role="menuitem" onclick={() => ((menu = null), settingsOf(e))}><Icon name="gear" />{t('extensions.settings')}</button>
+                </div>
+              {/if}
+            {:else}
+              <button class="main solo" onclick={() => settingsOf(e)}><Icon name="gear" />{t('extensions.settings')}</button>
+            {/if}
+          </span>
+        </span>
+      </div>
     {:else if item.entry}
       {@const c = item.entry}
       {@const permissions = asks(c).length}
-      <article class="card">
-        <div class="head">
-          <ExtensionLogo id={c.id} name={item.name} logo={brand(c.id).logo} />
-          <strong>{item.name}</strong>
-          <span class="version">{c.version}</span>
-        </div>
-        <div>
-          <span class="pill" class:official={c.official} class:imported={!c.official} title={c.official ? null : t('extensions.importedTitle', { source: c.source })}>
-            {c.official ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: c.source.split('/')[0] })}`}
+      <div class="row">
+        <ExtensionLogo id={c.id} name={item.name} logo={brand(c.id).logo} />
+        <button class="what" onclick={() => pick(c)}>
+          <span class="l1">
+            <strong>{item.name}</strong>
+            <span class="version">{c.version}</span>
+            <span class="pill" class:official={c.official} class:imported={!c.official} title={c.official ? null : t('extensions.importedTitle', { source: c.source })}>
+              {c.official ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: c.source.split('/')[0] })}`}
+            </span>
           </span>
-        </div>
-        <p class="desc">{named(c.description)}</p>
-        <div class="foot">
-          <small>{permissions ? t('extensions.permissionCount', { count: permissions }) : ''}</small>
-          <button class="btn btn-primary" disabled={!!work.busy} onclick={() => ((work.error = ''), (chosen = c))}>{work.busy === c.id ? t('extensions.installing') : t('extensions.install')}</button>
-        </div>
-      </article>
+          <small>{named(c.description)}</small>
+        </button>
+        <span class="tail">
+          {#if permissions}<small class="asks">{t('extensions.permissionCount', { count: permissions })}</small>{/if}
+          <button class="btn btn-primary install" disabled={!!work.busy} onclick={() => pick(c)}>{work.busy === c.id ? t('extensions.installing') : t('extensions.install')}</button>
+        </span>
+      </div>
     {/if}
-  {/each}
-  <button class="card new" onclick={() => ((work.error = ''), (dialog = 'local'))}>
-    <span class="plus" aria-hidden="true">+</span>
-    <strong>{t('extensions.addLocal')}</strong>
-    <small>{t('extensions.addLocalSub')}</small>
-  </button>
-  {#if !visible.length}
+  {:else}
     <p class="empty">
       {needle ? t('extensions.noMatch', { query: query.trim() }) : filter !== 'installed' && !catalog.entries && !catalog.error ? t('extensions.catalogLoading') : filter === 'discover' ? t('extensions.allInstalled') : t('extensions.noneHere')}
     </p>
-  {/if}
+  {/each}
+  <button class="row new" onclick={() => ((work.error = ''), (dialog = 'local'))}>
+    <span class="plus" aria-hidden="true">+</span>
+    <span class="what">
+      <strong>{t('extensions.addLocal')}</strong>
+      <small>{t('extensions.addLocalSub')}</small>
+    </span>
+  </button>
 </div>
 
 {#if chosen}
@@ -284,66 +305,66 @@
     gap: 6px;
   }
 
-  .grid {
-    display: grid;
-    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
-    gap: 10px;
-  }
-
-  .card {
+  .rows {
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    padding: 14px;
+    gap: 4px;
+    margin-top: 6px;
+  }
+
+  .row {
+    position: relative;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 12px;
     border-radius: 6px;
     background: var(--surface-1);
     box-shadow: inset 0 0 0 1px var(--border);
-    text-align: left;
   }
 
-  .card:hover {
+  .row:hover {
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
 
-  .card.new {
-    align-items: center;
-    justify-content: center;
-    min-height: 150px;
-    gap: 4px;
-    text-align: center;
-    background: none;
-    box-shadow: none;
-    border: 1px dashed var(--border-dashed);
+  .row.off :global(.logo),
+  .row.off .what {
+    opacity: 0.55;
   }
 
-  .card.new:hover {
-    border-color: var(--border-focus);
-    background: var(--surface-1);
+  .what {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    text-align: left;
   }
 
-  .card.new .plus {
-    font-size: 24px;
-    line-height: 1;
-    color: var(--text-2);
+  .what::after {
+    content: '';
+    position: absolute;
+    inset: 0;
+    border-radius: 6px;
   }
 
-  .card.new strong,
-  .head strong {
-    color: var(--text-strong);
-  }
-
-  .card.new small {
-    color: var(--text-dim);
-    font-size: 12px;
-  }
-
-  .head {
+  .l1 {
     display: flex;
     align-items: center;
-    gap: 10px;
+    gap: 8px;
+    min-width: 0;
+  }
+
+  .l1 strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-strong);
+    font-weight: 600;
   }
 
   .version {
+    flex: none;
     font: 12px var(--mono);
     color: var(--text-dim);
   }
@@ -353,13 +374,34 @@
     color: var(--text);
   }
 
+  .what small {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--text-muted);
+    font-size: 12.5px;
+  }
+
+  .tail {
+    position: relative;
+    z-index: 1;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+  }
+
+  .row:has(.menu) .tail {
+    z-index: 2;
+  }
+
   .pill {
+    flex: none;
     display: inline-flex;
     align-items: center;
-    height: 22px;
-    padding: 0 9px;
+    height: 20px;
+    padding: 0 8px;
     border-radius: 4px;
-    font-size: 11.5px;
+    font-size: 11px;
     font-weight: 700;
     white-space: nowrap;
   }
@@ -382,11 +424,6 @@
     color: var(--remote-text);
   }
 
-  .pill.installed {
-    background: var(--surface-3);
-    color: var(--text-2);
-  }
-
   .pill.pending {
     background: var(--persona);
     color: var(--ink);
@@ -397,50 +434,165 @@
     color: var(--err-ink);
   }
 
-  .pills {
-    display: flex;
-    flex-wrap: wrap;
-    gap: 6px;
-  }
-
-  .card.off .head strong,
-  .card.off .desc {
-    opacity: 0.55;
-  }
-
-  .desc {
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
     margin: 0;
-    min-height: 36px;
-    color: var(--text-muted);
-    font-size: 12.5px;
-    line-height: 1.45;
-    display: -webkit-box;
-    -webkit-line-clamp: 2;
-    line-clamp: 2;
-    -webkit-box-orient: vertical;
-    overflow: hidden;
+    border-radius: 999px;
+    background: var(--surface-5);
+    cursor: pointer;
+    transition: background 0.15s;
   }
 
-  .foot {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin-top: auto;
+  .switch::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s;
   }
 
-  .foot .btn {
+  .switch:checked {
+    background: var(--accent);
+  }
+
+  .switch:checked::before {
+    transform: translateX(14px);
+    background: var(--ink);
+  }
+
+  .switch:focus-visible {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: 2px;
+  }
+
+  .pair {
+    position: relative;
+    display: inline-flex;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .pair > button {
+    height: 30px;
     display: inline-flex;
     align-items: center;
+    justify-content: center;
     gap: 6px;
+    padding: 0 12px;
+    border-radius: 4px;
+    color: var(--text-2);
+    font-size: 13px;
   }
 
-  .foot small {
-    flex: 1;
+  .pair > button:hover:not(:disabled) {
+    background: var(--surface-3);
+    color: var(--text);
+  }
+
+  .pair .main {
+    width: 104px;
+  }
+
+  .pair .solo {
+    width: 132px;
+  }
+
+  .pair .up {
+    border-radius: 4px 0 0 4px;
+    color: var(--text);
+    font-weight: 600;
+  }
+
+  .pair .caret {
+    width: 28px;
+    padding: 0;
+    border-radius: 0 4px 4px 0;
+    box-shadow: inset 1px 0 0 var(--border-strong);
+  }
+
+  .pair .caret[aria-expanded='true'] {
+    background: var(--surface-4);
+    color: var(--text);
+  }
+
+  .menu {
+    position: absolute;
+    top: 34px;
+    right: 0;
+    width: 200px;
+    padding: 5px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 14px 36px rgba(0, 0, 0, 0.5),
+      0 0 0 1px var(--border-strong);
+  }
+
+  .menu button {
+    width: 100%;
+    height: 32px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 10px;
+    border-radius: 4px;
+    color: var(--text-2);
+    font-size: 13px;
+    text-align: left;
+  }
+
+  .menu button:hover {
+    background: var(--menu-hover);
+    color: var(--text);
+  }
+
+  .row.new {
+    border: 1px dashed var(--border-dashed);
+    background: none;
+    box-shadow: none;
+    text-align: left;
+  }
+
+  .row.new:hover {
+    border-color: var(--border-focus);
+    background: var(--surface-1);
+  }
+
+  .row.new .plus {
+    flex: none;
+    width: 34px;
+    height: 34px;
+    display: grid;
+    place-items: center;
+    font-size: 22px;
+    line-height: 1;
+    color: var(--text-2);
+  }
+
+  .row.new strong {
+    color: var(--text-strong);
+    font-weight: 600;
+  }
+
+  .asks {
     color: var(--text-dim);
+    font-size: 12px;
+    white-space: nowrap;
+  }
+
+  .tail .install {
+    width: 132px;
   }
 
   .empty {
-    grid-column: 1 / -1;
     margin: 0;
     padding: 20px;
     text-align: center;
