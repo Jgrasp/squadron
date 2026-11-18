@@ -3,7 +3,7 @@
   import { flip } from 'svelte/animate'
   import { calling, clock, ofProject, shelve, unread, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
-  import { inBar } from './groups'
+  import { inBar, tabClosed } from './groups'
     import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
   import { chime } from './chime'
@@ -39,6 +39,7 @@
   let search = $state('')
   let context = $state<{ path: string; x: number; y: number } | null>(null)
   const target = $derived(projects.list.find((p) => p.path === context?.path))
+  const closed = $derived(!!target && tabClosed(target, activity(target.path).last))
 
   const fit = $derived.by(() => {
     const available = headerWidth - 2 * Math.max(200, startWidth, endWidth) - 34 - 64 - 130
@@ -109,7 +110,7 @@
       if (next) choose(next.path)
       else projects.overview = true
     }
-    editProject(path, { tab_hidden: true })
+    editProject(path, { tab_closed_at: Date.now() })
   }
 
   function closeMenus(event: MouseEvent) {
@@ -341,9 +342,9 @@
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 4h6l-1 6 4 4H6l4-4zM12 14v6" /></svg>
         {target.pinned ? t('shell.unpinFromTabBar') : t('shell.pinToTabBar')}
       </button>
-      <button role="menuitem" onclick={() => (target.tab_hidden ? editProject(target.path, { tab_hidden: false }) : removeTab(target.path), (context = null))}>
+      <button role="menuitem" onclick={() => (closed ? editProject(target.path, { tab_closed_at: 0 }) : removeTab(target.path), (context = null))}>
         <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M18 6L6 18M6 6l12 12" /></svg>
-        {target.tab_hidden ? t('shell.showInTabBar') : t('shell.removeFromTabBar')}
+        {closed ? t('shell.showInTabBar') : t('shell.removeFromTabBar')}
       </button>
       <button role="menuitem" onclick={() => ((ui.settingsProject = target.path), (context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
       <button role="menuitem" onclick={() => (shelve(target), (context = null))}>{t('shell.archiveProjectEllipsis')}</button>
