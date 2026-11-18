@@ -27,10 +27,10 @@
     <form method="dialog" onsubmit={(e) => (e.preventDefault(), answer(true))}>
       <div class="top">
         <div class="route">
-          <span class="tab" style:--project={current.from.color}><span class="sq"></span>{current.from.name} <span class="by">· {current.caller}</span></span>
+          <span class="tab" style:--project={current.from.color} title="{current.from.name} · {current.caller}"><span class="sq"></span><span class="name">{current.from.name}</span><span class="by">· {current.caller}</span></span>
           {#if elsewhere}
             <svg class="arrow" width="14" height="14" viewBox="0 0 24 24" aria-label={t('shell.pilotStartTo')}><path d="M5 12h14M13 6l6 6-6 6" /></svg>
-            <span class="tab" style:--project={current.to.color}><span class="sq"></span>{current.to.name}</span>
+            <span class="tab to" style:--project={current.to.color} title={current.to.name}><span class="sq"></span><span class="name">{current.to.name}</span></span>
           {:else}
             <span>{t('shell.pilotStartOwn')}</span>
           {/if}
@@ -67,7 +67,7 @@
 
 <style>
   dialog {
-    width: 460px;
+    width: 560px;
     max-width: calc(100vw - 48px);
     padding: 0;
     border: none;
@@ -97,7 +97,6 @@
 
   .route {
     display: flex;
-    flex-wrap: wrap;
     align-items: center;
     gap: 8px;
     font-size: 12.5px;
@@ -108,6 +107,8 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    min-width: 0;
+    max-width: 100%;
     height: 24px;
     padding: 0 8px;
     border-radius: 4px;
@@ -117,7 +118,25 @@
     font-weight: 600;
   }
 
+  .tab.to {
+    flex: none;
+    max-width: 50%;
+  }
+
+  .name,
   .by {
+    min-width: 0;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .name {
+    flex: 0 1 auto;
+  }
+
+  .by {
+    flex: 0 1000 auto;
     font-weight: 400;
     color: var(--text-muted);
   }
@@ -131,6 +150,7 @@
   }
 
   .arrow {
+    flex: none;
     color: var(--text-faint);
   }
 
@@ -228,7 +248,7 @@
   }
 
   .prompt {
-    max-height: 132px;
+    max-height: min(280px, 40vh);
     overflow: auto;
     padding: 9px 12px;
     border-radius: 6px;
