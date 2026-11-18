@@ -373,7 +373,7 @@
         </div>
       {/if}
 
-      <LaunchOptions bind:options open={!!linked}>
+      <LaunchOptions bind:options>
         {#snippet before()}
           <div class="group">
             <label for="agent-name">{t('common.name')}</label>
