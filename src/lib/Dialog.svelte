@@ -14,9 +14,16 @@
     $props()
 
   let dialog: HTMLDialogElement
+  let closed = false
+
+  const close = () => {
+    if (closed) return
+    closed = true
+    onclose()
+  }
 
   $effect(() => {
-    dialog.showModal()
+    if (!dialog.open) dialog.showModal()
   })
 </script>
 
@@ -27,8 +34,9 @@
   aria-labelledby="dialog-title"
   oncancel={(e) => {
     e.preventDefault()
-    onclose()
+    close()
   }}
+  onclose={close}
 >
   <div class="head">
     <div class="title">
@@ -36,7 +44,7 @@
       <h1 id="dialog-title" {title}>{title}</h1>
       {@render badge?.()}
     </div>
-    <button class="close" aria-label={t('settings.closeDialog')} onclick={onclose}>×</button>
+    <button class="close" aria-label={t('settings.closeDialog')} onclick={close}>×</button>
   </div>
   {@render children()}
 </dialog>
