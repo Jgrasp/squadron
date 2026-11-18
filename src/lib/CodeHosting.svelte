@@ -18,7 +18,7 @@
   import { installOffers, lookUpCoverage, providers } from './forges.svelte'
 
   type Host = 'bitbucket' | 'gitlab' | 'azure'
-  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; github: string | null; gitlab: string | null; azure: string | null }
+  type Accounts = { bitbucket: string | null; bitbucket_user: boolean; gitlab: string | null; azure: string | null }
 
   let accounts = $state<Accounts | null>(null)
   let email = $state('')

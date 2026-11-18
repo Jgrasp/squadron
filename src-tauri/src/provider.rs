@@ -350,7 +350,7 @@ pub async fn reply(
 ) -> Result<(), String> {
     let Some(target) = of_dir(app, dir) else {
         let to = to.parse().map_err(|_| format!("{to} is not a remark."))?;
-        return forge::reply(dir, number, to, kind, body).await;
+        return forge::reply(dir, number, to, body).await;
     };
     let body = body.trim();
     if body.is_empty() {
@@ -370,7 +370,7 @@ pub async fn post(
     verdict: String,
 ) -> Result<Posted, String> {
     let Some(target) = of_dir(app, dir) else {
-        return forge::post(dir, number, head, drafts, summary, verdict).await;
+        return forge::post(dir, number, drafts, summary, verdict).await;
     };
     let verdict = if verdict.is_empty() {
         "comment"

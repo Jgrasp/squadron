@@ -1354,7 +1354,6 @@ async fn forge_accounts() -> forge::Accounts {
         .unwrap_or(forge::Accounts {
             bitbucket: None,
             bitbucket_user: false,
-            github: None,
             gitlab: None,
             azure: None,
         })

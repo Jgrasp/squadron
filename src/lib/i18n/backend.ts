@@ -36,8 +36,6 @@ export const backend: Partial<Record<Locale, Table>> = {
       'Folder outside the project.': 'Ce dossier est en dehors du projet.',
       'Give the project a name.': 'Donnez un nom au projet.',
       'Image too large to preview.': 'Image trop volumineuse pour l’aperçu.',
-      'Install the GitHub CLI and run gh auth login to see pull requests.':
-        'Installez la CLI GitHub et lancez gh auth login pour voir les pull requests.',
       'Invalid agent id.': 'Identifiant d’agent invalide.',
       'Invalid message id.': 'Identifiant de message invalide.',
       'Invalid permission answer.': 'Réponse d’autorisation invalide.',

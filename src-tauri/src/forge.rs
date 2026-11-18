@@ -3,9 +3,7 @@ use reqwest::Method;
 use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::collections::BTreeMap;
-use std::io::Write;
 use std::path::{Path, PathBuf};
-use std::process::Stdio;
 use std::sync::Mutex;
 
 const BITBUCKET: &str = "https://api.bitbucket.org/2.0";
@@ -13,12 +11,10 @@ const NO_TOKEN: &str = "Add a Bitbucket API token in Settings › Pull requests.
 const NO_USER_SCOPE: &str =
     "Add the read:user:bitbucket scope to the Bitbucket API token to list your pull requests.";
 const BITBUCKET_FIELDS: &str = "values.id,values.title,values.description,values.state,values.draft,values.comment_count,values.links.html.href,values.source.branch.name,values.source.commit.hash,values.destination.branch.name,values.author.display_name,values.author.links.avatar.href,values.updated_on,values.participants.approved,values.participants.state,values.participants.role,values.participants.participated_on,values.participants.user.uuid,values.participants.user.display_name,values.participants.user.links.avatar.href,values.reviewers.uuid,values.reviewers.display_name,values.reviewers.links.avatar.href";
-const GITHUB_FIELDS: &str = "number,title,body,url,state,isDraft,reviewDecision,latestReviews,reviewRequests,comments,statusCheckRollup,baseRefName,headRefName,headRefOid,author,updatedAt,mergeable,mergeStateStatus";
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Host {
     Bitbucket,
-    GitHub,
     GitLab,
     Azure,
 }
@@ -61,10 +57,6 @@ fn parse(url: &str, gitlab: impl Fn() -> Option<String>) -> Option<Repo> {
                 slug: format!("{owner}/{name}"),
             })
         }
-        ("github.com", [owner, name]) if valid(owner) && valid(name) => Some(Repo {
-            host: Host::GitHub,
-            slug: format!("{owner}/{name}"),
-        }),
         ("dev.azure.com", [org, project, "_git", name]) => azure(org, project, name),
         ("ssh.dev.azure.com" | "vs-ssh.visualstudio.com", ["v3", org, project, name]) => {
             azure(org, project, name)
@@ -90,7 +82,6 @@ pub fn built_in(url: &str) -> Option<&'static str> {
         Host::Bitbucket => Some("bitbucket"),
         Host::GitLab => Some("gitlab"),
         Host::Azure => Some("azure"),
-        Host::GitHub => None,
     }
 }
 
@@ -100,7 +91,7 @@ fn repo_of(dir: &Path) -> Result<Repo, String> {
         .ok_or_else(|| NOT_HOSTED.into())
 }
 
-const NOT_HOSTED: &str = "The project is not on Bitbucket, GitHub, GitLab or Azure DevOps.";
+const NOT_HOSTED: &str = "The project is not on Bitbucket, GitLab or Azure DevOps.";
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -189,7 +180,6 @@ pub struct Posted {
 pub struct Accounts {
     pub bitbucket: Option<String>,
     pub bitbucket_user: bool,
-    pub github: Option<String>,
     pub gitlab: Option<String>,
     pub azure: Option<String>,
 }
@@ -408,10 +398,6 @@ pub fn accounts() -> Accounts {
     Accounts {
         bitbucket_user: found.as_ref().is_some_and(|a| a.uuid.is_some()),
         bitbucket: found.map(|a| a.email),
-        github: gh(&["api", "user", "--jq", ".login"], None)
-            .ok()
-            .map(|login| login.trim().to_string())
-            .filter(|login| !login.is_empty()),
         gitlab: gitlab::account(),
         azure: azure::account(),
     }
@@ -442,82 +428,6 @@ async fn bitbucket(
         "Bitbucket refused the API token: add a new one in Settings › Pull requests.",
     )
     .await
-}
-
-static GH_TOKEN: Mutex<Option<String>> = Mutex::new(None);
-
-fn gh_token() -> Option<String> {
-    let mut token = GH_TOKEN.lock().unwrap_or_else(|e| e.into_inner());
-    if token.is_none() {
-        *token = crate::process::command("gh")
-            .args(["auth", "token"])
-            .stdin(Stdio::null())
-            .stderr(Stdio::null())
-            .output()
-            .ok()
-            .filter(|out| out.status.success())
-            .map(|out| String::from_utf8_lossy(&out.stdout).trim().to_string())
-            .filter(|token| !token.is_empty());
-    }
-    token.clone()
-}
-
-fn gh(args: &[&str], input: Option<&str>) -> Result<String, String> {
-    let mut command = crate::process::command("gh");
-    if let Some(token) = gh_token() {
-        command.env("GH_TOKEN", token);
-    }
-    let mut child = command
-        .args(args)
-        .env("GH_PROMPT_DISABLED", "1")
-        .stdin(Stdio::piped())
-        .stdout(Stdio::piped())
-        .stderr(Stdio::piped())
-        .spawn()
-        .map_err(|_| "Install the GitHub CLI and run gh auth login to see pull requests.")?;
-    if let Some(mut stdin) = child.stdin.take() {
-        let _ = stdin.write_all(input.unwrap_or_default().as_bytes());
-    }
-    let out = child.wait_with_output().map_err(|e| e.to_string())?;
-    if !out.status.success() {
-        let error = gh_error(&out.stderr, &out.stdout);
-        if error.contains("HTTP 401") {
-            *GH_TOKEN.lock().unwrap_or_else(|e| e.into_inner()) = None;
-        }
-        return Err(error);
-    }
-    Ok(String::from_utf8_lossy(&out.stdout).into_owned())
-}
-
-fn gh_error(stderr: &[u8], stdout: &[u8]) -> String {
-    let said = String::from_utf8_lossy(stderr).trim().to_string();
-    let body: Value = serde_json::from_slice(stdout).unwrap_or_default();
-    let details: Vec<&str> = body["errors"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .filter_map(|e| e["message"].as_str().or(e.as_str()))
-        .filter(|detail| !said.contains(detail))
-        .collect();
-    if details.is_empty() {
-        said
-    } else {
-        format!("{said}: {}", details.join("; "))
-    }
-}
-
-fn lines(out: &str) -> Vec<Value> {
-    out.lines()
-        .filter_map(|line| serde_json::from_str(line).ok())
-        .collect()
-}
-
-async fn blocking<T: Send + 'static>(
-    work: impl FnOnce() -> Result<T, String> + Send + 'static,
-) -> Result<T, String> {
-    tauri::async_runtime::spawn_blocking(work)
-        .await
-        .map_err(|e| e.to_string())?
 }
 
 pub async fn pull(dir: &Path, branch: Option<String>) -> Result<Option<Pull>, String> {
@@ -565,30 +475,6 @@ pub async fn pull(dir: &Path, branch: Option<String>) -> Result<Option<Pull>, St
             let me = account().ok().and_then(|a| a.uuid).unwrap_or_default();
             Ok(Some(bitbucket_pull(found, &statuses, &me)))
         }
-        Host::GitHub => {
-            blocking(move || {
-                let out = gh(
-                    &[
-                        "pr",
-                        "list",
-                        "--repo",
-                        &repo.slug,
-                        "--head",
-                        &branch,
-                        "--state",
-                        "all",
-                        "--limit",
-                        "1",
-                        "--json",
-                        GITHUB_FIELDS,
-                    ],
-                    None,
-                )?;
-                let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-                Ok(list.get(0).map(|found| github_pull(found, "")))
-            })
-            .await
-        }
     }
 }
 
@@ -612,7 +498,6 @@ fn pull_link(url: &str) -> Option<(Repo, u64)> {
         ("/-/merge_requests/", Host::GitLab),
         ("/pullrequest/", Host::Azure),
         ("/pull-requests/", Host::Bitbucket),
-        ("/pull/", Host::GitHub),
     ]
     .into_iter()
     .find_map(|(marker, host)| {
@@ -684,33 +569,6 @@ async fn by_number(repo: Repo, number: u64, project: Option<PathBuf>) -> Result<
                 project,
             })
         }
-        Host::GitHub => {
-            blocking(move || {
-                let fields = format!("{GITHUB_FIELDS},additions,deletions,changedFiles");
-                let out = gh(
-                    &[
-                        "pr",
-                        "view",
-                        &number.to_string(),
-                        "--repo",
-                        &repo.slug,
-                        "--json",
-                        &fields,
-                    ],
-                    None,
-                )?;
-                let found: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-                Ok(Linked {
-                    pull: github_pull(&found, ""),
-                    additions: found["additions"].as_u64(),
-                    deletions: found["deletions"].as_u64(),
-                    files: found["changedFiles"].as_u64(),
-                    repo: repo.slug,
-                    project,
-                })
-            })
-            .await
-        }
     }
 }
 
@@ -780,98 +638,6 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
                 mine,
                 others,
             })
-        }
-        Host::GitHub => {
-            blocking(move || {
-                let me = gh(&["api", "user", "--jq", ".login"], None)?
-                    .trim()
-                    .to_string();
-                let list = |query: &str| -> Result<Vec<Value>, String> {
-                    let mut args = vec![
-                        "pr",
-                        "list",
-                        "--repo",
-                        repo.slug.as_str(),
-                        "--state",
-                        "open",
-                        "--limit",
-                        "50",
-                        "--json",
-                        GITHUB_FIELDS,
-                    ];
-                    if !query.is_empty() {
-                        args.extend(["--search", query]);
-                    }
-                    let out = gh(&args, None)?;
-                    let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-                    Ok(list.as_array().cloned().unwrap_or_default())
-                };
-                let search = |query: &str| -> Result<Vec<Pull>, String> {
-                    Ok(list(query)?.iter().map(|p| github_pull(p, &me)).collect())
-                };
-                let mut review = search("review-requested:@me")?;
-                let open = list("")?;
-                // GitHub's search index can lag hours behind a new review request.
-                for found in open.iter().filter(|p| {
-                    p["reviewRequests"]
-                        .as_array()
-                        .into_iter()
-                        .flatten()
-                        .any(|r| r["login"] == me.as_str())
-                }) {
-                    if !review
-                        .iter()
-                        .any(|p| Some(p.number) == found["number"].as_u64())
-                    {
-                        review.push(github_pull(found, &me));
-                    }
-                }
-                review.iter_mut().for_each(|p| p.reviewed = None);
-                for pull in search("reviewed-by:@me -author:@me")? {
-                    if !review.iter().any(|p| p.number == pull.number) {
-                        review.push(pull);
-                    }
-                }
-                for pull in review.iter_mut().filter(|p| p.reviewed.is_some()) {
-                    let jq = format!(
-                        "[.[] | select(.user.login == \"{me}\")] | last | .commit_id // empty"
-                    );
-                    pull.reviewed_head = gh(
-                        &[
-                            "api",
-                            &format!("repos/{}/pulls/{}/reviews", repo.slug, pull.number),
-                            "--paginate",
-                            "--jq",
-                            &jq,
-                        ],
-                        None,
-                    )
-                    .ok()
-                    .map(|sha| sha.trim().to_string())
-                    .filter(|sha| !sha.is_empty());
-                }
-                let others = open
-                    .iter()
-                    .filter(|p| p["author"]["login"] != me.as_str())
-                    .map(|p| github_pull(p, &me))
-                    .filter(|p| !review.iter().any(|r| r.number == p.number))
-                    .collect();
-                let mut mine = search("author:@me")?;
-                for found in open.iter().filter(|p| p["author"]["login"] == me.as_str()) {
-                    if !mine
-                        .iter()
-                        .any(|p| Some(p.number) == found["number"].as_u64())
-                    {
-                        mine.push(github_pull(found, &me));
-                    }
-                }
-                Ok(Lists {
-                    review,
-                    mine,
-                    others,
-                })
-            })
-            .await
         }
     }
 }
@@ -970,114 +736,6 @@ fn bitbucket_pull(found: &Value, statuses: &Value, me: &str) -> Pull {
     }
 }
 
-fn github_pull(found: &Value, me: &str) -> Pull {
-    let states = found["statusCheckRollup"]
-        .as_array()
-        .into_iter()
-        .flatten()
-        .map(|c| {
-            let state = [&c["conclusion"], &c["state"], &c["status"]]
-                .into_iter()
-                .filter_map(Value::as_str)
-                .find(|s| !s.is_empty());
-            match state {
-                Some("SUCCESS" | "NEUTRAL" | "SKIPPED") => "pass",
-                Some(
-                    "FAILURE" | "ERROR" | "TIMED_OUT" | "CANCELLED" | "ACTION_REQUIRED"
-                    | "STARTUP_FAILURE",
-                ) => "fail",
-                _ => "pending",
-            }
-        });
-    let reviews = found["latestReviews"]
-        .as_array()
-        .map(Vec::as_slice)
-        .unwrap_or_default();
-    Pull {
-        host: "github".into(),
-        number: found["number"].as_u64().unwrap_or_default(),
-        title: text(&found["title"]),
-        description: text(&found["body"]),
-        url: text(&found["url"]),
-        state: text(&found["state"]).to_lowercase(),
-        draft: found["isDraft"].as_bool().unwrap_or(false),
-        approvals: reviews.iter().filter(|r| r["state"] == "APPROVED").count() as u32,
-        changes_requested: found["reviewDecision"] == "CHANGES_REQUESTED",
-        comments: found["comments"].as_array().map_or(0, Vec::len) as u32,
-        checks: checks(states),
-        branch: text(&found["headRefName"]),
-        base: text(&found["baseRefName"]),
-        head: text(&found["headRefOid"]),
-        author: text(&found["author"]["login"]),
-        author_avatar: found["author"]["login"]
-            .as_str()
-            .map(|login| format!("https://avatars.githubusercontent.com/{login}?s=64"))
-            .unwrap_or_default(),
-        updated: text(&found["updatedAt"]),
-        reviewed: reviews
-            .iter()
-            .find(|r| !me.is_empty() && r["author"]["login"] == me)
-            .and_then(|r| match r["state"].as_str() {
-                Some("APPROVED") => Some("approved".into()),
-                Some("CHANGES_REQUESTED") => Some("changes_requested".into()),
-                Some("COMMENTED") => Some("commented".into()),
-                _ => None,
-            }),
-        reviewed_head: None,
-        reviewed_at: reviews
-            .iter()
-            .find(|r| !me.is_empty() && r["author"]["login"] == me)
-            .and_then(|r| r["submittedAt"].as_str())
-            .map(str::to_string),
-        head_at: None,
-        reviewers: github_reviewers(found),
-        conflicts: found["mergeable"] == "CONFLICTING",
-        mergeable: found["state"] == "OPEN"
-            && found["isDraft"] != true
-            && matches!(
-                found["mergeStateStatus"].as_str(),
-                Some("CLEAN" | "HAS_HOOKS" | "UNSTABLE")
-            ),
-    }
-}
-
-fn github_reviewers(found: &Value) -> Vec<Reviewer> {
-    let avatar = |login: &str| format!("https://avatars.githubusercontent.com/{login}?s=64");
-    let mut list: Vec<Reviewer> = Vec::new();
-    for review in found["latestReviews"].as_array().into_iter().flatten() {
-        let login = text(&review["author"]["login"]);
-        let verdict = match review["state"].as_str() {
-            Some("APPROVED") => "approved",
-            Some("CHANGES_REQUESTED") => "changes_requested",
-            Some("COMMENTED") => "commented",
-            _ => continue,
-        };
-        list.push(Reviewer {
-            avatar: avatar(&login),
-            name: login,
-            verdict: verdict.into(),
-        });
-    }
-    for asked in found["reviewRequests"].as_array().into_iter().flatten() {
-        let login = asked["login"].as_str().unwrap_or_default();
-        let name = asked["name"]
-            .as_str()
-            .filter(|n| !n.is_empty())
-            .unwrap_or(login);
-        list.retain(|r| r.name != login);
-        list.push(Reviewer {
-            name: name.into(),
-            avatar: if login.is_empty() {
-                String::new()
-            } else {
-                avatar(login)
-            },
-            verdict: "waiting".into(),
-        });
-    }
-    list
-}
-
 pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
     let repo = repo_of(dir)?;
     match repo.host {
@@ -1113,37 +771,6 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
                 }
             }
         }
-        Host::GitHub => {
-            blocking(move || {
-                let slug = &repo.slug;
-                let mut found: Vec<Remark> = Vec::new();
-                for (kind, jq) in [
-                    (
-                        "pulls",
-                        ".[] | {id, body, user, path, line, side, in_reply_to_id, created_at}",
-                    ),
-                    ("issues", ".[] | {id, body, user, created_at}"),
-                    (
-                        "reviews",
-                        ".[] | select(.body != \"\") | {id, body, user, created_at: .submitted_at}",
-                    ),
-                ] {
-                    let api = match kind {
-                        "issues" => format!("repos/{slug}/issues/{number}/comments"),
-                        "reviews" => format!("repos/{slug}/pulls/{number}/reviews"),
-                        _ => format!("repos/{slug}/pulls/{number}/comments"),
-                    };
-                    found.extend(
-                        lines(&gh(&["api", &api, "--paginate", "--jq", jq], None)?)
-                            .iter()
-                            .map(|found| github_remark(found, kind)),
-                    );
-                }
-                found.sort_by(|a, b| a.at.cmp(&b.at));
-                Ok(found)
-            })
-            .await
-        }
     }
 }
 
@@ -1160,14 +787,6 @@ pub async fn me(dir: &Path) -> Result<Person, String> {
         )
         .await
         .map(|user| person(&user, "display_name", &user["links"]["avatar"]["href"])),
-        Host::GitHub => {
-            blocking(|| {
-                let user: Value = serde_json::from_str(&gh(&["api", "user"], None)?)
-                    .map_err(|e| e.to_string())?;
-                Ok(person(&user, "login", &user["avatar_url"]))
-            })
-            .await
-        }
     }
 }
 
@@ -1204,28 +823,7 @@ fn bitbucket_remark(found: &Value) -> Option<Remark> {
     })
 }
 
-fn github_remark(found: &Value, kind: &str) -> Remark {
-    Remark {
-        id: found["id"].as_u64().unwrap_or_default().to_string(),
-        author: text(&found["user"]["login"]),
-        avatar: text(&found["user"]["avatar_url"]),
-        body: text(&found["body"]),
-        path: found["path"].as_str().map(str::to_string),
-        line: found["line"].as_u64().map(|n| n as u32),
-        removed: found["side"] == "LEFT",
-        reply_to: found["in_reply_to_id"].as_u64().map(|n| n.to_string()),
-        at: text(&found["created_at"]),
-        kind: if kind == "pulls" { "line" } else { "general" }.into(),
-    }
-}
-
-pub async fn reply(
-    dir: &Path,
-    number: u64,
-    to: u64,
-    kind: String,
-    body: String,
-) -> Result<(), String> {
+pub async fn reply(dir: &Path, number: u64, to: u64, body: String) -> Result<(), String> {
     let repo = repo_of(dir)?;
     let body = body.trim().to_string();
     if body.is_empty() {
@@ -1242,28 +840,12 @@ pub async fn reply(
         )
         .await
         .map(|_| ()),
-        Host::GitHub => {
-            blocking(move || {
-                let api = if kind == "line" {
-                    format!("repos/{}/pulls/{number}/comments/{to}/replies", repo.slug)
-                } else {
-                    format!("repos/{}/issues/{number}/comments", repo.slug)
-                };
-                gh(
-                    &["api", "-X", "POST", &api, "--input", "-"],
-                    Some(&json!({ "body": body }).to_string()),
-                )
-                .map(|_| ())
-            })
-            .await
-        }
     }
 }
 
 pub async fn post(
     dir: &Path,
     number: u64,
-    head: String,
     drafts: Vec<Draft>,
     summary: String,
     verdict: String,
@@ -1280,10 +862,10 @@ pub async fn post(
                 let mut comment = json!({ "content": { "raw": draft.body } });
                 if !draft.path.is_empty() {
                     comment["inline"] = json!({ "path": draft.path });
-                    comment["inline"][if draft.removed { "from" } else { "to" }] = json!(draft.line);
+                    comment["inline"][if draft.removed { "from" } else { "to" }] =
+                        json!(draft.line);
                 }
-                let sent = bitbucket(Method::POST, &url, &[], Some(comment))
-                .await;
+                let sent = bitbucket(Method::POST, &url, &[], Some(comment)).await;
                 if let Err(error) = sent {
                     return Ok(Posted {
                         done,
@@ -1295,7 +877,13 @@ pub async fn post(
             let mut sent = if summary.is_empty() {
                 Ok(Value::Null)
             } else {
-                bitbucket(Method::POST, &url, &[], Some(json!({ "content": { "raw": summary } }))).await
+                bitbucket(
+                    Method::POST,
+                    &url,
+                    &[],
+                    Some(json!({ "content": { "raw": summary } })),
+                )
+                .await
             };
             let said = sent.is_ok();
             let decision = match verdict.as_str() {
@@ -1304,7 +892,10 @@ pub async fn post(
                 _ => None,
             };
             if let (Ok(_), Some(decision)) = (&sent, decision) {
-                let pull = format!("/repositories/{}/pullrequests/{number}/{decision}", repo.slug);
+                let pull = format!(
+                    "/repositories/{}/pullrequests/{number}/{decision}",
+                    repo.slug
+                );
                 sent = bitbucket(Method::POST, &pull, &[], None).await;
             }
             Ok(Posted {
@@ -1313,41 +904,6 @@ pub async fn post(
                 error: sent.err(),
             })
         }
-        Host::GitHub => blocking(move || {
-            let comments: Vec<Value> = drafts
-                .iter()
-                .filter(|d| !d.path.is_empty())
-                .map(|d| json!({ "path": d.path, "line": d.line, "side": if d.removed { "LEFT" } else { "RIGHT" }, "body": d.body }))
-                .collect();
-            let summary = std::iter::once(summary.as_str())
-                .chain(drafts.iter().filter(|d| d.path.is_empty()).map(|d| d.body.as_str()))
-                .filter(|part| !part.trim().is_empty())
-                .collect::<Vec<_>>()
-                .join("\n\n");
-            let event = match verdict.as_str() {
-                "approve" => "APPROVE",
-                "request_changes" => "REQUEST_CHANGES",
-                _ => "COMMENT",
-            };
-            if event == "COMMENT" && comments.is_empty() && summary.is_empty() {
-                return Ok(Posted {
-                    done: 0,
-                    said: true,
-                    error: None,
-                });
-            }
-            let review = json!({ "commit_id": head, "event": event, "body": summary, "comments": comments });
-            let sent = gh(
-                &["api", "-X", "POST", &format!("repos/{}/pulls/{number}/reviews", repo.slug), "--input", "-"],
-                Some(&review.to_string()),
-            );
-            Ok(Posted {
-                done: if sent.is_ok() { drafts.len() } else { 0 },
-                said: sent.is_ok(),
-                error: sent.err(),
-            })
-        })
-        .await,
     }
 }
 
@@ -1364,40 +920,6 @@ pub async fn merge(dir: &Path, number: u64) -> Result<(), String> {
         )
         .await
         .map(|_| ()),
-        Host::GitHub => {
-            blocking(move || {
-                let method = gh(
-                    &[
-                        "repo",
-                        "view",
-                        &repo.slug,
-                        "--json",
-                        "viewerDefaultMergeMethod",
-                        "--jq",
-                        ".viewerDefaultMergeMethod",
-                    ],
-                    None,
-                )?;
-                let flag = match method.trim() {
-                    "SQUASH" => "--squash",
-                    "REBASE" => "--rebase",
-                    _ => "--merge",
-                };
-                gh(
-                    &[
-                        "pr",
-                        "merge",
-                        &number.to_string(),
-                        "--repo",
-                        &repo.slug,
-                        flag,
-                    ],
-                    None,
-                )
-                .map(|_| ())
-            })
-            .await
-        }
     }
 }
 
@@ -1442,26 +964,6 @@ pub async fn update(
                 .await
                 .map(|_| ())
         }
-        Host::GitHub => {
-            if let Some(description) = changes.remove("description") {
-                changes.insert("body".into(), description);
-            }
-            blocking(move || {
-                gh(
-                    &[
-                        "api",
-                        "-X",
-                        "PATCH",
-                        &format!("repos/{}/pulls/{number}", repo.slug),
-                        "--input",
-                        "-",
-                    ],
-                    Some(&Value::Object(changes).to_string()),
-                )
-                .map(|_| ())
-            })
-            .await
-        }
     }
 }
 
@@ -1496,9 +998,8 @@ fn repo_given(dir: &Path, repository: &str) -> Result<Repo, String> {
     } else {
         format!("https://{given}")
     };
-    repo(&url).ok_or_else(|| {
-        "The repository is not a Bitbucket, GitHub, GitLab or Azure DevOps address.".into()
-    })
+    repo(&url)
+        .ok_or_else(|| "The repository is not a Bitbucket, GitLab or Azure DevOps address.".into())
 }
 
 pub async fn runs(dir: &Path, repository: &str) -> Result<Vec<Run>, String> {
@@ -1526,57 +1027,6 @@ pub async fn runs(dir: &Path, repository: &str) -> Result<Vec<Run>, String> {
                 .map(|value| bitbucket_run(value, &repo.slug))
                 .collect())
         }
-        Host::GitHub => {
-            blocking(move || {
-                let out = gh(
-                    &[
-                        "api",
-                        &format!("repos/{}/actions/runs?per_page=20", repo.slug),
-                    ],
-                    None,
-                )?;
-                let list: Value = serde_json::from_str(&out).map_err(|e| e.to_string())?;
-                Ok(list["workflow_runs"]
-                    .as_array()
-                    .into_iter()
-                    .flatten()
-                    .map(github_run)
-                    .collect())
-            })
-            .await
-        }
-    }
-}
-
-fn github_run(value: &Value) -> Run {
-    let status = match (
-        text(&value["status"]).as_str(),
-        text(&value["conclusion"]).as_str(),
-    ) {
-        ("completed", "success") => "success",
-        ("completed", "cancelled") => "cancelled",
-        ("completed", "skipped" | "neutral" | "stale") => "skipped",
-        ("completed", _) => "failure",
-        ("in_progress", _) => "running",
-        _ => "queued",
-    };
-    let started = Some(text(&value["run_started_at"]))
-        .filter(|s| !s.is_empty())
-        .unwrap_or_else(|| text(&value["created_at"]));
-    Run {
-        host: "github".into(),
-        id: value["id"].as_u64().unwrap_or_default().to_string(),
-        number: value["run_number"].as_u64().unwrap_or_default(),
-        name: text(&value["name"]),
-        title: text(&value["display_title"]),
-        event: text(&value["event"]),
-        branch: text(&value["head_branch"]),
-        status: status.into(),
-        url: text(&value["html_url"]),
-        started,
-        finished: (value["status"] == "completed").then(|| text(&value["updated_at"])),
-        author: text(&value["actor"]["login"]),
-        author_avatar: text(&value["actor"]["avatar_url"]),
     }
 }
 
@@ -1629,18 +1079,12 @@ mod tests {
     #[test]
     fn reads_pull_request_links_of_both_hosts() {
         let (repo, number) =
-            pull_link("https://github.com/agence/orbit/pull/2108/files?w=1").unwrap();
-        assert_eq!(
-            (repo.host, repo.slug.as_str(), number),
-            (Host::GitHub, "agence/orbit", 2108)
-        );
-        let (repo, number) =
             pull_link("https://bitbucket.org/steel-shed/bmc/pull-requests/412/overview").unwrap();
         assert_eq!(
             (repo.host, repo.slug.as_str(), number),
             (Host::Bitbucket, "steel-shed/bmc", 412)
         );
-        assert!(pull_link("https://github.com/agence/orbit/issues/12").is_none());
+        assert!(pull_link("https://github.com/agence/orbit/pull/2108").is_none());
         assert!(pull_link("https://bitbucket.org/steel-shed/bmc/pull/412").is_none());
         assert!(pull_link("https://gitlab.com/a/b/pull/1").is_none());
         let (repo, number) =
@@ -1684,13 +1128,7 @@ mod tests {
             repo("git@ssh.bitbucket.org:akki-team/fileas.git"),
             bitbucket("akki-team/fileas")
         );
-        assert_eq!(
-            repo("git@github.com:Jgrasp/squadron.git"),
-            Some(Repo {
-                host: Host::GitHub,
-                slug: "Jgrasp/squadron".into()
-            })
-        );
+        assert_eq!(repo("git@github.com:Jgrasp/squadron.git"), None);
         let gitlab = |url: &str| parse(url, || Some("gitlab.corp.fr".into()));
         assert_eq!(
             gitlab("git@gitlab.com:grp/sub/proj.git").map(|r| (r.host, r.slug)),
@@ -1802,92 +1240,6 @@ mod tests {
     }
 
     #[test]
-    fn sums_up_a_github_pull_request() {
-        let found = json!({
-            "number": 12, "title": "Export", "url": "https://github.com/a/b/pull/12", "state": "MERGED", "isDraft": true,
-            "reviewDecision": "APPROVED", "latestReviews": [{ "state": "APPROVED", "author": { "login": "ann" } }, { "state": "COMMENTED", "author": { "login": "octo" } }], "comments": [{}, {}],
-            "statusCheckRollup": [{ "__typename": "CheckRun", "status": "COMPLETED", "conclusion": "SUCCESS" }, { "__typename": "StatusContext", "state": "FAILURE" }],
-            "baseRefName": "main", "headRefName": "feat/export", "headRefOid": "abc123", "author": { "login": "octo" }, "updatedAt": "2026-10-23T10:00:00Z"
-        });
-        let pull = github_pull(&found, "octo");
-        assert_eq!(
-            (
-                pull.branch.as_str(),
-                pull.author.as_str(),
-                pull.reviewed.as_deref()
-            ),
-            ("feat/export", "octo", Some("commented"))
-        );
-        assert_eq!(
-            github_pull(&found, "ann").reviewed.as_deref(),
-            Some("approved")
-        );
-        let asked = json!({
-            "latestReviews": [{ "state": "APPROVED", "author": { "login": "ann" } }, { "state": "CHANGES_REQUESTED", "author": { "login": "bob" } }],
-            "reviewRequests": [{ "__typename": "User", "login": "bob", "name": "Bob B." }, { "__typename": "Team", "name": "core" }],
-            "mergeable": "CONFLICTING"
-        });
-        let requested = github_pull(&asked, "");
-        let seen: Vec<_> = requested
-            .reviewers
-            .iter()
-            .map(|r| (r.name.as_str(), r.verdict.as_str(), r.avatar.is_empty()))
-            .collect();
-        assert_eq!(
-            seen,
-            [
-                ("ann", "approved", false),
-                ("Bob B.", "waiting", false),
-                ("core", "waiting", true)
-            ]
-        );
-        assert!(requested.conflicts);
-        assert!(!pull.mergeable);
-        let clean = json!({ "state": "OPEN", "isDraft": false, "mergeStateStatus": "CLEAN" });
-        assert!(github_pull(&clean, "").mergeable);
-        let blocked = json!({ "state": "OPEN", "isDraft": false, "mergeStateStatus": "BLOCKED" });
-        assert!(!github_pull(&blocked, "").mergeable);
-        assert_eq!(
-            (
-                pull.state.as_str(),
-                pull.draft,
-                pull.approvals,
-                pull.changes_requested,
-                pull.comments
-            ),
-            ("merged", true, 1, false, 2)
-        );
-        assert_eq!(
-            (
-                pull.checks.as_deref(),
-                pull.base.as_str(),
-                pull.head.as_str()
-            ),
-            (Some("failing"), "main", "abc123")
-        );
-        let running =
-            json!({ "statusCheckRollup": [{ "status": "IN_PROGRESS", "conclusion": "" }] });
-        assert_eq!(
-            github_pull(&running, "x").checks.as_deref(),
-            Some("pending")
-        );
-    }
-
-    #[test]
-    fn explains_why_github_refused() {
-        let body = br#"{"message":"Unprocessable Entity","errors":["Pull request review thread line must be part of the diff"],"status":"422"}"#;
-        assert_eq!(
-            gh_error(b"gh: Unprocessable Entity (HTTP 422)\n", body),
-            "gh: Unprocessable Entity (HTTP 422): Pull request review thread line must be part of the diff"
-        );
-        let body = br#"{"message":"Invalid request.","status":"422"}"#;
-        assert_eq!(
-            gh_error(b"gh: Invalid request. (HTTP 422)", body),
-            "gh: Invalid request. (HTTP 422)"
-        );
-    }
-
-    #[test]
     fn reads_who_you_are_on_both_hosts() {
         let bitbucket = json!({ "display_name": "Quentin Briais", "links": { "avatar": { "href": "https://a/q.png" } } });
         assert_eq!(
@@ -1899,14 +1251,6 @@ mod tests {
             Person {
                 name: "Quentin Briais".into(),
                 avatar: "https://a/q.png".into()
-            }
-        );
-        let github = json!({ "login": "Jgrasp", "avatar_url": "https://a/j.png" });
-        assert_eq!(
-            person(&github, "login", &github["avatar_url"]),
-            Person {
-                name: "Jgrasp".into(),
-                avatar: "https://a/j.png".into()
             }
         );
     }
@@ -1949,57 +1293,6 @@ mod tests {
                 bitbucket_remark(&general).unwrap().kind.as_str()
             ),
             ("line", "general")
-        );
-
-        let github = json!({ "id": 1, "body": "Nit", "user": { "login": "octo", "avatar_url": "https://a/octo.png" }, "path": "a.ts", "line": 5, "side": "LEFT", "in_reply_to_id": null, "created_at": "t" });
-        let c = github_remark(&github, "pulls");
-        assert_eq!(
-            (
-                c.path.as_deref(),
-                c.line,
-                c.removed,
-                c.author.as_str(),
-                c.avatar.as_str(),
-                c.reply_to
-            ),
-            (
-                Some("a.ts"),
-                Some(5),
-                true,
-                "octo",
-                "https://a/octo.png",
-                None
-            )
-        );
-    }
-
-    #[test]
-    #[ignore = "asks GitHub through gh"]
-    fn real_github_pull_request_and_remarks() {
-        let out = gh(&["pr", "list", "--repo", "akki-team/lrpresse", "--head", "dev/theme-quentin", "--state", "all", "--limit", "1", "--json", "number,title,url,state,isDraft,reviewDecision,latestReviews,comments,statusCheckRollup,baseRefName,headRefOid"], None).unwrap();
-        let list: Value = serde_json::from_str(&out).unwrap();
-        let pull = github_pull(&list[0], "");
-        assert_eq!(
-            (pull.host.as_str(), pull.number, pull.state.as_str()),
-            ("github", 71, "merged")
-        );
-        assert_eq!(pull.head.len(), 40);
-        assert!(
-            lines(
-                &gh(
-                    &[
-                        "api",
-                        "repos/akki-team/lrpresse/issues/71/comments",
-                        "--paginate",
-                        "--jq",
-                        ".[]"
-                    ],
-                    None
-                )
-                .unwrap()
-            )
-            .iter()
-            .all(|c| c["body"].is_string())
         );
     }
 
@@ -2058,33 +1351,25 @@ mod tests {
     }
 
     #[test]
-    #[ignore = "asks Bitbucket and GitHub with the real accounts"]
-    fn real_linked_pull_requests_of_both_hosts() {
+    #[ignore = "asks Bitbucket with the real account"]
+    fn real_linked_bitbucket_pull_requests() {
         let rt = tokio::runtime::Runtime::new().unwrap();
-        for dir in [
-            "/home/jgrasp/Projects/Sylius/kiosquemag",
-            "/home/jgrasp/Projects/Shopify/lr-presse-shopify",
-        ] {
-            let dir = Path::new(dir);
-            let lists = rt.block_on(lists(dir)).unwrap();
-            let url = lists
-                .review
-                .into_iter()
-                .chain(lists.mine)
-                .next()
-                .map(|p| p.url);
-            let url = url.unwrap_or_else(|| {
-                let repo = repo_of(dir).unwrap();
-                match repo.host {
-                    Host::GitHub => format!("https://github.com/{}/pull/1", repo.slug),
-                    _ => format!("https://bitbucket.org/{}/pull-requests/1", repo.slug),
-                }
-            });
-            let found = rt.block_on(linked(&url, vec![dir.to_path_buf()])).unwrap();
-            println!("{url}\n{found:#?}");
-            assert!(found.pull.number > 0 && !found.pull.title.is_empty());
-            assert_eq!(found.project.as_deref(), Some(dir));
-        }
+        let dir = Path::new("/home/jgrasp/Projects/Sylius/kiosquemag");
+        let lists = rt.block_on(lists(dir)).unwrap();
+        let url = lists
+            .review
+            .into_iter()
+            .chain(lists.mine)
+            .next()
+            .map(|p| p.url);
+        let url = url.unwrap_or_else(|| {
+            let repo = repo_of(dir).unwrap();
+            format!("https://bitbucket.org/{}/pull-requests/1", repo.slug)
+        });
+        let found = rt.block_on(linked(&url, vec![dir.to_path_buf()])).unwrap();
+        println!("{url}\n{found:#?}");
+        assert!(found.pull.number > 0 && !found.pull.title.is_empty());
+        assert_eq!(found.project.as_deref(), Some(dir));
     }
 
     #[test]
@@ -2146,29 +1431,7 @@ mod tests {
         }
     }
     #[test]
-    fn sums_up_runs_of_both_hosts() {
-        let run = github_run(
-            &json!({"id": 7, "run_number": 14, "name": "Release", "display_title": "Squadron 0.10.0", "event": "push", "head_branch": "main", "status": "completed", "conclusion": "timed_out", "html_url": "u", "created_at": "a", "run_started_at": "b", "updated_at": "c", "actor": {"login": "Jgrasp", "avatar_url": "https://avatars.githubusercontent.com/u/1"}}),
-        );
-        assert_eq!(
-            (
-                run.id.as_str(),
-                run.status.as_str(),
-                run.started.as_str(),
-                run.finished.as_deref()
-            ),
-            ("7", "failure", "b", Some("c"))
-        );
-        assert_eq!(
-            (run.author.as_str(), run.author_avatar.as_str()),
-            ("Jgrasp", "https://avatars.githubusercontent.com/u/1")
-        );
-        let run =
-            github_run(&json!({"status": "waiting", "created_at": "a", "run_started_at": null}));
-        assert_eq!(
-            (run.status.as_str(), run.started.as_str(), run.finished),
-            ("queued", "a", None)
-        );
+    fn sums_up_bitbucket_runs() {
         let run = bitbucket_run(
             &json!({"uuid": "{x}", "build_number": 42, "state": {"name": "COMPLETED", "result": {"name": "STOPPED"}}, "target": {"ref_name": "main", "selector": {"type": "custom", "pattern": "deploy-prod"}, "commit": {"message": "Ship it\n\nmore"}}, "trigger": {"name": "MANUAL"}, "creator": {"display_name": "Quentin Briais", "links": {"avatar": {"href": "https://avatar/q"}}}, "created_on": "a", "completed_on": "b"}),
             "akki-team/fileas",
@@ -2206,10 +1469,7 @@ mod tests {
     #[test]
     fn reads_a_repository_given_by_hand() {
         let dir = Path::new("/nowhere");
-        assert_eq!(
-            repo_given(dir, "github.com/Jgrasp/squadron").unwrap().slug,
-            "Jgrasp/squadron"
-        );
+        assert!(repo_given(dir, "github.com/Jgrasp/squadron").is_err());
         assert_eq!(
             repo_given(dir, "git@bitbucket.org:akki-team/fileas.git")
                 .unwrap()
@@ -2221,22 +1481,6 @@ mod tests {
             repo_given(dir, "gitlab.com/grp/proj").unwrap().host,
             Host::GitLab
         );
-    }
-
-    #[test]
-    #[ignore = "asks GitHub through gh"]
-    fn real_github_runs() {
-        let runs = tauri::async_runtime::block_on(runs(
-            Path::new("/nowhere"),
-            "github.com/Jgrasp/squadron",
-        ))
-        .unwrap();
-        assert!(runs.iter().any(|r| {
-            r.name == "Release"
-                && !r.author_avatar.is_empty()
-                && r.url
-                    .starts_with("https://github.com/Jgrasp/squadron/actions/runs/")
-        }));
     }
 
     #[test]

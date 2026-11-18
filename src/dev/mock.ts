@@ -1102,7 +1102,7 @@ mockIPC(
           },
         ]
       case 'forge_accounts':
-        return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, github: 'octo', gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
+        return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
       case 'bitbucket_sign_in':
         if (a.token === 'bad') throw 'Bitbucket refused this email and token.'
         localStorage.setItem('bitbucket', a.email)

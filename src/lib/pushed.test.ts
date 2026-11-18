@@ -15,7 +15,9 @@ describe('pushedTo', () => {
       ['rtk git push -u origin ia/T41 2>&1 | tail -2', 'ok'],
       ['gh pr create --base dev --head ia/T41 --title "x" 2>&1 | tail -2', 'Warning: 1 uncommitted change\nhttps://github.com/o/r/pull/1559'],
     )
-    expect(pushedTo(agent)).toEqual({ url: 'https://github.com/o/r/pull/1559' })
+    const github = (text: string) => [...text.matchAll(/https:\/\/github\.com\/[\w.-]+\/[\w.-]+\/pull\/\d+/g)].map((m) => ({ url: m[0], at: m.index }))
+    expect(pushedTo(agent, github)).toEqual({ url: 'https://github.com/o/r/pull/1559' })
+    expect(pushedTo(agent)).toEqual({ branch: 'ia/T41' })
   })
 
   it('takes the merge request link glab or az print', () => {
@@ -31,7 +33,7 @@ describe('pushedTo', () => {
     const forge = (text: string) => [...text.matchAll(/https:\/\/git\.acme\.io\/[\w.-]+\/[\w.-]+\/pulls\/\d+/g)].map((m) => ({ url: m[0], at: m.index }))
     const agent = ran(['gh pr create --fill', 'https://github.com/o/r/pull/3\nhttps://git.acme.io/o/r/pulls/9'])
     expect(pushedTo(agent, forge)).toEqual({ url: 'https://git.acme.io/o/r/pulls/9' })
-    expect(pushedTo(agent)).toEqual({ url: 'https://github.com/o/r/pull/3' })
+    expect(pushedTo(agent)).toBeNull()
   })
 
   it('takes the branch of the last push', () => {
