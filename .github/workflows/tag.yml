@@ -1,0 +1,29 @@
+name: Tag
+
+on:
+  pull_request:
+    types: [closed]
+    branches: [main]
+
+jobs:
+  tag:
+    if: github.event.pull_request.merged && startsWith(github.event.pull_request.head.ref, 'release/v') && github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    permissions: {}
+    steps:
+      - env:
+          GH_TOKEN: ${{ secrets.RELEASE_TAG_TOKEN }}
+          BRANCH: ${{ github.event.pull_request.head.ref }}
+          MERGED: ${{ github.event.pull_request.merge_commit_sha }}
+        run: |
+          [ -n "$GH_TOKEN" ] || { echo "::error::The RELEASE_TAG_TOKEN secret is missing: run scripts/release.sh tag ${BRANCH#release/v}."; exit 1; }
+          version=${BRANCH#release/v}
+          [[ $version =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]] || { echo "::error::$BRANCH does not name a version."; exit 1; }
+          if gh api "repos/$GITHUB_REPOSITORY/git/ref/tags/v$version" >/dev/null 2>&1; then
+            echo "v$version already exists."
+            exit 0
+          fi
+          crate=$(gh api "repos/$GITHUB_REPOSITORY/contents/src-tauri/Cargo.toml?ref=$MERGED" -H 'Accept: application/vnd.github.raw' | sed -n 's/^version = "\(.*\)"/\1/p' | head -1)
+          [ "$crate" = "$version" ] || { echo "::error::The merged commit $MERGED is version $crate, not $version."; exit 1; }
+          gh api "repos/$GITHUB_REPOSITORY/git/refs" -f ref="refs/tags/v$version" -f sha="$MERGED" >/dev/null
+          echo "Tagged v$version on $MERGED: the Release workflow publishes it."
