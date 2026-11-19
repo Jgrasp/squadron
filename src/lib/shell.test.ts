@@ -1,9 +1,15 @@
 import { describe, expect, it } from 'vitest'
-import { clip, plain, said } from './shell'
+import { clip, plain, said, unbang } from './shell'
 
 describe('shell output', () => {
   it('keeps the text a terminal shows', () => {
     expect(plain('\x1b[32m✓\x1b[0m ok\r\n10%\r50%\r100%\r\n\x1b]0;title\x07done\r\n')).toBe('✓ ok\n100%\ndone')
+  })
+
+  it('drops the ! a command was written with', () => {
+    expect(unbang('!!git push')).toBe('git push')
+    expect(unbang('! ls')).toBe('ls')
+    expect(unbang('echo !x')).toBe('echo !x')
   })
 
   it('cuts the middle of a long output', () => {

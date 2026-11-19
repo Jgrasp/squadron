@@ -1,7 +1,7 @@
 import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { find, persist } from './agents.svelte'
-import { plain, said } from './shell'
+import { plain, said, unbang } from './shell'
 import { fail, starting, workdir, type Agent, type Entry } from './stream'
 
 export type Shell = Extract<Entry, { kind: 'shell' }>
@@ -40,6 +40,7 @@ function end(id: number, code: number | null) {
 }
 
 export async function run(agent: Agent, command: string) {
+  command = unbang(command)
   agent.entries.push({ kind: 'shell', at: Date.now(), command, output: '', state: 'running' })
   const entry = agent.entries.at(-1) as Shell
   persist(agent)
