@@ -1373,16 +1373,9 @@ async fn forge_accounts() -> forge::Accounts {
     tauri::async_runtime::spawn_blocking(forge::accounts)
         .await
         .unwrap_or(forge::Accounts {
-            bitbucket: None,
-            bitbucket_user: false,
             gitlab: None,
             azure: None,
         })
-}
-
-#[tauri::command]
-async fn bitbucket_sign_in(email: String, token: String) -> Result<(), String> {
-    forge::sign_in(email.trim().to_string(), token.trim().to_string()).await
 }
 
 #[tauri::command]
@@ -2288,13 +2281,43 @@ async fn paste_image(
     }
 }
 
+#[cfg(target_os = "linux")]
+thread_local! {
+    static COPY_ON_FOCUS: std::cell::RefCell<Option<(gtk::ApplicationWindow, gtk::glib::SignalHandlerId)>> =
+        const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(target_os = "linux")]
+fn forget_copy_on_focus() {
+    use gtk::prelude::*;
+    if let Some((window, id)) = COPY_ON_FOCUS.take() {
+        window.disconnect(id);
+    }
+}
+
 #[tauri::command]
 fn copy_text(window: tauri::WebviewWindow, text: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
+        let main = window.clone();
         window
             .run_on_main_thread(move || {
-                gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text)
+                use gtk::prelude::*;
+                forget_copy_on_focus();
+                gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text);
+                let Ok(gtk_window) = main.gtk_window() else {
+                    return;
+                };
+                if gtk_window.is_active() {
+                    return;
+                }
+                let id = gtk_window.connect_is_active_notify(move |w| {
+                    if w.is_active() {
+                        gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_text(&text);
+                        forget_copy_on_focus();
+                    }
+                });
+                COPY_ON_FOCUS.set(Some((gtk_window, id)));
             })
             .map_err(|e| e.to_string())
     }
@@ -2345,6 +2368,12 @@ fn open_attachment(path: PathBuf) -> Result<(), String> {
         return Err("Squadron only opens documents and images from here.".into());
     }
     open_path(&path)
+}
+
+#[tauri::command]
+fn reveal_attachment(path: PathBuf) -> Result<(), String> {
+    std::fs::metadata(&path).map_err(|_| "The file is gone.")?;
+    tauri_plugin_opener::reveal_item_in_dir(&path).map_err(|e| e.to_string())
 }
 
 #[tauri::command]
@@ -2726,6 +2755,7 @@ pub fn run() {
             cancel_permissions,
             answer_askpass,
             read_project_file,
+            reveal_project_file,
             write_project_file,
             save_text_file,
             download_attachment,
@@ -2777,7 +2807,6 @@ pub fn run() {
             update_pull,
             forge_accounts,
             forge_coverage,
-            bitbucket_sign_in,
             forge_sign_out,
             gitlab_sign_in,
             azure_sign_in,
@@ -2788,7 +2817,6 @@ pub fn run() {
             claude_version,
             tested_claude_version,
             suggest_title,
-            reveal_project_file,
             remove_rule,
             set_cards,
             create_agent,
@@ -2809,6 +2837,7 @@ pub fn run() {
             extensions_unlink,
             extensions_enable,
             extensions_approve,
+            extensions_set_args,
             extensions_set_tools,
             extensions_tool_reply,
             extension_exec,
@@ -2823,7 +2852,6 @@ pub fn run() {
             extensions_wasm_event,
             extensions_wasm_feed,
             extensions_wasm_answer,
-            extensions_set_args,
             extensions_set_skills,
             extensions_wasm_run,
             extensions_wasm_tool,
@@ -2839,6 +2867,7 @@ pub fn run() {
             attachment_size,
             save_capture,
             open_attachment,
+            reveal_attachment,
             paste_image,
             copy_text,
             project_sessions,
@@ -2886,6 +2915,9 @@ pub fn run() {
                 }
             }
             restore_place(app, &config);
+            std::thread::spawn(|| {
+                let _ = forge::write_secret("bitbucket", None);
+            });
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;
             }

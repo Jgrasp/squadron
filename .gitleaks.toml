@@ -1,0 +1,9 @@
+[extend]
+useDefault = true
+
+[[allowlists]]
+description = "Claude Code transcript fixtures carry Anthropic message ids"
+condition = "AND"
+paths = ['''^src-tauri/tests/fixtures/.*\.jsonl$''']
+regexTarget = "match"
+regexes = ['''api_message_id":"msg_''']

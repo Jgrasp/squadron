@@ -85,9 +85,14 @@
     if (src) return showCapture(event.currentTarget as Element, path)
     invoke('open_attachment', { path }).catch((e) => (error = errorText(e)))
   }
+
+  function reveal() {
+    error = ''
+    invoke('reveal_attachment', { path }).catch((e) => (error = errorText(e)))
+  }
 </script>
 
-<span class="attachment {look} {kind}" class:large class:picture={!!src} title={error ? `${error}\n${path}` : path}>
+<span class="attachment {look} {kind}" class:large class:picture={!!src} class:framed={look === 'card' && !src} title={error ? `${error}\n${path}` : path}>
   <button type="button" class="open" data-shot={src ? path : undefined} aria-label={t('agent.openFile', { name })} onclick={open}>
     {#if src}
       <img {src} alt={name} />
@@ -102,6 +107,16 @@
       <span class="name">{name}</span>
     {/if}
   </button>
+  {#if look === 'card' && !src}
+    <button type="button" class="btn btn-primary" onclick={open}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M7 17L17 7M8 7h9v9" /></svg>
+      {t('common.open')}
+    </button>
+    <button type="button" class="btn btn-ghost" title={t('agent.showInFolder', { name })} onclick={reveal}>
+      <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z" /></svg>
+      {t('agent.folder')}
+    </button>
+  {/if}
   {#if onremove}
     <button type="button" class="remove" aria-label={t('agent.removeFile', { name })} title={t('common.remove')} onclick={onremove}>×</button>
   {/if}
@@ -208,6 +223,41 @@
     background: var(--surface-2);
     text-align: left;
     font: 13px var(--sans);
+  }
+
+  .framed {
+    max-width: 480px;
+    align-items: center;
+    gap: 6px;
+    padding-right: 10px;
+    border-radius: 8px;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .framed .open {
+    flex: 1;
+    padding-right: 8px;
+    background: none;
+    box-shadow: none;
+  }
+
+  .framed .btn {
+    flex: none;
+    height: 28px;
+    gap: 6px;
+    padding: 0 11px;
+    font-size: 12.5px;
+  }
+
+  .framed .btn svg {
+    width: 12px;
+    height: 12px;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2.5;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .tile {

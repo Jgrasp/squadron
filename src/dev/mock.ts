@@ -966,7 +966,7 @@ mockIPC(
         if (label === 'main') popup?.focus()
         return
       case 'pipeline_runs': {
-        if (a.dir.includes('nova')) throw 'The project is not on Bitbucket, GitHub, GitLab or Azure DevOps.'
+        if (a.dir.includes('nova')) throw 'The project is not on GitLab or Azure DevOps.'
         const at = (ms: number) => new Date(loaded + ms).toISOString()
         const elapsed = Date.now() - loaded
         const run = (id: number, name: string, title: string, status: string, started: number, finished: number | null, event = 'push') => ({
@@ -1022,6 +1022,7 @@ mockIPC(
         throw 'Not an image.'
       case 'open_attachment':
       case 'reveal_project_file':
+      case 'reveal_attachment':
         return
       case 'attachment_size':
         return a.path.length * 3_917
@@ -1040,7 +1041,7 @@ mockIPC(
       case 'review_checkout':
         return `/home/demo/.local/share/squadron/reviews/orbit-${a.number}`
       case 'pull_lists': {
-        if (!a.dir.includes('orbit') && !(location.search.includes('groups') && a.dir.includes('nova'))) throw 'The project is not on Bitbucket, GitHub, GitLab or Azure DevOps.'
+        if (!a.dir.includes('orbit') && !(location.search.includes('groups') && a.dir.includes('nova'))) throw 'The project is not on GitLab or Azure DevOps.'
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
           host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
@@ -1073,7 +1074,7 @@ mockIPC(
       case 'forge_coverage': {
         const known: Record<string, [string, string | null]> = {
           '/home/demo/agence/orbit': ['github.com/agence/orbit', null],
-          '/home/demo/agence/nova': ['bitbucket.org/agence/nova', 'bitbucket'],
+          '/home/demo/agence/nova': ['bitbucket.org/agence/nova', null],
           '/home/demo/agence/lumen-absent': ['git.agence.io/lumen', null],
         }
         return (args as { projects: string[] }).projects.map((path) => ({ path, remote: known[path]?.[0] ?? null, by: known[path]?.[1] ?? null }))
@@ -1097,16 +1098,23 @@ mockIPC(
                   permissions: { network: ['api.github.com'] },
                   forge: { remotes: ['^github\\.com/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)$'] },
                 },
+                {
+                  id: 'bitbucket',
+                  version: '0.1.0',
+                  name: { en: 'Bitbucket' },
+                  description: { en: 'Pull requests and Pipelines runs of your Bitbucket Cloud projects in Squadron: review, comment, merge' },
+                  repository: 'https://github.com/Jgrasp/squadron-bitbucket',
+                  archive: 'https://example.invalid/bitbucket-0.1.0.tar.gz',
+                  sha256: '0',
+                  permissions: { network: ['api.bitbucket.org'] },
+                  forge: { remotes: ['^(?:ssh\\.)?bitbucket\\.org/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)$'] },
+                },
               ],
             },
           },
         ]
       case 'forge_accounts':
-        return { bitbucket: localStorage.getItem('bitbucket'), bitbucket_user: true, gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
-      case 'bitbucket_sign_in':
-        if (a.token === 'bad') throw 'Bitbucket refused this email and token.'
-        localStorage.setItem('bitbucket', a.email)
-        return
+        return { gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
       case 'gitlab_sign_in':
         if (a.token === 'bad') throw 'GitLab refused this token.'
         localStorage.setItem('gitlab', `octo@${a.site.replace(/^https?:\/\//, '') || 'gitlab.com'}`)

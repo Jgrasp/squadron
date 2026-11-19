@@ -41,8 +41,8 @@
   import CommentChip from './CommentChip.svelte'
   import Attachment from './Attachment.svelte'
   import { imagePaste } from './paste'
-  import { Mention } from './mention.svelte'
   import Composer from './Composer.svelte'
+  import { Mention } from './mention.svelte'
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
@@ -2816,10 +2816,10 @@
 
   .bar :global(.composer-field) {
     flex: 1;
-    min-height: 38px;
   }
 
   .bar :global(.cm-scroller) {
+    min-height: 38px;
     max-height: 200px;
     padding: 9px 0;
   }

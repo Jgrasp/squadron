@@ -20,8 +20,8 @@ Squadron checks for updates every ten minutes, and on demand from its menu with 
 
 To follow pull requests, Squadron needs to reach the forge of each project, from **Settings › Pull requests**:
 
-- **GitHub**: install the GitHub extension, which the page offers for a project on github.com, then add a personal access token to it.
-- **Bitbucket**, **GitLab** and **Azure DevOps**: sign in on the page with a token; it lists the scopes each one needs. The token stays in the system keyring.
+- **GitHub** and **Bitbucket**: install the GitHub or Bitbucket extension, which the page offers for a project on github.com or bitbucket.org, then add an account to it: a personal access token for GitHub, your Atlassian email and an API token for Bitbucket.
+- **GitLab** and **Azure DevOps**: sign in on the page with a token; it lists the scopes each one needs. The token stays in the system keyring.
 
 ## Develop
 
@@ -36,4 +36,4 @@ The dev build keeps its own data (`dev.squadron.desktop.dev`) and keyring entry,
 
 ## Release
 
-`scripts/release.sh <version> [notes]` sets the version, publishes the source and pushes the `v<version>` tag. GitHub Actions then builds the Linux packages (`.deb`, AppImage) and the macOS ones (`.dmg`, universal app) with their update signatures, and the apps already installed pick the release up within ten minutes. The signing key lives in the repository secret `TAURI_SIGNING_PRIVATE_KEY`. A release with a new feature bumps the minor version; one made of fixes only bumps the patch.
+Every change reaches `main` through a pull request, which can only be merged once its `test` and `secrets` checks pass. `scripts/release.sh <version> [notes] [fr=notes]` opens the pull request "Squadron <version>" with the new version and changelog. Once it is merged, `scripts/release.sh tag <version>` pushes the `v<version>` tag: GitHub Actions tests again, then builds the Linux packages (`.deb`, AppImage), the macOS ones (`.dmg`, universal app) and the Windows installer with their update signatures, and the apps already installed pick the release up within ten minutes. The signing key lives in the repository secret `TAURI_SIGNING_PRIVATE_KEY`. A release with a new feature bumps the minor version; one made of fixes only bumps the patch.
