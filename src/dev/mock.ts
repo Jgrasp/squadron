@@ -970,7 +970,7 @@ mockIPC(
         const at = (ms: number) => new Date(loaded + ms).toISOString()
         const elapsed = Date.now() - loaded
         const run = (id: number, name: string, title: string, status: string, started: number, finished: number | null, event = 'push') => ({
-          host: 'github', id: String(id), number: id, name, title, event, branch: 'main', url: `https://github.com/orbit/orbit/actions/runs/${id}`, author: id === 6 ? 'Copilot' : id % 2 ? 'Sébastien Leprovost' : 'adhermy', author_avatar: id === 4 ? 'https://avatars.githubusercontent.com/u/9919?s=64' : '',
+          host: 'github', id: String(id), number: id, name, title, event, branch: 'main', url: `https://github.com/orbit/orbit/actions/runs/${id}`, author: id === 6 ? 'Copilot' : id % 2 ? 'Sébastien Leprovost' : 'adhermy', author_avatar: id === 4 ? 'https://avatars.githubusercontent.com/u/9919?s=64' : '', pull: event === 'pull_request' ? 2108 : null,
           status: finished !== null && elapsed > finished ? status : elapsed > started ? 'running' : 'queued', started: at(started), finished: finished !== null && elapsed > finished ? at(finished) : null,
         })
         return [

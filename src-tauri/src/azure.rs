@@ -465,6 +465,7 @@ pub(crate) fn azure_run(value: &Value) -> Run {
         finished: (value["status"] == "completed").then(|| text(&value["finishTime"])),
         author: text(&value["requestedFor"]["displayName"]),
         author_avatar: String::new(),
+        pull: forge::pull_in(&text(&value["sourceBranch"]), "refs/pull/"),
     }
 }
 
@@ -614,6 +615,12 @@ mod tests {
                 "s",
                 Some("f")
             )
+        );
+        assert_eq!(run.pull, None);
+        assert_eq!(
+            azure_run(&json!({ "sourceBranch": "refs/pull/482/merge", "reason": "pullRequest" }))
+                .pull,
+            Some(482)
         );
         let queued = azure_run(&json!({ "status": "notStarted", "queueTime": "q" }));
         assert_eq!(

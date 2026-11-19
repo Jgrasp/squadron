@@ -173,6 +173,7 @@ pub struct Run {
     pub finished: Option<String>,
     pub author: String,
     pub author_avatar: String,
+    pub pull: Option<u64>,
 }
 
 pub fn input<A: DeserializeOwned + Default>(input: &str) -> Result<Input<A>, String> {

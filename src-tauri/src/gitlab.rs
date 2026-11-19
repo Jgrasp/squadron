@@ -515,6 +515,7 @@ pub(crate) fn gitlab_run(value: &Value) -> Run {
         status: status.into(),
         author: String::new(),
         author_avatar: String::new(),
+        pull: forge::pull_in(&text(&value["ref"]), "refs/merge-requests/"),
     }
 }
 
@@ -653,6 +654,11 @@ mod tests {
                 "failure",
                 Some("b")
             )
+        );
+        assert_eq!(run.pull, Some(7673));
+        assert_eq!(
+            gitlab_run(&json!({ "status": "pending", "ref": "main" })).pull,
+            None
         );
         assert_eq!(gitlab_run(&json!({ "status": "pending" })).finished, None);
     }
