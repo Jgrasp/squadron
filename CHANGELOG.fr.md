@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.55.0 · 2026-11-19
+
+### Agents
+
+- Un agent lancé depuis le brouillon de nouvel agent d'une extension, comme un ticket Jira, garde son lien : le logo de l'extension et la clé s'affichent dans sa ligne de la liste des agents, avec le titre au survol, et un clic ouvre la page.
+
 ## 0.54.0 · 2026-11-19
 
 ### Pull requests

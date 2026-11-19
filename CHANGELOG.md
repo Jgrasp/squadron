@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.55.0 · 2026-11-19
+
+### Agents
+
+- An agent started from an extension's new agent draft, such as a Jira ticket, keeps its link: the extension's logo and the key show in its row in the agent list, with the title on hover, and a click opens the page.
+
 ## 0.54.0 · 2026-11-19
 
 ### Pull requests
