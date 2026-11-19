@@ -473,6 +473,39 @@ pub fn drop_review_checkout(dir: &Path) -> Result<bool, String> {
     Ok(true)
 }
 
+pub fn drop_merged_worktree(dir: &Path, branch: &str, head: &str) -> Result<(), String> {
+    if !dir.join(".git").is_file() {
+        return Err(format!("{} is not a linked worktree.", dir.display()));
+    }
+    if [branch, head]
+        .iter()
+        .any(|s| s.is_empty() || s.starts_with('-'))
+    {
+        return Err("Unknown branch or commit.".into());
+    }
+    if run(git(dir).args(["symbolic-ref", "--short", "HEAD"]))?.trim() != branch {
+        return Err(format!("The worktree is no longer on {branch}."));
+    }
+    if !run(git(dir).args(["status", "--porcelain"]))?
+        .trim()
+        .is_empty()
+    {
+        return Err("The worktree has uncommitted changes.".into());
+    }
+    run(git(dir).args(["merge-base", "--is-ancestor", "HEAD", head]))
+        .map_err(|_| format!("{branch} has commits the merged pull request does not have."))?;
+    let common = run(git(dir).args(["rev-parse", "--path-format=absolute", "--git-common-dir"]))?;
+    let main = Path::new(common.trim()).parent().ok_or("No repository.")?;
+    run(git(main).args(["worktree", "remove", &dir.to_string_lossy()]))?;
+    run(git(main).args(["branch", "-D", branch]))?;
+    let _ = git(main)
+        .args(["push", "--quiet", "origin", "--delete", branch])
+        .env("GIT_TERMINAL_PROMPT", "0")
+        .env("GIT_SSH_COMMAND", "ssh -o BatchMode=yes")
+        .output();
+    Ok(())
+}
+
 pub fn restore_review_checkout(project: &Path, into: &Path, head: &str) -> Result<(), String> {
     if into.join(".git").exists() {
         return Ok(());
@@ -735,6 +768,52 @@ mod tests {
         assert_eq!(paths(&tree), ["a.txt", "b.txt"]);
         assert!(paths(&main).is_empty());
         assert_eq!(crate::projects::branch(&tree).as_deref(), Some("ia/T70"));
+    }
+
+    #[test]
+    fn drops_the_worktree_and_branch_of_a_merged_pull_request_only_when_nothing_would_be_lost() {
+        let root = std::env::temp_dir().join(format!("squadron-merged-wt-{}", std::process::id()));
+        let _ = fs::remove_dir_all(&root);
+        let main = root.join("main");
+        let tree = root.join("tree");
+        fs::create_dir_all(&main).unwrap();
+        let sh = |dir: &Path, args: &[&str]| run(git(dir).args(args)).unwrap();
+        let commit = |dir: &Path, file: &str| {
+            fs::write(dir.join(file), file).unwrap();
+            sh(dir, &["add", "-A"]);
+            sh(dir, &["-c", "commit.gpgsign=false", "commit", "-qnm", file]);
+            sh(dir, &["rev-parse", "HEAD"]).trim().to_string()
+        };
+        sh(&main, &["init", "-q"]);
+        sh(&main, &["config", "user.email", "t@t"]);
+        sh(&main, &["config", "user.name", "t"]);
+        commit(&main, "a.txt");
+        sh(
+            &main,
+            &[
+                "worktree",
+                "add",
+                "-q",
+                tree.to_str().unwrap(),
+                "-b",
+                "feat",
+            ],
+        );
+        let head = commit(&tree, "b.txt");
+
+        fs::write(tree.join("dirty.txt"), "x").unwrap();
+        assert!(drop_merged_worktree(&tree, "feat", &head).is_err());
+        fs::remove_file(tree.join("dirty.txt")).unwrap();
+        commit(&tree, "c.txt");
+        assert!(drop_merged_worktree(&tree, "feat", &head).is_err());
+        sh(&tree, &["reset", "-q", "--hard", &head]);
+        assert!(drop_merged_worktree(&tree, "other", &head).is_err());
+        assert!(tree.exists());
+
+        drop_merged_worktree(&tree, "feat", &head).unwrap();
+        assert!(!tree.exists());
+        assert!(sh(&main, &["branch", "--list", "feat"]).trim().is_empty());
+        let _ = fs::remove_dir_all(&root);
     }
 
     #[test]

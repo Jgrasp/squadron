@@ -317,6 +317,31 @@ export const lookUpAll = (force = false) => {
   agents.list.forEach((agent) => lookUpOwned(agent, force))
 }
 
+const tidied = new Set<string>()
+
+export function tidyMerged(agent: Agent) {
+  const worktree = agent.worktree
+  const pull = pullOf(agent)
+  if (!worktree || agent.alive || agent.review || pull?.state !== 'merged' || pull.branch !== worktree.branch || tidied.has(agent.id)) return
+  if (agents.list.some((a) => a.id !== agent.id && a.worktree?.path === worktree.path)) return
+  tidied.add(agent.id)
+  return invoke('drop_merged_worktree', { dir: worktree.path, branch: worktree.branch, head: pull.head })
+    .then(() => {
+      if (agent.worktree?.path !== worktree.path) return
+      agent.worktree = null
+      agent.pinned = false
+      persist(agent)
+      return invoke('set_workdir', { id: agent.id, dir: null })
+    })
+    .catch(() => {})
+}
+
+$effect.root(() => {
+  $effect(() => {
+    for (const agent of agents.list) tidyMerged(agent)
+  })
+})
+
 const VERDICTS: Record<string, string> = { approve: 'approved it', request_changes: 'asked for changes', '': 'commented on it' }
 
 function tell(pull: Pull, text: string, comments: Comment[] = []) {
@@ -376,7 +401,6 @@ export async function requestChanges(dir: string, pull: Pull) {
 
 export async function merge(dir: string, pull: Pull) {
   await invoke('merge_pull', { dir, number: pull.number })
-  tell(pull, `The user merged your pull request #${pull.number} into ${pull.base} on ${hostName(pull)}.`)
   lookUpAll(true)
 }
 
