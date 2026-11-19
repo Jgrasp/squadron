@@ -23,7 +23,7 @@
   import { Mention } from './mention.svelte'
   import { imagePaste } from './paste'
   import Composer from './Composer.svelte'
-  import type { Options } from './stream'
+  import type { Agent, Options } from './stream'
 
   let {
     project,
@@ -35,7 +35,7 @@
     project: Project
     draft?: { name: string; text: string }
     linked?: OpenDraft
-    start: (name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[]) => unknown
+    start: (name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[], link?: Agent['link']) => unknown
     onclose: () => void
   } = $props()
 
@@ -247,8 +247,16 @@
     if (!ready) return
     started = true
     if (!linked) kept.delete(project.path)
-    const launched = start(name.trim(), $state.snapshot(options), [text.trim(), tied ? context.trim() : ''].filter(Boolean).join('\n\n'), goal.trim(), worktree, $state.snapshot(files))
     const from = tied ? linked : undefined
+    const launched = start(
+      name.trim(),
+      $state.snapshot(options),
+      [text.trim(), tied ? context.trim() : ''].filter(Boolean).join('\n\n'),
+      goal.trim(),
+      worktree,
+      $state.snapshot(files),
+      from && link ? { ...$state.snapshot(link), extension: from.extension } : undefined,
+    )
     if (from)
       Promise.resolve(launched).then((id) => {
         const agent = typeof id === 'string' ? find(id) : undefined

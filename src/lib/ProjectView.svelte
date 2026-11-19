@@ -283,7 +283,7 @@
     <NewAgent
       {project}
       linked={drafts.open}
-      start={(name, options, text, goal, worktree, files) => create(project.path, name, options, text, { goal, worktree, files })}
+      start={(name, options, text, goal, worktree, files, link) => create(project.path, name, options, text, { goal, worktree, files, link })}
       onclose={() => (drafts.open = null)}
     />
   {/key}

@@ -799,14 +799,15 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-type Launch = { from?: { by: string; id?: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[] }
+type Launch = { from?: { by: string; id?: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[]; link?: Agent['link'] }
 
-export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [] }: Launch = {}) {
+export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [], link }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || t('common.newAgent'), options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
+  if (link) agent.link = link
   if (worktree) flaggedWorktree.add(agent.id)
   if (!name) {
     agent.autoName = true

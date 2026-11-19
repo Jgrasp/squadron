@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { invoke } from '@tauri-apps/api/core'
   import { ask } from './asking.svelte'
   import { agents, archive, archiveShown, clock, fork, markUnread, ofProject, pin, remove, rename, waiting, waitingDetail, waitingFor } from './agents.svelte'
   import { ago } from './format'
@@ -7,6 +8,8 @@
   import { projects, togglePulls, type Project } from './projects.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
+  import { brand } from './extension-pages.svelte'
+  import ExtensionLogo from './ExtensionLogo.svelte'
   import ImportPanel from './ImportPanel.svelte'
   import PersonaChip from './PersonaChip.svelte'
   import PullTag from './PullTag.svelte'
@@ -282,7 +285,15 @@
       {#if agent.review}{@const verdict = verdictOf(agent)}{#if verdict}<span class="verdict {verdict[0]}">{verdict[1]}</span>{/if}{/if}
     {/if}
   </span>
-  <span class="state">{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
+  <span class="state"
+    >{#if agent.link}{@const { extension, key, title, url } = agent.link}<span
+        class="link"
+        class:open={url}
+        role={url ? 'link' : undefined}
+        {title}
+        onclick={(e) => url && (e.stopPropagation(), invoke('open_link', { url }))}
+        ><ExtensionLogo {...brand(extension)} size={11} />{key}</span
+      >{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
   {#if !agent.review}<PullTag {agent} gutter />{/if}
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
@@ -958,6 +969,20 @@
   .persona {
     float: right;
     margin-left: 8px;
+  }
+
+  .link {
+    float: right;
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    margin-left: 8px;
+    font: 500 11px var(--mono);
+    color: var(--remote-text);
+  }
+
+  .link.open:hover {
+    text-decoration: underline;
   }
 
   .done .state,
