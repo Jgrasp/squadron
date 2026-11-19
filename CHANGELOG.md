@@ -1,5 +1,37 @@
 # Changelog
 
+## 0.54.0 · 2026-11-19
+
+### Pull requests
+
+- Bitbucket pull requests and Pipelines runs now come from the Bitbucket extension, to install from Discover.
+- The Pipelines button in the agent header shows a single count, and its panel shows one card per run, with pull request checks apart from pipelines.
+- Once a pull request is merged, Squadron removes its agent's worktree and branch as soon as the agent is asleep, without waking it, and deletes the branch on origin.
+- The pull request list shows a loading ring while Squadron asks the forge, and refreshing it also checks which forge covers the project.
+- Pull request cards no longer wait behind the background refresh of pull requests and runs.
+
+### Projects
+
+- Squadron reopens on the project you were on when you closed it.
+- Projects hidden behind the +N tab pulse in its menu and on the button while their agents work.
+
+### Conversation
+
+- File cards have Open and Folder buttons, Folder showing the file in its folder.
+- A shell command pasted with a leading ! after the composer's ! runs without the extra !, and so does one run from a block.
+- Reopening the new agent window with a draft puts the caret at the end of the text.
+
+### Extensions
+
+- Extension API 1.10.0 and 1.11.0: an account field can list values to copy in one click, such as the scopes a token needs, and a forge run can name the pull request it checks.
+- Two extensions with the same id each get their own settings page, and uninstalling the installed copy keeps the accounts and choices of the local folder.
+
+### Fixes
+
+- Squadron no longer stays on a black screen when the +N tab shows working projects.
+- Squadron's window no longer reopens the size of the whole screen, so leaving maximize gives it back its own size.
+- On Linux, text copied while Squadron's window is not focused reaches the clipboard once the window gets the focus back.
+
 ## 0.53.4 · 2026-11-18
 
 ### Pull requests
