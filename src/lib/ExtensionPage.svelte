@@ -1,5 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { copyText } from './clipboard'
   import { onDestroy, untrack } from 'svelte'
   import Dialog from './Dialog.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
@@ -35,6 +36,14 @@
   let typed = $state<Record<string, string>>({})
   let draft = $state<{ account: string | null; values: Record<string, string>; result: AccountCheck | null; testing: boolean; round: number } | null>(null)
   let now = $state(Date.now())
+  let copied = $state('')
+
+  function copy(key: string, value: string) {
+    copyText(value)
+    copied = key
+    setTimeout(() => copied === key && (copied = ''), 1500)
+  }
+
   const clock = setInterval(() => (now = Date.now()), 30_000)
   onDestroy(() => clearInterval(clock))
 
@@ -213,21 +222,30 @@
         <form class="edit" onsubmit={keepAccount}>
           {#each fields as f (f.id)}
             {@const label = named(f.label)}
-            <label class:full={f.kind === 'secret'}>
-              {label}
-              <input
-                class="field"
-                class:mono={f.kind !== 'text' && f.kind !== undefined}
-                type={f.kind === 'secret' ? 'password' : 'text'}
-                autocomplete="off"
-                spellcheck="false"
-                placeholder={kept.includes(f.id) ? t('extensions.accountKept', { label }) : ''}
-                aria-invalid={draft?.result && !draft.result.ok && draft.result.field === f.id ? 'true' : undefined}
-                bind:value={draft!.values[f.id]}
-                oninput={edited}
-              />
-              {#if f.url}<small>{@render link(f.id, f.hint)}</small>{:else if f.hint}<small>{named(f.hint)}</small>{/if}
-            </label>
+            <div class="cell" class:full={f.kind === 'secret'}>
+              <label>
+                {label}
+                <input
+                  class="field"
+                  class:mono={f.kind !== 'text' && f.kind !== undefined}
+                  type={f.kind === 'secret' ? 'password' : 'text'}
+                  autocomplete="off"
+                  spellcheck="false"
+                  placeholder={kept.includes(f.id) ? t('extensions.accountKept', { label }) : ''}
+                  aria-invalid={draft?.result && !draft.result.ok && draft.result.field === f.id ? 'true' : undefined}
+                  bind:value={draft!.values[f.id]}
+                  oninput={edited}
+                />
+                {#if f.url}<small>{@render link(f.id, f.hint)}</small>{:else if f.hint}<small>{named(f.hint)}</small>{/if}
+              </label>
+              {#if f.copy}
+                <span class="copies">
+                  {#each f.copy as value (value)}
+                    <button type="button" class="copy" onclick={() => copy(`${f.id}:${value}`, value)}>{copied === `${f.id}:${value}` ? t('common.copied') : value}</button>
+                  {/each}
+                </span>
+              {/if}
+            </div>
           {/each}
           {#if draft?.testing}
             {@const host = hostField ? draft.values[hostField.id]?.trim().replace(/^https?:\/\//i, '').split('/')[0] : ''}
@@ -799,8 +817,34 @@
     font-size: 12px;
   }
 
-  .edit label.full {
+  .cell {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .cell.full {
     grid-column: 1 / -1;
+  }
+
+  .copies {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+  }
+
+  .copy {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-3);
+    color: var(--text-2);
+    font: 12.5px var(--mono);
+  }
+
+  .copy:hover {
+    background: var(--surface-5);
+    color: var(--text-strong);
   }
 
   .edit .field {

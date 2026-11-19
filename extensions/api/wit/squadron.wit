@@ -1,4 +1,4 @@
-package squadron:api@1.9.0;
+package squadron:api@1.10.0;
 
 interface types {
   /// The agent a call is about.

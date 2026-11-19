@@ -35,7 +35,7 @@ export type Forge = { remotes: string[]; links: string[]; calls: string[]; verdi
 
 export const FIELD_KINDS = ['text', 'host', 'secret'] as const
 
-export type AccountField = { id: string; label: Text; hint?: Text; url?: string; kind?: (typeof FIELD_KINDS)[number] }
+export type AccountField = { id: string; label: Text; hint?: Text; url?: string; kind?: (typeof FIELD_KINDS)[number]; copy?: string[] }
 
 export type Accounts = { label: Text; fields: AccountField[]; check?: boolean }
 
@@ -178,6 +178,8 @@ function settingsProblems(value: unknown): Problem[] {
 
 const helpOk = (f: Record<string, unknown>) => (f.hint === undefined || isText(f.hint)) && (f.url === undefined || isHttps(f.url))
 
+const copiesOk = (v: unknown) => v === undefined || (Array.isArray(v) && v.every(oneLine) && new Set(v).size === v.length)
+
 const GROUP = /\(\?<([A-Za-z][A-Za-z0-9_]*)>/g
 
 export function forgePattern(source: string, hosts: string[]): RegExp | null {
@@ -208,7 +210,7 @@ function forgeOk(value: unknown) {
 function accountsOk(value: unknown) {
   if (!isObject(value) || !isText(value.label) || !Array.isArray(value.fields) || !value.fields.length || (value.check !== undefined && typeof value.check !== 'boolean')) return false
   const fields = value.fields
-  if (!fields.every((f) => isObject(f) && typeof f.id === 'string' && ID.test(f.id) && isText(f.label) && helpOk(f) && (f.kind === undefined || (FIELD_KINDS as readonly unknown[]).includes(f.kind))))
+  if (!fields.every((f) => isObject(f) && typeof f.id === 'string' && ID.test(f.id) && isText(f.label) && helpOk(f) && (f.kind === undefined || (FIELD_KINDS as readonly unknown[]).includes(f.kind)) && copiesOk(f.copy)))
     return false
   return new Set(fields.map((f) => f.id)).size === fields.length && fields.filter((f) => f.kind === 'host').length <= 1
 }
