@@ -1,5 +1,6 @@
 import { trimUsage, type ContextUsage } from './breakdown'
 import { t } from './i18n/index.svelte'
+import type { DraftLink } from './newAgentDraft'
 
 export type Options = {
   model: string
@@ -181,6 +182,7 @@ export type Agent = {
   stored?: { count: number; created: number | null; users?: number }
   onDemand?: string[]
   startedBy?: string
+  link?: DraftLink & { extension: string }
   mcpFailed?: boolean
 }
 
