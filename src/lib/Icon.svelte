@@ -9,6 +9,8 @@
     <path d="M8 6l-6 6 6 6M16 6l6 6-6 6" />
   {:else if name === 'pull'}
     <circle cx="6" cy="6" r="2" /><circle cx="6" cy="18" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8M18 16V9a3 3 0 0 0-3-3h-4M13 3l-3 3 3 3" />
+  {:else if name === 'pipeline'}
+    <circle cx="5" cy="12" r="2.2" /><circle cx="19" cy="6" r="2.2" /><circle cx="19" cy="18" r="2.2" /><path d="M7.2 12H11a3 3 0 0 0 3-3V8a2 2 0 0 1 2-2h.8M11 12a3 3 0 0 1 3 3v1a2 2 0 0 0 2 2h.8" />
   {:else if name === 'terminal'}
     <path d="M4 17l6-6-6-6M12 19h8" />
   {:else if name === 'diff'}

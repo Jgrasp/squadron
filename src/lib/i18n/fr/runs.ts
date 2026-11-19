@@ -2,6 +2,11 @@ import type { Catalog } from '../index.svelte'
 
 export default {
   title: 'Actions et pipelines',
+  button: 'Pipelines',
+  all: 'Tous',
+  pipelines: 'Pipelines',
+  checks: 'Checks de PR',
+  checksOf: 'Checks de la pull request #{number}',
   queued: 'En attente',
   running: 'En cours',
   success: 'Réussi',
@@ -19,9 +24,8 @@ export default {
   countStopped: { one: '{count} arrêté', other: '{count} arrêtés' },
   sectionRunning: 'En cours',
   sectionEnded: 'Terminés ces {minutes} dernières minutes',
-  waitingSince: 'en attente depuis {duration}',
-  startedAt: 'démarré à {time} · {duration}',
-  endedAgo: 'terminé {ago} · durée {duration}',
+  startedAt: 'démarré à {time}',
+  endedAgo: 'terminé {ago}',
   openOn: 'Ouvrir sur {host}',
   settingsIntro: 'Squadron affiche dans l’en-tête des agents de chaque projet ses GitHub Actions, Bitbucket Pipelines, pipelines GitLab et Azure Pipelines pendant qu’ils tournent, puis un moment après leur fin.',
   show: 'Afficher les actions et pipelines',

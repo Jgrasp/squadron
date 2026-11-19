@@ -19,6 +19,7 @@ export type Run = {
   finished: string | null
   author: string
   author_avatar: string
+  pull: number | null
 }
 
 export const runs = $state<Record<string, { list: Run[]; error: string }>>({})

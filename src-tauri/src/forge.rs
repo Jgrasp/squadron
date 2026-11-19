@@ -502,6 +502,16 @@ pub struct Run {
     pub finished: Option<String>,
     pub author: String,
     pub author_avatar: String,
+    pub pull: Option<u64>,
+}
+
+pub(crate) fn pull_in(reference: &str, prefix: &str) -> Option<u64> {
+    reference
+        .strip_prefix(prefix)?
+        .split('/')
+        .next()?
+        .parse()
+        .ok()
 }
 
 fn repo_given(dir: &Path, repository: &str) -> Result<Repo, String> {

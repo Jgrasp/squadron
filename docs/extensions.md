@@ -579,6 +579,11 @@ fn forge(call: String, input: String) -> Result<String, String> {
 - **`fields[].copy`** in `contributes.accounts`: optional list of one-line strings, each once, such as the scopes a token needs. In the account form, Squadron shows each value as a button under the field's hint; a click copies it and the button reads "Copied" for 1.5 s.
 - Manifest only, no WIT change: the WIT of 1.10.0 only bumps its version. An older Squadron ignores `copy` and shows no buttons.
 
+### Pull request of a run (API 1.11)
+
+- **`forge::Run.pull`**: optional number of the pull request a run checks. Squadron shows it as `#N` with the pull request's title on the run's card and counts the run under "PR checks" rather than "Pipelines". Left empty, a run whose `event` is a pull request event (`pull_request`, `pull_request_target`, `merge_request_event`, `pullRequest`, `pullrequest`) or whose `branch` is the head of an open pull request still counts as a check.
+- No WIT change: the WIT of 1.11.0 only bumps its version. An older Squadron ignores `pull`.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.
