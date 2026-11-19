@@ -1,5 +1,37 @@
 # Nouveautés
 
+## 0.54.0 · 2026-11-19
+
+### Pull requests
+
+- Les pull requests Bitbucket et les exécutions Pipelines viennent désormais de l’extension Bitbucket, à installer depuis Découvrir.
+- Le bouton Pipelines de l’en-tête d’agent affiche un seul compteur, et son panneau montre une carte par exécution, les vérifications de pull request à part des pipelines.
+- Une fois une pull request fusionnée, Squadron supprime le worktree et la branche de son agent dès que l’agent dort, sans le réveiller, et supprime la branche sur origin.
+- La liste des pull requests affiche un anneau de chargement pendant que Squadron interroge la forge, et l’actualiser vérifie aussi quelle forge couvre le projet.
+- Les cartes de pull request n’attendent plus l’actualisation en arrière-plan des pull requests et des exécutions.
+
+### Projets
+
+- Squadron rouvre le projet sur lequel vous étiez à sa fermeture.
+- Les projets cachés derrière l’onglet +N pulsent dans son menu et sur le bouton pendant que leurs agents travaillent.
+
+### Conversation
+
+- Les cartes de fichier ont des boutons Ouvrir et Dossier, Dossier montrant le fichier dans son dossier.
+- Une commande shell collée avec un ! en tête après le ! de la zone de saisie s’exécute sans ce ! de trop, de même qu’une commande lancée depuis un bloc.
+- Rouvrir la fenêtre de nouvel agent avec un brouillon place le curseur à la fin du texte.
+
+### Extensions
+
+- API d’extension 1.10.0 et 1.11.0 : un champ de compte peut lister des valeurs à copier en un clic, comme les droits qu’un jeton demande, et une exécution de forge peut nommer la pull request qu’elle vérifie.
+- Deux extensions de même id ont chacune leur page de réglages, et désinstaller la copie installée garde les comptes et les choix du dossier local.
+
+### Correctifs
+
+- Squadron ne reste plus sur un écran noir quand l’onglet +N affiche des projets au travail.
+- La fenêtre de Squadron ne se rouvre plus à la taille de tout l’écran : quitter le plein écran lui rend sa propre taille.
+- Sous Linux, un texte copié pendant que la fenêtre de Squadron n’a pas le focus arrive dans le presse-papiers dès qu’elle le reprend.
+
 ## 0.53.4 · 2026-11-18
 
 ### Pull requests
