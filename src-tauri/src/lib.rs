@@ -2578,15 +2578,29 @@ fn keep_place(window: &tauri::Window) {
     ) else {
         return;
     };
-    let place = Place {
-        x: at.x,
-        y: at.y,
-        width: size.width,
-        height: size.height,
-        maximized,
+    let file = dir.join("window.json");
+    let place = if maximized || window.is_fullscreen().unwrap_or(false) {
+        let Some(before) = std::fs::read_to_string(&file)
+            .ok()
+            .and_then(|text| serde_json::from_str::<Place>(&text).ok())
+        else {
+            return;
+        };
+        Place {
+            maximized: true,
+            ..before
+        }
+    } else {
+        Place {
+            x: at.x,
+            y: at.y,
+            width: size.width,
+            height: size.height,
+            maximized,
+        }
     };
     if let Ok(text) = serde_json::to_string(&place) {
-        let _ = std::fs::write(dir.join("window.json"), text);
+        let _ = std::fs::write(file, text);
     }
 }
 
@@ -2599,6 +2613,11 @@ fn restore_place(app: &tauri::App, config: &std::path::Path) {
     ) else {
         return;
     };
+    let screen = window.primary_monitor().ok().flatten().map(|m| *m.size());
+    if screen.is_some_and(|s| place.width >= s.width && place.height >= s.height) {
+        let _ = window.maximize();
+        return;
+    }
     let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
     let at = tauri::PhysicalPosition::new(place.x, place.y);
     let _ = window.set_position(at);
