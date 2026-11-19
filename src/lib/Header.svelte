@@ -18,7 +18,7 @@
 
   let { onadd }: { onadd: () => void } = $props()
 
-  const effect = (busy: boolean) => (busy ? `effect-${settings.tab_effect}` : '')
+  const glow = (busy: boolean) => (busy ? `effect-${settings.tab_effect}` : '')
   const working = (path: string) => ofProject(path).some((a) => a.status === 'working')
   const failed = (path: string) => ofProject(path).filter((a) => a.status === 'error' && !a.errorSeen).length
 
@@ -237,7 +237,7 @@
       <button
         animate:flip={{ duration: dropped ? 0 : 260 }}
         data-item={project.path}
-        class="tab {effect(working(project.path))}"
+        class="tab {glow(working(project.path))}"
         aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
         class:ring={settings.tab_ring !== 'off' && waiting(project.path) > 0}
         style:--project={project.color}
@@ -252,7 +252,7 @@
     {#if hidden.length}
       <div class="anchor" data-menu>
         <button
-          class="tab more {effect(hidden.some((p) => working(p.path)))}"
+          class="tab more {glow(hidden.some((p) => working(p.path)))}"
           class:ring={settings.tab_ring !== 'off' && hidden.some((p) => waiting(p.path))}
           aria-haspopup="menu"
           aria-expanded={moreOpen}
@@ -278,7 +278,7 @@
             </label>
             {#each found as project (project.path)}
               <span class="entry">
-                <button role="menuitem" class={effect(working(project.path))} style:--project={project.color} onclick={() => choose(project.path)}>
+                <button role="menuitem" class={glow(working(project.path))} style:--project={project.color} onclick={() => choose(project.path)}>
                   <span class="dot" aria-hidden="true"></span><span class="grow">{project.name}</span>
                   {#if waiting(project.path)}<span class="badge">{waiting(project.path)}</span>{/if}{#if unread(project.path)}{@render finished(unread(project.path))}{/if}{#if failed(project.path)}<span
                       class="badge error"
