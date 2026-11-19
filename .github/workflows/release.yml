@@ -3,16 +3,16 @@ name: Release
 on:
   push:
     branches: [main]
+    tags: ['v*']
   pull_request:
     branches: [main]
 
 concurrency:
-  group: ${{ github.event_name == 'push' && 'release' || format('test-{0}', github.ref) }}
+  group: ${{ startsWith(github.ref, 'refs/tags/') && 'release' || format('{0}-{1}', github.workflow, github.ref) }}
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   test:
-    if: github.event_name == 'pull_request' || startsWith(github.event.head_commit.message, 'Squadron ')
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -61,6 +61,7 @@ jobs:
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: pnpm install --frozen-lockfile
       - run: pnpm build
       - run: pnpm exec svelte-check --tsconfig ./tsconfig.app.json
@@ -74,9 +75,26 @@ jobs:
           GIT_COMMITTER_NAME: Squadron CI
           GIT_COMMITTER_EMAIL: ci@squadron.invalid
 
+  secrets:
+    if: github.event_name == 'pull_request'
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+      - env:
+          BASE: ${{ github.event.pull_request.base.sha }}
+          HEAD: ${{ github.event.pull_request.head.sha }}
+        run: |
+          docker run --rm -u "$(id -u):$(id -g)" -e HOME=/tmp -v "$PWD:/repo:ro" \
+            ghcr.io/gitleaks/gitleaks:v8.30.1@sha256:c00b6bd0aeb3071cbcb79009cb16a60dd9e0a7c60e2be9ab65d25e6bc8abbb7f \
+            git /repo --config /repo/.gitleaks.toml --log-opts="$BASE..$HEAD" --redact --verbose
+
   release:
     needs: test
-    if: github.event_name == 'push'
+    if: startsWith(github.ref, 'refs/tags/v')
     runs-on: ubuntu-24.04
     permissions:
       contents: write
@@ -84,21 +102,25 @@ jobs:
       id: ${{ steps.create.outputs.id }}
       tag: ${{ steps.create.outputs.tag }}
     steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
       - id: create
         if: ${{ !env.ACT }}
         env:
           GH_TOKEN: ${{ github.token }}
-          MESSAGE: ${{ github.event.head_commit.message }}
+          TAG: ${{ github.ref_name }}
         run: |
-          version=${MESSAGE%%$'\n'*}
-          tag=v${version#Squadron }
-          id=$(gh api repos/$GITHUB_REPOSITORY/releases -q ".[] | select(.tag_name == \"$tag\") | .id" | head -1)
-          [ -n "$id" ] || id=$(gh api repos/$GITHUB_REPOSITORY/releases -f tag_name=$tag -f target_commitish=$GITHUB_SHA -f name="Squadron $tag" -f body="$MESSAGE" -F draft=true -q .id)
+          version=${TAG#v}
+          crate=$(sed -n 's/^version = "\(.*\)"/\1/p' src-tauri/Cargo.toml | head -1)
+          [ "$crate" = "$version" ] || { echo "$TAG does not match version $crate in src-tauri/Cargo.toml." >&2; exit 1; }
+          notes=$(awk -v head="## $version " 'index($0, head) == 1 { found = 1; next } found && /^## / { exit } found' CHANGELOG.md | sed '/./,$!d')
+          id=$(gh api repos/$GITHUB_REPOSITORY/releases -q ".[] | select(.tag_name == \"$TAG\") | .id" | head -1)
+          [ -n "$id" ] || id=$(gh api repos/$GITHUB_REPOSITORY/releases -f tag_name=$TAG -f target_commitish=$GITHUB_SHA -f name="Squadron $TAG" -f body="${notes:-Squadron $version}" -F draft=true -q .id)
           echo "id=$id" >> "$GITHUB_OUTPUT"
-          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
   build:
-    needs: release
+    needs: [test, release]
+    if: ${{ !cancelled() && needs.test.result == 'success' && (needs.release.result == 'success' || github.ref == 'refs/heads/main') }}
     strategy:
       fail-fast: false
       matrix:
@@ -161,11 +183,12 @@ jobs:
       - uses: swatinem/rust-cache@d1527c8f67ef9af357290475d4af4b0fab8f12e0 # v2.9.3
         with:
           workspaces: src-tauri
+          save-if: ${{ github.ref == 'refs/heads/main' }}
       - run: pnpm install --frozen-lockfile
-      - if: ${{ env.ACT }}
+      - if: ${{ env.ACT || !startsWith(github.ref, 'refs/tags/') }}
         run: pnpm tauri build ${{ matrix.args }} --no-sign
       - uses: tauri-apps/tauri-action@84b9d35b5fc46c1e45415bdb6144030364f7ebc5 # v0.6.2
-        if: ${{ !env.ACT }}
+        if: ${{ !env.ACT && startsWith(github.ref, 'refs/tags/') }}
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
@@ -176,7 +199,7 @@ jobs:
           args: ${{ matrix.args }}
           includeUpdaterJson: true
       - name: Offer this build to the updater
-        if: ${{ !env.ACT }}
+        if: ${{ !env.ACT && startsWith(github.ref, 'refs/tags/') }}
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

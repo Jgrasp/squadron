@@ -5,18 +5,16 @@ cd "$(dirname "$0")/.."
 root=$PWD
 . "$HOME/.cargo/env"
 
-tag_merged() {
+tag_release() {
+  local version=$1 merged crate
+  merged=$(gh pr list -R "$repo" --head "release/v$version" --state merged --json mergeCommit --jq '.[0].mergeCommit.oid // empty')
+  [ -n "$merged" ] || { echo "The pull request of Squadron $version is not merged." >&2; return 1; }
   git fetch -q "git@github.com:$repo.git" main
-  base=$(git rev-parse FETCH_HEAD)
-  local subject tag
-  subject=$(git log -1 --format=%s "$base")
-  case $subject in "Squadron "[0-9]*) ;; *) return 0 ;; esac
-  tag=v${subject#Squadron }
-  git update-ref refs/heads/public "$base"
-  if ! git rev-parse -q --verify "refs/tags/$tag" >/dev/null; then
-    git tag "$tag" "$base"
-    echo "Tagged $tag on the merged $subject."
-  fi
+  crate=$(git show "$merged:src-tauri/Cargo.toml" | sed -n 's/^version = "\(.*\)"/\1/p' | head -1)
+  [ "$crate" = "$version" ] || { echo "The merged commit $merged is version $crate, not $version." >&2; return 1; }
+  git tag "v$version" "$merged"
+  git push -q "git@github.com:$repo.git" "refs/tags/v$version"
+  echo "Tagged v$version on $merged: the Release workflow publishes it."
 }
 
 watch_release() {
@@ -24,8 +22,8 @@ watch_release() {
   local queue_max=${QUEUE_MAX:-300} run_max=${RUN_MAX:-900}
   declare -A last first
   while :; do
-    run=$(gh run list -R "$repo" --workflow Release --limit 20 --json databaseId,displayTitle,event,status \
-      --jq "[.[] | select(.displayTitle == \"Squadron $version\")][0] | \"\(.databaseId) \(.status)\"")
+    run=$(gh run list -R "$repo" --workflow Release --limit 20 --json databaseId,headBranch,event,status \
+      --jq "[.[] | select(.headBranch == \"v$version\" and .event == \"push\")][0] | \"\(.databaseId) \(.status)\"")
     [ -n "$run" ] && [ "$run" != "null null" ] || { echo "No Release run for Squadron $version." >&2; return 1; }
     now=$(date +%s)
     while IFS='|' read -r name state conclusion started; do
@@ -66,7 +64,7 @@ watch_release() {
 }
 
 if [ "${1:-}" = tag ]; then
-  tag_merged
+  tag_release "${2:?usage: scripts/release.sh tag <version>}"
   exit
 fi
 
@@ -75,12 +73,16 @@ if [ "${1:-}" = watch ]; then
   exit
 fi
 
-version=${1:?usage: scripts/release.sh <version> [notes] [fr=notes ...], scripts/release.sh tag once the pull request is merged, or scripts/release.sh watch <version>}
+version=${1:?usage: scripts/release.sh <version> [notes] [fr=notes ...], scripts/release.sh tag <version> once the pull request is merged, or scripts/release.sh watch <version>}
 notes=${2:-}
 branch=release/v$version
 work=$root/.claude/worktrees/release-v$version
-tag_merged
-git worktree add -q --detach "$work" HEAD
+if git ls-remote --exit-code --tags "git@github.com:$repo.git" "refs/tags/v$version" >/dev/null; then
+  echo "v$version is already released." >&2
+  exit 1
+fi
+git fetch -q "git@github.com:$repo.git" main
+git worktree add -q --detach "$work" FETCH_HEAD
 trap 'git -C "$root" worktree remove --force "$work"' EXIT
 cd "$work"
 
@@ -107,15 +109,7 @@ if [ -n "$notes" ]; then
   done
   prepend CHANGELOG.md "$notes"
 fi
-git commit -qam "Squadron $version"
-release=$(git rev-parse HEAD)
-
-public=$(git commit-tree "HEAD^{tree}" -p "$base" -m "Squadron $version" ${notes:+-m "$notes"})
-git push -q "git@github.com:$repo.git" "$public:refs/heads/$branch"
+git commit -qm "Squadron $version" ${notes:+-m "$notes"} -a
+git push -q "git@github.com:$repo.git" "HEAD:refs/heads/$branch"
 url=$(gh pr create -R "$repo" --base main --head "$branch" --title "Squadron $version" --body "${notes:-Squadron $version}")
-
-cd "$root"
-if ! git merge -q --ff-only "$release" 2>/dev/null && ! git cherry-pick "$release" >/dev/null; then
-  echo "Squadron $version is $release: bring it onto main by hand." >&2
-fi
-echo "Squadron $version waits in $url: merging it (rebase) starts the release. Then run scripts/release.sh tag."
+echo "Squadron $version waits in $url. Once it is merged, scripts/release.sh tag $version publishes it."
