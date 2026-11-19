@@ -112,4 +112,4 @@ fi
 git commit -qm "Squadron $version" ${notes:+-m "$notes"} -a
 git push -q "git@github.com:$repo.git" "HEAD:refs/heads/$branch"
 url=$(gh pr create -R "$repo" --base main --head "$branch" --title "Squadron $version" --body "${notes:-Squadron $version}")
-echo "Squadron $version waits in $url. Once it is merged, scripts/release.sh tag $version publishes it."
+echo "Squadron $version waits in $url. Once it is merged, the Tag workflow tags it and the Release workflow publishes it (scripts/release.sh tag $version if Tag fails)."
