@@ -35,7 +35,13 @@ type Tree = { groups: Group[]; projects: Project[] }
 
 export type Inspection = Project & { taken_by: string | null; taken_archived: boolean; near: string | null }
 
-export const projects = $state({ list: [] as Project[], archived: [] as Project[], groups: [] as Group[], current: '', overview: false, board: false, pulls: false })
+export const projects = $state({ list: [] as Project[], archived: [] as Project[], groups: [] as Group[], current: localStorage.getItem('squadron.project') ?? '', overview: false, board: false, pulls: false })
+
+$effect.root(() => {
+  $effect(() => {
+    if (projects.current) localStorage.setItem('squadron.project', projects.current)
+  })
+})
 
 export function defaultsFor(path: string): Options {
   const own = projects.list.find((p) => p.path === path)?.defaults
