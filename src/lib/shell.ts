@@ -12,6 +12,8 @@ export function plain(raw: string) {
     .trimEnd()
 }
 
+export const unbang = (command: string) => command.replace(/^!+\s*/, '')
+
 export function clip(text: string) {
   if (text.length <= LIMIT) return text
   return `${text.slice(0, LIMIT / 3)}\n… ${text.length - LIMIT} characters cut …\n${text.slice(-(LIMIT * 2) / 3)}`
