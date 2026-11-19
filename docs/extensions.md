@@ -574,6 +574,11 @@ fn forge(call: String, input: String) -> Result<String, String> {
 - **Errors**: a panel missing from `contributes.panels`, answered by the host without reaching the window, and a panel without `window` while no agent is on screen (overview, board or pull requests shown, or no agent).
 - **Launch**: called from `started`, it waits until the splash is gone and the agents are restored, up to 150 s, then opens. It works the same from `options.changed`, `settings.message`, `timer` and `panel.message`.
 
+### Values to copy (API 1.10)
+
+- **`fields[].copy`** in `contributes.accounts`: optional list of one-line strings, each once, such as the scopes a token needs. In the account form, Squadron shows each value as a button under the field's hint; a click copies it and the button reads "Copied" for 1.5 s.
+- Manifest only, no WIT change: the WIT of 1.10.0 only bumps its version. An older Squadron ignores `copy` and shows no buttons.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

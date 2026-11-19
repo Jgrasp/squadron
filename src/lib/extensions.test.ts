@@ -285,6 +285,7 @@ describe('extensions', () => {
     expect(with_({ label: { en: 'Jira sites' }, fields: [field('site', 'host'), field('email'), field('token', 'secret')] })).toEqual([])
     const tokens = 'https://id.atlassian.com/manage-profile/security/api-tokens'
     expect(with_({ label: { en: 'Jira sites' }, fields: [{ ...field('token', 'secret'), url: tokens }] })).toEqual([])
+    expect(with_({ label: { en: 'Sites' }, fields: [{ ...field('token', 'secret'), copy: ['read:repository:bitbucket', 'read:user:bitbucket'] }] })).toEqual([])
     expect(keys({ ...base, wasm: 'jira.wasm', contributes: { accounts: { label: { en: 'Sites' }, check: true, fields: [field('site', 'host')] } } })).toEqual([])
     expect(with_({ label: { en: 'Sites' }, check: true, fields: [field('site', 'host')] })).toEqual(['extensions.checkNeedsWasm'])
     expect(with_({ label: { en: 'Sites' }, check: false, fields: [field('site', 'host')] })).toEqual([])
@@ -298,6 +299,10 @@ describe('extensions', () => {
       { label: { en: 'Sites' }, fields: [{ ...field('a', 'secret'), url: 'http://id.atlassian.com/manage-profile/security/api-tokens' }] },
       { label: { en: 'Sites' }, fields: [{ ...field('a', 'secret'), url: 'https://id.atlassian.com/a b' }] },
       { label: { en: 'Sites' }, check: 'yes', fields: [field('a')] },
+      { label: { en: 'Sites' }, fields: [{ ...field('a'), copy: 'read:user' }] },
+      { label: { en: 'Sites' }, fields: [{ ...field('a'), copy: ['read:user', 'read:user'] }] },
+      { label: { en: 'Sites' }, fields: [{ ...field('a'), copy: ['read\nuser'] }] },
+      { label: { en: 'Sites' }, fields: [{ ...field('a'), copy: [' '] }] },
       [field('a')],
     ])
       expect(with_(bad)).toEqual(['extensions.badAccounts'])
