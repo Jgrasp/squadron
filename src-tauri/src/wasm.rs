@@ -44,6 +44,7 @@ const QUEUED_PAGE_EVENTS: usize = 50;
 const QUEUED_PAGE_BYTES: usize = 8 << 20;
 const POSTED: usize = 4 << 20;
 const POOL: usize = 4;
+const POLLED: [&str; 3] = ["lists", "runs", "pull"];
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
 
@@ -1135,7 +1136,7 @@ impl Pool {
     }
 
     fn serve(&self, call: String, input: String) -> Answer {
-        let mut instance = self.take()?;
+        let mut instance = self.take(&call)?;
         let Some(forge) = instance.forge else {
             self.give(Some(instance));
             return Err(NO_FORGE.into());
@@ -1163,14 +1164,14 @@ impl Pool {
         }
     }
 
-    fn take(&self) -> Result<Instance, String> {
+    fn take(&self, call: &str) -> Result<Instance, String> {
         let deadline = Instant::now() + ANSWER;
         let mut slots = self.slots.lock().unwrap();
         loop {
-            if let Some(instance) = slots.idle.pop() {
-                return Ok(instance);
-            }
-            if slots.made < POOL {
+            if admits(slots.made - slots.idle.len(), call) {
+                if let Some(instance) = slots.idle.pop() {
+                    return Ok(instance);
+                }
                 slots.made += 1;
                 drop(slots);
                 let (allowed, panels) = self.rights.lock().unwrap().clone();
@@ -1193,8 +1194,12 @@ impl Pool {
             Some(instance) => slots.idle.push(instance),
             None => slots.made -= 1,
         }
-        self.freed.notify_one();
+        self.freed.notify_all();
     }
+}
+
+fn admits(busy: usize, call: &str) -> bool {
+    busy + usize::from(POLLED.contains(&call)) < POOL
 }
 
 fn text_of(value: &Value) -> Option<Value> {
@@ -1761,6 +1766,15 @@ fn pump(fed: &mpsc::Receiver<Admitted>, running: &Running, every: Duration) {
 mod tests {
     use super::*;
     use std::process::Command;
+
+    #[test]
+    fn polling_leaves_a_slot_for_calls_the_user_waits_on() {
+        assert!(admits(POOL - 2, "lists"));
+        assert!(!admits(POOL - 1, "runs"));
+        assert!(!admits(POOL - 1, "pull"));
+        assert!(admits(POOL - 1, "numbered"));
+        assert!(!admits(POOL, "numbered"));
+    }
 
     fn hello() -> Option<PathBuf> {
         let dir = Path::new(env!("CARGO_MANIFEST_DIR")).join("../extensions/examples/hello");
