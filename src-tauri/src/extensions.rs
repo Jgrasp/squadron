@@ -770,6 +770,15 @@ impl Extensions {
         if !valid_id(id) || target.is_symlink() || !target.is_dir() {
             return Err(format!("{id} is not an installed extension."));
         }
+        let twin = self.folders(&self.choices()).into_iter().any(|(dir, _)| {
+            dir != target && read(&dir, false).manifest.is_some_and(|m| m["id"] == id)
+        });
+        if twin {
+            std::fs::remove_dir_all(&target).map_err(|e| e.to_string())?;
+            let mut choices = self.choices();
+            choices.origins.remove(id);
+            return self.save(&choices);
+        }
         for account in self.accounts(id) {
             self.remove_account(id, &account.id, keyring)?;
         }
@@ -1413,6 +1422,35 @@ mod tests {
 
         m.unlink(&linked.to_string_lossy()).unwrap();
         assert_eq!(m.list().extensions.len(), 2);
+    }
+
+    #[test]
+    fn uninstalling_a_copy_keeps_the_state_of_the_linked_folder_with_the_same_id() {
+        let m = extensions();
+        let manifest = r#"{"id":"jira","contributes":{"accounts":{"fields":[{"id":"site"}]}}}"#;
+        std::fs::create_dir_all(m.dir.join("jira")).unwrap();
+        std::fs::write(m.dir.join("jira/extension.json"), manifest).unwrap();
+        let linked = m.dir.parent().unwrap().join("dev");
+        std::fs::create_dir_all(&linked).unwrap();
+        std::fs::write(linked.join("extension.json"), manifest).unwrap();
+        m.link(&linked.to_string_lossy()).unwrap();
+        let none = |_: &str, _: &str, _: Option<&str>| Ok(());
+        let site = BTreeMap::from([("site".to_string(), "a.atlassian.net".to_string())]);
+        m.save_account("jira", None, &site, &none).unwrap();
+        m.enable("jira", false).unwrap();
+        let mut choices = m.choices();
+        choices.origins.insert("jira".into(), OFFICIAL.into());
+        m.save(&choices).unwrap();
+
+        m.uninstall("jira", &|_, _, _| panic!("keyring touched"))
+            .unwrap();
+
+        let listing = m.list();
+        assert!(!m.dir.join("jira").exists());
+        assert_eq!(listing.extensions.len(), 1);
+        assert_eq!(listing.accounts["jira"].len(), 1);
+        assert_eq!(listing.disabled, vec!["jira"]);
+        assert!(listing.origins.is_empty());
     }
 
     #[test]

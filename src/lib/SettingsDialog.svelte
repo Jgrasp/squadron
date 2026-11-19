@@ -21,7 +21,7 @@
   import ExtensionsDiscover from './ExtensionsDiscover.svelte'
   import Icon from './Icon.svelte'
   import { brokenAccounts, checkAccounts, extensions } from './extensions.svelte'
-  import { nameOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
+  import { nameOf, pageOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
   import PluginSettings from './PluginSettings.svelte'
   import McpServers from './McpServers.svelte'
   import { detect } from './OpenWith.svelte'
@@ -90,7 +90,7 @@
   const enabled = $derived(sorted(extensions.list.filter((e) => e.enabled)))
   const listed = $derived.by(() => {
     const shown = expanded ? enabled : enabled.slice(0, LISTED)
-    const open = extensions.list.find((e) => tab === `ext:${e.id}`)
+    const open = extensions.list.find((e) => tab === `ext:${pageOf(e)}`)
     return open && !shown.includes(open) ? [...shown, open] : shown
   })
 
@@ -244,7 +244,7 @@
         </div>
         {#each listed as e (e.dir)}
           {@const update = updateOf(e)}
-          <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${e.id}`} onclick={() => (ui.settings = `ext:${e.id}`)}>
+          <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${pageOf(e)}`} onclick={() => (ui.settings = `ext:${pageOf(e)}`)}>
             <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={16} />
             <span class="name">{nameOf(e)}</span>
             {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if brokenAccounts(e)}<span class="broken" title={t('extensions.accountBroken')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
@@ -337,7 +337,7 @@
     {:else if tab === 'discover'}
       <ExtensionsDiscover />
     {:else if tab.startsWith('ext:')}
-      <ExtensionPage id={tab.slice('ext:'.length)} />
+      <ExtensionPage target={tab.slice('ext:'.length)} />
     {:else if tab === 'plugins'}
       <PluginSettings />
     {:else if tab === 'mcp'}
