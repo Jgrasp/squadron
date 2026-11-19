@@ -209,6 +209,7 @@
       parent: host,
       state: EditorState.create({
         doc: value,
+        selection: { anchor: value.length },
         extensions: [
           Prec.highest(
             EditorView.domEventHandlers({
