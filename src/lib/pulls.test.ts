@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Lists, Pull } from './pulls.svelte'
+import type { Agent } from './stream'
 
 const forge = vi.hoisted(() => ({ lists: {} as Omit<Lists, 'error'>, pull: null as unknown, calls: [] as string[], offline: false }))
 
@@ -19,7 +20,7 @@ vi.mock('./layout.svelte', () => ({ layout: { review: null }, requestPanel: vi.f
 vi.mock('./settings.svelte', () => ({ settings: {} }))
 vi.mock('./forges.svelte', () => ({ forgeName: (host: string) => host, providedLinks: [] }))
 
-const { awaitsChecks, lists, lookUpLists, lookUpNumbered, numbered, openReview, refreshPull } = await import('./pulls.svelte')
+const { awaitsChecks, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, refreshPull, tidyMerged } = await import('./pulls.svelte')
 
 const pull = (number: number, more: Partial<Pull> = {}): Pull => ({
   host: 'github',
@@ -92,5 +93,29 @@ describe('pull request freshness', () => {
     expect(awaitsChecks('/p', pull(9, { checks: 'passing', mergeable: true }))).toBe(false)
     expect(awaitsChecks('/p', pull(9, { checks: 'failing' }))).toBe(false)
     expect(awaitsChecks('/p', pull(10))).toBe(false)
+  })
+})
+
+describe('merged pull requests', () => {
+  it('drops the worktree and branch of an asleep agent once its pull request is merged, only once', async () => {
+    forge.calls = []
+    const agent = { id: 'a1', project: '/p', alive: false, pinned: true, worktree: { path: '/p/.claude/worktrees/feat', branch: 'feat' } } as Agent
+    const dropped = () => forge.calls.filter((c) => c === 'drop_merged_worktree').length
+    owned.a1 = pull(9, { branch: 'feat' })
+    await tidyMerged(agent)
+    owned.a1 = pull(9, { branch: 'other', state: 'merged' })
+    await tidyMerged(agent)
+    owned.a1 = pull(9, { branch: 'feat', state: 'merged' })
+    agent.alive = true
+    await tidyMerged(agent)
+    expect(dropped()).toBe(0)
+
+    agent.alive = false
+    await tidyMerged(agent)
+    await tidyMerged(agent)
+    expect(dropped()).toBe(1)
+    expect(agent.worktree).toBeNull()
+    expect(agent.pinned).toBe(false)
+    expect(forge.calls).toContain('set_workdir')
   })
 })

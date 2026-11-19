@@ -1247,6 +1247,13 @@ async fn drop_review_checkout(app: AppHandle, dir: PathBuf) -> Result<bool, Stri
 }
 
 #[tauri::command]
+async fn drop_merged_worktree(dir: PathBuf, branch: String, head: String) -> Result<(), String> {
+    tauri::async_runtime::spawn_blocking(move || git::drop_merged_worktree(&dir, &branch, &head))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[tauri::command]
 async fn prune_review_checkouts(app: AppHandle, keep: Vec<PathBuf>) -> Result<usize, String> {
     let root = reviews_dir(&app)?;
     tauri::async_runtime::spawn_blocking(move || {
@@ -2812,6 +2819,7 @@ pub fn run() {
             numbered_pull,
             review_checkout,
             drop_review_checkout,
+            drop_merged_worktree,
             prune_review_checkouts,
             restore_review_checkout,
             changed_files,
