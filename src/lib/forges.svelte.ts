@@ -4,8 +4,6 @@ import { active, forgePattern, shownOf, VERDICTS, type CatalogEntry, type Extens
 import { nameOf } from './extension-pages.svelte'
 import { projects } from './projects.svelte'
 
-export const BUILT_IN: Record<string, string> = { gitlab: 'GitLab', azure: 'Azure DevOps' }
-
 type Provider = Extension & { manifest: Manifest & { contributes: { forge: Forge } } }
 
 export const providers = (): Provider[] => active(extensions.list).filter((e): e is Provider => !!e.manifest.contributes?.forge && !extensions.unloaded.includes(e.id))
@@ -14,7 +12,7 @@ export const providerOf = (host: string) => providers().find((e) => e.id === hos
 
 export function forgeName(host: string) {
   const provider = providerOf(host)
-  return provider ? nameOf(provider) : (BUILT_IN[host] ?? host)
+  return provider ? nameOf(provider) : host
 }
 
 export function can(host: string, call: ForgeCall) {

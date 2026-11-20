@@ -4,7 +4,6 @@ pub mod agents;
 pub mod artifacts;
 pub mod askpass;
 pub mod attach;
-pub mod azure;
 pub mod claude;
 pub mod claude_flags;
 pub mod definitions;
@@ -13,7 +12,6 @@ pub mod extension_tools;
 pub mod extensions;
 pub mod forge;
 pub mod git;
-pub mod gitlab;
 pub mod keys;
 mod links;
 mod ondemand;
@@ -1373,31 +1371,6 @@ async fn forge_coverage(app: AppHandle, projects: Vec<PathBuf>) -> Vec<provider:
     tauri::async_runtime::spawn_blocking(move || provider::coverage(&app, projects))
         .await
         .unwrap_or_default()
-}
-
-#[tauri::command]
-async fn forge_accounts() -> forge::Accounts {
-    tauri::async_runtime::spawn_blocking(forge::accounts)
-        .await
-        .unwrap_or(forge::Accounts {
-            gitlab: None,
-            azure: None,
-        })
-}
-
-#[tauri::command]
-fn forge_sign_out(account: String) -> Result<(), String> {
-    forge::sign_out(&account)
-}
-
-#[tauri::command]
-async fn gitlab_sign_in(site: String, token: String) -> Result<(), String> {
-    gitlab::sign_in(site, token.trim().to_string()).await
-}
-
-#[tauri::command]
-async fn azure_sign_in(organization: String, token: String) -> Result<(), String> {
-    azure::sign_in(organization, token.trim().to_string()).await
 }
 
 #[tauri::command]
@@ -2832,11 +2805,7 @@ pub fn run() {
             post_remarks,
             merge_pull,
             update_pull,
-            forge_accounts,
             forge_coverage,
-            forge_sign_out,
-            gitlab_sign_in,
-            azure_sign_in,
             subagent_log,
             get_settings,
             set_settings,
@@ -2944,6 +2913,8 @@ pub fn run() {
             restore_place(app, &config);
             std::thread::spawn(|| {
                 let _ = forge::write_secret("bitbucket", None);
+                let _ = forge::write_secret("gitlab", None);
+                let _ = forge::write_secret("azure", None);
             });
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;

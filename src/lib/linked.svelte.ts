@@ -13,9 +13,7 @@ export type Linked = {
   project: string | null
 }
 
-const PULL = /^https?:\/\/(www\.)?([\w.-]+(?:\/[\w.-]+){2,}\/-\/merge_requests|(?:dev\.azure\.com\/[\w.-]+|[\w-]+\.visualstudio\.com(?:\/DefaultCollection)?)\/[\w.%-]+\/_git\/[\w.%-]+\/pullrequest)\/\d+([/?#].*)?$/
-
-export const isPullLink = (url: string) => PULL.test(url) || isProvidedLink(url)
+export const isPullLink = isProvidedLink
 
 const found = new Map<string, { at: number; linked: Promise<Linked> }>()
 
