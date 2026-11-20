@@ -12,6 +12,7 @@ pub enum Route {
     Pilot,
     Extensions,
     Askpass,
+    Browser,
 }
 
 #[derive(Default)]

@@ -1,5 +1,6 @@
 import agent from './agent'
 import board from './board'
+import browser from './browser'
 import claudeKeys from './claudeKeys'
 import common from './common'
 import conversation from './conversation'
@@ -16,4 +17,4 @@ import usage from './usage'
 import mcp from './mcp'
 import notify from './notify'
 
-export default { common, format, settings, board, review, runs, agent, conversation, persona, shell, spotlight, claudeKeys, extensions, plugins, usage, mcp, notify }
+export default { common, format, settings, board, browser, review, runs, agent, conversation, persona, shell, spotlight, claudeKeys, extensions, plugins, usage, mcp, notify }

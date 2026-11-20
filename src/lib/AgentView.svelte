@@ -31,6 +31,7 @@
   import { hint, settings } from './settings.svelte'
   import SubagentsPanel from './SubagentsPanel.svelte'
   import ArtifactsPanel from './ArtifactsPanel.svelte'
+  import BrowserPanel from './BrowserPanel.svelte'
   import { docsOf } from './artifacts'
   import { pointed, refresh as refreshArtifacts, shelf } from './artifacts.svelte'
   import TerminalPanel from './TerminalPanel.svelte'
@@ -629,6 +630,11 @@
   let attachError = $state('')
 
   const attach = (paths: string[]) => (attachments = [...attachments, ...paths.filter((p) => !attachments.includes(p))])
+  function unnote(i: number) {
+    const shot = comments[i].page?.shot
+    comments.splice(i, 1)
+    if (shot && !comments.some((c) => c.page?.shot === shot)) attachments = attachments.filter((f) => f !== shot)
+  }
 
   async function browseFiles() {
     const chosen = await chooseFiles({ multiple: true })
@@ -900,13 +906,19 @@
         <button class="btn btn-ghost" disabled>{t('settings.itemRuns')}</button>
       {/if}
     {/snippet}
+    {#snippet browserTool()}
+      <button class="btn btn-ghost" aria-label={t('browser.open')} aria-pressed={panel === 'browser'} title={t('browser.openTitle', { name: agent.name })} onclick={() => toggle('browser')}>
+        <Icon name="browser" />
+        {t('browser.open')}
+      </button>
+    {/snippet}
     {#snippet kanbanTool()}
       <button class="btn btn-ghost" aria-label={t('agent.kanban')} aria-pressed={projects.board} title={t('agent.kanbanTitle', { shortcut: hint('kanban') })} onclick={toggleBoard}>
         <Icon name="kanban" />
         {t('agent.kanban')}
       </button>
     {/snippet}
-      {#each ui.customizing ? all('agent.tools') : shown('agent.tools').filter((id) => id !== 'runs' || ran) as id (id)}
+      {#each ui.customizing ? all('agent.tools') : shown('agent.tools').filter((id) => (id !== 'runs' || ran) && (id !== 'browser' || settings.browser)) as id (id)}
           <span class="item" class:off={hidden('agent.tools', id)} data-item={id}>
             {#if extensionItem('agent.tools', id)}
               {@const item = extensionItem('agent.tools', id)!}
@@ -921,7 +933,7 @@
                 {#if badgeOf(id)}<span class="count">{badgeOf(id)}</span>{/if}
               </button>
             {:else}
-              {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : kanbanTool)()}
+              {@render (id === 'editor' ? editorTool : id === 'terminal' ? terminalTool : id === 'diff' ? diffTool : id === 'pulls' ? pullsTool : id === 'runs' ? runsTool : id === 'browser' ? browserTool : kanbanTool)()}
             {/if}
             {#if ui.customizing}
               <button class="eye" data-keep aria-label={t(hidden('agent.tools', id) ? 'agent.showItem' : 'agent.hideItem', { item: labelOf('agent.tools', id) })} onclick={() => toggleItem('agent.tools', id)}>
@@ -1229,8 +1241,8 @@
               {#each comments as comment, i (i)}
                 <CommentChip
                   {comment}
-                  onopen={() => ((target = comment), (diffSource = comment.pull ? 'pull' : 'local'), openDiff(comment.path))}
-                  onremove={() => comments.splice(i, 1)}
+                  onopen={comment.page ? undefined : () => ((target = comment), (diffSource = comment.pull ? 'pull' : 'local'), openDiff(comment.path))}
+                  onremove={() => unnote(i)}
                 />
               {/each}
             </div>
@@ -1386,6 +1398,8 @@
     />
   {:else if extensionPanel(panel)}
     <ExtensionPanel panel={extensionPanel(panel)!} {agent} onclose={() => setPanel(agent.project, null)} />
+  {:else if panel === 'browser'}
+    <BrowserPanel {agent} onnote={(added, files) => (comments.push(...added), attach(files), composer.focus())} onclose={() => setPanel(agent.project, null)} />
   {:else if panel === 'artifacts' && shared.length}
     <ArtifactsPanel
       {agent}

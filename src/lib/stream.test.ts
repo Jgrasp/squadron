@@ -307,6 +307,17 @@ describe('stream', () => {
     expect(prompt('Hi')).toBe('Hi')
   })
 
+  it('groups browser notes by page, with what only the agent needs', () => {
+    const page = { url: 'https://x.fr/', title: 'X', tab: 't1', what: 'button “Pay”', selector: '#pay', ref: 'e3', html: '<button\n  id="pay">Pay</button>' }
+    const comments = [
+      { path: '', line: 0, removed: false, code: '', note: 'Too small', page: { ...page, n: 1 } },
+      { path: '', line: 0, removed: false, code: '', note: ' ', page: { ...page, n: 2, what: '', selector: '', ref: '', html: '' } },
+    ]
+    expect(prompt('Fix', comments)).toBe(
+      'My notes on the page “X” (https://x.fr/), tab t1, numbered as on the annotated screenshot:\n1. Too small — button “Pay”, `#pay` (e3)\n   `<button id="pay">Pay</button>`\n2. (no comment)\n\nFix',
+    )
+  })
+
   it('follows slash commands, compaction, clear and remote control', () => {
     const agent = newAgent('a', '/project', 'a', { model: 'haiku', effort: 'low', mode: 'default' })
     apply(agent, { type: 'system', subtype: 'init', session_id: 's1', slash_commands: ['compact', 'clear', 'doctor', 'ponytail:ponytail'], terminal_slash_commands: ['doctor'], skills: ['ponytail:ponytail'] })

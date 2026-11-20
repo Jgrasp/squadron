@@ -27,7 +27,7 @@ import { fences } from './codepaste'
   import QuestionCard from './QuestionCard.svelte'
   import ValuesCard from './ValuesCard.svelte'
   import SecretCard from './SecretCard.svelte'
-  import { calls, doing, INTERNAL, subagentOf, type Advice, type Agent, type Ask, type Block, type Subagent, type ToolCall, workdir } from './stream'
+  import { calls, doing, INTERNAL, pageNotes, subagentOf, type Advice, type Agent, type Ask, type Block, type Subagent, type ToolCall, workdir } from './stream'
   import { settings } from './settings.svelte'
   import SubagentsCard from './SubagentsCard.svelte'
   import ForkCard from './ForkCard.svelte'
@@ -389,6 +389,12 @@ import { fences } from './codepaste'
             {/each}
           </div>
         {/if}
+        {#each pageNotes(entry.comments) as block, b (b)}
+          <details class="page-context">
+            <summary>{t('conversation.pageDetails')}</summary>
+            <div class="said">{block}</div>
+          </details>
+        {/each}
       </div>
     {/if}
     {#if cards.length}
@@ -1225,5 +1231,29 @@ import { fences } from './codepaste'
   .cmd-note {
     font-size: 12px;
     color: var(--accent-soft);
+  }
+
+  .page-context {
+    margin-top: 10px;
+    padding-top: 8px;
+    border-top: 1px solid rgba(36, 18, 10, 0.2);
+    font-size: 12.5px;
+  }
+
+  .page-context summary {
+    color: var(--accent-ink);
+    cursor: pointer;
+    opacity: 0.75;
+  }
+
+  .page-context summary:hover {
+    opacity: 1;
+  }
+
+  .page-context .said {
+    margin-top: 8px;
+    max-height: 320px;
+    overflow-y: auto;
+    font: 11.5px/1.5 var(--mono);
   }
 </style>

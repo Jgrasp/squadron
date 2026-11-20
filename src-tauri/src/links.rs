@@ -3,7 +3,7 @@ use tauri::{Manager, Runtime, Url, Webview, plugin::TauriPlugin};
 pub fn init<R: Runtime>() -> TauriPlugin<R> {
     tauri::plugin::Builder::new("links")
         .on_navigation(|webview, url| {
-            if !leaves_squadron(url) {
+            if crate::browser::tab(webview.label()) || !leaves_squadron(url) {
                 return true;
             }
             open(webview, url.as_str());
@@ -24,7 +24,7 @@ pub fn from_squadron(url: &Url) -> bool {
 }
 
 pub fn keep_home<R: Runtime>(webview: &Webview<R>, url: &Url) {
-    if from_squadron(url) {
+    if from_squadron(url) || crate::browser::tab(webview.label()) {
         return;
     }
     let home = if cfg!(debug_assertions) {

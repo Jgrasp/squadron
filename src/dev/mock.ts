@@ -1491,6 +1491,8 @@ mockIPC(
           { name: 'Zed', command: '/home/demo/.local/zed.app/bin/zed {project} {file}' },
           { name: 'PhpStorm', command: '/opt/phpstorm/bin/phpstorm.sh {project}' },
         ]
+      case 'browser_status':
+        return { tabs: [] }
       case 'open_with':
         return
       case 'term_resize':

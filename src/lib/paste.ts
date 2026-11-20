@@ -2,7 +2,7 @@ import { invoke } from '@tauri-apps/api/core'
 import { errorText } from './i18n/index.svelte'
 import { codeLanguage, fenceAt } from './codepaste'
 
-function base64(file: Blob) {
+export function base64(file: Blob) {
   return new Promise<string>((done, fail) => {
     const reader = new FileReader()
     reader.onload = () => done(String(reader.result).split(',')[1] ?? '')

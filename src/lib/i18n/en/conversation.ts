@@ -225,4 +225,5 @@ export default {
   advisorWithout: 'Claude goes on without advice.',
   openTicket: 'Open the Jira ticket {key}',
   turnAdvised: { one: 'advisor ×{count} · {input} → {output}', other: 'advisor ×{count} · {input} → {output}' },
+  pageDetails: 'Page details for the agent',
 }

@@ -349,9 +349,15 @@ mod tests {
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
         let tools = Tools::new(move |call| calls_tx.send(call).unwrap());
         let pilot = crate::pilot::Pilot::new(|_| {});
-        let port = serve_with_pilot(gate.clone(), pilot, tools.clone(), axum::Router::new())
-            .await
-            .unwrap();
+        let port = serve_with_pilot(
+            gate.clone(),
+            pilot,
+            tools.clone(),
+            crate::browser_mcp::Tools::new(crate::browser::Browser::detached()),
+            axum::Router::new(),
+        )
+        .await
+        .unwrap();
         tokio::spawn(async move {
             while let Some(ask) = asks_rx.recv().await {
                 let ask: crate::permissions::Ask = ask;
@@ -382,7 +388,7 @@ mod tests {
             agent: None,
             advisor: None,
         };
-        let config = mcp_config(port, "agent-3", false);
+        let config = mcp_config(port, "agent-3", false, false);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start_gated(

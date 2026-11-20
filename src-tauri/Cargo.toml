@@ -31,14 +31,14 @@ shell-words = "1.1.1"
 sha2 = "0.10"
 tar = "0.4"
 flate2 = "1"
-tauri = { version = "2.12.4", features = [] }
+tauri = { version = "2.12.4", features = ["unstable"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"
 tauri-plugin-process = "2"
 tauri-plugin-single-instance = "2"
 tauri-plugin-updater = "2"
-tokio = { version = "1", features = ["net", "sync", "rt-multi-thread"] }
+tokio = { version = "1", features = ["macros", "net", "sync", "rt-multi-thread", "time"] }
 uuid = { version = "1", features = ["v4"] }
 wasmtime = { version = "50", default-features = false, features = ["runtime", "component-model", "cranelift", "std"] }
 wasmtime-wasi = { version = "50", default-features = false }
@@ -47,6 +47,7 @@ tauri-plugin-notification = "2"
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
 webkit2gtk = { version = "2.0.2", features = ["v2_40"] }
+javascriptcore-rs = "1.1.2"
 keyring = { version = "3", features = ["sync-secret-service"] }
 
 [target.'cfg(windows)'.dependencies]

@@ -77,7 +77,7 @@ impl Agent {
             agent: None,
             advisor: None,
         };
-        let config = mcp_config(self.port, "agent-1", false);
+        let config = mcp_config(self.port, "agent-1", false, false);
         let mut cmd = command(
             "claude",
             &self.dir,

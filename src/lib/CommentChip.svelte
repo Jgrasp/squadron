@@ -5,17 +5,28 @@
   let { comment, light = false, onopen, onremove }: { comment: Comment; light?: boolean; onopen?: () => void; onremove?: () => void } =
     $props()
 
-  const ref = $derived(comment.path ? `${comment.path.split('/').pop()}:${comment.line}` : t('review.pullRequest'))
-  const title = $derived(comment.path ? `${comment.path}:${comment.line}${comment.removed ? ` · ${t('review.removedLine')}` : ''}\n${comment.code.trim()}\n\n${comment.note}` : comment.note)
+  const page = $derived(comment.page)
+  const ref = $derived(page ? page.what || '…' : comment.path ? `${comment.path.split('/').pop()}:${comment.line}` : t('review.pullRequest'))
+  const title = $derived(
+    page
+      ? `${page.what}${page.selector ? `\n${page.selector}` : ''}\n\n${comment.note}`
+      : comment.path
+        ? `${comment.path}:${comment.line}${comment.removed ? ` · ${t('review.removedLine')}` : ''}\n${comment.code.trim()}\n\n${comment.note}`
+        : comment.note,
+  )
 </script>
 
 {#snippet body()}
-  <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
+  {#if page}
+    <span class="n">{page.n}</span>
+  {:else}
+    <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M21 12a8 8 0 0 1-11.6 7.1L4 20l1-4.6A8 8 0 1 1 21 12z" /></svg>
+  {/if}
   <span class="ref">{ref}</span>
-  <span class="note">{comment.note}</span>
+  <span class="note">{comment.note || '—'}</span>
 {/snippet}
 
-<span class="chip" class:light {title}>
+<span class="chip" class:light class:page {title}>
   {#if onopen}
     <button type="button" class="open" onclick={onopen} aria-label={t('review.editCommentOnLineOf', { path: comment.path, line: String(comment.line) })}>{@render body()}</button>
   {:else}
@@ -52,6 +63,33 @@
     stroke: var(--accent-soft);
     stroke-width: 2;
     stroke-linejoin: round;
+  }
+
+  .n {
+    min-width: 16px;
+    height: 16px;
+    flex: none;
+    padding: 0 4px;
+    border-radius: 8px;
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-size: 10.5px;
+    font-weight: 700;
+    line-height: 16px;
+    text-align: center;
+  }
+
+  .page .ref {
+    flex: 0 1 auto;
+    min-width: 40px;
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+
+  .light .n {
+    background: var(--accent-ink);
+    color: var(--accent);
   }
 
   .ref {

@@ -38,6 +38,7 @@ pub struct Agents {
     list: Mutex<HashMap<String, Agent>>,
     endpoint: Mutex<Option<(u16, PathBuf)>>,
     pilot: AtomicBool,
+    browser: AtomicBool,
 }
 
 #[derive(Clone, Serialize)]
@@ -72,6 +73,11 @@ impl Agents {
         crate::keys::KEYS.set_pilot(on);
     }
 
+    pub fn set_browser(&self, on: bool) {
+        self.browser
+            .store(on && cfg!(target_os = "linux"), Ordering::Relaxed);
+    }
+
     pub fn refresh_all(&self) {
         for agent in self.list.lock().unwrap().values_mut() {
             agent.stale |= agent.session.as_ref().is_some_and(Session::alive);
@@ -81,7 +87,12 @@ impl Agents {
     fn mcp(&self, id: &str) -> Option<String> {
         let endpoint = self.endpoint.lock().unwrap();
         let (port, dir) = endpoint.as_ref()?;
-        let config = crate::permissions::mcp_config(*port, id, self.pilot.load(Ordering::Relaxed));
+        let config = crate::permissions::mcp_config(
+            *port,
+            id,
+            self.pilot.load(Ordering::Relaxed),
+            self.browser.load(Ordering::Relaxed),
+        );
         match write_private(&dir.join(format!("{id}.json")), &config) {
             Ok(path) => Some(path.to_string_lossy().into_owned()),
             Err(e) => {

@@ -78,15 +78,31 @@ export type BackgroundTask = { id: string; toolUseId: string; name: string; star
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'judge_review_thread', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments', 'use_mcp', 'run_sudo', 'add_ssh_key'].map((tool) => `mcp__squadron-pilot__${tool}`)
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'judge_review_thread', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments', 'use_mcp', 'run_sudo', 'add_ssh_key'].map((tool) => `mcp__squadron-pilot__${tool}`).concat(['look', 'shot'].map((tool) => `mcp__squadron-browser__${tool}`))
 
-export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number; round?: number; head?: string }
+export type PageNote = { url: string; title: string; tab: string; n: number; what: string; selector: string; ref: string; html: string; shot?: string }
+
+export type Comment = { path: string; line: number; removed: boolean; code: string; note: string; pull?: number; round?: number; head?: string; page?: PageNote }
+
+export function pageNotes(comments: Comment[] = []) {
+  const pages = new Map<string, Comment[]>()
+  for (const c of comments) if (c.page) pages.set(`${c.page.tab} ${c.page.url}`, [...(pages.get(`${c.page.tab} ${c.page.url}`) ?? []), c])
+  return [...pages.values()].map((notes) => {
+    const { title, url, tab } = notes[0].page!
+    const lines = notes.map(({ note, page: p }) => {
+      const html = p!.html.replace(/\s+/g, ' ')
+      const where = p!.selector ? ` — ${p!.what}, \`${p!.selector}\` (${p!.ref})\n   \`${html.length > 300 ? `${html.slice(0, 300)}…` : html}\`` : ''
+      return `${p!.n}. ${note.trim() || '(no comment)'}${where}`
+    })
+    return `My notes on the page “${title || url}” (${url}), tab ${tab}, numbered as on the annotated screenshot:\n${lines.join('\n')}`
+  })
+}
 
 export function prompt(text: string, comments: Comment[] = []) {
-  const blocks = comments.map((c) =>
-    c.path ? `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}` : `On the whole pull request:\n${c.note}`,
-  )
-  return [...blocks, text].filter(Boolean).join('\n\n')
+  const blocks = comments
+    .filter((c) => !c.page)
+    .map((c) => (c.path ? `${c.path}:${c.line}${c.removed ? ' (removed line)' : ''}\n> ${c.code.trim()}\n${c.note}` : `On the whole pull request:\n${c.note}`))
+  return [...blocks, ...pageNotes(comments), text].filter(Boolean).join('\n\n')
 }
 
 export type Usage = { cost: number; input: number; output: number; ms: number; advised?: { calls: number; input: number; output: number } }
