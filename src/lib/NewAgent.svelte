@@ -166,6 +166,15 @@
   type Choice = { value: string; label: string; text: string; at?: number; detail?: string; usage?: string }
 
   let message: ReturnType<typeof Composer>
+  let form: HTMLFormElement
+
+  $effect(() => {
+    if (!running) return
+    return () =>
+      untrack(() => {
+        if (!running && !form.contains(document.activeElement)) message.focus()
+      })
+  })
   let dismissed = $state('')
   let chosen = $state('')
   let pick = $state(0)
@@ -270,7 +279,7 @@
   {#snippet badge()}
     <span class="in" style:--project={project.color}><span class="dot" aria-hidden="true"></span>{t('board.inProject', { project: project.name })}</span>
   {/snippet}
-  <form onsubmit={submit}>
+  <form bind:this={form} onsubmit={submit}>
     <div class="fields">
       {#if tied && link && linked}
         <div class="linked">
@@ -323,7 +332,7 @@
               bind:value={text}
               bind:this={message}
               placeholder={running ? '' : t('board.firstMessagePlaceholder')}
-              autofocus
+              autofocus={!running}
               onkeydown={keys}
               onpaste={(e) => clip.paste(e, message)}
               oncaret={mentions.track}
