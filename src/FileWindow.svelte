@@ -66,8 +66,8 @@
     margin: 0;
   }
 
-  main :global(.rendered),
-  main :global(.code pre) {
+  main :global(.prose .rendered),
+  main :global(.prose .code pre) {
     max-height: none;
   }
 
