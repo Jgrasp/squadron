@@ -610,6 +610,7 @@
   }
 
   let listing = $state(false)
+  let addMenu = $state<'line' | 'general' | null>(null)
   const shownLines = $derived(
     shown ? new Set(rows(shown.hunks).flatMap((r) => (r.kind === 'head' ? [] : r.kind === 'del' ? [`old:${r.old}`] : [`new:${r.new}`]))) : null,
   )
@@ -707,7 +708,7 @@
   }
 </script>
 
-<svelte:window onkeydown={nextKey} />
+<svelte:window onkeydown={nextKey} onpointerdown={(e) => addMenu && !(e.target as HTMLElement).closest('[data-add-menu]') && (addMenu = null)} />
 
 <SidePanel kind="diff" title={t('review.diff')} {back} {onclose}>
   {#snippet sub()}
@@ -976,18 +977,17 @@
           {/each}
           <form class="pr-comment" onsubmit={(e) => (e.preventDefault(), addGeneral('review'))}>
             <label for="pr-comment" class="sr-only">{t('review.commentOnWholePull')}</label>
-            <textarea id="pr-comment" class="field" rows="2" bind:value={generalNote} placeholder={t('review.commentOnWholePull')}></textarea>
+            <textarea
+              id="pr-comment"
+              class="field"
+              rows="2"
+              bind:value={generalNote}
+              placeholder={t('review.commentOnWholePull')}
+              onkeydown={(e) => e.ctrlKey && e.key === 'Enter' && (e.preventDefault(), addGeneral('review'))}
+            ></textarea>
             <div class="actions">
-              <span class="hint"></span>
-              {#if !review.length}
-                <button type="button" class="btn btn-ghost" disabled={!generalNote.trim() || posting} onclick={postGeneral}>
-                  {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
-                </button>
-                {#if agent}
-                  <button type="button" class="btn btn-secondary" disabled={!generalNote.trim()} onclick={() => addGeneral('agent')}>{t('review.addComment')}</button>
-                {/if}
-              {/if}
-              <button class="btn btn-primary" disabled={!generalNote.trim()}>{review.length ? t('review.addToReview') : t('review.startReview')}</button>
+              <span class="hint"><Trans k="review.ctrlEnterAdds">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>
+              {@render addTo('general', pull, !generalNote.trim(), postGeneral, () => addGeneral('agent'))}
             </div>
           </form>
         </details>
@@ -1241,6 +1241,38 @@
   </div>
 {/snippet}
 
+{#snippet addTo(where: 'line' | 'general', pull: Pull, empty: boolean, postIt: () => unknown, toAgent: () => unknown)}
+  {@const posts = can(pull.host, 'post')}
+  <span class="add" data-add-menu>
+    <button class="btn btn-primary" class:joined={posts || !!agent} disabled={empty}>{t('review.addToReview')}</button>
+    {#if posts || agent}
+      <button
+        type="button"
+        class="btn btn-primary more"
+        aria-label={t('review.moreActions')}
+        title={t('review.moreActions')}
+        aria-haspopup="menu"
+        aria-expanded={addMenu === where}
+        onclick={() => (addMenu = addMenu === where ? null : where)}
+      >
+        <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
+      </button>
+    {/if}
+    {#if addMenu === where}
+      <div class="choices" role="menu" aria-label={t('review.moreActions')}>
+        {#if posts}
+          <button type="button" role="menuitem" title={t('review.postNowTitle', { host: hostName(pull) })} disabled={empty || posting} onclick={() => ((addMenu = null), postIt())}>
+            {posting ? t('review.posting') : t('review.postNowOn', { host: hostName(pull) })}
+          </button>
+        {/if}
+        {#if agent}
+          <button type="button" role="menuitem" title={t('review.addToNextMessageTitle', { agent: agent.name })} disabled={empty} onclick={() => ((addMenu = null), toAgent())}>{t('review.addComment')}</button>
+        {/if}
+      </div>
+    {/if}
+  </span>
+{/snippet}
+
 {#snippet editor()}
   <form class="inline" onsubmit={comment} use:reveal in:slide={{ duration: still ? 0 : 260 }} onintroend={glide}>
     <label for="line-comment" class="sr-only">{t('review.commentOnLine', { line: String(commenting?.number ?? '') })}</label>
@@ -1263,24 +1295,10 @@
         <span class="hint">{existing.inReview ? t('review.inTheReview') : t('review.inYourNextMessage')} · <kbd>Ctrl ↵</kbd></span>
         <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
         <button class="btn btn-primary" disabled={!note.trim()}>{t('common.save')}</button>
-      {:else if reviewing && pull && review.length}
-        <span class="hint">{t('review.reviewInProgressComments', { count: review.length })} · <kbd>Ctrl ↵</kbd></span>
-        <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
-        <button class="btn btn-primary" disabled={!note.trim()}>{t('review.addToReview')}</button>
       {:else if reviewing && pull}
-        {#if postError}<span class="hint bad" role="alert">{problem}</span>{:else}<span class="hint"><Trans k="review.ctrlEnterStarts">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>{/if}
+        {#if postError}<span class="hint bad" role="alert">{problem}</span>{:else}<span class="hint"><Trans k="review.ctrlEnterAdds">{#snippet keys()}<kbd>Ctrl ↵</kbd>{/snippet}</Trans></span>{/if}
         <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
-        {#if can(pull.host, 'post')}
-          <button type="button" class="btn btn-ghost" title={t('review.postNowTitle', { host: hostName(pull) })} disabled={!note.trim() || posting} onclick={postNow}>
-            {posting ? t('review.posting') : t('review.postOn', { host: hostName(pull) })}
-          </button>
-        {/if}
-        {#if agent}
-          <button type="button" class="btn btn-secondary" title={t('review.addToNextMessageTitle', { agent: agent.name })} disabled={!note.trim()} onclick={forAgent}>{t('review.addComment')}</button>
-        {/if}
-        <button class="btn btn-primary" title={t('review.startReviewTitle')} disabled={!note.trim()}>
-          {t('review.startReview')}
-        </button>
+        {@render addTo('line', pull, !note.trim(), postNow, forAgent)}
       {:else}
         <span class="hint">{t('review.addedToNextMessage')} · <kbd>Ctrl ↵</kbd></span>
         <button type="button" class="btn btn-secondary" onclick={() => (commenting = null)}>{t('common.cancel')}</button>
@@ -1533,6 +1551,64 @@
   .pr-comment .btn {
     height: 32px;
     padding: 0 12px;
+  }
+
+  .add {
+    position: relative;
+    display: inline-flex;
+  }
+
+  .add .joined {
+    border-radius: 4px 0 0 4px;
+  }
+
+  .add .btn.more {
+    width: 30px;
+    margin-left: 1px;
+    padding: 0;
+    border-radius: 0 4px 4px 0;
+  }
+
+  .add .more svg {
+    width: 12px;
+    height: 12px;
+    flex: none;
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
+  }
+
+  .add .choices {
+    position: absolute;
+    top: calc(100% + 6px);
+    right: 0;
+    z-index: 30;
+    min-width: 220px;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+    padding: 6px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+  }
+
+  .add .choices button {
+    height: auto;
+    padding: 8px 10px;
+    color: var(--text);
+    font-size: 13px;
+    border-radius: 4px;
+    text-align: left;
+    white-space: nowrap;
+  }
+
+  .add .choices button:hover:not(:disabled) {
+    background: var(--menu-hover);
   }
 
   .thread.mine {
