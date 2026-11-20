@@ -52,7 +52,7 @@ export default {
   installForge: 'Install the {name} extension to see its pull requests, review them and merge them from Squadron.',
   noForgeKnows: 'No forge knows {host}',
   noRemote: '{project} has no origin remote',
-  noForgeWhy: 'Squadron reads pull requests from Azure DevOps and the forge extensions you install.',
+  noForgeWhy: 'Squadron reads pull requests from the forge extensions you install.',
   findForge: 'Find an extension',
   toReview: 'To review',
   openOn: 'Open on {host}',

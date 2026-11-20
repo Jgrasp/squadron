@@ -65,8 +65,6 @@
 {#snippet icon()}
   {#if provider}
     <ExtensionLogo id={provider.id} name={nameOf(provider)} logo={provider.logo} size={14} />
-  {:else if pull?.host === 'azure' || url.includes('/pullrequest/')}
-    <svg class="host" viewBox="0 0 16 16" aria-hidden="true"><path d="M16 3.06v9.5l-3.94 3.22L5.94 13.6v2.19L2.48 11.27l10.08.79V3.43L16 3.06zm-3.36.48L6.98 0v2.31L1.85 3.82 0 6.23v5.38l2.2.95V5.68l10.44-2.14z" /></svg>
   {:else}
     <svg class="host" viewBox="0 0 16 16" aria-hidden="true"
       ><path

@@ -1,4 +1,4 @@
-use crate::forge::{self, Draft, Linked, Lists, Person, Posted, Pull, Remark, Run};
+use crate::forge::{Draft, Linked, Lists, Person, Posted, Pull, Remark, Run};
 use crate::{git, projects, wasm};
 use regex::Regex;
 use serde::de::DeserializeOwned;
@@ -201,6 +201,8 @@ async fn call<T: DeserializeOwned + Send + 'static>(
     .map_err(|e| e.to_string())?
 }
 
+const NOT_HOSTED: &str = "No forge extension knows this project.";
+
 fn providers(app: &AppHandle) -> Vec<Provider> {
     app.state::<wasm::Runtime>().providers()
 }
@@ -217,11 +219,9 @@ pub struct Coverage {
 }
 
 pub fn covered(providers: &[Provider], path: PathBuf, origin: Option<String>) -> Coverage {
-    let by = origin.as_deref().and_then(|remote| {
-        remote_target(providers, remote)
-            .map(|t| t.extension)
-            .or_else(|| forge::built_in(remote).map(str::to_string))
-    });
+    let by = origin
+        .as_deref()
+        .and_then(|remote| remote_target(providers, remote).map(|t| t.extension));
     Coverage {
         path,
         remote: origin.as_deref().and_then(normalize),
@@ -261,7 +261,7 @@ pub async fn pull(
     branch: Option<String>,
 ) -> Result<Option<Pull>, String> {
     let Some(target) = of_dir(app, dir) else {
-        return forge::pull(dir, branch).await;
+        return Err(NOT_HOSTED.into());
     };
     let Some(branch) = branch.or_else(|| projects::branch(dir)) else {
         return Ok(None);
@@ -284,14 +284,14 @@ async fn numbered_of(app: &AppHandle, target: &Target, number: u64) -> Result<Nu
 pub async fn numbered(app: &AppHandle, dir: &Path, number: u64) -> Result<Pull, String> {
     match of_dir(app, dir) {
         Some(target) => Ok(numbered_of(app, &target, number).await?.pull),
-        None => forge::numbered(dir, number).await,
+        None => Err(NOT_HOSTED.into()),
     }
 }
 
 pub async fn linked(app: &AppHandle, url: &str, projects: Vec<PathBuf>) -> Result<Linked, String> {
     let list = providers(app);
     let Some((target, number)) = link_target(&list, url) else {
-        return forge::linked(url, projects).await;
+        return Err("Not a pull request link.".into());
     };
     let project = projects.into_iter().find(|dir| {
         git::origin(dir)
@@ -313,7 +313,7 @@ pub async fn linked(app: &AppHandle, url: &str, projects: Vec<PathBuf>) -> Resul
 
 pub async fn lists(app: &AppHandle, dir: &Path) -> Result<Lists, String> {
     let Some(target) = of_dir(app, dir) else {
-        return forge::lists(dir).await;
+        return Err(NOT_HOSTED.into());
     };
     let found: Lists = call(app, target.clone(), "lists", json!({})).await?;
     let own = |list: Vec<Pull>| list.into_iter().map(|p| owned(&target, p)).collect();
@@ -326,7 +326,7 @@ pub async fn lists(app: &AppHandle, dir: &Path) -> Result<Lists, String> {
 
 pub async fn remarks(app: &AppHandle, dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
     let Some(target) = of_dir(app, dir) else {
-        return forge::remarks(dir, number).await;
+        return Err(NOT_HOSTED.into());
     };
     let mut found: Vec<Remark> = call(app, target, "remarks", json!({ "number": number })).await?;
     found.sort_by(|a, b| a.at.cmp(&b.at));
@@ -336,7 +336,7 @@ pub async fn remarks(app: &AppHandle, dir: &Path, number: u64) -> Result<Vec<Rem
 pub async fn me(app: &AppHandle, dir: &Path) -> Result<Person, String> {
     match of_dir(app, dir) {
         Some(target) => call(app, target, "me", json!({})).await,
-        None => forge::me(dir).await,
+        None => Err(NOT_HOSTED.into()),
     }
 }
 
@@ -349,8 +349,7 @@ pub async fn reply(
     body: String,
 ) -> Result<(), String> {
     let Some(target) = of_dir(app, dir) else {
-        let to = to.parse().map_err(|_| format!("{to} is not a remark."))?;
-        return forge::reply(dir, number, to, body).await;
+        return Err(NOT_HOSTED.into());
     };
     let body = body.trim();
     if body.is_empty() {
@@ -369,8 +368,7 @@ pub async fn resolve(
     resolved: bool,
 ) -> Result<(), String> {
     let Some(target) = of_dir(app, dir) else {
-        let to = to.parse().map_err(|_| format!("{to} is not a remark."))?;
-        return forge::resolve(dir, number, to, resolved).await;
+        return Err(NOT_HOSTED.into());
     };
     let args = json!({ "number": number, "to": to, "kind": kind, "resolved": resolved });
     call::<Value>(app, target, "resolve", args)
@@ -388,7 +386,7 @@ pub async fn post(
     verdict: String,
 ) -> Result<Posted, String> {
     let Some(target) = of_dir(app, dir) else {
-        return forge::post(dir, number, drafts, summary, verdict).await;
+        return Err(NOT_HOSTED.into());
     };
     let verdict = if verdict.is_empty() {
         "comment"
@@ -404,7 +402,7 @@ pub async fn merge(app: &AppHandle, dir: &Path, number: u64) -> Result<(), Strin
         Some(target) => call::<Value>(app, target, "merge", json!({ "number": number }))
             .await
             .map(|_| ()),
-        None => forge::merge(dir, number).await,
+        None => Err(NOT_HOSTED.into()),
     }
 }
 
@@ -416,7 +414,7 @@ pub async fn update(
     description: Option<String>,
 ) -> Result<(), String> {
     let Some(target) = of_dir(app, dir) else {
-        return forge::update(dir, number, title, description).await;
+        return Err(NOT_HOSTED.into());
     };
     let title = title.map(|t| t.trim().to_string());
     if title.as_deref() == Some("") {
@@ -446,7 +444,7 @@ pub async fn runs(app: &AppHandle, dir: &Path, repository: &str) -> Result<Vec<R
         Some(given.to_string())
     };
     let Some(target) = remote.and_then(|r| remote_target(&providers(app), &r)) else {
-        return forge::runs(dir, repository).await;
+        return Err(NOT_HOSTED.into());
     };
     if !target.calls.iter().any(|c| c == "runs") {
         return Ok(Vec::new());
@@ -571,6 +569,11 @@ mod tests {
         assert_eq!(
             (gitlab.by, gitlab.remote.as_deref()),
             (None, Some("gitlab.com/acme/shop"))
+        );
+        let azure = at("https://org@dev.azure.com/Org/My%20Proj/_git/Shop");
+        assert_eq!(
+            (azure.by, azure.remote.as_deref()),
+            (None, Some("dev.azure.com/Org/My%20Proj/_git/Shop"))
         );
         let unknown = at("https://git.acme.io/team/wiki.git");
         assert_eq!(

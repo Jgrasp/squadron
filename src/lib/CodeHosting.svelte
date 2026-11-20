@@ -1,11 +1,9 @@
 <script lang="ts">
-  import { invoke } from '@tauri-apps/api/core'
-  import { lookUpAll, REVIEW_PROMPT } from './pulls.svelte'
+  import { REVIEW_PROMPT } from './pulls.svelte'
   import { projects } from './projects.svelte'
   import { names } from './pipelines.svelte'
   import { saveSettings, settings } from './settings.svelte'
-  import { errorText, t, type Key } from './i18n/index.svelte'
-  import Trans from './Trans.svelte'
+  import { errorText, t } from './i18n/index.svelte'
   import HostLogo from './HostLogo.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
   import InstallDialog from './InstallDialog.svelte'
@@ -16,18 +14,7 @@
   import { named, nameOf } from './extension-pages.svelte'
   import { installOffers, lookUpCoverage, providers } from './forges.svelte'
 
-  type Host = 'azure'
-  type Accounts = { azure: string | null }
-
-  let accounts = $state<Accounts | null>(null)
   let error = $state('')
-  let organization = $state('')
-  let tokens = $state({ azure: '' })
-  let failed = $state({ azure: '' })
-  let open = $state<Host | null>(null)
-  const BUILT_IN_ROWS: [Host, string, Key][] = [
-    ['azure', 'Azure DevOps', 'settings.azureHint'],
-  ]
   let chosen = $state<CatalogEntry | null>(null)
 
   onMount(() => {
@@ -53,7 +40,6 @@
   }
 
   const said = (value: AccountCheck['title']) => (typeof value === 'string' ? value : named(value ?? undefined))
-  let busy = $state(false)
 
   const LINGERS = [1, 2, 5, 10, 15, 30, 60]
   let hide = $state('')
@@ -65,32 +51,6 @@
     const name = hide.trim()
     if (name && !settings.runs_hidden.includes(name)) change({ runs_hidden: [...settings.runs_hidden, name] })
     hide = ''
-  }
-
-  const refresh = () => invoke<Accounts>('forge_accounts').then((found) => (accounts = found))
-  refresh()
-
-  async function connect(event: Event, host: Host, args: Record<string, string>) {
-    event.preventDefault()
-    failed[host] = ''
-    busy = true
-    try {
-      await invoke(`${host}_sign_in`, { ...args, token: tokens[host] })
-      tokens[host] = ''
-      open = null
-      await refresh()
-      lookUpAll(true)
-    } catch (e) {
-      failed[host] = errorText(e)
-    } finally {
-      busy = false
-    }
-  }
-
-  async function signOut(account: Host) {
-    await invoke('forge_sign_out', { account })
-    await refresh()
-    lookUpAll(true)
   }
 </script>
 
@@ -121,75 +81,14 @@
         <button class="btn btn-primary" onclick={() => (chosen = offer.entry)}>{t('settings.forgeInstall', { name: named(offer.entry.name) })}</button>
       </div>
     {/each}
-    {#each BUILT_IN_ROWS as [host, name, hint] (host)}
-      {@const who = accounts?.[host]}
-      <div class="line" class:selected={open === host}>
-        <span class="mark"><HostLogo {host} size={18} /></span>
-        <span class="what"><strong>{name}<span class="pill built">{t('settings.forgeBuiltIn')}</span></strong><small>{t(hint)}</small></span>
-        {#if !accounts}
-          <span class="status">{t('common.checking')}</span>
-        {:else if who}
-          <span class="status on"><span class="dot"></span>{who}</span>
-          <button class="btn btn-ghost" onclick={() => signOut(host)}>{t('settings.signOut')}</button>
-        {:else}
-          <span class="status">{t('settings.notConnected')}</span>
-          <button class="btn btn-ghost" aria-expanded={open === host} onclick={() => (open = open === host ? null : host)}>{t('settings.connect')}</button>
-        {/if}
-      </div>
-      {#if open === host && accounts && !who}
-        <div class="drawer">
-          <div class="drawer-head">
-            <HostLogo {host} size={20} />
-            <strong>{t('settings.connectHost', { name })}</strong>
-            <button class="btn btn-ghost" onclick={() => (open = null)}>{t('common.cancel')}</button>
-          </div>
-    {#if open === 'azure'}
-      <form onsubmit={(e) => connect(e, 'azure', { organization })}>
-        <ol class="steps">
-          <li>
-            <div>
-              <span>{t('settings.azureOrganization')}</span>
-              <input class="field" autocomplete="off" spellcheck="false" placeholder="https://dev.azure.com/…" aria-label={t('settings.azureOrganization')} bind:value={organization} />
-            </div>
-          </li>
-          <li>
-            <div>
-              <span><Trans k="settings.azureStep">{#snippet code()}<strong>Code (Read &amp; write)</strong>{/snippet}{#snippet build()}<strong>Build (Read)</strong>{/snippet}</Trans></span>
-              <button
-                type="button"
-                class="btn btn-secondary"
-                disabled={!organization.trim()}
-                onclick={() => invoke('open_link', { url: `https://dev.azure.com/${organization.trim().replace(/\/+$/, '').split('/').at(-1)}/_usersSettings/tokens` })}
-              >
-                {t('settings.openTokens')}
-              </button>
-            </div>
-          </li>
-          <li>
-            <div>
-              <span>{t('settings.stepPasteToken')}</span>
-              <span class="row">
-                <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.azure} />
-                <button class="btn btn-primary" disabled={busy || !organization.trim() || !tokens.azure.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
-              </span>
-            </div>
-          </li>
-        </ol>
-      </form>
-    {/if}
-          <p class="keyring">{t('settings.keyring')}</p>
-          {#if failed[host]}<p class="bad" role="alert">{failed[host]}</p>{/if}
-        </div>
-      {/if}
-    {/each}
     <button class="discover" onclick={() => (ui.settings = 'discover')}>{t('settings.forgeDiscover')}</button>
   </div>
 </section>
 {#if chosen}<InstallDialog entry={chosen} onclose={() => (chosen = null)} />{/if}
 
 {#snippet logo(id: string, name: string)}
-  {#if ['github', 'azure'].includes(id)}
-    <HostLogo host={id as 'github'} size={18} />
+  {#if id === 'github'}
+    <HostLogo host="github" size={18} />
   {:else}
     <ExtensionLogo {id} {name} size={18} />
   {/if}
@@ -362,10 +261,6 @@
     box-shadow: inset 0 0 0 1px var(--border-strong);
   }
 
-  .line.selected {
-    box-shadow: inset 0 0 0 1.5px var(--border-focus);
-  }
-
   .line .btn {
     height: 30px;
     padding: 0 12px;
@@ -415,11 +310,6 @@
     color: var(--background);
   }
 
-  .pill.built {
-    background: var(--surface-3);
-    color: var(--text-2);
-  }
-
   .projects {
     margin-top: 2px;
     font: 11.5px var(--mono);
@@ -444,110 +334,8 @@
     background: var(--surface-1);
   }
 
-  .status {
-    display: inline-flex;
-    align-items: center;
-    gap: 7px;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    font-size: 12.5px;
-    color: var(--text-faint);
-  }
-
-  .status.on {
-    color: var(--text-2);
-  }
-
-  .dot {
-    flex: none;
-    width: 7px;
-    height: 7px;
-    border-radius: 50%;
-    background: var(--ok);
-  }
-
-  .drawer {
-    display: flex;
-    flex-direction: column;
-    gap: 14px;
-    margin: 6px 0 10px;
-    padding: 18px 20px;
-    border-radius: 6px;
-    background: var(--surface-1);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-  }
-
-  .drawer-head {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-  }
-
-  .drawer-head strong {
-    flex: 1;
-  }
-
-  .steps {
-    display: flex;
-    flex-direction: column;
-    gap: 12px;
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    counter-reset: step;
-    font-size: 13px;
-    color: var(--text-muted);
-  }
-
-  .steps li {
-    counter-increment: step;
-    display: grid;
-    grid-template-columns: 22px 1fr;
-    gap: 10px;
-  }
-
-  .steps li::before {
-    content: counter(step);
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    width: 22px;
-    height: 22px;
-    border-radius: 50%;
-    background: var(--surface-3);
-    color: var(--text-2);
-    font-size: 11.5px;
-    font-weight: 600;
-  }
-
-  .steps li > div {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 8px;
-    padding-top: 2px;
-  }
-
-  .steps li > div > :is(.field, .row) {
-    align-self: stretch;
-  }
-
-  .steps strong {
-    color: var(--text-2);
-  }
-
-  .keyring {
-    margin: 0;
-    font-size: 12px;
-    color: var(--text-faint);
-  }
-
   label {
     font-weight: 600;
-  }
-
-  .mono {
-    font: 13px var(--mono);
   }
 
   .prompt {

@@ -25,7 +25,8 @@ describe('pushedTo', () => {
     const gitlab = (text: string) => [...text.matchAll(/https:\/\/gitlab\.corp\.fr\/[\w./-]+\/-\/merge_requests\/\d+/g)].map((m) => ({ url: m[0], at: m.index }))
     expect(pushedTo(agent, gitlab)).toEqual({ url: 'https://gitlab.corp.fr/team/sub/app/-/merge_requests/12' })
     expect(pushedTo(agent)).toEqual({ branch: 'ia/T41' })
-    expect(pushedTo(ran(['az repos pr create --source-branch x', 'see https://dev.azure.com/org/My%20Proj/_git/shop/pullrequest/42']))).toEqual({
+    const azure = (text: string) => [...text.matchAll(/https:\/\/dev\.azure\.com\/[\w.%/-]+\/pullrequest\/\d+/g)].map((m) => ({ url: m[0], at: m.index }))
+    expect(pushedTo(ran(['az repos pr create --source-branch x', 'see https://dev.azure.com/org/My%20Proj/_git/shop/pullrequest/42']), azure)).toEqual({
       url: 'https://dev.azure.com/org/My%20Proj/_git/shop/pullrequest/42',
     })
   })
