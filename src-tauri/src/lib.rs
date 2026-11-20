@@ -2550,6 +2550,9 @@ struct Place {
 }
 
 fn keep_place(window: &tauri::Window) {
+    if window.is_minimized().unwrap_or(false) {
+        return;
+    }
     let (Ok(at), Ok(size), Ok(maximized), Ok(dir)) = (
         window.outer_position(),
         window.inner_size(),
@@ -2596,6 +2599,20 @@ fn restore_place(app: &tauri::App, config: &std::path::Path) {
     let screen = window.primary_monitor().ok().flatten().map(|m| *m.size());
     if screen.is_some_and(|s| place.width >= s.width && place.height >= s.height) {
         let _ = window.maximize();
+        return;
+    }
+    let monitors = window.available_monitors().unwrap_or_default();
+    let visible = monitors.is_empty()
+        || monitors.iter().any(|m| {
+            let (p, s) = (m.position(), m.size());
+            let x = place.x + place.width as i32 / 2;
+            let y = place.y + 16;
+            x >= p.x && x < p.x + s.width as i32 && y >= p.y && y < p.y + s.height as i32
+        });
+    if !visible {
+        if place.maximized {
+            let _ = window.maximize();
+        }
         return;
     }
     let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
