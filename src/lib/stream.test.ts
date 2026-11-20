@@ -275,6 +275,17 @@ describe('stream', () => {
     expect(agent.forkOf).toBeNull()
   })
 
+  it('shows a streamed reply once when its events lack the API message id, as on Remote Control', () => {
+    const texts = (stream: string) => {
+      const agent = fresh()
+      replay(agent, stream)
+      return agent.entries.flatMap((e) => (e.kind === 'agent' ? e.blocks : [])).filter((b) => b.type === 'text')
+    }
+    const expected = texts(hello)
+    expect(expected).toHaveLength(1)
+    expect(texts(hello.replace(/,"api_message_id":"[^"]*"/g, '')).map((b) => b.text)).toEqual(expected.map((b) => b.text))
+  })
+
   it('keeps the agent waiting for you after a turn that ends on a question, until you reply', () => {
     const agent = fresh()
     replay(agent, hello)
