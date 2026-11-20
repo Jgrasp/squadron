@@ -20,6 +20,7 @@ const read = (key: string) => JSON.parse(localStorage.getItem(key) ?? '{}')
 let stored = 304
 let split = false
 let fileTree = true
+let threads = true
 let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680, artifacts: 680, panel: 760 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
@@ -42,6 +43,7 @@ try {
   stored = Number(localStorage.getItem('squadron.sidebar')) || 304
   split = localStorage.getItem('squadron.diff') === 'split'
   fileTree = localStorage.getItem('squadron.diff-tree') !== 'off'
+  threads = localStorage.getItem('squadron.diff-threads') !== 'off'
   widths = { ...widths, ...read('squadron.diff-widths'), ...read('squadron.widths') }
   full = { diff: localStorage.getItem('squadron.diff-full') === '1', ...read('squadron.full') }
   panels = read('squadron.panels')
@@ -55,6 +57,7 @@ export const layout = $state({
   sidebar: Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, stored)),
   split,
   fileTree,
+  threads,
   widths,
   full,
   panels,
@@ -67,6 +70,7 @@ export const layout = $state({
   foldedGroups,
   contextShown,
   review: null as { project: string; number: number } | null,
+  wider: {} as Partial<Record<PanelKind, number>>,
 })
 
 export function setSort(project: string | null, next: Partial<AgentSort>) {
@@ -107,6 +111,11 @@ export function setContextShown(shown: string) {
   keep('squadron.context-shown', shown)
 }
 
+export function setThreads(on: boolean) {
+  layout.threads = on
+  keep('squadron.diff-threads', on ? 'on' : 'off')
+}
+
 export function setFileTree(on: boolean) {
   layout.fileTree = on
   keep('squadron.diff-tree', on ? 'on' : 'off')
@@ -120,6 +129,8 @@ export const displayOf = (kind: PanelKind): Display => {
 }
 
 export const panelWidth = (shown: Display) => (shown.size ? `${SIZES[shown.size] * 100}%` : `${shown.width}px`)
+
+export const spanOf = (kind: PanelKind) => (layout.wider[kind] ? `max(${panelWidth(displayOf(kind))}, ${layout.wider[kind]}px)` : panelWidth(displayOf(kind)))
 
 export function setDisplay(kind: PanelKind, next: Partial<Display>) {
   layout.display[kind] = { ...layout.display[kind], ...next }
@@ -146,7 +157,7 @@ export function resizeShare(kind: PanelKind, share: number) {
 }
 
 export const openPanel = (project: string): PanelKind | null =>
-  projects.board ? 'kanban' : projects.pulls ? 'pulls' : layout.review?.project === project ? 'diff' : (layout.panels[project] ?? null)
+  projects.board ? 'kanban' : projects.pulls ? 'pulls' : (layout.panels[project] ?? null)
 
 export const bottomShare = (kind: PanelKind | null) => {
   const shown = kind && displayOf(kind)
@@ -155,7 +166,7 @@ export const bottomShare = (kind: PanelKind | null) => {
 
 export const sideSpan = (kind: PanelKind | null) => {
   const shown = kind && displayOf(kind)
-  return shown && shown.mode === 'side' ? `min(${panelWidth(shown)}, 100% - 360px)` : '0px'
+  return shown && shown.mode === 'side' ? `min(${spanOf(kind)}, 100% - 360px)` : '0px'
 }
 
 let requested = { kind: null as PanelKind | null, at: 0 }

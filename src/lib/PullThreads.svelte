@@ -36,6 +36,7 @@
     ongo,
     ondraft,
     ondrop,
+    onedit,
   }: {
     pull: Pull
     folder: string
@@ -46,7 +47,18 @@
     ongo: (thread: Thread) => void
     ondraft: (c: Comment) => void
     ondrop: (c: Comment) => void
+    onedit: (c: Comment, note: string) => void
   } = $props()
+
+  let editing = $state<Comment | null>(null)
+  let text = $state('')
+
+  function save(event: Event) {
+    event.preventDefault()
+    if (!editing || !text.trim()) return
+    onedit(editing, text.trim())
+    editing = null
+  }
 
 
   const STATES: [ThreadState, Key][] = [
@@ -119,28 +131,18 @@
 <div class="rounds">
   <ol class="timeline" aria-label={t('review.rounds')}>
     {#each history as round (round.n)}
-      <li class:now={!round.posted && !pushed}>
-        <span class="dot" aria-hidden="true">{#if round.posted}<Icon name="check" size={10} />{/if}</span>
-        <div>
-          <strong>{t('review.roundN', { n: round.n })}</strong>
-          <span class="meta"><span class="mono">{short(round.head)}</span> · {day(round.posted ?? round.started)}</span>
-          <span class="meta">{byName(round.by)}{round.comments ? ` · ${t('review.commentCount', { count: round.comments })}` : ''}</span>
-          {#if round.posted}
-            {@const [tone, key] = VERDICT[round.verdict ?? ''] ?? VERDICT['']}
-            <span class="pill {tone}">{t(key)}</span>
-          {:else}
-            <span class="pill plain">{t('review.roundInProgress')}</span>
-          {/if}
-        </div>
+      {@const [tone, key] = VERDICT[round.verdict ?? ''] ?? VERDICT['']}
+      <li
+        class="{round.posted ? tone : ''}"
+        class:now={!round.posted && !pushed}
+        title={[short(round.head), day(round.posted ?? round.started), byName(round.by), round.comments ? t('review.commentCount', { count: round.comments }) : '', round.posted ? t(key) : t('review.roundInProgress')].filter(Boolean).join(' · ')}
+      >
+        {#if round.posted}<Icon name="check" size={10} />{/if}{t('review.roundN', { n: round.n })}
       </li>
     {/each}
     {#if pushed}
-      <li class="push">
-        <span class="dot" aria-hidden="true"><Icon name="pull" size={10} /></span>
-        <div>
-          <strong>{t('review.newCommitsPushed', { author: pull.author })}</strong>
-          <span class="meta"><span class="mono">{short(pull.head)}</span>{pull.head_at ? ` · ${day(pull.head_at)}` : ''}</span>
-        </div>
+      <li class="push" title={[short(pull.head), pull.head_at ? day(pull.head_at) : ''].filter(Boolean).join(' · ')}>
+        <Icon name="pull" size={10} />{t('review.newCommitsPushed', { author: pull.author })}
       </li>
     {/if}
     {#if !history.length}
@@ -172,11 +174,35 @@
             <span class="pill draft">{c.round ? t('review.roundDraft', { n: c.round }) : t('review.draft')}</span>
             <button class="path" onclick={() => ondraft(c)}>{where(c)}</button>
           </div>
-          <p class="note">{c.note}</p>
-          <div class="actions">
-            <button class="btn btn-secondary" onclick={() => ondraft(c)}>{t('review.showInDiff')}</button>
-            <button class="btn btn-secondary" onclick={() => ondrop(c)}>{t('common.delete')}</button>
-          </div>
+          {#if editing === c}
+            <form class="reply-form" onsubmit={save}>
+              <label for="draft-edit" class="sr-only">{t('common.edit')}</label>
+              <!-- svelte-ignore a11y_autofocus -->
+              <textarea
+                id="draft-edit"
+                class="field"
+                rows="5"
+                autofocus
+                bind:value={text}
+                onkeydown={(e) => {
+                  if (e.key === 'Escape') (e.stopPropagation(), (editing = null))
+                  else if (e.ctrlKey && e.key === 'Enter') save(e)
+                }}
+              ></textarea>
+              <span class="keys">{t('review.saveOrCancel')}</span>
+              <div class="actions">
+                <button type="button" class="btn btn-secondary" onclick={() => (editing = null)}>{t('common.cancel')}</button>
+                <button class="btn btn-primary" disabled={!text.trim()}>{t('common.save')}</button>
+              </div>
+            </form>
+          {:else}
+            <Markdown text={c.note} />
+            <div class="actions">
+              <button class="btn btn-secondary" onclick={() => ((editing = c), (text = c.note))}>{t('common.edit')}</button>
+              <button class="btn btn-secondary" onclick={() => ondraft(c)}>{t('review.showInDiff')}</button>
+              <button class="btn btn-secondary" onclick={() => ondrop(c)}>{t('common.delete')}</button>
+            </div>
+          {/if}
         </div>
       {/each}
     {/if}
@@ -264,76 +290,56 @@
   .rounds {
     flex: 1;
     min-height: 0;
-    display: grid;
-    grid-template-columns: 196px minmax(0, 1fr);
+    display: flex;
+    flex-direction: column;
     overflow: hidden;
   }
 
   .timeline {
+    flex: none;
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
     margin: 0;
-    padding: 14px 14px 14px 16px;
+    padding: 12px 14px 0;
     list-style: none;
-    overflow-y: auto;
-    border-right: 1px solid var(--border);
   }
 
   .timeline li {
-    position: relative;
-    display: grid;
-    grid-template-columns: 18px minmax(0, 1fr);
-    gap: 0 10px;
-    padding-bottom: 16px;
-  }
-
-  .timeline li:not(:last-child)::before {
-    content: '';
-    position: absolute;
-    top: 20px;
-    bottom: 2px;
-    left: 8px;
-    width: 2px;
-    background: var(--border-strong);
-  }
-
-  .timeline .dot {
-    width: 18px;
-    height: 18px;
-    display: flex;
+    display: inline-flex;
     align-items: center;
-    justify-content: center;
-    border-radius: 50%;
+    gap: 4px;
+    height: 22px;
+    padding: 0 8px;
+    border-radius: 11px;
     background: var(--surface-3);
+    font-size: 11.5px;
     color: var(--text-dim);
   }
 
-  .timeline .now .dot {
+  .timeline li.ok {
+    color: var(--ok-text);
+  }
+
+  .timeline li.err {
+    color: var(--err-text);
+  }
+
+  .timeline li.now {
     background: var(--text);
     color: var(--ink);
+    font-weight: 700;
   }
 
-  .timeline li > div {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 2px;
-    min-width: 0;
+  .timeline li.push {
+    color: var(--remote-text);
   }
 
-  .timeline strong {
-    font-size: 13px;
-    font-weight: 600;
-    color: var(--text-strong);
-  }
-
-  .meta {
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .timeline .empty {
-    display: block;
+  .timeline li.empty {
+    height: auto;
+    padding: 0;
+    background: none;
     font-size: 12.5px;
-    color: var(--text-dim);
   }
 
   .mono {
@@ -342,12 +348,14 @@
   }
 
   .body {
+    flex: 1;
+    min-height: 0;
     min-width: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding: 14px 18px 24px;
+    padding: 12px 14px 24px;
   }
 
   .counts {
@@ -585,9 +593,9 @@
     color: var(--persona);
   }
 
-  .note {
-    margin: 0;
-    white-space: pre-wrap;
+  .keys {
+    font-size: 12px;
+    color: var(--text-faint);
   }
 
   .actions {

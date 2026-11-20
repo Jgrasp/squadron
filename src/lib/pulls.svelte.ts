@@ -94,10 +94,10 @@ $effect.root(() => {
 export function openReview(project: string, number: number) {
   projects.overview = false
   projects.board = false
-  projects.pulls = false
+  projects.pulls = true
   projects.current = project
   setPanel(project, null)
-  requestPanel('diff')
+  requestPanel('pulls')
   refreshPull(project, number)
   layout.review = { project, number }
 }
