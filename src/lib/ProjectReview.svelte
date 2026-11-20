@@ -7,6 +7,13 @@
   let { project, act }: { project: Project; act: (work: () => Promise<unknown>) => Promise<void> } = $props()
 </script>
 
+<label class="toggle auto">
+  <input type="checkbox" checked={project.auto_review} onchange={(e) => act(() => editProject(project.path, { auto_review: e.currentTarget.checked }))} />
+  <span>
+    {t('review.autoReview')}
+    <small>{settings.pilot ? t('review.autoReviewHint') : t('review.askAgentNeedsPilot')}</small>
+  </span>
+</label>
 <p class="hint">{t('review.projectPromptHint')}</p>
 <label class="toggle">
   <input
@@ -44,6 +51,25 @@
 
   .toggle input {
     accent-color: var(--accent);
+  }
+
+  .auto {
+    align-items: flex-start;
+  }
+
+  .auto input {
+    margin-top: 3px;
+  }
+
+  .auto span {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .auto small {
+    font-size: 12.5px;
+    color: var(--text-dim);
   }
 
   .prompt {

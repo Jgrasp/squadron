@@ -132,6 +132,7 @@ export async function lookUpLists(project: string, force = false) {
     const found = await invoke<Omit<Lists, 'error'>>('pull_lists', { dir: project })
     forgetIgnored(project, found)
     lists[project] = { ...found, error: '' }
+    autoReview(project)
   } catch (e) {
     lists[project] = { review: [], mine: [], others: [], error: String(e) }
   }
@@ -517,6 +518,23 @@ export async function reviewWithAgent(project: string, pull: Pull) {
   return id
 }
 
+const autoStarted = new Set<string>()
+
+function autoReview(project: string) {
+  const found = lists[project]
+  if (!settings.pilot || !found || !projects.list.find((p) => p.path === project)?.auto_review) return
+  for (const pull of found.review) {
+    const key = `${project}#${pull.number}@${pull.head}`
+    if (pull.draft || ignored(project, pull) || autoStarted.has(key)) continue
+    const agent = reviewerOf(project, pull)
+    const start = !agent ? waitsFor(project, pull) && (() => reviewWithAgent(project, pull)) : agent.status !== 'working' && behind(agent, pull) && (() => reviewChanges(agent, pull))
+    if (!start) continue
+    autoStarted.add(key)
+    start().catch(() => autoStarted.delete(key))
+    return
+  }
+}
+
 export const behind = (agent: Agent, pull: Pull) => (agent.review?.head ? !same(agent.review.head, pull.head) : moved(agent.review!.project, pull))
 
 export const reviewerOf = (dir: string, pull: Pull) => agents.list.find((a) => a.review?.project === dir && a.review.number === pull.number)
@@ -561,7 +579,7 @@ export async function fixWithAgent(project: string, pull: Pull, summary: string,
   const intro = [
     `These remarks come from a review of pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
     `This folder is a detached checkout of origin/${pull.branch}: git diff origin/${pull.base}...HEAD shows what the pull request changes.`,
-    `Address each remark in the code and commit the fixes. Do not push: say what is ready, the user pushes with git push origin HEAD:${pull.branch} or asks you to.`,
+    `Address each remark in the code and commit the fixes, then push them to the pull request with git push origin HEAD:${pull.branch}. Never force the push. If it is rejected because the branch moved, run git pull --rebase origin ${pull.branch}, run the tests again and push again.`,
   ].join('\n\n')
   return create(project, t('review.fixAgentName', { number: String(pull.number) }), defaultsFor(project), `${intro}\n\n${prompt(summary, list)}`, { dir })
 }

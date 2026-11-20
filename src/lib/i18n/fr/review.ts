@@ -275,6 +275,8 @@ export default {
   promptIntro: 'Squadron dit à l’agent relecteur quelle pull request il relit, où se trouve son checkout et comment déposer ses remarques dans votre brouillon de relecture. Ajoutez ici ce qu’il doit chercher et comment conclure.',
   promptReset: 'Revenir à la consigne de Squadron',
   projectPrompt: 'Consigne de relecture propre',
+  autoReview: 'Relire les nouvelles pull requests avec un agent',
+  autoReviewHint: 'Quand on vous demande une relecture, puis après chaque push. Ses remarques attendent dans votre relecture en brouillon.',
   projectPromptHint: 'À la place de la consigne globale, pour les agents qui relisent les pull requests de ce projet.',
   projectPromptOf: 'Consigne de relecture de {name}',
   reviewNewChangesTitle: 'Envoie les nouveaux commits à {name}, qui a relu cette pull request',

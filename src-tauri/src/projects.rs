@@ -57,6 +57,8 @@ pub struct Project {
     pub repository: String,
     #[serde(default, skip_serializing_if = "String::is_empty")]
     pub review_prompt: String,
+    #[serde(default, skip_serializing_if = "std::ops::Not::not")]
+    pub auto_review: bool,
     #[serde(default, skip_serializing_if = "Defaults::is_empty")]
     pub defaults: Defaults,
 }
@@ -93,6 +95,7 @@ pub struct Edit {
     pub runs_hidden: Option<Vec<String>>,
     pub repository: Option<String>,
     pub review_prompt: Option<String>,
+    pub auto_review: Option<bool>,
     pub defaults: Option<Defaults>,
 }
 
@@ -297,6 +300,7 @@ pub struct Folder {
     pub runs_hidden: Vec<String>,
     pub repository: String,
     pub review_prompt: String,
+    pub auto_review: bool,
     pub defaults: Defaults,
     pub exists: bool,
     pub git: bool,
@@ -321,6 +325,7 @@ impl Folder {
             runs_hidden: project.runs_hidden.clone(),
             repository: project.repository.clone(),
             review_prompt: project.review_prompt.clone(),
+            auto_review: project.auto_review,
             defaults: project.defaults.clone(),
             exists: path.is_dir(),
             git: path.join(".git").exists(),
@@ -551,6 +556,7 @@ mod tests {
             runs_hidden: vec!["Copilot".into()],
             repository: "github.com/Jgrasp/squadron".into(),
             review_prompt: "Check the Sylius upgrade notes.".into(),
+            auto_review: true,
             defaults: Defaults {
                 model: Some("sonnet".into()),
                 effort: None,

@@ -150,6 +150,30 @@ describe('ignored pull requests', () => {
   })
 })
 
+describe('reviews started on their own', () => {
+  it('starts one agent review per refresh and per new head of a pull request waiting for you, only in a project that asked for it', async () => {
+    const { projects } = await import('./projects.svelte')
+    const { settings } = await import('./settings.svelte')
+    const checkouts = () => forge.calls.filter((c) => c === 'review_checkout').length
+    Object.assign(settings, { pilot: true })
+    forge.calls = []
+    forge.lists = { review: [pull(30), pull(31, { draft: true }), pull(32)], mine: [], others: [] }
+    projects.list = [{ path: '/a', auto_review: false }] as typeof projects.list
+    await lookUpLists('/a', true)
+    await settle()
+    expect(checkouts()).toBe(0)
+
+    projects.list = [{ path: '/a', auto_review: true }] as typeof projects.list
+    await lookUpLists('/a', true)
+    await settle()
+    expect(checkouts()).toBe(1)
+    await lookUpLists('/a', true)
+    await lookUpLists('/a', true)
+    await settle()
+    expect(checkouts()).toBe(2)
+  })
+})
+
 describe('opening a pull request', () => {
   it('offers it for a pushed branch with no pull request yet, on a forge that can create one', () => {
     const agent = { id: 'o1', project: '/p', worktree: null } as unknown as Agent

@@ -273,6 +273,8 @@ export default {
   promptIntro: 'Squadron tells the reviewing agent which pull request it reviews, where its checkout is, and how to leave its remarks in your draft review. Add here what it should look for and how to end.',
   promptReset: 'Back to Squadron’s prompt',
   projectPrompt: 'Own review instructions',
+  autoReview: 'Review new pull requests with an agent',
+  autoReviewHint: 'When you are asked to review, and after each push. Its remarks wait in your draft review.',
   projectPromptHint: 'Instead of the global ones, for the agents that review this project’s pull requests.',
   projectPromptOf: 'Review instructions for {name}',
   reviewNewChangesTitle: 'Send the new commits to {name}, which reviewed this pull request',
