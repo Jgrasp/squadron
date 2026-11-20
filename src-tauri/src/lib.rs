@@ -2597,7 +2597,9 @@ fn restore_place(app: &tauri::App, config: &std::path::Path) {
         return;
     };
     let screen = window.primary_monitor().ok().flatten().map(|m| *m.size());
-    if screen.is_some_and(|s| place.width >= s.width && place.height >= s.height) {
+    if let Some(s) = screen.filter(|s| place.width >= s.width || place.height >= s.height) {
+        let _ = window.set_size(tauri::PhysicalSize::new(s.width * 4 / 5, s.height * 4 / 5));
+        let _ = window.center();
         let _ = window.maximize();
         return;
     }
