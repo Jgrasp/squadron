@@ -277,6 +277,7 @@ export default {
   draftsOfReview: 'Your drafts',
   notPostedYet: 'not posted yet',
   roundDraft: 'Round {n} · draft',
+  saveOrCancel: 'Ctrl ↵ saves · Esc cancels',
   showInDiff: 'Show in the diff',
   closedThreads: 'Closed',
   reopen: 'Reopen',

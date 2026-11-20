@@ -36,6 +36,7 @@
     ongo,
     ondraft,
     ondrop,
+    onedit,
   }: {
     pull: Pull
     folder: string
@@ -46,7 +47,18 @@
     ongo: (thread: Thread) => void
     ondraft: (c: Comment) => void
     ondrop: (c: Comment) => void
+    onedit: (c: Comment, note: string) => void
   } = $props()
+
+  let editing = $state<Comment | null>(null)
+  let text = $state('')
+
+  function save(event: Event) {
+    event.preventDefault()
+    if (!editing || !text.trim()) return
+    onedit(editing, text.trim())
+    editing = null
+  }
 
 
   const STATES: [ThreadState, Key][] = [
@@ -162,11 +174,35 @@
             <span class="pill draft">{c.round ? t('review.roundDraft', { n: c.round }) : t('review.draft')}</span>
             <button class="path" onclick={() => ondraft(c)}>{where(c)}</button>
           </div>
-          <p class="note">{c.note}</p>
-          <div class="actions">
-            <button class="btn btn-secondary" onclick={() => ondraft(c)}>{t('review.showInDiff')}</button>
-            <button class="btn btn-secondary" onclick={() => ondrop(c)}>{t('common.delete')}</button>
-          </div>
+          {#if editing === c}
+            <form class="reply-form" onsubmit={save}>
+              <label for="draft-edit" class="sr-only">{t('common.edit')}</label>
+              <!-- svelte-ignore a11y_autofocus -->
+              <textarea
+                id="draft-edit"
+                class="field"
+                rows="5"
+                autofocus
+                bind:value={text}
+                onkeydown={(e) => {
+                  if (e.key === 'Escape') (e.stopPropagation(), (editing = null))
+                  else if (e.ctrlKey && e.key === 'Enter') save(e)
+                }}
+              ></textarea>
+              <span class="keys">{t('review.saveOrCancel')}</span>
+              <div class="actions">
+                <button type="button" class="btn btn-secondary" onclick={() => (editing = null)}>{t('common.cancel')}</button>
+                <button class="btn btn-primary" disabled={!text.trim()}>{t('common.save')}</button>
+              </div>
+            </form>
+          {:else}
+            <Markdown text={c.note} />
+            <div class="actions">
+              <button class="btn btn-secondary" onclick={() => ((editing = c), (text = c.note))}>{t('common.edit')}</button>
+              <button class="btn btn-secondary" onclick={() => ondraft(c)}>{t('review.showInDiff')}</button>
+              <button class="btn btn-secondary" onclick={() => ondrop(c)}>{t('common.delete')}</button>
+            </div>
+          {/if}
         </div>
       {/each}
     {/if}
@@ -557,9 +593,9 @@
     color: var(--persona);
   }
 
-  .note {
-    margin: 0;
-    white-space: pre-wrap;
+  .keys {
+    font-size: 12px;
+    color: var(--text-faint);
   }
 
   .actions {

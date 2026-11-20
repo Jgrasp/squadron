@@ -1116,7 +1116,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>
         </div>
-        <PullThreads {pull} {folder} {reviewKey} {threads} drafts={review} onfresh={() => fresh++} ongo={goToThread} ondraft={goToDraft} ondrop={drop} />
+        <PullThreads {pull} {folder} {reviewKey} {threads} drafts={review} onfresh={() => fresh++} ongo={goToThread} ondraft={goToDraft} ondrop={drop} onedit={(c, text) => (c.note = text)} />
       </aside>
     {/if}
     </div>

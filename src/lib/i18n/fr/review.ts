@@ -279,6 +279,7 @@ export default {
   draftsOfReview: 'Vos brouillons',
   notPostedYet: 'pas encore publiés',
   roundDraft: 'Tour {n} · brouillon',
+  saveOrCancel: 'Ctrl ↵ enregistre · Échap annule',
   showInDiff: 'Voir dans le diff',
   closedThreads: 'Fermés',
   reopen: 'Rouvrir',
