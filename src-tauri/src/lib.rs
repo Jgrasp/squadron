@@ -13,7 +13,6 @@ pub mod extension_tools;
 pub mod extensions;
 pub mod forge;
 pub mod git;
-pub mod gitlab;
 pub mod keys;
 mod links;
 mod ondemand;
@@ -1379,20 +1378,12 @@ async fn forge_coverage(app: AppHandle, projects: Vec<PathBuf>) -> Vec<provider:
 async fn forge_accounts() -> forge::Accounts {
     tauri::async_runtime::spawn_blocking(forge::accounts)
         .await
-        .unwrap_or(forge::Accounts {
-            gitlab: None,
-            azure: None,
-        })
+        .unwrap_or(forge::Accounts { azure: None })
 }
 
 #[tauri::command]
 fn forge_sign_out(account: String) -> Result<(), String> {
     forge::sign_out(&account)
-}
-
-#[tauri::command]
-async fn gitlab_sign_in(site: String, token: String) -> Result<(), String> {
-    gitlab::sign_in(site, token.trim().to_string()).await
 }
 
 #[tauri::command]
@@ -2835,7 +2826,6 @@ pub fn run() {
             forge_accounts,
             forge_coverage,
             forge_sign_out,
-            gitlab_sign_in,
             azure_sign_in,
             subagent_log,
             get_settings,
@@ -2944,6 +2934,7 @@ pub fn run() {
             restore_place(app, &config);
             std::thread::spawn(|| {
                 let _ = forge::write_secret("bitbucket", None);
+                let _ = forge::write_secret("gitlab", None);
             });
             if let Some(window) = app.get_webview_window("main") {
                 window.show()?;

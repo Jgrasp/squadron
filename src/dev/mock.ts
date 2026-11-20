@@ -966,7 +966,7 @@ mockIPC(
         if (label === 'main') popup?.focus()
         return
       case 'pipeline_runs': {
-        if (a.dir.includes('nova')) throw 'The project is not on GitLab or Azure DevOps.'
+        if (a.dir.includes('nova')) throw 'The project is not on Azure DevOps.'
         const at = (ms: number) => new Date(loaded + ms).toISOString()
         const elapsed = Date.now() - loaded
         const run = (id: number, name: string, title: string, status: string, started: number, finished: number | null, event = 'push') => ({
@@ -1041,7 +1041,7 @@ mockIPC(
       case 'review_checkout':
         return `/home/demo/.local/share/squadron/reviews/orbit-${a.number}`
       case 'pull_lists': {
-        if (!a.dir.includes('orbit') && !(location.search.includes('groups') && a.dir.includes('nova'))) throw 'The project is not on GitLab or Azure DevOps.'
+        if (!a.dir.includes('orbit') && !(location.search.includes('groups') && a.dir.includes('nova'))) throw 'The project is not on Azure DevOps.'
         const pull = (number: number, title: string, author: string, branch: string, extra: object) => ({
           host: 'bitbucket', number, title, description: `## Result\n\n${title}.\n\n- First change\n- Second change`, url: `https://bitbucket.org/orbit/orbit/pull-requests/${number}`, state: 'open', draft: false,
           approvals: 0, changes_requested: false, comments: 0, checks: null, branch, base: 'main', head: 'd'.repeat(40), author,
@@ -1109,16 +1109,23 @@ mockIPC(
                   permissions: { network: ['api.bitbucket.org'] },
                   forge: { remotes: ['^(?:ssh\\.)?bitbucket\\.org/(?<owner>[A-Za-z0-9_.-]+)/(?<name>[A-Za-z0-9_.-]+)$'] },
                 },
+                {
+                  id: 'gitlab',
+                  version: '0.1.0',
+                  name: { en: 'GitLab' },
+                  description: { en: 'Merge requests and pipelines of your GitLab projects in Squadron, on gitlab.com or your own server: review, comment, merge' },
+                  repository: 'https://github.com/Jgrasp/squadron-gitlab',
+                  archive: 'https://example.invalid/gitlab-0.1.0.tar.gz',
+                  sha256: '0',
+                  permissions: { network: ['gitlab.com'] },
+                  forge: { remotes: ['^(?<site>gitlab\\.com)/(?<path>[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)$', '^(?<site>{account})/(?<path>[A-Za-z0-9_.-]+(?:/[A-Za-z0-9_.-]+)+)$'] },
+                },
               ],
             },
           },
         ]
       case 'forge_accounts':
-        return { gitlab: localStorage.getItem('gitlab'), azure: localStorage.getItem('azure') }
-      case 'gitlab_sign_in':
-        if (a.token === 'bad') throw 'GitLab refused this token.'
-        localStorage.setItem('gitlab', `octo@${a.site.replace(/^https?:\/\//, '') || 'gitlab.com'}`)
-        return
+        return { azure: localStorage.getItem('azure') }
       case 'azure_sign_in':
         if (a.token === 'bad') throw 'Azure DevOps refused this token.'
         localStorage.setItem('azure', 'Octo Cat')

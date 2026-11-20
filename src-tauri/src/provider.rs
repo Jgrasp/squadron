@@ -567,6 +567,11 @@ mod tests {
             (bitbucket.by, bitbucket.remote.as_deref()),
             (None, Some("bitbucket.org/acme/shop"))
         );
+        let gitlab = at("git@gitlab.com:acme/shop.git");
+        assert_eq!(
+            (gitlab.by, gitlab.remote.as_deref()),
+            (None, Some("gitlab.com/acme/shop"))
+        );
         let unknown = at("https://git.acme.io/team/wiki.git");
         assert_eq!(
             (unknown.by, unknown.remote.as_deref()),

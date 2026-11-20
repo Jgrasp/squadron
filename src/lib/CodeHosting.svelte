@@ -16,18 +16,16 @@
   import { named, nameOf } from './extension-pages.svelte'
   import { installOffers, lookUpCoverage, providers } from './forges.svelte'
 
-  type Host = 'gitlab' | 'azure'
-  type Accounts = { gitlab: string | null; azure: string | null }
+  type Host = 'azure'
+  type Accounts = { azure: string | null }
 
   let accounts = $state<Accounts | null>(null)
   let error = $state('')
-  let site = $state('')
   let organization = $state('')
-  let tokens = $state({ gitlab: '', azure: '' })
-  let failed = $state({ gitlab: '', azure: '' })
+  let tokens = $state({ azure: '' })
+  let failed = $state({ azure: '' })
   let open = $state<Host | null>(null)
   const BUILT_IN_ROWS: [Host, string, Key][] = [
-    ['gitlab', 'GitLab', 'settings.gitlabHint'],
     ['azure', 'Azure DevOps', 'settings.azureHint'],
   ]
   let chosen = $state<CatalogEntry | null>(null)
@@ -145,39 +143,7 @@
             <strong>{t('settings.connectHost', { name })}</strong>
             <button class="btn btn-ghost" onclick={() => (open = null)}>{t('common.cancel')}</button>
           </div>
-    {#if open === 'gitlab'}
-      <form onsubmit={(e) => connect(e, 'gitlab', { site })}>
-        <ol class="steps">
-          <li>
-            <div>
-              <span>{t('settings.gitlabSite')}</span>
-              <input class="field" autocomplete="off" spellcheck="false" placeholder="https://gitlab.com" aria-label={t('settings.gitlabSite')} bind:value={site} />
-            </div>
-          </li>
-          <li>
-            <div>
-              <span><Trans k="settings.gitlabStep">{#snippet scope()}<code>api</code>{/snippet}</Trans></span>
-              <button
-                type="button"
-                class="btn btn-secondary"
-                onclick={() => invoke('open_link', { url: `${(site.trim() || 'https://gitlab.com').replace(/\/+$/, '')}/-/user_settings/personal_access_tokens?name=Squadron&scopes=api` })}
-              >
-                {t('settings.openTokens')}
-              </button>
-            </div>
-          </li>
-          <li>
-            <div>
-              <span>{t('settings.stepPasteToken')}</span>
-              <span class="row">
-                <input class="field mono" type="password" autocomplete="off" spellcheck="false" placeholder={t('settings.apiToken')} aria-label={t('settings.apiToken')} bind:value={tokens.gitlab} />
-                <button class="btn btn-primary" disabled={busy || !tokens.gitlab.trim()}>{busy ? t('common.checking') : t('settings.signIn')}</button>
-              </span>
-            </div>
-          </li>
-        </ol>
-      </form>
-    {:else if open === 'azure'}
+    {#if open === 'azure'}
       <form onsubmit={(e) => connect(e, 'azure', { organization })}>
         <ol class="steps">
           <li>
@@ -222,7 +188,7 @@
 {#if chosen}<InstallDialog entry={chosen} onclose={() => (chosen = null)} />{/if}
 
 {#snippet logo(id: string, name: string)}
-  {#if ['github', 'gitlab', 'azure'].includes(id)}
+  {#if ['github', 'azure'].includes(id)}
     <HostLogo host={id as 'github'} size={18} />
   {:else}
     <ExtensionLogo {id} {name} size={18} />
@@ -365,10 +331,6 @@
     margin: 0;
     font-size: 13px;
     color: var(--text-dim);
-  }
-
-  code {
-    font-size: 12.5px;
   }
 
   h4 {

@@ -1,4 +1,4 @@
-use crate::{azure, git, gitlab, projects};
+use crate::{azure, git, projects};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::BTreeMap;
@@ -7,7 +7,6 @@ use std::sync::Mutex;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 enum Host {
-    GitLab,
     Azure,
 }
 
@@ -18,10 +17,6 @@ struct Repo {
 }
 
 fn repo(url: &str) -> Option<Repo> {
-    parse(url, gitlab::host)
-}
-
-fn parse(url: &str, gitlab: impl Fn() -> Option<String>) -> Option<Repo> {
     let url = url.trim().trim_end_matches('/');
     let url = url.strip_suffix(".git").unwrap_or(url);
     let (host, path) = match url.split_once("://") {
@@ -50,22 +45,12 @@ fn parse(url: &str, gitlab: impl Fn() -> Option<String>) -> Option<Repo> {
         (site, [.., project, "_git", name]) if site.ends_with(".visualstudio.com") => {
             azure(site.trim_end_matches(".visualstudio.com"), project, name)
         }
-        (site, [_, _, ..])
-            if parts.iter().all(valid)
-                && (site == "gitlab.com" || gitlab().is_some_and(|saved| saved == site)) =>
-        {
-            Some(Repo {
-                host: Host::GitLab,
-                slug: format!("{site}/{}", parts.join("/")),
-            })
-        }
         _ => None,
     }
 }
 
 pub fn built_in(url: &str) -> Option<&'static str> {
     match repo(url)?.host {
-        Host::GitLab => Some("gitlab"),
         Host::Azure => Some("azure"),
     }
 }
@@ -76,7 +61,7 @@ fn repo_of(dir: &Path) -> Result<Repo, String> {
         .ok_or_else(|| NOT_HOSTED.into())
 }
 
-const NOT_HOSTED: &str = "The project is not on GitLab or Azure DevOps.";
+const NOT_HOSTED: &str = "The project is not on Azure DevOps.";
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
@@ -165,7 +150,6 @@ pub struct Posted {
 
 #[derive(Serialize)]
 pub struct Accounts {
-    pub gitlab: Option<String>,
     pub azure: Option<String>,
 }
 
@@ -315,7 +299,7 @@ pub(crate) async fn send(
 }
 
 pub fn sign_out(name: &str) -> Result<(), String> {
-    if !["gitlab", "azure"].contains(&name) {
+    if name != "azure" {
         return Err(format!("Unknown account: {name}"));
     }
     write_secret(name, None)
@@ -323,7 +307,6 @@ pub fn sign_out(name: &str) -> Result<(), String> {
 
 pub fn accounts() -> Accounts {
     Accounts {
-        gitlab: gitlab::account(),
         azure: azure::account(),
     }
 }
@@ -334,7 +317,6 @@ pub async fn pull(dir: &Path, branch: Option<String>) -> Result<Option<Pull>, St
         return Ok(None);
     };
     match repo.host {
-        Host::GitLab => gitlab::pull(&repo.slug, &branch).await,
         Host::Azure => azure::pull(&repo.slug, &branch).await,
     }
 }
@@ -355,17 +337,14 @@ fn pull_link(url: &str) -> Option<(Repo, u64)> {
         .strip_prefix("https://")
         .or_else(|| rest.strip_prefix("http://"))?;
     let rest = rest.strip_prefix("www.").unwrap_or(rest);
-    [
-        ("/-/merge_requests/", Host::GitLab),
-        ("/pullrequest/", Host::Azure),
-    ]
-    .into_iter()
-    .find_map(|(marker, host)| {
-        let (left, right) = rest.split_once(marker)?;
-        let number = right.split('/').next()?.parse().ok()?;
-        let found = repo(&format!("https://{left}"))?;
-        (found.host == host).then_some((found, number))
-    })
+    [("/pullrequest/", Host::Azure)]
+        .into_iter()
+        .find_map(|(marker, host)| {
+            let (left, right) = rest.split_once(marker)?;
+            let number = right.split('/').next()?.parse().ok()?;
+            let found = repo(&format!("https://{left}"))?;
+            (found.host == host).then_some((found, number))
+        })
 }
 
 pub async fn linked(url: &str, projects: Vec<PathBuf>) -> Result<Linked, String> {
@@ -382,7 +361,6 @@ pub async fn numbered(dir: &Path, number: u64) -> Result<Pull, String> {
 
 async fn by_number(repo: Repo, number: u64, project: Option<PathBuf>) -> Result<Linked, String> {
     let found = match repo.host {
-        Host::GitLab => gitlab::linked(&repo.slug, number).await?,
         Host::Azure => azure::linked(&repo.slug, number).await?,
     };
     Ok(Linked {
@@ -395,7 +373,6 @@ async fn by_number(repo: Repo, number: u64, project: Option<PathBuf>) -> Result<
 pub async fn lists(dir: &Path) -> Result<Lists, String> {
     let repo = repo_of(dir)?;
     match repo.host {
-        Host::GitLab => gitlab::lists(&repo.slug).await,
         Host::Azure => azure::lists(&repo.slug).await,
     }
 }
@@ -403,7 +380,6 @@ pub async fn lists(dir: &Path) -> Result<Lists, String> {
 pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
     let repo = repo_of(dir)?;
     match repo.host {
-        Host::GitLab => gitlab::remarks(&repo.slug, number).await,
         Host::Azure => azure::remarks(&repo.slug, number).await,
     }
 }
@@ -411,7 +387,6 @@ pub async fn remarks(dir: &Path, number: u64) -> Result<Vec<Remark>, String> {
 pub async fn me(dir: &Path) -> Result<Person, String> {
     let repo = repo_of(dir)?;
     match repo.host {
-        Host::GitLab => gitlab::me(&repo.slug).await,
         Host::Azure => azure::me(&repo.slug).await,
     }
 }
@@ -423,7 +398,6 @@ pub async fn reply(dir: &Path, number: u64, to: u64, body: String) -> Result<(),
         return Err("The reply is empty.".into());
     }
     match repo.host {
-        Host::GitLab => gitlab::reply(&repo.slug, number, to, body).await,
         Host::Azure => azure::reply(&repo.slug, number, to, body).await,
     }
 }
@@ -431,7 +405,6 @@ pub async fn reply(dir: &Path, number: u64, to: u64, body: String) -> Result<(),
 pub async fn resolve(dir: &Path, number: u64, to: u64, resolved: bool) -> Result<(), String> {
     let repo = repo_of(dir)?;
     match repo.host {
-        Host::GitLab => gitlab::resolve(&repo.slug, number, to, resolved).await,
         Host::Azure => azure::resolve(&repo.slug, number, to, resolved).await,
     }
 }
@@ -446,7 +419,6 @@ pub async fn post(
     let repo = repo_of(dir)?;
     let summary = summary.trim().to_string();
     match repo.host {
-        Host::GitLab => gitlab::post(&repo.slug, number, drafts, summary, verdict).await,
         Host::Azure => azure::post(&repo.slug, number, drafts, summary, verdict).await,
     }
 }
@@ -454,7 +426,6 @@ pub async fn post(
 pub async fn merge(dir: &Path, number: u64) -> Result<(), String> {
     let repo = repo_of(dir)?;
     match repo.host {
-        Host::GitLab => gitlab::merge(&repo.slug, number).await,
         Host::Azure => azure::merge(&repo.slug, number).await,
     }
 }
@@ -481,7 +452,6 @@ pub async fn update(
         return Err("Give a new title, a new description, or both.".into());
     }
     match repo.host {
-        Host::GitLab => gitlab::update(&repo.slug, number, Value::Object(changes)).await,
         Host::Azure => azure::update(&repo.slug, number, Value::Object(changes)).await,
     }
 }
@@ -524,13 +494,12 @@ fn repo_given(dir: &Path, repository: &str) -> Result<Repo, String> {
     } else {
         format!("https://{given}")
     };
-    repo(&url).ok_or_else(|| "The repository is not a GitLab or Azure DevOps address.".into())
+    repo(&url).ok_or_else(|| "The repository is not an Azure DevOps address.".into())
 }
 
 pub async fn runs(dir: &Path, repository: &str) -> Result<Vec<Run>, String> {
     let repo = repo_given(dir, repository)?;
     match repo.host {
-        Host::GitLab => gitlab::runs(&repo.slug).await,
         Host::Azure => azure::runs(&repo.slug).await,
     }
 }
@@ -543,13 +512,7 @@ mod tests {
         assert!(
             pull_link("https://bitbucket.org/steel-shed/bmc/pull-requests/412/overview").is_none()
         );
-        assert!(pull_link("https://gitlab.com/a/b/pull/1").is_none());
-        let (repo, number) =
-            pull_link("https://gitlab.com/grp/sub/proj/-/merge_requests/7767/diffs").unwrap();
-        assert_eq!(
-            (repo.host, repo.slug.as_str(), number),
-            (Host::GitLab, "gitlab.com/grp/sub/proj", 7767)
-        );
+        assert!(pull_link("https://gitlab.com/grp/sub/proj/-/merge_requests/7767/diffs").is_none());
         let (repo, number) =
             pull_link("https://dev.azure.com/Org/My%20Proj/_git/Shop/pullrequest/42?_a=files")
                 .unwrap();
@@ -569,16 +532,7 @@ mod tests {
             None
         );
         assert_eq!(repo("git@github.com:Jgrasp/squadron.git"), None);
-        let gitlab = |url: &str| parse(url, || Some("gitlab.corp.fr".into()));
-        assert_eq!(
-            gitlab("git@gitlab.com:grp/sub/proj.git").map(|r| (r.host, r.slug)),
-            Some((Host::GitLab, "gitlab.com/grp/sub/proj".into()))
-        );
-        assert_eq!(
-            gitlab("https://Gitlab.Corp.fr/team/app.git").map(|r| r.slug),
-            Some("gitlab.corp.fr/team/app".into())
-        );
-        assert_eq!(gitlab("git@git.other.fr:team/app.git"), None);
+        assert_eq!(repo("git@gitlab.com:grp/sub/proj.git"), None);
         let azure = Some(Repo {
             host: Host::Azure,
             slug: "org/my%20proj/shop".into(),
@@ -589,9 +543,9 @@ mod tests {
             "https://org.visualstudio.com/DefaultCollection/My%20Proj/_git/Shop",
             "org@vs-ssh.visualstudio.com:v3/org/My%20Proj/Shop",
         ] {
-            assert_eq!(gitlab(url), azure, "{url}");
+            assert_eq!(repo(url), azure, "{url}");
         }
-        assert_eq!(gitlab("git@github.com:a/b/c.git"), None);
+        assert_eq!(repo("git@github.com:a/b/c.git"), None);
         assert_eq!(repo("git@github.com:a/b?x=1"), None);
     }
 
@@ -676,9 +630,12 @@ mod tests {
         assert!(repo_given(dir, "github.com/Jgrasp/squadron").is_err());
         assert!(repo_given(dir, "git@bitbucket.org:akki-team/fileas.git").is_err());
         assert!(repo_given(dir, "Jgrasp/squadron").is_err());
+        assert!(repo_given(dir, "gitlab.com/grp/proj").is_err());
         assert_eq!(
-            repo_given(dir, "gitlab.com/grp/proj").unwrap().host,
-            Host::GitLab
+            repo_given(dir, "dev.azure.com/org/proj/_git/shop")
+                .unwrap()
+                .host,
+            Host::Azure
         );
     }
 }

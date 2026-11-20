@@ -427,7 +427,7 @@
     {#if offer && remote}
       {@const name = named(offer.name)}
       <span class="no-forge-logo">
-        {#if ['github', 'gitlab', 'azure'].includes(offer.id)}<HostLogo host={offer.id as 'github'} size={26} />{:else}<ExtensionLogo id={offer.id} {name} size={26} />{/if}
+        {#if ['github', 'azure'].includes(offer.id)}<HostLogo host={offer.id as 'github'} size={26} />{:else}<ExtensionLogo id={offer.id} {name} size={26} />{/if}
       </span>
       <h3>{t('review.onForge', { project: project.name, name })}</h3>
       <p>{t('review.installForge', { name })}</p>

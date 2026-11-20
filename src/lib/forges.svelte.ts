@@ -4,7 +4,7 @@ import { active, forgePattern, shownOf, VERDICTS, type CatalogEntry, type Extens
 import { nameOf } from './extension-pages.svelte'
 import { projects } from './projects.svelte'
 
-export const BUILT_IN: Record<string, string> = { gitlab: 'GitLab', azure: 'Azure DevOps' }
+export const BUILT_IN: Record<string, string> = { azure: 'Azure DevOps' }
 
 type Provider = Extension & { manifest: Manifest & { contributes: { forge: Forge } } }
 

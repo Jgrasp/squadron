@@ -20,8 +20,8 @@ Squadron checks for updates every ten minutes, and on demand from its menu with 
 
 To follow pull requests, Squadron needs to reach the forge of each project, from **Settings › Pull requests**:
 
-- **GitHub** and **Bitbucket**: install the GitHub or Bitbucket extension, which the page offers for a project on github.com or bitbucket.org, then add an account to it: a personal access token for GitHub, your Atlassian email and an API token for Bitbucket.
-- **GitLab** and **Azure DevOps**: sign in on the page with a token; it lists the scopes each one needs. The token stays in the system keyring.
+- **GitHub**, **Bitbucket** and **GitLab**: install the GitHub, Bitbucket or GitLab extension, which the page offers for a project on github.com, bitbucket.org or gitlab.com, then add an account to it: a personal access token for GitHub, your Atlassian email and an API token for Bitbucket, the address of your GitLab and a personal access token for GitLab.
+- **Azure DevOps**: sign in on the page with a token; it lists the scopes it needs. The token stays in the system keyring.
 
 ## Develop
 

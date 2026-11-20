@@ -1,6 +1,6 @@
 import { calls, type Agent } from './stream'
 
-const LINK = /https?:\/\/(?:www\.)?(?:[\w.-]+(?:\/[\w.-]+){2,}\/-\/merge_requests|(?:dev\.azure\.com\/[\w.-]+|[\w-]+\.visualstudio\.com(?:\/DefaultCollection)?)\/[\w.%-]+\/_git\/[\w.%-]+\/pullrequest)\/\d+/g
+const LINK = /https?:\/\/(?:www\.)?(?:(?:dev\.azure\.com\/[\w.-]+|[\w-]+\.visualstudio\.com(?:\/DefaultCollection)?)\/[\w.%-]+\/_git\/[\w.%-]+\/pullrequest)\/\d+/g
 
 type Found = { url: string; at: number }
 
