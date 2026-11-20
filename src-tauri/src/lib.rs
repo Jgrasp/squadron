@@ -2756,7 +2756,9 @@ pub fn run() {
     login_path();
     #[cfg(all(debug_assertions, target_os = "linux"))]
     {
-        gtk::glib::set_prgname(Some("squadron-dev"));
+        let instance = std::env::var("SQUADRON_INSTANCE")
+            .map_or("squadron-dev".into(), |name| format!("squadron-dev-{name}"));
+        gtk::glib::set_prgname(Some(instance.as_str()));
         // Wayland lets no window choose its position: X11 lets the dev build reopen where it was.
         gtk::gdk::set_allowed_backends("x11");
     }
@@ -2765,7 +2767,10 @@ pub fn run() {
         .map(PathBuf::from)
         .or_else(|| std::env::var_os("HOME").map(|h| PathBuf::from(h).join(".local/share")))
     {
-        let _ = std::fs::remove_dir_all(data.join(DEV_ID).join("WebKitCache"));
+        let identifier = std::env::var("SQUADRON_IDENTIFIER").unwrap_or_else(|_| DEV_ID.into());
+        if identifier.starts_with(DEV_ID) {
+            let _ = std::fs::remove_dir_all(data.join(identifier).join("WebKitCache"));
+        }
     }
     tauri::Builder::default()
         .plugin(tauri_plugin_single_instance::init(|app, _, _| {
@@ -3015,7 +3020,7 @@ pub fn run() {
             }
         })
         .setup(|app| {
-            if cfg!(debug_assertions) && app.config().identifier != DEV_ID {
+            if cfg!(debug_assertions) && !app.config().identifier.starts_with(DEV_ID) {
                 return Err("Start the dev build with `pnpm app`: it keeps its own data, apart from the installed Squadron.".into());
             }
             if cfg!(debug_assertions) {
@@ -3041,6 +3046,9 @@ pub fn run() {
                 let _ = forge::write_secret("azure", None);
             });
             if let Some(window) = app.get_webview_window("main") {
+                if let Some(name) = std::env::var("SQUADRON_INSTANCE").ok().filter(|_| cfg!(debug_assertions)) {
+                    window.set_title(&format!("Squadron dev · {name}"))?;
+                }
                 window.show()?;
             }
             let file = config.join("projects.json");
