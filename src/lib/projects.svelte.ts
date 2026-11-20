@@ -23,6 +23,7 @@ export type Project = {
   runs_hidden: string[]
   repository: string
   review_prompt: string
+  auto_review: boolean
   defaults: Defaults
   exists: boolean
   git: boolean
@@ -123,6 +124,7 @@ export async function editProject(path: string, changes: {
     runs_hidden?: string[]
     repository?: string
     review_prompt?: string
+    auto_review?: boolean
     defaults?: Defaults
   },) {
   set(await invoke<Project[]>('edit_project', { path, changes }))

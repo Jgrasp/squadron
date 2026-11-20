@@ -132,6 +132,7 @@ export async function lookUpLists(project: string, force = false) {
     const found = await invoke<Omit<Lists, 'error'>>('pull_lists', { dir: project })
     forgetIgnored(project, found)
     lists[project] = { ...found, error: '' }
+    autoReview(project)
   } catch (e) {
     lists[project] = { review: [], mine: [], others: [], error: String(e) }
   }
@@ -503,6 +504,23 @@ export async function reviewWithAgent(project: string, pull: Pull) {
     persist(agent)
   }
   return id
+}
+
+const autoStarted = new Set<string>()
+
+function autoReview(project: string) {
+  const found = lists[project]
+  if (!settings.pilot || !found || !projects.list.find((p) => p.path === project)?.auto_review) return
+  for (const pull of found.review) {
+    const key = `${project}#${pull.number}@${pull.head}`
+    if (pull.draft || ignored(project, pull) || autoStarted.has(key)) continue
+    const agent = reviewerOf(project, pull)
+    const start = !agent ? waitsFor(project, pull) && (() => reviewWithAgent(project, pull)) : agent.status !== 'working' && behind(agent, pull) && (() => reviewChanges(agent, pull))
+    if (!start) continue
+    autoStarted.add(key)
+    start().catch(() => autoStarted.delete(key))
+    return
+  }
 }
 
 export const behind = (agent: Agent, pull: Pull) => (agent.review?.head ? !same(agent.review.head, pull.head) : moved(agent.review!.project, pull))

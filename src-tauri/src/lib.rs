@@ -354,6 +354,9 @@ fn edit_project(
         if let Some(prompt) = changes.review_prompt {
             project.review_prompt = prompt.trim().to_string();
         }
+        if let Some(on) = changes.auto_review {
+            project.auto_review = on;
+        }
         if let Some(defaults) = changes.defaults {
             claude::Options {
                 model: defaults.model.clone().unwrap_or_else(|| "opus".into()),
