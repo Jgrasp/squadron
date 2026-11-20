@@ -7,7 +7,7 @@
   import { settings, type Config } from './settings.svelte'
   import type { Project } from './projects.svelte'
   import { layout, requestPanel } from './layout.svelte'
-  import { awaitsChecks, hostName, ignore, ignored, ignoredUntil, lists, lookUpNumbered, merge, lookUpLists, moved, numbered, refreshPull, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, unignore, waitsFor, type Pull } from './pulls.svelte'
+  import { askMerge, awaitsChecks, hostName, ignore, ignored, ignoredUntil, lists, lookUpNumbered, merge, lookUpLists, moved, numbered, refreshPull, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, unignore, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -174,13 +174,8 @@
   const merging = (pull: Pull): Choice => ({ label: busy?.number === pull.number && busy.doing === 'merge' ? t('review.merging') : t('review.merge'), title: t('review.mergeInto', { base: pull.base }), run: () => mergeIt(pull) })
   const mergesHere = (pull: Pull, where: Config['merge_others']) => pull.mergeable && settings.merge_others === where
   async function mergeIt(pull: Pull) {
-    const confirmed = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {
-      title: t('review.mergeTitle'),
-      kind: 'warning',
-      okLabel: t('review.merge'),
-      cancelLabel: t('common.cancel'),
-    })
-    if (confirmed) await act(pull, 'merge', () => merge(project.path, pull))
+    const choice = await askMerge(pull)
+    if (choice) await act(pull, 'merge', () => merge(project.path, pull, choice))
   }
 
   async function refresh() {

@@ -2,7 +2,8 @@ import { invoke } from '@tauri-apps/api/core'
 import { agents, create, FOR_INFO, persist, send } from './agents.svelte'
 import { defaultsFor, projects } from './projects.svelte'
 import { layout, requestPanel, setPanel } from './layout.svelte'
-import { settings } from './settings.svelte'
+import { settings, type MergeMethod } from './settings.svelte'
+import { ask } from './asking.svelte'
 import { prompt, workdir, type Agent, type Comment } from './stream'
 import { pushedTo } from './pushed'
 import { byHead } from './rounds'
@@ -35,6 +36,10 @@ export type Pull = {
   reviewers: Reviewer[]
   conflicts: boolean
   mergeable: boolean
+  merge_methods?: MergeMethod[]
+  delete_branch?: boolean | null
+  delete_branch_settable?: boolean
+  branch_protected?: boolean
 }
 
 export type Reviewer = { name: string; avatar: string; verdict: 'approved' | 'changes_requested' | 'commented' | 'waiting' }
@@ -441,8 +446,37 @@ export async function requestChanges(dir: string, pull: Pull) {
   markReviewed(dir, pull)
 }
 
-export async function merge(dir: string, pull: Pull) {
-  await invoke('merge_pull', { dir, number: pull.number })
+export type MergeChoice = { method: MergeMethod | null; delete_branch: boolean | null }
+
+const METHODS: Record<MergeMethod, [Key, Key]> = {
+  merge: ['review.methodMerge', 'review.merge'],
+  squash: ['review.methodSquash', 'review.mergeSquash'],
+  rebase: ['review.methodRebase', 'review.mergeRebase'],
+}
+
+export async function askMerge(pull: Pull): Promise<MergeChoice | null> {
+  const host = hostName(pull)
+  const wanted = settings.merge_method === 'repo' ? null : settings.merge_method
+  const method = wanted && pull.merge_methods?.includes(wanted) ? wanted : null
+  const lines = [t('review.mergeAsk', { number: String(pull.number), title: pull.title, base: pull.base, host })]
+  if (method) lines.push(t('review.mergeWith', { method: t(METHODS[method][0]) }))
+  else if (wanted && pull.merge_methods?.length) lines.push(t('review.mergeNotHere', { method: t(METHODS[wanted][0]), host }))
+  let remove = !!pull.delete_branch
+  const settable = !pull.branch_protected && !!pull.delete_branch_settable
+  if (pull.branch_protected) lines.push(t('review.branchProtected', { branch: pull.branch, host }))
+  else if (!settable && pull.delete_branch != null) lines.push(t(pull.delete_branch ? 'review.branchGoes' : 'review.branchStays', { branch: pull.branch, host }))
+  const sure = await ask(lines.join('\n'), {
+    title: t('review.mergeTitle'),
+    kind: 'warning',
+    okLabel: t(method ? METHODS[method][1] : 'review.merge'),
+    cancelLabel: t('common.cancel'),
+    check: settable ? { label: t('review.deleteBranch', { branch: pull.branch, host }), hint: t('review.deleteBranchHint'), checked: remove, onchange: (on) => (remove = on) } : undefined,
+  })
+  return sure ? { method, delete_branch: settable ? remove : null } : null
+}
+
+export async function merge(dir: string, pull: Pull, choice: MergeChoice) {
+  await invoke('merge_pull', { dir, number: pull.number, method: choice.method, deleteBranch: choice.delete_branch })
   lookUpAll(true)
 }
 

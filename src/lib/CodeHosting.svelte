@@ -96,6 +96,17 @@
 {#if error}<p class="bad" role="alert">{error}</p>{/if}
 
 <section>
+  <h3>{t('review.mergeMethod')}</h3>
+  <p class="intro">{t('review.mergeMethodIntro')}</p>
+  <select class="field" aria-label={t('review.mergeMethod')} value={settings.merge_method} onchange={(e) => change({ merge_method: e.currentTarget.value as typeof settings.merge_method })}>
+    <option value="repo">{t('review.methodRepo')}</option>
+    <option value="merge">{t('review.methodMerge')}</option>
+    <option value="squash">{t('review.methodSquash')}</option>
+    <option value="rebase">{t('review.methodRebase')}</option>
+  </select>
+</section>
+
+<section>
   <h3>{t('review.mergeOthers')}</h3>
   <p class="intro">{t('review.mergeOthersIntro')}</p>
   <select class="field" aria-label={t('review.mergeOthers')} value={settings.merge_others} onchange={(e) => change({ merge_others: e.currentTarget.value as typeof settings.merge_others })}>

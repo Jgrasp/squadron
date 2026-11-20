@@ -449,6 +449,7 @@ struct Config {
     notify_remote: String,
     remote_new_agents: bool,
     merge_others: String,
+    merge_method: String,
 }
 
 impl Default for Config {
@@ -500,6 +501,7 @@ impl Default for Config {
             notify_remote: "keep".into(),
             remote_new_agents: false,
             merge_others: "second".into(),
+            merge_method: "repo".into(),
         }
     }
 }
@@ -576,6 +578,9 @@ impl Settings {
                 "Unknown merge button placement: {}",
                 config.merge_others
             ));
+        }
+        if !["repo", "merge", "squash", "rebase"].contains(&config.merge_method.as_str()) {
+            return Err(format!("Unknown merge method: {}", config.merge_method));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {
             return Err(format!("Unknown tab order: {}", config.tab_order));
@@ -1359,8 +1364,14 @@ async fn post_remarks(
 }
 
 #[tauri::command]
-async fn merge_pull(app: AppHandle, dir: PathBuf, number: u64) -> Result<(), String> {
-    provider::merge(&app, &dir, number).await
+async fn merge_pull(
+    app: AppHandle,
+    dir: PathBuf,
+    number: u64,
+    method: Option<String>,
+    delete_branch: Option<bool>,
+) -> Result<(), String> {
+    provider::merge(&app, &dir, number, method, delete_branch).await
 }
 
 #[tauri::command]

@@ -30,6 +30,10 @@ pub struct Pull {
     pub reviewers: Vec<Reviewer>,
     pub conflicts: bool,
     pub mergeable: bool,
+    pub merge_methods: Vec<String>,
+    pub delete_branch: Option<bool>,
+    pub delete_branch_settable: bool,
+    pub branch_protected: bool,
 }
 
 #[derive(Debug, Default, PartialEq, Serialize, Deserialize)]

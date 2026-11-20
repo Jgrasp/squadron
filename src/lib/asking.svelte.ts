@@ -1,6 +1,6 @@
 type Kind = 'info' | 'warning' | 'error'
 
-type Check = { label: string; hint?: string; onchange: (checked: boolean) => void }
+type Check = { label: string; hint?: string; checked?: boolean; onchange: (checked: boolean) => void }
 
 type Options = { title?: string; kind?: Kind; icon?: 'github'; okLabel?: string; cancelLabel?: string; lines?: string[]; check?: Check; danger?: boolean }
 
