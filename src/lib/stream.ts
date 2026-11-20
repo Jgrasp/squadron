@@ -588,9 +588,12 @@ function act(agent: Agent, action: string) {
   if (agent.status !== 'waiting') agent.action = action
 }
 
+const responses = new Map<string, string>()
+
 function stream(agent: Agent, d: Json) {
   const e = d.event
-  const key = `${d.api_message_id}:${e.index}`
+  if (e.type === 'message_start') responses.set(agent.id, e.message?.id ?? '')
+  const key = `${d.api_message_id || responses.get(agent.id)}:${e.index}`
   if (e.type === 'message_start') {
     const u = e.message.usage ?? {}
     agent.live.outputDone += agent.live.output
