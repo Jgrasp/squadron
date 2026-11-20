@@ -420,6 +420,36 @@ pub async fn merge(
     }
 }
 
+pub async fn create(
+    app: &AppHandle,
+    dir: &Path,
+    branch: String,
+    base: String,
+    title: String,
+    description: String,
+    draft: bool,
+) -> Result<Pull, String> {
+    let Some(target) = of_dir(app, dir) else {
+        return Err(NOT_HOSTED.into());
+    };
+    if !target.calls.iter().any(|c| c == "create") {
+        return Err(format!("{} cannot open a pull request.", target.extension));
+    }
+    let title = title.trim();
+    if title.is_empty() {
+        return Err("The title is empty.".into());
+    }
+    if [&branch, &base]
+        .iter()
+        .any(|b| b.trim().is_empty() || b.starts_with('-'))
+    {
+        return Err("Unknown branch.".into());
+    }
+    let args = json!({ "branch": branch, "base": base.trim(), "title": title, "description": description, "draft": draft });
+    let pull: Pull = call(app, target.clone(), "create", args).await?;
+    Ok(owned(&target, pull))
+}
+
 pub async fn update(
     app: &AppHandle,
     dir: &Path,

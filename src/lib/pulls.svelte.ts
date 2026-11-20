@@ -9,7 +9,7 @@ import { pushedTo } from './pushed'
 import { byHead } from './rounds'
 import type { Linked } from './linked.svelte'
 import { t, type Key } from './i18n/index.svelte'
-import { forgeName, providedLinks } from './forges.svelte'
+import { can, coverage, forgeName, providedLinks } from './forges.svelte'
 
 export type Pull = {
   host: string
@@ -353,6 +353,18 @@ async function lookUpOwned(agent: Agent, force = false) {
 }
 
 export const pullOf = (agent: Agent) => owned[agent.id] ?? pulls[workdir(agent)] ?? null
+
+export function pullToOpen(agent: Agent) {
+  if (agent.review || pullOf(agent)) return null
+  const ref = pushedTo(agent)
+  if (!ref || !('branch' in ref) || /^[0-9a-f]{7,40}$/.test(ref.branch)) return null
+  const by = coverage[agent.project]?.by
+  return by && can(by, 'create') ? { branch: ref.branch, host: by } : null
+}
+
+export async function openPull(agent: Agent, fields: { branch: string; base: string; title: string; description: string; draft: boolean }) {
+  owned[agent.id] = await invoke<Pull>('create_pull', { dir: workdir(agent), ...fields })
+}
 
 export function lookUpAgent(agent: Agent, force = false) {
   lookUp(workdir(agent), force)

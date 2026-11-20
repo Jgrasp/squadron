@@ -46,7 +46,8 @@
   import { open as chooseFiles } from '@tauri-apps/plugin-dialog'
   import { getCurrentWebview } from '@tauri-apps/api/webview'
   import OptionsFields from './OptionsFields.svelte'
-  import { lists, lookUpAgent, lookUpLists, needsYou, openReview, progress, pullOf, reviews, stateLabel } from './pulls.svelte'
+  import { lists, lookUpAgent, lookUpLists, needsYou, openReview, progress, pullOf, pullToOpen, reviews, stateLabel } from './pulls.svelte'
+  import OpenPull from './OpenPull.svelte'
   import Reviewers from './Reviewers.svelte'
   import { catalogOf, commandsOf } from './catalogs.svelte'
   import { find as findCommand, options, parse, type Command } from './commands'
@@ -136,6 +137,8 @@
   })
 
   const pull = $derived(pullOf(agent))
+  const toOpen = $derived(pullToOpen(agent))
+  let openingPull = $state(false)
   const own = $derived(!!pull && !!lists[agent.project]?.mine.some((p) => p.number === pull.number))
   $effect(() => {
     if (pull && panel === 'diff') lookUpLists(agent.project)
@@ -237,7 +240,7 @@
         (id !== 'subagents' || agent.subagents.length) &&
         (id !== 'artifacts' || shared.length) &&
         (id !== 'branch' || branch) &&
-        (id !== 'pull' || pull || agent.review) &&
+        (id !== 'pull' || pull || agent.review || toOpen) &&
         (id !== 'mcp' || mcpGroups.length) &&
         (id !== 'tasks' || agent.tasks.length),
     ),
@@ -1072,6 +1075,10 @@
                 {#if pull.checks}<span class="checks {pull.checks}" title={t(pull.checks === 'passing' ? 'agent.buildsPassing' : pull.checks === 'failing' ? 'agent.buildsFailing' : 'agent.buildsPending')}></span>{/if}
                 {#if pull.comments}<span class="fact">{t('agent.comments', { count: pull.comments })}</span>{/if}
               </button>
+            {:else if id === 'pull' && toOpen}
+              <button class="chip" data-item={id} title={t('review.openPullTitle')} onclick={() => (openingPull = true)}>
+                <Icon name="pull" size={15} />{t('review.openPullTitle')}
+              </button>
             {:else if id === 'artifacts'}
               <button
                 class="chip"
@@ -1389,6 +1396,10 @@
   {@render overlay?.()}
   {#if usage.agent === agent.id && usage.stack.length}<PluginUsage {agent} />{/if}
 </main>
+
+{#if openingPull && toOpen}
+  <OpenPull {agent} branch={toOpen.branch} host={toOpen.host} onclose={() => (openingPull = false)} />
+{/if}
 
 <style>
   main {

@@ -206,7 +206,7 @@ pub struct Branched {
     pub commits: u32,
 }
 
-fn base_branch(dir: &Path) -> Option<String> {
+pub fn base_branch(dir: &Path) -> Option<String> {
     run(git(dir).args([
         "symbolic-ref",
         "--quiet",
@@ -221,6 +221,31 @@ fn base_branch(dir: &Path) -> Option<String> {
             .into_iter()
             .find(|name| commit(dir, name).is_some())
             .map(str::to_string)
+    })
+}
+
+#[derive(Serialize)]
+pub struct Outline {
+    pub base: String,
+    pub subjects: Vec<String>,
+    pub log: String,
+}
+
+pub fn pull_outline(dir: &Path) -> Result<Outline, String> {
+    let base = base_branch(dir).ok_or("No main branch to compare with.")?;
+    let range = format!("{base}..HEAD");
+    let subjects = run(git(dir).args(["log", "--reverse", "--format=%s", &range]))?
+        .lines()
+        .map(str::to_string)
+        .filter(|s| !s.is_empty())
+        .collect();
+    let commits = run(git(dir).args(["log", "--reverse", "--format=%s%n%n%b", &range]))?;
+    let stat =
+        run(git(dir).args(["diff", "--stat", &format!("{base}...HEAD")])).unwrap_or_default();
+    Ok(Outline {
+        base: base.trim_start_matches("origin/").to_string(),
+        subjects,
+        log: format!("{commits}\n{stat}").chars().take(6000).collect(),
     })
 }
 
