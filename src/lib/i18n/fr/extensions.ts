@@ -92,6 +92,7 @@ export default {
   accountBroken: 'Un compte a un problème',
   secretSet: 'Enregistré dans le trousseau du système',
   secretUnset: 'Non renseigné',
+  clickToCopy: 'Cliquez pour copier',
   fieldLink: 'En créer un',
   secretHint: 'Squadron l’ajoute aux requêtes et aux commandes de l’extension. L’extension ne le lit jamais.',
   uninstall: 'Désinstaller',

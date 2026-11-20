@@ -91,6 +91,7 @@ export default {
   accountBroken: 'An account has a problem',
   secretSet: 'Saved in the system keyring',
   secretUnset: 'Not set',
+  clickToCopy: 'Click to copy',
   fieldLink: 'Create one',
   secretHint: 'Squadron adds it to the extension’s requests and commands. The extension never reads it.',
   uninstall: 'Uninstall',
