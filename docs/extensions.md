@@ -584,6 +584,13 @@ fn forge(call: String, input: String) -> Result<String, String> {
 - **`forge::Run.pull`**: optional number of the pull request a run checks. Squadron shows it as `#N` with the pull request's title on the run's card and counts the run under "PR checks" rather than "Pipelines". Left empty, a run whose `event` is a pull request event (`pull_request`, `pull_request_target`, `merge_request_event`, `pullRequest`, `pullrequest`) or whose `branch` is the head of an open pull request still counts as a check.
 - No WIT change: the WIT of 1.11.0 only bumps its version. An older Squadron ignores `pull`.
 
+### Several requests at once (API 1.12)
+
+- **`host::fetch-many(requests) -> list<result<response, string>>`**: sends the requests up to 8 at a time and answers in their order. In Rust, `host::fetch_many(&[Request])`. A WASM instance has no threads, so `fetch` runs one request after the other; this one lets a forge call such as `lists` read the statuses and threads of 150 pull requests within its 150 s.
+- **Rules**: each request follows those of `fetch`: `permissions.network` or an account's `host`, `{{…}}` and `{{base64:…}}` in headers, secrets scrubbed from what comes back, redirects, 30 s and 8 MB. A refused or failed request fails alone, the others still answer.
+- **Time**: a request waiting for its turn when the call's 150 s run out fails with "The call ran out of time before this request was sent.", and one already sent stops by then. The answers together go into the instance's 64 MB: split a batch whose bodies could pass that.
+- An extension that imports `fetch-many` does not load in a Squadron older than API 1.12.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

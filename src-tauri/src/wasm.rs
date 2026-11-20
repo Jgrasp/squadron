@@ -30,6 +30,8 @@ const MAX_STATE: usize = 1 << 20;
 const ANSWER: Duration = Duration::from_secs(150);
 const FETCH: Duration = Duration::from_secs(30);
 const MAX_BODY: usize = 8 << 20;
+const MANY: usize = 8;
+const LATE: &str = "The call ran out of time before this request was sent.";
 const DOWNLOAD: Duration = Duration::from_secs(120);
 const MAX_DOWNLOAD: usize = 200 << 20;
 const WINDOW: Duration = Duration::from_secs(10);
@@ -273,6 +275,7 @@ struct Host {
     trial: Option<Trial>,
     panels: Vec<String>,
     kept: Arc<Mutex<Kept>>,
+    deadline: Instant,
 }
 
 #[derive(Default)]
@@ -448,19 +451,24 @@ impl Host {
     }
 
     fn send(&self, request: Request, max: usize, timeout: Duration) -> Result<Sent, String> {
-        let id = self.id.clone();
-        let trial = self.trial.as_ref();
-        let accounts = with_trial((self.hooks.accounts)(&self.id), trial);
-        send(&self.allowed, &accounts, request, max, timeout, |key| {
-            if let Some(value) = trial.and_then(|t| t.secret(key)) {
-                return Ok(Some(value));
-            }
-            let key = match key.split_once('.') {
-                Some((account, field)) => account_key(&id, account, field)?,
-                None => secret_key(&id, key)?,
-            };
-            crate::forge::read_secret(&key)
-        })
+        self.sender()(request, max, timeout)
+    }
+
+    fn sender(&self) -> impl Fn(Request, usize, Duration) -> Result<Sent, String> + Sync + '_ {
+        let (id, allowed, trial) = (&self.id, &self.allowed, self.trial.as_ref());
+        let accounts = with_trial((self.hooks.accounts)(id), trial);
+        move |request, max, timeout| {
+            send(allowed, &accounts, request, max, timeout, |key| {
+                if let Some(value) = trial.and_then(|t| t.secret(key)) {
+                    return Ok(Some(value));
+                }
+                let key = match key.split_once('.') {
+                    Some((account, field)) => account_key(id, account, field)?,
+                    None => secret_key(id, key)?,
+                };
+                crate::forge::read_secret(&key)
+            })
+        }
     }
 }
 
@@ -549,11 +557,13 @@ impl squadron::api::host::Host for Host {
     }
 
     fn fetch(&mut self, request: Request) -> Result<Response, String> {
-        let sent = self.send(request, MAX_BODY, FETCH)?;
-        Ok(Response {
-            status: sent.status,
-            headers: sent.headers,
-            body: scrub(String::from_utf8_lossy(&sent.body).into_owned(), &sent.used),
+        self.send(request, MAX_BODY, FETCH).map(response)
+    }
+
+    fn fetch_many(&mut self, requests: Vec<Request>) -> Vec<Result<Response, String>> {
+        let send = self.sender();
+        many(requests, MANY, self.deadline, |request, left| {
+            send(request, MAX_BODY, FETCH.min(left)).map(response)
         })
     }
 
@@ -905,6 +915,54 @@ fn why(e: reqwest::Error) -> String {
     text
 }
 
+fn response(sent: Sent) -> Response {
+    Response {
+        status: sent.status,
+        headers: sent.headers,
+        body: scrub(String::from_utf8_lossy(&sent.body).into_owned(), &sent.used),
+    }
+}
+
+fn many<T: Send>(
+    requests: Vec<Request>,
+    bound: usize,
+    deadline: Instant,
+    one: impl Fn(Request, Duration) -> Result<T, String> + Sync,
+) -> Vec<Result<T, String>> {
+    let workers = bound.min(requests.len());
+    let queue = Mutex::new(requests.into_iter().enumerate());
+    let mut answers: Vec<(usize, Result<T, String>)> = std::thread::scope(|scope| {
+        let workers: Vec<_> = (0..workers)
+            .map(|_| {
+                scope.spawn(|| {
+                    let mut done = Vec::new();
+                    loop {
+                        let next = queue.lock().unwrap().next();
+                        let Some((i, request)) = next else {
+                            return done;
+                        };
+                        let left = deadline.saturating_duration_since(Instant::now());
+                        done.push((
+                            i,
+                            if left.is_zero() {
+                                Err(LATE.into())
+                            } else {
+                                one(request, left)
+                            },
+                        ));
+                    }
+                })
+            })
+            .collect();
+        workers
+            .into_iter()
+            .flat_map(|w| w.join().unwrap())
+            .collect()
+    });
+    answers.sort_by_key(|(i, _)| *i);
+    answers.into_iter().map(|(_, a)| a).collect()
+}
+
 struct Sent {
     status: u16,
     headers: Vec<(String, String)>,
@@ -1066,6 +1124,7 @@ impl Maker {
             trial: None,
             panels: panels.to_vec(),
             kept: self.kept.clone(),
+            deadline: Instant::now() + ANSWER,
         }
     }
 
@@ -1146,6 +1205,7 @@ impl Pool {
         store.data_mut().allowed = allowed;
         store.data_mut().panels = panels;
         let _ = store.set_fuel(FUEL);
+        store.data_mut().deadline = Instant::now() + ANSWER;
         let call_name = call.clone();
         match forge.call(&mut *store, (call, input)) {
             Ok((result,)) => {
@@ -1439,6 +1499,7 @@ impl Runtime {
                     ..
                 } = &mut current;
                 let _ = store.set_fuel(FUEL);
+                store.data_mut().deadline = Instant::now() + ANSWER;
                 let failure = match next {
                     Job::Allow(list, pages) => {
                         allowed = list.clone();
@@ -1965,6 +2026,7 @@ mod tests {
             trial: None,
             panels: vec!["main".into(), "other".into()],
             kept: Default::default(),
+            deadline: Instant::now() + ANSWER,
         };
         (host, told)
     }
@@ -2433,6 +2495,99 @@ mod tests {
         );
     }
 
+    fn get(url: &str) -> Request {
+        Request {
+            method: "GET".into(),
+            url: url.into(),
+            headers: vec![],
+            body: None,
+        }
+    }
+
+    #[test]
+    fn fetches_many_in_order_at_most_eight_at_a_time() {
+        let (flying, most) = (AtomicUsize::new(0), AtomicUsize::new(0));
+        let requests = (0..30)
+            .map(|i| get(&format!("https://a.com/{i}")))
+            .collect();
+        let answers = many(requests, MANY, Instant::now() + ANSWER, |request, left| {
+            let now = flying.fetch_add(1, Ordering::SeqCst) + 1;
+            most.fetch_max(now, Ordering::SeqCst);
+            assert!(left <= ANSWER);
+            std::thread::sleep(Duration::from_millis(50));
+            flying.fetch_sub(1, Ordering::SeqCst);
+            if request.url.ends_with("/7") {
+                return Err("down".into());
+            }
+            Ok(request.url)
+        });
+        assert_eq!(most.load(Ordering::SeqCst), MANY);
+        for (i, answer) in answers.into_iter().enumerate() {
+            match i {
+                7 => assert_eq!(answer.unwrap_err(), "down"),
+                _ => assert_eq!(answer.unwrap(), format!("https://a.com/{i}")),
+            }
+        }
+        assert!(many(vec![], MANY, Instant::now(), |_, _| Ok(())).is_empty());
+    }
+
+    #[test]
+    fn fails_the_requests_left_once_the_call_runs_out_of_time() {
+        let deadline = Instant::now() + Duration::from_millis(400);
+        let requests = (0..4).map(|i| get(&format!("https://a.com/{i}"))).collect();
+        let answers = many(requests, 1, deadline, |request, left| {
+            assert!(left <= Duration::from_millis(400));
+            std::thread::sleep(Duration::from_millis(250));
+            Ok(request.url)
+        });
+        assert_eq!(answers[0].as_deref(), Ok("https://a.com/0"));
+        assert_eq!(answers[1].as_deref(), Ok("https://a.com/1"));
+        assert_eq!(answers[2].as_ref().unwrap_err(), LATE);
+        assert_eq!(answers[3].as_ref().unwrap_err(), LATE);
+    }
+
+    #[test]
+    fn fetches_many_by_the_rules_of_fetch() {
+        use squadron::api::host::Host as _;
+        let (mut host, _) = host(&["net:api.example.com"], |_, _| Ok(json!(null)));
+        let mut secret = get("https://api.example.com/");
+        secret.headers = vec![("Authorization".into(), "Bearer {{zz.token}}".into())];
+        let answers = host.fetch_many(vec![
+            get("https://evil.com/"),
+            get("http://api.example.com/"),
+            secret,
+            get("file:///etc/passwd"),
+        ]);
+        let errors: Vec<String> = answers.into_iter().map(Result::unwrap_err).collect();
+        assert!(errors[0].contains("evil.com is not allowed"), "{errors:?}");
+        assert!(errors[1].contains("Only https://"), "{errors:?}");
+        assert!(
+            errors[2].contains("The account zz no longer exists"),
+            "{errors:?}"
+        );
+        assert!(errors[3].contains("Only https://"), "{errors:?}");
+
+        let sent = |body: &str, secret: &str| Sent {
+            status: 200,
+            headers: vec![],
+            body: body.as_bytes().to_vec(),
+            used: vec![secret.into()],
+        };
+        let answers = many(
+            vec![get("https://a.com/0"), get("https://a.com/1")],
+            MANY,
+            Instant::now() + ANSWER,
+            |request, _| {
+                Ok(response(match request.url.ends_with("/0") {
+                    true => sent("echo s3cr3t t0k", "s3cr3t"),
+                    false => sent("echo s3cr3t t0k", "t0k"),
+                }))
+            },
+        );
+        assert_eq!(answers[0].as_ref().unwrap().body, "echo [secret] t0k");
+        assert_eq!(answers[1].as_ref().unwrap().body, "echo s3cr3t [secret]");
+    }
+
     fn account(id: &str, host: Option<&str>) -> Stored {
         Stored {
             id: id.into(),
@@ -2752,6 +2907,43 @@ mod tests {
         .unwrap();
         assert_eq!(answer.status, 200);
         assert!(!answer.body.is_empty());
+    }
+
+    #[test]
+    #[ignore = "needs the network"]
+    fn fetches_real_pages_at_once_and_scrubs_the_secrets() {
+        let allowed = ["net:postman-echo.com".to_string()];
+        let request = |url: &str| Request {
+            method: "GET".into(),
+            url: url.into(),
+            headers: vec![
+                ("Authorization".into(), "Bearer {{token}}".into()),
+                ("User-Agent".into(), "squadron-test".into()),
+            ],
+            body: None,
+        };
+        let requests = vec![
+            request("https://postman-echo.com/headers?n=0"),
+            request("https://evil.com/"),
+            request("https://postman-echo.com/headers?n=2"),
+        ];
+        let answers = many(requests, MANY, Instant::now() + ANSWER, |request, left| {
+            send(&allowed, &[], request, MAX_BODY, FETCH.min(left), |k| {
+                Ok((k == "token").then(|| "s3cr3t".to_string()))
+            })
+            .map(response)
+        });
+        for i in [0, 2] {
+            let body = &answers[i].as_ref().unwrap().body;
+            assert!(body.contains("Bearer [secret]"), "{body}");
+            assert!(!body.contains("s3cr3t"), "{body}");
+        }
+        assert!(
+            answers[1]
+                .as_ref()
+                .unwrap_err()
+                .contains("permissions.network")
+        );
     }
 
     #[test]
