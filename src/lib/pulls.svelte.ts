@@ -124,7 +124,9 @@ export async function lookUpLists(project: string, force = false) {
   if (!force && Date.now() - (listed[project] ?? 0) < 60_000) return
   listed[project] = Date.now()
   try {
-    lists[project] = { ...(await invoke<Omit<Lists, 'error'>>('pull_lists', { dir: project })), error: '' }
+    const found = await invoke<Omit<Lists, 'error'>>('pull_lists', { dir: project })
+    forgetIgnored(project, found)
+    lists[project] = { ...found, error: '' }
   } catch (e) {
     lists[project] = { review: [], mine: [], others: [], error: String(e) }
   }
@@ -267,7 +269,47 @@ export function moved(dir: string, pull: Pull) {
   return false
 }
 
-export const waitsFor = (dir: string, pull: Pull) => !pull.reviewed || (pull.reviewed !== 'approved' && moved(dir, pull))
+export const ignoredPulls = $state<Record<string, string>>(
+  (() => {
+    try {
+      return JSON.parse(localStorage.getItem('squadron.ignored') ?? '{}')
+    } catch {
+      return {}
+    }
+  })(),
+)
+
+const saveIgnored = () => {
+  try {
+    localStorage.setItem('squadron.ignored', JSON.stringify(ignoredPulls))
+  } catch {}
+}
+
+export function ignore(dir: string, pull: Pull, untilCommits: boolean) {
+  ignoredPulls[`${dir}#${pull.number}`] = untilCommits ? pull.head : ''
+  saveIgnored()
+}
+
+export function unignore(dir: string, pull: Pull) {
+  delete ignoredPulls[`${dir}#${pull.number}`]
+  saveIgnored()
+}
+
+export const ignoredUntil = (dir: string, pull: Pull) => ignoredPulls[`${dir}#${pull.number}`]
+
+export function ignored(dir: string, pull: Pull) {
+  const head = ignoredUntil(dir, pull)
+  return head === '' || (!!head && same(head, pull.head))
+}
+
+function forgetIgnored(dir: string, found: Omit<Lists, 'error'>) {
+  const open = new Map([...found.review, ...found.mine, ...found.others].map((p) => [`${dir}#${p.number}`, p]))
+  const stale = Object.keys(ignoredPulls).filter((key) => key.startsWith(`${dir}#`) && (!open.has(key) || !ignored(dir, open.get(key)!)))
+  for (const key of stale) delete ignoredPulls[key]
+  if (stale.length) saveIgnored()
+}
+
+export const waitsFor = (dir: string, pull: Pull) => !ignored(dir, pull) && (!pull.reviewed || (pull.reviewed !== 'approved' && moved(dir, pull)))
 
 export const needsYou = (project: string) => {
   const found = lists[project]

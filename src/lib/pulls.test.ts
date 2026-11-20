@@ -20,7 +20,7 @@ vi.mock('./layout.svelte', () => ({ layout: { review: null }, requestPanel: vi.f
 vi.mock('./settings.svelte', () => ({ settings: {} }))
 vi.mock('./forges.svelte', () => ({ forgeName: (host: string) => host, providedLinks: [] }))
 
-const { awaitsChecks, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, refreshPull, tidyMerged } = await import('./pulls.svelte')
+const { awaitsChecks, ignore, ignored, ignoredPulls, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, refreshPull, tidyMerged, unignore, waitsFor } = await import('./pulls.svelte')
 
 const pull = (number: number, more: Partial<Pull> = {}): Pull => ({
   host: 'github',
@@ -117,5 +117,33 @@ describe('merged pull requests', () => {
     expect(agent.worktree).toBeNull()
     expect(agent.pinned).toBe(false)
     expect(forge.calls).toContain('set_workdir')
+  })
+})
+
+describe('ignored pull requests', () => {
+
+  it('an ignored pull request no longer waits for you, until you bring it back', async () => {
+    forge.lists = { review: [pull(20)], mine: [], others: [] }
+    await lookUpLists('/i', true)
+    ignore('/i', pull(20), false)
+    expect(waitsFor('/i', pull(20, { head: 'def' }))).toBe(false)
+    unignore('/i', pull(20))
+    expect(waitsFor('/i', pull(20))).toBe(true)
+  })
+
+  it('ignoring until new commits brings it back once the author pushes, and forgets it', async () => {
+    ignore('/i', pull(21), true)
+    expect(ignored('/i', pull(21))).toBe(true)
+    expect(waitsFor('/i', pull(21, { head: 'def' }))).toBe(true)
+    forge.lists = { review: [pull(21, { head: 'def' })], mine: [], others: [] }
+    await lookUpLists('/i', true)
+    expect('/i#21' in ignoredPulls).toBe(false)
+  })
+
+  it('forgets an ignored pull request once it is no longer open', async () => {
+    ignore('/i', pull(22), false)
+    forge.lists = { review: [], mine: [], others: [] }
+    await lookUpLists('/i', true)
+    expect('/i#22' in ignoredPulls).toBe(false)
   })
 })
