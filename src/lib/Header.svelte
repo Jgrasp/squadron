@@ -179,7 +179,7 @@
       >
         <span class="triangle" aria-hidden="true"></span>
         <span class="wordmark">Squadron</span>
-        {#if import.meta.env.DEV}<span class="dev">dev</span>{/if}
+        {#if import.meta.env.DEV}<span class="dev" title={import.meta.env.VITE_SQUADRON_INSTANCE}>dev{#if import.meta.env.VITE_SQUADRON_INSTANCE} · {import.meta.env.VITE_SQUADRON_INSTANCE}{/if}</span>{/if}
         <svg width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"
           ><path d="M6 9l6 6 6-6" /></svg
         >
@@ -648,6 +648,10 @@
   }
 
   .dev {
+    max-width: 180px;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
     padding: 1px 6px;
     border-radius: 4px;
     background: var(--dev);
