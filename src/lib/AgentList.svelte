@@ -106,10 +106,9 @@
     if (by !== 'none') rest.sort((a, b) => key[by](a, b) * (sort.desc ? -1 : 1))
     return [...all.filter((a) => a.pinned), ...rest]
   })
-  const tabbed = $derived(list.some((a) => a.review))
-  const tab = $derived<AgentTab>(tabbed && layout.agentTabs[project.path] === 'reviews' ? 'reviews' : 'agents')
+  const tab = $derived<AgentTab>(layout.agentTabs[project.path] === 'reviews' ? 'reviews' : 'agents')
   const ofTab = (id: AgentTab) => list.filter((a) => !!a.review === (id === 'reviews'))
-  const shown = $derived(tabbed ? ofTab(tab) : list)
+  const shown = $derived(ofTab(tab))
   const pinned = $derived(shown.filter((a) => a.pinned).length)
   const TABS: [AgentTab, Key][] = [
     ['agents', 'shell.tabAgents'],
@@ -122,7 +121,7 @@
     if (!agent || agent.id === seen) return
     seen = agent.id
     const want: AgentTab = agent.review ? 'reviews' : 'agents'
-    if (tabbed && tab !== want) setAgentTab(project.path, want)
+    if (tab !== want) setAgentTab(project.path, want)
   })
 
   let chosen = $state<string[]>([])
@@ -433,20 +432,18 @@
     </div>
   </div>
 
-  {#if tabbed}
-    <div class="tabs" role="tablist" aria-label={t('shell.agentKinds')}>
-      {#each TABS as [id, key] (id)}
-        {@const group = ofTab(id)}
-        {@const waits = group.filter((a) => look(a) === 'waiting').length}
-        {@const fresh = id !== tab && group.some((a) => a.unread)}
-        <button role="tab" aria-selected={tab === id} class:fresh onclick={() => setAgentTab(project.path, id)}>
-          {#if fresh}<span class="dot" role="img" aria-label={t('shell.unread')} title={t('shell.unread')}></span>{/if}
-          {t(key)}
-          {#if waits}<span class="badge" title={t('shell.waitingInTab', { count: waits })}>{waits}</span>{/if}
-        </button>
-      {/each}
-    </div>
-  {/if}
+  <div class="tabs" role="tablist" aria-label={t('shell.agentKinds')}>
+    {#each TABS as [id, key] (id)}
+      {@const group = ofTab(id)}
+      {@const waits = group.filter((a) => look(a) === 'waiting').length}
+      {@const fresh = id !== tab && group.some((a) => a.unread)}
+      <button role="tab" aria-selected={tab === id} class:fresh onclick={() => setAgentTab(project.path, id)}>
+        {#if fresh}<span class="dot" role="img" aria-label={t('shell.unread')} title={t('shell.unread')}></span>{/if}
+        {t(key)}
+        {#if waits}<span class="badge" title={t('shell.waitingInTab', { count: waits })}>{waits}</span>{/if}
+      </button>
+    {/each}
+  </div>
 
   {#if tab === 'reviews'}
     <div class="list" role="tabpanel">
@@ -468,11 +465,13 @@
             {@render reviewRow(agent)}
           </button>
         {/each}
+      {:else}
+        <p class="none">{t('shell.noReviews')}</p>
       {/each}
       <button class="new review-pull" onclick={() => projects.pulls || togglePulls()}><Icon name="plus" size={12} />{t('shell.reviewPull')}</button>
     </div>
-  {:else if list.length}
-    <div class="list" role={tabbed ? 'tabpanel' : undefined} use:sortable={{ enabled: shown.length > 1 && !editing, onplace: drop }}>
+  {:else if shown.length}
+    <div class="list" role="tabpanel" use:sortable={{ enabled: shown.length > 1 && !editing, onplace: drop }}>
       {#each shown as agent, i (agent.id)}
         {#if pinned && i === pinned}<span class="divider" aria-hidden="true"></span>{/if}
         {#if editing === agent.id}
@@ -1213,6 +1212,14 @@
     align-items: center;
     gap: 5px;
     color: var(--remote-text);
+  }
+
+  .none {
+    margin: 10px 0 0;
+    padding: 0 8px;
+    text-align: center;
+    font-size: 12.5px;
+    color: var(--text-dim);
   }
 
   .review-pull {

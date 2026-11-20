@@ -57,6 +57,7 @@ export default {
   reviewsToFollow: 'À suivre',
   reviewsRunning: 'En cours',
   reviewsDone: 'Terminées',
+  noReviews: 'Aucun agent ne relit de pull request pour l’instant.',
   reviewPull: 'Relire une pull request',
   newCommitsSinceItsReview: 'Nouveaux commits depuis sa relecture',
   reviewUpToDate: 'À jour',
