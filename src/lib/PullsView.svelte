@@ -7,7 +7,7 @@
   import { settings } from './settings.svelte'
   import type { Project } from './projects.svelte'
   import { requestPanel } from './layout.svelte'
-  import { approve, hostName, lists, merge, lookUpLists, moved, progress, pullOf, requestChanges, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, hostName, ignore, ignored, ignoredUntil, lists, merge, lookUpLists, moved, progress, pullOf, requestChanges, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, unignore, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -85,10 +85,20 @@
       busy = null
     }
   }
+  const shown = (p: Pull) => !ignored(project.path, p)
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
-  const reviewed = $derived(found?.review.filter((p) => !waitsFor(project.path, p)) ?? [])
-  const watched = $derived(found?.others.filter((p) => reviewerOf(project.path, p)) ?? [])
-  const others = $derived(found?.others.filter((p) => !p.draft && !reviewerOf(project.path, p)) ?? [])
+  const reviewed = $derived(found?.review.filter((p) => shown(p) && !waitsFor(project.path, p)) ?? [])
+  const watched = $derived(found?.others.filter((p) => shown(p) && reviewerOf(project.path, p)) ?? [])
+  const others = $derived(found?.others.filter((p) => shown(p) && !p.draft && !reviewerOf(project.path, p)) ?? [])
+  const hidden = $derived(found ? [...found.review, ...found.others].filter((p) => !shown(p)) : [])
+  const ignoredGroups = $derived([
+    { title: t('review.ignoredUntilCommits'), pulls: hidden.filter((p) => ignoredUntil(project.path, p)) },
+    { title: t('review.ignoredForGood'), pulls: hidden.filter((p) => !ignoredUntil(project.path, p)) },
+  ])
+  const ignoring = (pull: Pull): Choice[] => [
+    { label: t('review.ignoreUntilCommits'), hint: t('review.ignoreUntilCommitsHint'), icon: 'eye-off', rule: true, always: true, run: () => ignore(project.path, pull, true) },
+    { label: t('review.ignore'), hint: t('review.ignoreHint'), icon: 'eye-off', always: true, run: () => ignore(project.path, pull, false) },
+  ]
 
   let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' | 'ask' } | null>(null)
   let failure = $state('')
@@ -108,7 +118,7 @@
 
   let menu = $state('')
 
-  type Choice = { label: string; run: () => unknown; title?: string; always?: boolean; spinning?: boolean; again?: boolean; icon?: string; status?: Agent['status'] }
+  type Choice = { label: string; run: () => unknown; title?: string; hint?: string; rule?: boolean; always?: boolean; spinning?: boolean; again?: boolean; icon?: string; status?: Agent['status'] }
 
   const openOn = (pull: Pull): Choice => ({ label: t('review.openOn', { host: hostName(pull) }), run: () => invoke('open_link', { url: pull.url }) })
   const merging = (pull: Pull): Choice[] =>
@@ -235,7 +245,7 @@
       </div>
     {:else}
       <section>
-        <h2>{t('review.toReview')} <span class="n">{found.review.length}</span></h2>
+        <h2>{t('review.toReview')} <span class="n">{waiting.length + reviewed.length}</span></h2>
         {#each [...waiting, ...reviewed] as pull (pull.number)}
           {@render reviewRow(pull, verdict(pull), waitsFor(project.path, pull), !waitsFor(project.path, pull))}
         {:else}
@@ -280,6 +290,24 @@
           <p class="empty">{t('review.noPullsOfYours', { project: project.name })}</p>
         {/each}
       </section>
+
+      {#if hidden.length}
+        <section>
+          <h2>{t('review.ignored')} <span class="n">{hidden.length}</span><span class="hint">{t('review.ignoredHint')}</span></h2>
+          {#each ignoredGroups as group (group.title)}
+            {#if group.pulls.length}
+              <h3>{group.title}</h3>
+              {#each group.pulls as pull (pull.number)}
+                <article class="done ignored">
+                  <span class="verdict quiet ignored-verdict"><Icon name="eye-off" size={12} />{t('review.ignoredPull')}</span>
+                  {@render about(pull)}
+                  <button class="btn btn-ghost unignore" onclick={() => unignore(project.path, pull)}>{t('review.stopIgnoring')}</button>
+                </article>
+              {/each}
+            {/if}
+          {/each}
+        </section>
+      {/if}
     {/if}
   </div>
 </main>
@@ -339,7 +367,7 @@
       `review-${pull.number}`,
       reviewing,
       primary,
-      [openOn(pull), ...approving(pull), ...requesting(pull), ...(reviewer && again ? [{ label: t('review.goToAgent', { name: reviewer.name }), run: () => show(reviewer) }] : [])],
+      [openOn(pull), ...approving(pull), ...requesting(pull), ...(reviewer && again ? [{ label: t('review.goToAgent', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...ignoring(pull)],
       opened?.number === pull.number,
       agentChoice,
       false,
@@ -385,7 +413,11 @@
     {#if menu === key}
       <div class="choices" role="menu" aria-label={t('review.moreActions')}>
         {#each more as choice (choice.label)}
-          <button role="menuitem" title={choice.title} disabled={!!busy} onclick={() => ((menu = ''), choice.run())}>{choice.label}</button>
+          {#if choice.rule}<span class="rule" role="separator"></span>{/if}
+          <button role="menuitem" class:hinted={!!choice.hint} title={choice.title} disabled={!!busy && !choice.always} onclick={() => ((menu = ''), choice.run())}>
+            {#if choice.icon}<span class="choice-icon"><Icon name={choice.icon} /></span>{/if}
+            <span>{choice.label}{#if choice.hint}<small>{choice.hint}</small>{/if}</span>
+          </button>
         {/each}
       </div>
     {/if}
@@ -942,6 +974,55 @@
     background: var(--menu-hover);
   }
 
+  .choices button.hinted {
+    display: flex;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .choices small {
+    display: block;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .choice-icon {
+    display: flex;
+    padding-top: 3px;
+    color: var(--text-dim);
+  }
+
+  .rule {
+    height: 1px;
+    margin: 4px 6px;
+    background: var(--border-strong);
+  }
+
+  h3 {
+    margin: 8px 0 2px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-faint);
+  }
+
+  .ignored .author,
+  .ignored .about {
+    opacity: 0.55;
+  }
+
+  .ignored-verdict {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text-dim);
+  }
+
+  .unignore {
+    justify-self: end;
+  }
+
   .empty {
     margin: 0;
     color: var(--text-dim);
@@ -978,6 +1059,11 @@
     }
 
     .split {
+      grid-column: 3;
+      grid-row: 1 / span 2;
+    }
+
+    .unignore {
       grid-column: 3;
       grid-row: 1 / span 2;
     }
