@@ -397,11 +397,25 @@ pub async fn post(
     call(app, target, "post", args).await
 }
 
-pub async fn merge(app: &AppHandle, dir: &Path, number: u64) -> Result<(), String> {
+pub async fn merge(
+    app: &AppHandle,
+    dir: &Path,
+    number: u64,
+    method: Option<String>,
+    delete_branch: Option<bool>,
+) -> Result<(), String> {
+    if method
+        .as_deref()
+        .is_some_and(|m| !["merge", "squash", "rebase"].contains(&m))
+    {
+        return Err(format!(
+            "Unknown merge method: {}",
+            method.unwrap_or_default()
+        ));
+    }
+    let args = json!({ "number": number, "method": method, "delete_branch": delete_branch });
     match of_dir(app, dir) {
-        Some(target) => call::<Value>(app, target, "merge", json!({ "number": number }))
-            .await
-            .map(|_| ()),
+        Some(target) => call::<Value>(app, target, "merge", args).await.map(|_| ()),
         None => Err(NOT_HOSTED.into()),
     }
 }

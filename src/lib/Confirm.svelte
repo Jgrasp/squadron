@@ -45,7 +45,7 @@
     {/if}
     {#if current.check}
       <label class="check">
-        <input type="checkbox" onchange={(e) => current.check?.onchange(e.currentTarget.checked)} />
+        <input type="checkbox" checked={current.check.checked} onchange={(e) => current.check?.onchange(e.currentTarget.checked)} />
         <span>{current.check.label}{#if current.check.hint}<small>{current.check.hint}</small>{/if}</span>
       </label>
     {/if}

@@ -508,7 +508,6 @@ pub fn drop_merged_worktree(dir: &Path, branch: &str, head: &str) -> Result<(), 
     let main = Path::new(common.trim()).parent().ok_or("No repository.")?;
     run(git(main).args(["worktree", "remove", &dir.to_string_lossy()]))?;
     run(git(main).args(["branch", "-D", branch]))?;
-    quiet(main, &["push", "--quiet", "origin", "--delete", branch]);
     Ok(())
 }
 
@@ -826,7 +825,7 @@ mod tests {
         drop_merged_worktree(&tree, "feat", &head).unwrap();
         assert!(!tree.exists());
         assert!(sh(&main, &["branch", "--list", "feat"]).trim().is_empty());
-        assert!(sh(&origin, &["branch", "--list", "feat"]).trim().is_empty());
+        assert!(!sh(&origin, &["branch", "--list", "feat"]).trim().is_empty());
         let _ = fs::remove_dir_all(&root);
     }
 

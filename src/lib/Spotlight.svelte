@@ -1,6 +1,6 @@
 <script lang="ts">
   import { perform, ui } from './actions.svelte'
-  import { ask, message } from './asking.svelte'
+  import { message } from './asking.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { agents, find, ofProject, onDisk, selected, show, unarchive } from './agents.svelte'
   import { ago } from './format'
@@ -11,7 +11,7 @@
   import Icon from './Icon.svelte'
   import ItemIcon from './ItemIcon.svelte'
   import { projects, scratch, type Project } from './projects.svelte'
-  import { approve, hostName, lists, lookUpLists, merge, moved, needsYou, openReview, requestChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
+  import { approve, askMerge, hostName, lists, lookUpLists, merge, moved, needsYou, openReview, requestChanges, reviewerOf, reviewWithAgent, standing, waitsFor, type Pull } from './pulls.svelte'
   import { hint, settings } from './settings.svelte'
   import { offers } from './forges.svelte'
   import {
@@ -286,14 +286,9 @@
         return showPulls(dir)
       }
       if (act === 'merge') {
-        const sure = await ask(t('review.mergeAsk', { number: String(pull.number), title: pull.title, base: pull.base, host: hostName(pull) }), {
-          title: t('review.mergeTitle'),
-          kind: 'warning',
-          okLabel: t('review.merge'),
-          cancelLabel: t('common.cancel'),
-        })
-        if (!sure) return
-        await merge(dir, pull)
+        const choice = await askMerge(pull)
+        if (!choice) return
+        await merge(dir, pull, choice)
       } else if (act === 'approve') await approve(dir, pull)
       else await requestChanges(dir, pull)
       await lookUpLists(dir, true)

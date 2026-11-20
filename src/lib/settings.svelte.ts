@@ -64,7 +64,10 @@ export type Config = {
   notify_remote: NotifyRemote
   remote_new_agents: boolean
   merge_others: 'second' | 'menu' | 'hidden'
+  merge_method: 'repo' | MergeMethod
 }
+
+export type MergeMethod = 'merge' | 'squash' | 'rebase'
 
 export const settings = $state<Config>({
   claude: 'claude',
@@ -105,6 +108,7 @@ export const settings = $state<Config>({
   notify_remote: 'keep',
   remote_new_agents: false,
   merge_others: 'second',
+  merge_method: 'repo',
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

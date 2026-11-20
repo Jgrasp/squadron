@@ -30,6 +30,14 @@ pub struct NumberArgs {
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct MergeArgs {
+    pub number: u64,
+    pub method: Option<String>,
+    pub delete_branch: Option<bool>,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ReplyArgs {
     pub number: u64,
     pub to: String,
@@ -90,6 +98,10 @@ pub struct Pull {
     pub reviewers: Vec<Reviewer>,
     pub conflicts: bool,
     pub mergeable: bool,
+    pub merge_methods: Vec<String>,
+    pub delete_branch: Option<bool>,
+    pub delete_branch_settable: bool,
+    pub branch_protected: bool,
 }
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
@@ -223,6 +235,33 @@ mod tests {
         assert!(found.groups.is_empty());
         let pull: Pull = serde_json::from_str(r#"{"number":3,"soon":true}"#).unwrap();
         assert_eq!((pull.number, pull.checks), (3, None));
+    }
+
+    #[test]
+    fn reads_merge_args_from_old_and_new_cores() {
+        let old: Input<MergeArgs> = input(r#"{"args":{"number":7}}"#).unwrap();
+        assert_eq!(
+            old.args,
+            MergeArgs {
+                number: 7,
+                method: None,
+                delete_branch: None
+            }
+        );
+        let new = r#"{"args":{"number":7,"method":"squash","delete_branch":true}}"#;
+        let found: Input<MergeArgs> = input(new).unwrap();
+        assert_eq!(
+            (found.args.method.as_deref(), found.args.delete_branch),
+            (Some("squash"), Some(true))
+        );
+        let older: Input<NumberArgs> = input(new).unwrap();
+        assert_eq!(older.args.number, 7);
+        let pull: Pull = serde_json::from_str(r#"{"number":3}"#).unwrap();
+        assert!(
+            pull.merge_methods.is_empty()
+                && pull.delete_branch.is_none()
+                && !pull.delete_branch_settable
+        );
     }
 
     #[test]
