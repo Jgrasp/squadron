@@ -56,7 +56,6 @@ export default {
   noRemote: '{project} n’a pas de remote origin',
   noForgeWhy: 'Squadron lit les pull requests des extensions de forge que vous installez.',
   findForge: 'Trouver une extension',
-  needsYou: 'Vous attendent',
   waitingOnOthers: 'En attente des autres',
   drafts: 'Brouillons',
   nothingNeedsYou: 'Rien ne vous attend dans {project}.',

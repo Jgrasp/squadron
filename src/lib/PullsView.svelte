@@ -368,7 +368,7 @@
 
 {#snippet split(key: string, { main, primary = false, more, pressed, lead, frozen = false, first, firstPrimary = false, firstPressed }: Split)}
   <div class="split" data-menu>
-    {#if lead}
+    {#if lead?.icon}
       <button class="btn lead agent" class:starting={lead.spinning} title={lead.title ?? lead.label} disabled={lead.spinning || (!!busy && !lead.always)} onclick={() => ((menu = ''), lead.run())}>
         <span class="sign">
           {#if lead.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>
