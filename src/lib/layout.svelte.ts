@@ -20,6 +20,7 @@ const read = (key: string) => JSON.parse(localStorage.getItem(key) ?? '{}')
 let stored = 304
 let split = false
 let fileTree = true
+let threads = true
 let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680, artifacts: 680, panel: 760 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
@@ -42,6 +43,7 @@ try {
   stored = Number(localStorage.getItem('squadron.sidebar')) || 304
   split = localStorage.getItem('squadron.diff') === 'split'
   fileTree = localStorage.getItem('squadron.diff-tree') !== 'off'
+  threads = localStorage.getItem('squadron.diff-threads') !== 'off'
   widths = { ...widths, ...read('squadron.diff-widths'), ...read('squadron.widths') }
   full = { diff: localStorage.getItem('squadron.diff-full') === '1', ...read('squadron.full') }
   panels = read('squadron.panels')
@@ -55,6 +57,7 @@ export const layout = $state({
   sidebar: Math.min(MAX_SIDEBAR, Math.max(MIN_SIDEBAR, stored)),
   split,
   fileTree,
+  threads,
   widths,
   full,
   panels,
@@ -106,6 +109,11 @@ export function setSplit(on: boolean) {
 export function setContextShown(shown: string) {
   layout.contextShown = shown
   keep('squadron.context-shown', shown)
+}
+
+export function setThreads(on: boolean) {
+  layout.threads = on
+  keep('squadron.diff-threads', on ? 'on' : 'off')
 }
 
 export function setFileTree(on: boolean) {

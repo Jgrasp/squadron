@@ -14,13 +14,13 @@
   import ChangedFiles, { type Note } from './ChangedFiles.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
-  import { layout, setFileTree, setSplit } from './layout.svelte'
+  import { layout, setFileTree, setSplit, setThreads } from './layout.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
   import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { behind, closeRound, hostName, inRound, judgementOf, markReviewed, openRound, post, reviewChanges, reviews, rounds, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { behind, closeRound, hostName, inRound, judgementOf, markReviewed, openRound, post, reviewChanges, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import PullThreads, { stateOf, type ThreadState } from './PullThreads.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
@@ -146,12 +146,6 @@
     return [...list.values()]
   })
   const general = $derived(threads.filter((t) => !t.root.path || t.root.line === null))
-  let picked = $state<'threads' | 'diff' | null>(null)
-  $effect(() => {
-    void pull?.number
-    picked = null
-  })
-  const pane = $derived(reviewing ? (picked ?? (threads.length || rounds[reviewKey]?.length ? 'threads' : 'diff')) : 'diff')
   const STATE_KEYS: Record<ThreadState, Key> = {
     open: 'review.threadOpen',
     answered: 'review.threadAnswered',
@@ -183,19 +177,13 @@
     if (finishing) untrack(() => (toResolve = resolvables.filter((th) => stateOf(reviewKey, th) === 'fixed').map((th) => th.root.id)))
   })
 
-  async function goToThread(th: Thread) {
-    picked = 'diff'
-    await tick()
+  function goToThread(th: Thread) {
     const there = spots.find((s) => s.key === `thread:${th.root.id}`)
     if (there) goToSpot(there)
     else if (th.root.path) scrollToFile(th.root.path)
   }
 
-  async function goToDraft(c: Comment) {
-    picked = 'diff'
-    await tick()
-    goTo(c)
-  }
+  const goToDraft = (c: Comment) => goTo(c)
   const threadsAt = (path: string, line: Line) =>
     threads.filter((t) => t.root.path === path && t.root.line === line.number && t.root.removed === (line.side === 'old'))
   const talks = (path: string) => threads.filter((t) => t.root.path === path && t.root.line !== null).length
@@ -737,12 +725,11 @@
       <svg width="15" height="15" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 5h6M4 12h6M4 19h6M14 5h6M16 12h4M16 19h4M14 5v14" /></svg>
     </button>
     {#if reviewing}
-      <div class="modes" role="group" aria-label={t('review.viewOfPull')}>
-        <button aria-pressed={pane === 'threads'} onclick={() => (picked = 'threads')}>{t('review.viewThreads')}{#if pending.length}<span class="talks">{pending.length}</span>{/if}</button>
-        <button aria-pressed={pane === 'diff'} onclick={() => (picked = 'diff')}>{t('review.viewChanges')}</button>
+      <div class="modes">
+        <button aria-pressed={layout.threads} title={layout.threads ? t('review.hideThreads') : t('review.showThreads')} onclick={() => setThreads(!layout.threads)}>{t('review.viewThreads')}{#if pending.length}<span class="talks">{pending.length}</span>{/if}</button>
       </div>
     {/if}
-    {#if reviewing && since && pane === 'diff'}
+    {#if reviewing && since}
       <div class="modes" role="group" aria-label={t('review.whatToReview')}>
         <button aria-pressed={onlyNew} onclick={() => ((onlyNew = true), (sinceError = ''))}>{t('review.sinceYourReview')}</button>
         <button aria-pressed={!onlyNew} onclick={() => (onlyNew = false)}>{t('review.allChanges')}</button>
@@ -888,19 +875,6 @@
       </div>
     {/if}
   {/if}
-  {#if reviewing && pull && pane === 'threads'}
-    <PullThreads
-      {pull}
-      {folder}
-      {reviewKey}
-      {threads}
-      drafts={review}
-      onfresh={() => fresh++}
-      ongo={goToThread}
-      ondraft={goToDraft}
-      ondrop={drop}
-    />
-  {:else}
   {#if reviewing && sinceError}
     <p class="ahead" role="note">{errorText(sinceError)}</p>
   {/if}
@@ -1133,6 +1107,18 @@
         </div>
       {/if}
     </div>
+    {#if reviewing && pull && layout.threads}
+      <aside class="threads-column" aria-label={t('review.viewThreads')}>
+        <div class="threads-head">
+          <strong>{t('review.viewThreads')}</strong>
+          {#if pending.length}<span class="talks">{pending.length}</span>{/if}
+          <button class="fold-threads" aria-label={t('review.hideThreads')} title={t('review.hideThreads')} onclick={() => setThreads(false)}>
+            <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+        </div>
+        <PullThreads {pull} {folder} {reviewKey} {threads} drafts={review} onfresh={() => fresh++} ongo={goToThread} ondraft={goToDraft} ondrop={drop} />
+      </aside>
+    {/if}
     </div>
 
     <div class="foot">
@@ -1155,7 +1141,6 @@
     </div>
   {:else}
     <p class="empty pad">{changes ? t('review.nothingChanged') : agent ? t('review.agentChangedNothing', { agent: agent.name }) : t('review.noRepositoryHere')}</p>
-  {/if}
   {/if}
 </SidePanel>
 
@@ -1933,6 +1918,52 @@
     flex: 1;
     min-height: 0;
     display: flex;
+  }
+
+  .threads-column {
+    flex: none;
+    width: 320px;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+    border-left: 1px solid var(--border);
+    background: var(--bg-sidebar);
+  }
+
+  .threads-head {
+    flex: none;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 0 6px 0 14px;
+    border-bottom: 1px solid var(--border);
+    font-size: 13px;
+    color: var(--text-strong);
+  }
+
+  .fold-threads {
+    width: 28px;
+    height: 28px;
+    margin-left: auto;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .fold-threads:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .fold-threads svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .body.stack {
