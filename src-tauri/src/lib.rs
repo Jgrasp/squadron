@@ -2601,13 +2601,9 @@ fn restore_place(app: &tauri::App, config: &std::path::Path) {
         let _ = window.maximize();
         return;
     }
-    let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
-    let at = tauri::PhysicalPosition::new(place.x, place.y);
-    let visible = window
-        .available_monitors()
-        .unwrap_or_default()
-        .iter()
-        .any(|m| {
+    let monitors = window.available_monitors().unwrap_or_default();
+    let visible = monitors.is_empty()
+        || monitors.iter().any(|m| {
             let (p, s) = (m.position(), m.size());
             let x = place.x + place.width as i32 / 2;
             let y = place.y + 16;
@@ -2619,6 +2615,8 @@ fn restore_place(app: &tauri::App, config: &std::path::Path) {
         }
         return;
     }
+    let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
+    let at = tauri::PhysicalPosition::new(place.x, place.y);
     let _ = window.set_position(at);
     #[cfg(target_os = "linux")]
     if let Ok(gtk) = window.gtk_window() {
