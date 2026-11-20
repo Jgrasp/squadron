@@ -23,7 +23,7 @@ export type ExtensionTool = { name: string; description: string; command?: strin
 
 export type ExtensionSecret = { id: string; label: Text; hint?: Text; url?: string }
 
-export const FORGE_CALLS = ['pull', 'numbered', 'lists', 'remarks', 'me', 'reply', 'resolve', 'post', 'merge', 'update', 'runs'] as const
+export const FORGE_CALLS = ['pull', 'numbered', 'lists', 'remarks', 'me', 'reply', 'resolve', 'post', 'merge', 'update', 'runs', 'create'] as const
 
 export type ForgeCall = (typeof FORGE_CALLS)[number]
 

@@ -1367,6 +1367,86 @@ async fn post_remarks(
 }
 
 #[tauri::command]
+async fn create_pull(
+    app: AppHandle,
+    dir: PathBuf,
+    branch: String,
+    base: String,
+    title: String,
+    description: String,
+    draft: bool,
+) -> Result<forge::Pull, String> {
+    provider::create(&app, &dir, branch, base, title, description, draft).await
+}
+
+#[tauri::command]
+async fn pull_outline(dir: PathBuf) -> Result<git::Outline, String> {
+    tauri::async_runtime::spawn_blocking(move || git::pull_outline(&dir))
+        .await
+        .map_err(|e| e.to_string())?
+}
+
+#[derive(Serialize, serde::Deserialize, Default)]
+#[serde(default)]
+struct PullText {
+    title: String,
+    description: String,
+}
+
+#[tauri::command]
+async fn suggest_pull(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+    log: String,
+) -> Result<PullText, String> {
+    let program = settings.claude();
+    let task: String = log.chars().take(6000).collect();
+    let dir = scratch(&app)?;
+    let output = tauri::async_runtime::spawn_blocking(move || {
+        process::command(program)
+            .current_dir(dir)
+            .args([
+                "-p",
+                "--model",
+                "haiku",
+                "--effort",
+                "low",
+                "--output-format",
+                "json",
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "project",
+                "--no-session-persistence",
+                "--system-prompt",
+                "You write pull requests from the commits and the diff stat you are given. Reply with JSON only: {\"title\": a title of at most 70 characters in the language of the commits, \"description\": Markdown with a short ## Summary paragraph, a ## Changes list, and a ## Test plan list when the commits mention tests}. No code fences around the JSON.",
+                "--",
+                &task,
+            ])
+            .output()
+    })
+    .await
+    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())?;
+    let reply: serde_json::Value =
+        serde_json::from_slice(&output.stdout).map_err(|e| e.to_string())?;
+    if reply["is_error"].as_bool().unwrap_or(true) {
+        return Err("No description suggested.".into());
+    }
+    let text = reply["result"].as_str().unwrap_or_default().trim();
+    let body = text
+        .trim_start_matches("```json")
+        .trim_start_matches("```")
+        .trim_end_matches("```");
+    let found: PullText = serde_json::from_str(body.trim()).map_err(|e| e.to_string())?;
+    if found.title.trim().is_empty() {
+        return Err("No title suggested.".into());
+    }
+    Ok(found)
+}
+
+#[tauri::command]
 async fn merge_pull(
     app: AppHandle,
     dir: PathBuf,
@@ -2845,6 +2925,9 @@ pub fn run() {
             pull_resolve,
             post_remarks,
             merge_pull,
+            create_pull,
+            pull_outline,
+            suggest_pull,
             update_pull,
             forge_coverage,
             subagent_log,

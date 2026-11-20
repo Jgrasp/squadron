@@ -38,6 +38,16 @@ pub struct MergeArgs {
 
 #[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(default)]
+pub struct CreateArgs {
+    pub branch: String,
+    pub base: String,
+    pub title: String,
+    pub description: String,
+    pub draft: bool,
+}
+
+#[derive(Debug, Default, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(default)]
 pub struct ReplyArgs {
     pub number: u64,
     pub to: String,
@@ -262,6 +272,24 @@ mod tests {
                 && pull.delete_branch.is_none()
                 && !pull.delete_branch_settable
         );
+    }
+
+    #[test]
+    fn reads_create_args() {
+        let found: Input<CreateArgs> = input(
+            r#"{"args":{"branch":"feat/x","base":"main","title":"Export to Xero","description":"Sends the ledger","draft":true}}"#,
+        )
+        .unwrap();
+        assert_eq!(
+            (
+                found.args.branch.as_str(),
+                found.args.base.as_str(),
+                found.args.draft
+            ),
+            ("feat/x", "main", true)
+        );
+        let bare: Input<CreateArgs> = input(r#"{"args":{"branch":"feat/x"}}"#).unwrap();
+        assert!(bare.args.title.is_empty() && !bare.args.draft);
     }
 
     #[test]

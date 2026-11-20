@@ -18,9 +18,11 @@ vi.mock('./agents.svelte', () => ({ agents: { list: [], current: {} }, create: v
 vi.mock('./projects.svelte', () => ({ projects: { list: [] }, defaultsFor: vi.fn() }))
 vi.mock('./layout.svelte', () => ({ layout: { review: null }, requestPanel: vi.fn(), setPanel: vi.fn() }))
 vi.mock('./settings.svelte', () => ({ settings: {} }))
-vi.mock('./forges.svelte', () => ({ forgeName: (host: string) => host, providedLinks: [] }))
+vi.mock('./forges.svelte', () => ({ forgeName: (host: string) => host, providedLinks: [], coverage: { '/p': { by: 'github' } }, can: (host: string, call: string) => host === 'github' && call === 'create' }))
+const pushed = vi.hoisted(() => ({ ref: null as { branch: string } | { url: string } | null }))
+vi.mock('./pushed', () => ({ pushedTo: () => pushed.ref }))
 
-const { awaitsChecks, ignore, ignored, ignoredPulls, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, refreshPull, tidyMerged, unignore, waitsFor } = await import('./pulls.svelte')
+const { pullToOpen, awaitsChecks, ignore, ignored, ignoredPulls, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, refreshPull, tidyMerged, unignore, waitsFor } = await import('./pulls.svelte')
 
 const pull = (number: number, more: Partial<Pull> = {}): Pull => ({
   host: 'github',
@@ -169,5 +171,22 @@ describe('reviews started on their own', () => {
     await lookUpLists('/a', true)
     await settle()
     expect(checkouts()).toBe(2)
+  })
+})
+
+describe('opening a pull request', () => {
+  it('offers it for a pushed branch with no pull request yet, on a forge that can create one', () => {
+    const agent = { id: 'o1', project: '/p', worktree: null } as unknown as Agent
+    expect(pullToOpen(agent)).toBeNull()
+    pushed.ref = { branch: 'feat/xero' }
+    expect(pullToOpen(agent)).toEqual({ branch: 'feat/xero', host: 'github' })
+    pushed.ref = { branch: '3c1d9e0' }
+    expect(pullToOpen(agent)).toBeNull()
+    pushed.ref = { url: 'https://github.com/o/r/pull/3' }
+    expect(pullToOpen(agent)).toBeNull()
+    pushed.ref = { branch: 'feat/xero' }
+    expect(pullToOpen({ ...agent, project: '/elsewhere' } as Agent)).toBeNull()
+    expect(pullToOpen({ ...agent, review: { project: '/p', number: 1 } } as unknown as Agent)).toBeNull()
+    pushed.ref = null
   })
 })
