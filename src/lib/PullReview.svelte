@@ -43,5 +43,6 @@
   reviewer={reviewerOf(project.path, pull) ?? null}
   {onagent}
   {banner}
+  back={onclose}
   {onclose}
 />

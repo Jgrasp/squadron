@@ -33,13 +33,11 @@ import './lib/extensionWindows.svelte'
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
-  import { awaitsChecks, lists, lookUpAll, lookUpLists, lookUpNumbered, numbered, refreshPull, reviewWithAgent } from './lib/pulls.svelte'
-  import { showPulls } from './lib/linked.svelte'
+  import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
   import { watchRuns } from './lib/pipelines.svelte'
   import { watchNotifications } from './lib/notify.svelte'
   import { followKey, syncFollows } from './lib/plugins.svelte'
   import PullsView from './lib/PullsView.svelte'
-  import PullReview from './lib/PullReview.svelte'
   import SidePanel from './lib/SidePanel.svelte'
   import { t } from './lib/i18n/index.svelte'
   import { ask } from './lib/asking.svelte'
@@ -49,25 +47,7 @@ import './lib/extensionWindows.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
 
   const project = $derived(current())
-  const reviewed = $derived.by(() => {
-    const open = layout.review
-    const found = open && lists[open.project]
-    return found ? ([...found.review, ...found.mine].find((p) => p.number === open.number) ?? numbered[`${open.project}#${open.number}`] ?? undefined) : undefined
-  })
-  $effect(() => {
-    const open = layout.review
-    if (!open || reviewed) return
-    if (!lists[open.project]) return void lookUpLists(open.project)
-    if (!(`${open.project}#${open.number}` in numbered)) return void lookUpNumbered(open.project, open.number)
-    layout.review = null
-    showPulls(open.project)
-  })
-  $effect(() => {
-    const open = layout.review
-    if (!open || !reviewed || !awaitsChecks(open.project, reviewed)) return
-    const timer = setInterval(() => refreshPull(open.project, open.number), 20_000)
-    return () => clearInterval(timer)
-  })
+
   const mirrored = $derived(
     agents.list.map((a) => mirror(a, a.status === 'waiting' ? waitingDetail(a) : a.status === 'working' ? activity(a) : a.attention)),
   )
@@ -219,8 +199,6 @@ import './lib/extensionWindows.svelte'
                 {#snippet controls()}<PanelButtons kind="pulls" onclose={() => (projects.pulls = false)} />{/snippet}
               </PullsView>
             </SidePanel>
-          {:else if reviewed && layout.review?.project === project.path}
-            <PullReview {project} pull={reviewed} onagent={() => reviewWithAgent(project.path, reviewed)} onclose={() => (layout.review = null)} />
           {/if}
         {/snippet}
       </ProjectView>

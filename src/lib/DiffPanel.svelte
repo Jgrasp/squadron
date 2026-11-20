@@ -47,6 +47,7 @@
     since = null,
     own = false,
     banner,
+    back,
     onclose,
   }: {
     agent: Agent | null
@@ -67,6 +68,7 @@
     since?: string | null
     own?: boolean
     banner?: Snippet
+    back?: () => void
     onclose: () => void
   } = $props()
 
@@ -734,7 +736,7 @@
 
 <svelte:window onkeydown={nextKey} />
 
-<SidePanel kind="diff" size={layout.split ? 'split' : 'unified'} title={t('review.diff')} {onclose}>
+<SidePanel kind="diff" title={t('review.diff')} {back} {onclose}>
   {#snippet sub()}
     {#if reviewing && pull}
       {t('review.pullTag', { number: String(pull.number) })} · {pull.branch} → {pull.base}{source ? ` · ${t('review.fileCount', { count: files.length })}` : ''}{onlyNew && pulled

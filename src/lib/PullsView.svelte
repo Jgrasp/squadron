@@ -1,13 +1,13 @@
 <script lang="ts">
-  import { tick, type Snippet } from 'svelte'
+  import { tick, untrack, type Snippet } from 'svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { ask } from './asking.svelte'
   import { agents, clock, find, show } from './agents.svelte'
   import { ui } from './actions.svelte'
   import { settings, type Config } from './settings.svelte'
   import type { Project } from './projects.svelte'
-  import { requestPanel } from './layout.svelte'
-  import { hostName, ignore, ignored, ignoredUntil, lists, merge, lookUpLists, moved, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, unignore, waitsFor, type Pull } from './pulls.svelte'
+  import { layout, requestPanel } from './layout.svelte'
+  import { awaitsChecks, hostName, ignore, ignored, ignoredUntil, lists, lookUpNumbered, merge, lookUpLists, moved, numbered, refreshPull, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, unignore, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -57,6 +57,39 @@
     requestPanel('diff')
     opened = pull
   }
+
+  const known = (number: number) => {
+    const found = lists[project.path]
+    return found && ([...found.review, ...found.mine, ...found.others].find((p) => p.number === number) ?? numbered[`${project.path}#${number}`])
+  }
+  const shownPull = $derived(opened && (known(opened.number) ?? opened))
+
+  $effect(() => {
+    const open = layout.review
+    if (!open || open.project !== project.path) return
+    const pull = known(open.number)
+    if (pull) {
+      layout.review = null
+      if (untrack(() => opened?.number) !== pull.number) void review(pull)
+      return
+    }
+    if (!lists[open.project]) return
+    if (!(`${open.project}#${open.number}` in numbered)) return void lookUpNumbered(open.project, open.number)
+    layout.review = null
+  })
+
+  $effect(() => {
+    if (!opened) return
+    layout.wider.pulls = 1120
+    return () => delete layout.wider.pulls
+  })
+
+  $effect(() => {
+    const pull = shownPull
+    if (!pull || !awaitsChecks(project.path, pull)) return
+    const timer = setInterval(() => refreshPull(project.path, pull.number), 20_000)
+    return () => clearInterval(timer)
+  })
 
   async function askAgent(pull: Pull) {
     busy = { number: pull.number, doing: 'ask' }
@@ -283,7 +316,7 @@
   </div>
 </main>
 {#if opened}
-  <PullReview {project} pull={opened} onagent={() => askAgent(opened!)} banner={flashes} onclose={() => (opened = null)} />
+  <PullReview {project} pull={shownPull!} onagent={() => askAgent(opened!)} banner={flashes} onclose={() => (opened = null)} />
 {/if}
 </div>
 

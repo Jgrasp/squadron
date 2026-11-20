@@ -34,6 +34,7 @@ export default {
   commentThisLine: 'Comment this line',
   moreLines: { one: '… {count} more line', other: '… {count} more lines' },
   backToConversation: 'Back to the conversation',
+  backToList: 'Back to the pull requests',
   pullRequests: 'Pull requests',
   refresh: 'Refresh',
   refreshing: 'Refreshing…',

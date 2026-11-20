@@ -36,6 +36,7 @@ export default {
   commentThisLine: 'Commenter cette ligne',
   moreLines: { one: '… {count} ligne de plus', other: '… {count} lignes de plus' },
   backToConversation: 'Retour à la conversation',
+  backToList: 'Retour aux pull requests',
   pullRequests: 'Pull requests',
   refresh: 'Actualiser',
   refreshing: 'Actualisation…',

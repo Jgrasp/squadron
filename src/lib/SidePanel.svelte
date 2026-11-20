@@ -5,7 +5,7 @@
 <script lang="ts">
   import { onMount, type Snippet } from 'svelte'
   import { cubicIn, quintOut } from 'svelte/easing'
-  import { displayOf, MIN_PANEL, openPanel, panelShare, panelSpan, panelWidth, requestedPanel, resizePanel, resizeShare, setDisplay, sideSpan, SIZES, type Display, type PanelKind } from './layout.svelte'
+  import { displayOf, MIN_PANEL, openPanel, panelShare, panelSpan, requestedPanel, resizePanel, resizeShare, setDisplay, sideSpan, SIZES, spanOf, type Display, type PanelKind } from './layout.svelte'
   import { projects } from './projects.svelte'
   import { covers } from './panels'
   import { t } from './i18n/index.svelte'
@@ -20,6 +20,7 @@
     screen = false,
     wide = false,
     windowed = false,
+    back,
     onclose,
   }: {
     kind: PanelKind
@@ -31,6 +32,7 @@
     screen?: boolean
     wide?: boolean
     windowed?: boolean
+    back?: () => void
     onclose: () => void
   } = $props()
 
@@ -40,7 +42,7 @@
   })
 
   const display = $derived(displayOf(kind))
-  const mode = $derived(screen || wide || windowed ? null : display.mode)
+  const mode = $derived(screen || wide || windowed ? null : back ? 'full' : display.mode)
 
   let panel: HTMLElement
   onMount(() => {
@@ -122,7 +124,7 @@
   class:screen
   class:wide
   class:windowed
-  style:width={mode === 'slide' ? panelWidth(display) : mode === 'side' ? sideSpan(kind) : null}
+  style:width={mode === 'slide' ? spanOf(kind) : mode === 'side' ? sideSpan(kind) : null}
   style:height={mode === 'bottom' ? `calc((100% - var(--panel-top, 0px)) * ${display.height / 100})` : null}
   style:left={wide ? `${left}px` : null}
   aria-label={title}
@@ -148,12 +150,17 @@
   {/if}
   {#if sub}
   <div class="top">
+    {#if back}
+      <button class="back" aria-label={t('review.backToList')} title={t('review.backToList')} onclick={back}>
+        <svg width="18" height="18" viewBox="0 0 24 24" aria-hidden="true"><path d="M19 12H5M11 18l-6-6 6-6" /></svg>
+      </button>
+    {/if}
     <div class="title">
       <h2>{title}</h2>
       <span>{@render sub?.()}</span>
     </div>
     {@render actions?.()}
-    <PanelButtons {kind} {windowed} {onclose} />
+    {#if !back}<PanelButtons {kind} {windowed} {onclose} />{/if}
   </div>
   {/if}
   {@render children()}
@@ -248,6 +255,31 @@
     padding: 0 12px 0 18px;
     border-bottom: 1px solid var(--border);
     background: var(--bg-sidebar);
+  }
+
+  .back {
+    width: 32px;
+    height: 32px;
+    margin-left: -6px;
+    flex: none;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border-radius: 4px;
+    color: var(--text-2);
+  }
+
+  .back:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .back svg {
+    fill: none;
+    stroke: currentColor;
+    stroke-width: 2;
+    stroke-linecap: round;
+    stroke-linejoin: round;
   }
 
   .title {
