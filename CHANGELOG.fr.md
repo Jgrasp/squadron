@@ -1,5 +1,12 @@
 # Nouveautés
 
+## 0.57.0 · 2026-11-20
+
+### Pull requests
+
+- Les merge requests et pipelines GitLab viennent désormais de l’extension GitLab, et les pull requests et pipelines Azure DevOps de l’extension Azure DevOps : Squadron propose de les installer pour un projet sur gitlab.com ou dev.azure.com.
+- Vos comptes GitLab et Azure DevOps ne sont pas repris : saisissez à nouveau votre site et votre jeton dans les réglages de l’extension.
+
 ## 0.56.0 · 2026-11-20
 
 ### Extensions
