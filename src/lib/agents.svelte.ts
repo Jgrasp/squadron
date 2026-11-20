@@ -456,6 +456,7 @@ async function adopt(data: Agent) {
   if (agent.status === 'working' || agent.status === 'waiting') {
     agent.status = 'interrupted'
     agent.action = t('shell.stoppedOnClose')
+    agent.attention = ''
   }
   if (agent.status !== 'interrupted') agent.unsent = undefined
   for (const s of agent.subagents) if (s.status === 'running') s.status = 'stopped'
