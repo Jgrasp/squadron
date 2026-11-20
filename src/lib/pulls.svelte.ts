@@ -549,7 +549,7 @@ export async function fixWithAgent(project: string, pull: Pull, summary: string,
   const intro = [
     `These remarks come from a review of pull request #${pull.number} “${pull.title}” by ${pull.author}, from ${pull.branch} into ${pull.base}, on ${hostName(pull)}.`,
     `This folder is a detached checkout of origin/${pull.branch}: git diff origin/${pull.base}...HEAD shows what the pull request changes.`,
-    `Address each remark in the code and commit the fixes. Do not push: say what is ready, the user pushes with git push origin HEAD:${pull.branch} or asks you to.`,
+    `Address each remark in the code and commit the fixes, then push them to the pull request with git push origin HEAD:${pull.branch}. Never force the push. If it is rejected because the branch moved, run git pull --rebase origin ${pull.branch}, run the tests again and push again.`,
   ].join('\n\n')
   return create(project, t('review.fixAgentName', { number: String(pull.number) }), defaultsFor(project), `${intro}\n\n${prompt(summary, list)}`, { dir })
 }
