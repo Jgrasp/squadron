@@ -2514,7 +2514,7 @@ mod tests {
             let now = flying.fetch_add(1, Ordering::SeqCst) + 1;
             most.fetch_max(now, Ordering::SeqCst);
             assert!(left <= ANSWER);
-            std::thread::sleep(Duration::from_millis(20));
+            std::thread::sleep(Duration::from_millis(50));
             flying.fetch_sub(1, Ordering::SeqCst);
             if request.url.ends_with("/7") {
                 return Err("down".into());
@@ -2533,11 +2533,11 @@ mod tests {
 
     #[test]
     fn fails_the_requests_left_once_the_call_runs_out_of_time() {
-        let deadline = Instant::now() + Duration::from_millis(100);
+        let deadline = Instant::now() + Duration::from_millis(400);
         let requests = (0..4).map(|i| get(&format!("https://a.com/{i}"))).collect();
         let answers = many(requests, 1, deadline, |request, left| {
-            assert!(left <= Duration::from_millis(100));
-            std::thread::sleep(Duration::from_millis(60));
+            assert!(left <= Duration::from_millis(400));
+            std::thread::sleep(Duration::from_millis(250));
             Ok(request.url)
         });
         assert_eq!(answers[0].as_deref(), Ok("https://a.com/0"));
