@@ -1,5 +1,11 @@
 # Nouveautés
 
+## 0.56.0 · 2026-11-20
+
+### Extensions
+
+- API d’extension 1.12.0 : une extension peut envoyer plusieurs requêtes web à la fois, jusqu’à 8 en même temps, pour qu’une extension de forge charge une longue liste de pull requests dans le temps qui lui est imparti.
+
 ## 0.55.0 · 2026-11-19
 
 ### Agents

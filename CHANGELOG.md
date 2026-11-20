@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.56.0 · 2026-11-20
+
+### Extensions
+
+- Extension API 1.12.0: an extension can send several web requests at once, up to 8 at a time, so a forge extension loads a long list of pull requests within its time limit.
+
 ## 0.55.0 · 2026-11-19
 
 ### Agents
