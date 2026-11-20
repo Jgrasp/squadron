@@ -706,7 +706,7 @@
   }
 
   .prose :global(.rendered) {
-    max-height: 520px;
+    max-height: max(520px, 75vh);
     overflow: auto;
     padding: 14px 16px;
   }
