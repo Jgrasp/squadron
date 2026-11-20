@@ -20,7 +20,7 @@
   import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { behind, closeRound, hostName, inRound, judgementOf, markReviewed, merge, openRound, post, reviewChanges, reviews, rounds, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { behind, closeRound, hostName, inRound, judgementOf, markReviewed, openRound, post, reviewChanges, reviews, rounds, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import PullThreads, { stateOf, type ThreadState } from './PullThreads.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
@@ -678,33 +678,6 @@
     onposted?.()
   }
 
-  async function approveNow() {
-    verdict = 'approve'
-    await submit()
-  }
-
-  let merging = $state(false)
-
-  async function mergeIt() {
-    if (!pull) return
-    const sure = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {
-      title: t('review.mergeTitle'),
-      kind: 'warning',
-      okLabel: t('review.merge'),
-      cancelLabel: t('common.cancel'),
-    })
-    if (!sure) return
-    merging = true
-    postError = null
-    try {
-      await merge(folder, pull)
-      onposted?.()
-    } catch (e) {
-      postError = { text: String(e), done: 0 }
-    }
-    merging = false
-  }
-
   const handing = $derived(reviewing ? [...review, ...comments.filter(here)] : [])
 
   function handOver() {
@@ -847,15 +820,6 @@
         >
       {/if}
       {#if review.length}<button class="btn btn-secondary" onclick={discard}>{t('review.discard')}</button>{/if}
-      {#if own && pull.mergeable && !review.length}
-        <button class="btn btn-secondary" disabled={merging} title={t('review.mergeInto', { base: pull.base })} onclick={mergeIt}>{merging ? t('review.merging') : t('review.merge')}</button>
-      {/if}
-      {#if !own && !closed && offers(pull.host, 'request_changes')}
-        <button class="btn btn-secondary" aria-pressed={finishing && verdict === 'request_changes'} onclick={() => ((verdict = 'request_changes'), (finishing = true))}>{t('review.verdictRequestChanges')}</button>
-      {/if}
-      {#if !own && !closed && offers(pull.host, 'approve')}
-        <button class="btn btn-secondary" disabled={posting} onclick={approveNow}>{posting && verdict === 'approve' ? t('review.posting') : t('review.verdictApprove')}</button>
-      {/if}
       <button class="btn btn-primary" aria-expanded={finishing} onclick={() => (finishing = !finishing)}>{t('review.finishReview')}</button>
     </div>
     {#if listing && review.length}
