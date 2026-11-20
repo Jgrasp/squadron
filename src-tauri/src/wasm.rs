@@ -2551,7 +2551,7 @@ mod tests {
         use squadron::api::host::Host as _;
         let (mut host, _) = host(&["net:api.example.com"], |_, _| Ok(json!(null)));
         let mut secret = get("https://api.example.com/");
-        secret.headers = vec![("Authorization".into(), "Bearer {{token}}".into())];
+        secret.headers = vec![("Authorization".into(), "Bearer {{zz.token}}".into())];
         let answers = host.fetch_many(vec![
             get("https://evil.com/"),
             get("http://api.example.com/"),
@@ -2562,7 +2562,7 @@ mod tests {
         assert!(errors[0].contains("evil.com is not allowed"), "{errors:?}");
         assert!(errors[1].contains("Only https://"), "{errors:?}");
         assert!(
-            errors[2].contains("The secret token is not set"),
+            errors[2].contains("The account zz no longer exists"),
             "{errors:?}"
         );
         assert!(errors[3].contains("Only https://"), "{errors:?}");
