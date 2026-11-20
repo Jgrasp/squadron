@@ -63,6 +63,7 @@ export type Config = {
   notify_runs: NotifyRuns
   notify_remote: NotifyRemote
   remote_new_agents: boolean
+  merge_others: 'second' | 'menu' | 'hidden'
 }
 
 export const settings = $state<Config>({
@@ -103,6 +104,7 @@ export const settings = $state<Config>({
   notify_runs: 'failures',
   notify_remote: 'keep',
   remote_new_agents: false,
+  merge_others: 'second',
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

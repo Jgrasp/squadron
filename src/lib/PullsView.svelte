@@ -4,10 +4,10 @@
   import { ask } from './asking.svelte'
   import { agents, clock, find, show } from './agents.svelte'
   import { ui } from './actions.svelte'
-  import { settings } from './settings.svelte'
+  import { settings, type Config } from './settings.svelte'
   import type { Project } from './projects.svelte'
   import { requestPanel } from './layout.svelte'
-  import { approve, hostName, ignore, ignored, ignoredUntil, lists, merge, lookUpLists, moved, progress, pullOf, requestChanges, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, unignore, waitsFor, type Pull } from './pulls.svelte'
+  import { hostName, ignore, ignored, ignoredUntil, lists, merge, lookUpLists, moved, progress, pullOf, behind, reviewChanges, reviewerOf, reviewWithAgent, standing, unignore, waitsFor, type Pull } from './pulls.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
   import StatusIcon from './StatusIcon.svelte'
@@ -15,7 +15,7 @@
   import PullReview from './PullReview.svelte'
   import type { Agent } from './stream'
   import Trans from './Trans.svelte'
-  import { coverage, lookUpCoverage, offerFor, offers, remoteHost } from './forges.svelte'
+  import { coverage, lookUpCoverage, offerFor, remoteHost } from './forges.svelte'
   import { catalog, extensions, loadCatalog } from './extensions.svelte'
   import type { CatalogEntry } from './extensions'
   import { named } from './extension-pages.svelte'
@@ -90,6 +90,22 @@
   const reviewed = $derived(found?.review.filter((p) => shown(p) && !waitsFor(project.path, p)) ?? [])
   const watched = $derived(found?.others.filter((p) => shown(p) && reviewerOf(project.path, p)) ?? [])
   const others = $derived(found?.others.filter((p) => shown(p) && !p.draft && !reviewerOf(project.path, p)) ?? [])
+  const watchNeeds = (p: Pull) => reviewerOf(project.path, p)?.status !== 'working' && (!p.reviewed || moved(project.path, p))
+  const mineNeeds = (p: Pull) => p.changes_requested || p.mergeable
+  type Entry = { kind: 'review' | 'watched' | 'other' | 'mine'; pull: Pull }
+  const entries = (kind: Entry['kind'], pulls: Pull[]): Entry[] => pulls.map((pull) => ({ kind, pull }))
+  const needsYou = $derived([
+    ...entries('review', waiting),
+    ...entries('watched', watched.filter(watchNeeds)),
+    ...entries('mine', found?.mine.filter((p) => !p.draft && mineNeeds(p)) ?? []),
+  ])
+  const waitingOnOthers = $derived([
+    ...entries('review', reviewed),
+    ...entries('watched', watched.filter((p) => !watchNeeds(p))),
+    ...entries('other', others),
+    ...entries('mine', found?.mine.filter((p) => !p.draft && !mineNeeds(p)) ?? []),
+  ])
+  const drafts = $derived(entries('mine', found?.mine.filter((p) => p.draft) ?? []))
   const hidden = $derived(found ? [...found.review, ...found.others].filter((p) => !shown(p)) : [])
   const ignoredGroups = $derived([
     { title: t('review.ignoredUntilCommits'), pulls: hidden.filter((p) => ignoredUntil(project.path, p)) },
@@ -100,10 +116,10 @@
     { label: t('review.ignore'), hint: t('review.ignoreHint'), icon: 'eye-off', always: true, run: () => ignore(project.path, pull, false) },
   ]
 
-  let busy = $state<{ number: number; doing: 'approve' | 'request_changes' | 'merge' | 'ask' } | null>(null)
+  let busy = $state<{ number: number; doing: 'merge' | 'ask' } | null>(null)
   let failure = $state('')
 
-  async function act(pull: Pull, doing: 'approve' | 'request_changes' | 'merge', work: () => Promise<unknown>) {
+  async function act(pull: Pull, doing: 'merge', work: () => Promise<unknown>) {
     busy = { number: pull.number, doing }
     failure = ''
     try {
@@ -119,29 +135,11 @@
   let menu = $state('')
 
   type Choice = { label: string; run: () => unknown; title?: string; hint?: string; rule?: boolean; always?: boolean; spinning?: boolean; again?: boolean; icon?: string; status?: Agent['status'] }
+  type Split = { main: Choice; primary?: boolean; more: Choice[]; pressed?: boolean; lead?: Choice; frozen?: boolean; first?: Choice; firstPrimary?: boolean; firstPressed?: boolean }
 
   const openOn = (pull: Pull): Choice => ({ label: t('review.openOn', { host: hostName(pull) }), run: () => invoke('open_link', { url: pull.url }) })
-  const merging = (pull: Pull): Choice[] =>
-    pull.mergeable ? [{ label: busy?.number === pull.number && busy.doing === 'merge' ? t('review.merging') : t('review.merge'), title: t('review.mergeInto', { base: pull.base }), run: () => mergeIt(pull) }] : []
-  const approving = (pull: Pull): Choice[] =>
-    approvable(pull)
-      ? [{ label: busy?.number === pull.number && busy.doing === 'approve' ? t('review.approving') : t('review.verdictApprove'), run: () => act(pull, 'approve', () => approve(project.path, pull)) }]
-      : []
-
-  const approvable = (pull: Pull) => offers(pull.host, 'approve') && (pull.reviewed !== 'approved' || moved(project.path, pull))
-
-  const requesting = (pull: Pull): Choice[] =>
-    requestable(pull)
-      ? [
-          {
-            label: busy?.number === pull.number && busy.doing === 'request_changes' ? t('review.requestingChanges') : t('review.verdictRequestChanges'),
-            run: () => act(pull, 'request_changes', () => requestChanges(project.path, pull)),
-          },
-        ]
-      : []
-
-  const requestable = (pull: Pull) => offers(pull.host, 'request_changes') && (pull.reviewed !== 'changes_requested' || moved(project.path, pull))
-
+  const merging = (pull: Pull): Choice => ({ label: busy?.number === pull.number && busy.doing === 'merge' ? t('review.merging') : t('review.merge'), title: t('review.mergeInto', { base: pull.base }), run: () => mergeIt(pull) })
+  const mergesHere = (pull: Pull, where: Config['merge_others']) => pull.mergeable && settings.merge_others === where
   async function mergeIt(pull: Pull) {
     const confirmed = await ask(t('review.mergeAsk', { number: pull.number, title: pull.title, base: pull.base, host: hostName(pull) }), {
       title: t('review.mergeTitle'),
@@ -245,51 +243,24 @@
       </div>
     {:else}
       <section>
-        <h2>{t('review.toReview')} <span class="n">{waiting.length + reviewed.length}</span></h2>
-        {#each [...waiting, ...reviewed] as pull (pull.number)}
-          {@render reviewRow(pull, verdict(pull), waitsFor(project.path, pull), !waitsFor(project.path, pull))}
+        <h2>{t('review.needsYou')} <span class="n">{needsYou.length}</span></h2>
+        {#each needsYou as e (e.pull.number)}
+          {@render entry(e)}
         {:else}
-          <p class="empty">{t('review.nobodyWaits', { project: project.name })}</p>
+          <p class="empty">{t('review.nothingNeedsYou', { project: project.name })}</p>
         {/each}
       </section>
 
-      {#if watched.length}
-        <section>
-          <h2>{t('review.agentReviews')} <span class="n">{watched.length}</span><span class="hint">{t('review.agentReviewsHint')}</span></h2>
-          {#each watched as pull (pull.number)}
-            {@render reviewRow(pull, watching(pull, reviewerOf(project.path, pull)!), false, false)}
-          {/each}
-        </section>
-      {/if}
-
-      <section>
-        <h2>{t('review.othersInReview')} <span class="n">{others.length}</span><span class="hint">{t('review.othersInReviewHint')}</span></h2>
-        {#each others as pull (pull.number)}
-          {@render reviewRow(pull, openState(pull), false, true)}
-        {:else}
-          <p class="empty">{t('review.noOtherPulls', { project: project.name })}</p>
-        {/each}
-      </section>
-
-      <section>
-        <h2>{t('review.yours')} <span class="n">{found.mine.length}</span></h2>
-        {#each found.mine as pull (pull.number)}
-          {@const agent = agentOn(pull)}
-          {@const others = agent ? [{ label: t('review.goToAgent', { name: agent.name }), title: t('review.agentWorkingOn', { branch: pull.branch }), run: () => show(agent) }] : []}
-          {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
-          <article>
-            <span class="verdict {standing(pull)[0]}">{standing(pull)[1]}</span>
-            {@render about(pull)}
-            {#if pull.mergeable}
-              {@render split(`mine-${pull.number}`, merging(pull)[0], true, [openOn(pull), ...others], false, reviewing, opened?.number === pull.number)}
-            {:else}
-              {@render split(`mine-${pull.number}`, reviewing, false, [openOn(pull), ...others], opened?.number === pull.number)}
-            {/if}
-          </article>
-        {:else}
-          <p class="empty">{t('review.noPullsOfYours', { project: project.name })}</p>
-        {/each}
-      </section>
+      {#each [{ title: t('review.waitingOnOthers'), list: waitingOnOthers }, { title: t('review.drafts'), list: drafts }] as group (group.title)}
+        {#if group.list.length}
+          <section>
+            <h2>{group.title} <span class="n">{group.list.length}</span></h2>
+            {#each group.list as e (e.pull.number)}
+              {@render entry(e)}
+            {/each}
+          </section>
+        {/if}
+      {/each}
 
       {#if hidden.length}
         <section>
@@ -348,6 +319,29 @@
   {/if}
 {/snippet}
 
+{#snippet entry(e: Entry)}
+  {#if e.kind === 'mine'}
+    {@render mineRow(e.pull)}
+  {:else if e.kind === 'watched'}
+    {@render reviewRow(e.pull, watching(e.pull, reviewerOf(project.path, e.pull)!), false, false)}
+  {:else if e.kind === 'other'}
+    {@render reviewRow(e.pull, openState(e.pull), false, true)}
+  {:else}
+    {@render reviewRow(e.pull, verdict(e.pull), waitsFor(project.path, e.pull), !waitsFor(project.path, e.pull))}
+  {/if}
+{/snippet}
+
+{#snippet mineRow(pull: Pull)}
+  {@const agent = agentOn(pull)}
+  {@const others = agent ? [{ label: t('review.goToAgent', { name: agent.name }), title: t('review.agentWorkingOn', { branch: pull.branch }), run: () => show(agent) }] : []}
+  {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
+  <article>
+    <span class="verdict {standing(pull)[0]}">{standing(pull)[1]}</span>
+    {@render about(pull)}
+    {@render split(`mine-${pull.number}`, { main: reviewing, more: [openOn(pull), ...others], pressed: opened?.number === pull.number, first: pull.mergeable ? merging(pull) : undefined, firstPrimary: true })}
+  </article>
+{/snippet}
+
 {#snippet reviewRow(pull: Pull, state: [string, string], primary: boolean, done: boolean)}
   {@const reviewer = reviewerOf(project.path, pull)}
   {@const reviewing = { label: t('review.review'), always: true, run: () => review(pull) }}
@@ -360,38 +354,33 @@
       : reviewer && status
         ? { label: agentLabel(status), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status, run: () => show(reviewer) }
         : asking(pull)}
+  {@const more = [openOn(pull), ...(mergesHere(pull, 'menu') ? [merging(pull)] : []), ...(reviewer && again ? [{ label: t('review.goToAgent', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...ignoring(pull)]}
   <article class:done>
     <span class="verdict {state[0]}">{state[1]}</span>
     {@render about(pull)}
-    {@render split(
-      `review-${pull.number}`,
-      reviewing,
-      primary,
-      [openOn(pull), ...approving(pull), ...requesting(pull), ...(reviewer && again ? [{ label: t('review.goToAgent', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...ignoring(pull)],
-      opened?.number === pull.number,
-      agentChoice,
-      false,
-      starting(pull),
-    )}
+    {#if mergesHere(pull, 'second')}
+      {@render split(`review-${pull.number}`, { main: merging(pull), more, lead: agentChoice, frozen: starting(pull), first: reviewing, firstPrimary: primary, firstPressed: opened?.number === pull.number })}
+    {:else}
+      {@render split(`review-${pull.number}`, { main: reviewing, primary, more, pressed: opened?.number === pull.number, lead: agentChoice, frozen: starting(pull) })}
+    {/if}
   </article>
 {/snippet}
 
-{#snippet split(key: string, main: Choice, primary: boolean, more: Choice[], pressed?: boolean, lead?: Choice, leadPressed?: boolean, frozen = false)}
+{#snippet split(key: string, { main, primary = false, more, pressed, lead, frozen = false, first, firstPrimary = false, firstPressed }: Split)}
   <div class="split" data-menu>
-    {#if lead}
-      {#if lead.icon}
-        <button class="btn lead agent" class:starting={lead.spinning} title={lead.title ?? lead.label} disabled={lead.spinning || (!!busy && !lead.always)} onclick={() => ((menu = ''), lead.run())}>
-          <span class="sign">
-            {#if lead.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>
-            {:else if lead.again}<svg class="again" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
-            {:else if lead.status}<StatusIcon status={lead.status} />
-            {:else}<Icon name={lead.icon} />{/if}
-          </span>
-          <span class="label">{lead.label}</span>
-        </button>
-      {:else}
-        <button class="btn btn-secondary lead" title={lead.title} aria-pressed={leadPressed} disabled={!!busy && !lead.always} onclick={() => ((menu = ''), lead.run())}>{lead.label}</button>
-      {/if}
+    {#if lead?.icon}
+      <button class="btn lead agent" class:starting={lead.spinning} title={lead.title ?? lead.label} disabled={lead.spinning || (!!busy && !lead.always)} onclick={() => ((menu = ''), lead.run())}>
+        <span class="sign">
+          {#if lead.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>
+          {:else if lead.again}<svg class="again" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M20 12a8 8 0 1 1-2.34-5.66M20 4v5h-5" /></svg>
+          {:else if lead.status}<StatusIcon status={lead.status} />
+          {:else}<Icon name={lead.icon} />{/if}
+        </span>
+        <span class="label">{lead.label}</span>
+      </button>
+    {/if}
+    {#if first}
+      <button class="btn {firstPrimary ? 'btn-primary' : 'btn-secondary'} first" title={first.title} aria-pressed={firstPressed} disabled={!!busy && !first.always} onclick={() => ((menu = ''), first.run())}>{first.label}</button>
     {/if}
     <button class="btn {primary ? 'btn-primary' : 'btn-secondary'} main" class:alone={!more.length} title={main.title} aria-pressed={pressed} disabled={frozen || (!!busy && !main.always)} onclick={() => ((menu = ''), main.run())}>
       {#if main.spinning}<svg class="spin" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9" stroke-dasharray="40 20" /></svg>{/if}
@@ -867,7 +856,7 @@
     white-space: nowrap;
   }
 
-  .split .lead {
+  .split :is(.lead, .first) {
     margin-right: 8px;
   }
 

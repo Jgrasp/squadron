@@ -55,6 +55,7 @@ export default {
   reviewsToFollow: 'To follow up',
   reviewsRunning: 'In progress',
   reviewsDone: 'Done',
+  noReviews: 'No agent reviews a pull request yet.',
   reviewPull: 'Review a pull request',
   newCommitsSinceItsReview: 'New commits since its review',
   reviewUpToDate: 'Up to date',

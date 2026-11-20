@@ -448,6 +448,7 @@ struct Config {
     notify_runs: String,
     notify_remote: String,
     remote_new_agents: bool,
+    merge_others: String,
 }
 
 impl Default for Config {
@@ -498,6 +499,7 @@ impl Default for Config {
             notify_runs: "failures".into(),
             notify_remote: "keep".into(),
             remote_new_agents: false,
+            merge_others: "second".into(),
         }
     }
 }
@@ -567,6 +569,12 @@ impl Settings {
             return Err(format!(
                 "Unknown remote notification: {}",
                 config.notify_remote
+            ));
+        }
+        if !["second", "menu", "hidden"].contains(&config.merge_others.as_str()) {
+            return Err(format!(
+                "Unknown merge button placement: {}",
+                config.merge_others
             ));
         }
         if !["manual", "name", "activity"].contains(&config.tab_order.as_str()) {

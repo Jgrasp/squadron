@@ -96,6 +96,16 @@
 {#if error}<p class="bad" role="alert">{error}</p>{/if}
 
 <section>
+  <h3>{t('review.mergeOthers')}</h3>
+  <p class="intro">{t('review.mergeOthersIntro')}</p>
+  <select class="field" aria-label={t('review.mergeOthers')} value={settings.merge_others} onchange={(e) => change({ merge_others: e.currentTarget.value as typeof settings.merge_others })}>
+    <option value="second">{t('review.mergeOthersSecond')}</option>
+    <option value="menu">{t('review.mergeOthersMenu')}</option>
+    <option value="hidden">{t('review.mergeOthersHidden')}</option>
+  </select>
+</section>
+
+<section>
   <h3>{t('review.promptTitle')}</h3>
   <p class="intro">{t('review.promptIntro')}</p>
   <textarea
