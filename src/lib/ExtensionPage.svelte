@@ -199,8 +199,25 @@
     </div>
   {/if}
 
-  {#snippet link(field: string, hint: Text | undefined)}
-    <button type="button" class="link" onclick={() => invoke('extensions_field_link', { id, field }).catch((err) => (work.error = errorText(err)))}>{hint ? named(hint) : t('extensions.fieldLink')}</button>
+  {#snippet copies(field: string, values: string[])}
+    <span class="copies">
+      {#each values as value (value)}
+        <button type="button" class="copy" onclick={() => copy(`${field}:${value}`, value)}>{copied === `${field}:${value}` ? t('common.copied') : value}</button>
+      {/each}
+    </span>
+  {/snippet}
+
+  {#snippet steps(field: string, hint: Text | undefined, values?: string[])}
+    <div class="steps">
+      <div class="head">
+        <span>{hint ? named(hint) : t('extensions.fieldLink')}</span>
+        <button type="button" class="btn btn-ghost go" onclick={() => invoke('extensions_field_link', { id, field }).catch((err) => (work.error = errorText(err)))}><Icon name="external" />{t('common.open')}</button>
+      </div>
+      {#if values}
+        <span class="lead">{t('extensions.clickToCopy')}</span>
+        {@render copies(field, values)}
+      {/if}
+    </div>
   {/snippet}
 
   <div class="settings" class:dim={!e.enabled} inert={!e.enabled}>
@@ -212,7 +229,8 @@
         <button class="btn btn-secondary" disabled={!typed[s.id]?.trim()}>{t('common.save')}</button>
         {#if isSaved}<button type="button" class="btn danger" onclick={() => keep(s.id, null)}>{t('common.remove')}</button>{/if}
       </form>
-      <p class="hint">{#if s.url}{@render link(s.id, s.hint)}{' '}{:else if s.hint}{named(s.hint)}{' '}{/if}{t('extensions.secretHint')}</p>
+      {#if s.url}{@render steps(s.id, s.hint)}{/if}
+      <p class="hint">{#if !s.url && s.hint}{named(s.hint)}{' '}{/if}{t('extensions.secretHint')}</p>
     {/each}
 
     {#if contributes?.accounts}
@@ -236,15 +254,9 @@
                   bind:value={draft!.values[f.id]}
                   oninput={edited}
                 />
-                {#if f.url}<small>{@render link(f.id, f.hint)}</small>{:else if f.hint}<small>{named(f.hint)}</small>{/if}
+                {#if !f.url && f.hint}<small>{named(f.hint)}</small>{/if}
               </label>
-              {#if f.copy}
-                <span class="copies">
-                  {#each f.copy as value (value)}
-                    <button type="button" class="copy" onclick={() => copy(`${f.id}:${value}`, value)}>{copied === `${f.id}:${value}` ? t('common.copied') : value}</button>
-                  {/each}
-                </span>
-              {/if}
+              {#if f.url}{@render steps(f.id, f.hint, f.copy)}{:else if f.copy}{@render copies(f.id, f.copy)}{/if}
             </div>
           {/each}
           {#if draft?.testing}
@@ -620,13 +632,50 @@
     line-height: 1.5;
   }
 
-  .link {
-    color: var(--accent-link);
-    text-align: left;
+  .steps {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
   }
 
-  .link:hover {
-    color: var(--accent-soft);
+  .secret + .steps {
+    max-width: 560px;
+    margin-top: 8px;
+  }
+
+  .steps .head {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+  }
+
+  .steps .head span {
+    flex: 1;
+    color: var(--text-2);
+    font-size: 12.5px;
+  }
+
+  .go {
+    height: 30px;
+    gap: 6px;
+    font-size: 12.5px;
+  }
+
+  .go:hover {
+    background: var(--surface-3);
+    color: var(--text-strong);
+  }
+
+  .steps .lead {
+    color: var(--text-faint);
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
   }
 
   .accounts {
