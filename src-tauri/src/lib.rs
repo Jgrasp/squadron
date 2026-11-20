@@ -2550,6 +2550,9 @@ struct Place {
 }
 
 fn keep_place(window: &tauri::Window) {
+    if window.is_minimized().unwrap_or(false) {
+        return;
+    }
     let (Ok(at), Ok(size), Ok(maximized), Ok(dir)) = (
         window.outer_position(),
         window.inner_size(),
@@ -2600,6 +2603,22 @@ fn restore_place(app: &tauri::App, config: &std::path::Path) {
     }
     let _ = window.set_size(tauri::PhysicalSize::new(place.width, place.height));
     let at = tauri::PhysicalPosition::new(place.x, place.y);
+    let visible = window
+        .available_monitors()
+        .unwrap_or_default()
+        .iter()
+        .any(|m| {
+            let (p, s) = (m.position(), m.size());
+            let x = place.x + place.width as i32 / 2;
+            let y = place.y + 16;
+            x >= p.x && x < p.x + s.width as i32 && y >= p.y && y < p.y + s.height as i32
+        });
+    if !visible {
+        if place.maximized {
+            let _ = window.maximize();
+        }
+        return;
+    }
     let _ = window.set_position(at);
     #[cfg(target_os = "linux")]
     if let Ok(gtk) = window.gtk_window() {
