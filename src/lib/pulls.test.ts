@@ -22,7 +22,7 @@ vi.mock('./forges.svelte', () => ({ forgeName: (host: string) => host, providedL
 const pushed = vi.hoisted(() => ({ ref: null as { branch: string } | { url: string } | null }))
 vi.mock('./pushed', () => ({ pushedTo: () => pushed.ref }))
 
-const { pullToOpen, awaitsChecks, ignore, ignored, ignoredPulls, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, refreshPull, tidyMerged, unignore, waitsFor } = await import('./pulls.svelte')
+const { pullToOpen, awaitsChecks, ignore, ignored, ignoredPulls, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, pullWait, refreshPull, tidyMerged, unignore, waitsFor } = await import('./pulls.svelte')
 
 const pull = (number: number, more: Partial<Pull> = {}): Pull => ({
   host: 'github',
@@ -119,6 +119,28 @@ describe('merged pull requests', () => {
     expect(agent.worktree).toBeNull()
     expect(agent.pinned).toBe(false)
     expect(forge.calls).toContain('set_workdir')
+  })
+})
+
+describe('waiting on a pull request', () => {
+  const waiting = (...commands: string[]) =>
+    ({
+      id: 'w1',
+      project: '/p',
+      held: true,
+      subagents: [],
+      background: commands.map((_, i) => ({ id: `t${i}`, toolUseId: `c${i}`, name: '', started: 0 })),
+      entries: [{ kind: 'agent', blocks: [{ type: 'tools', calls: commands.map((command, i) => ({ id: `c${i}`, input: { command } })) }] }],
+    }) as unknown as Agent
+
+  it('tells the checks wait from the merge wait, and lets any other background task show as background', () => {
+    owned.w1 = pull(50)
+    expect(pullWait(waiting('sleep 15; timeout 1800 gh pr checks 50 --watch --fail-fast'))?.merge).toBe(false)
+    expect(pullWait(waiting(`timeout 7200 sh -c 'until [ "$(gh pr view 50 --json state -q .state)" != OPEN ]; do sleep 30; done'`))).toMatchObject({ merge: true, pull: { number: 50 } })
+    expect(pullWait(waiting('gh pr view 50 --json state', 'pnpm test'))).toBeNull()
+    owned.w1 = pull(50, { state: 'merged' })
+    expect(pullWait(waiting('gh pr view 50 --json state'))).toBeNull()
+    delete owned.w1
   })
 })
 

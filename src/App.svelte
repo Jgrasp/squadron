@@ -33,7 +33,7 @@ import './lib/extensionWindows.svelte'
   import StatusBar from './lib/StatusBar.svelte'
   import { activity } from './lib/stream'
   import { lookForUpdate, showChangelogOnce } from './lib/update.svelte'
-  import { lookUpAll, lookUpLists } from './lib/pulls.svelte'
+  import { followPullWaits, lookUpAll, lookUpLists } from './lib/pulls.svelte'
   import { watchRuns } from './lib/pipelines.svelte'
   import { watchNotifications } from './lib/notify.svelte'
   import { followKey, syncFollows } from './lib/plugins.svelte'
@@ -120,6 +120,7 @@ import './lib/extensionWindows.svelte'
       const lookUpPulls = () => (lookUpAll(), Promise.allSettled(projects.list.map((p) => lookUpLists(p.path))))
       lookUpPulls().then(() => (boot.pulls = true))
       setInterval(lookUpPulls, 3 * 60_000)
+      setInterval(followPullWaits, 20_000)
       watchRuns()
       watchNotifications()
     })

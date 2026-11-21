@@ -32,6 +32,8 @@ export default {
   sortLastActivity: 'Last activity',
   sortCreated: 'Creation date',
   waitingForYou: 'Waiting for you',
+  mergeYourPull: 'Waiting for you · merge PR #{number}',
+  pullChecksRunning: 'PR #{number} · checks running',
   readyForFirst: 'Ready for your first message',
   doneAgo: 'Done {ago}',
   interruptedWaiting: 'Interrupted · waiting for your instruction',

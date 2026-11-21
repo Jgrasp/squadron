@@ -34,6 +34,8 @@ export default {
   sortLastActivity: 'Dernière activité',
   sortCreated: 'Date de création',
   waitingForYou: 'Vous attend',
+  mergeYourPull: 'Vous attend · fusionner la PR #{number}',
+  pullChecksRunning: 'PR #{number} · checks en cours',
   readyForFirst: 'Prêt pour votre premier message',
   doneAgo: 'Terminé {ago}',
   interruptedWaiting: 'Interrompu · attend votre consigne',
