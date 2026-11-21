@@ -1,5 +1,16 @@
 # Nouveautés
 
+## 0.58.0 · 2026-11-21
+
+### Projets
+
+- Les règles de permission passent dans Réglages › Projets, dans une section repliée de la page de chaque projet, avec une liste compacte à déplier. Les Réglages n’ont plus de groupe Agents.
+
+### Correctifs
+
+- Coller une capture d’écran, copier du texte et ouvrir un lien fonctionnent de nouveau une fois qu’un agent a ouvert un onglet du navigateur.
+- Le menu d’affichage du panneau Navigateur s’affiche au-dessus de la page au lieu de passer dessous.
+
 ## 0.57.0 · 2026-11-21
 
 ### Navigateur
