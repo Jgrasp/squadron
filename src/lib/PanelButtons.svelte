@@ -31,7 +31,7 @@
       <svg class="glyph chevron" width="12" height="12" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 9l6 6 6-6" /></svg>
     </button>
     {#if open}
-      <div class="menu" role="group" aria-label={t('shell.panelPlacement')}>
+      <div class="menu" role="group" aria-label={t('shell.panelPlacement')} data-covers>
         {#each MODES as each, i (each)}
           {#if i === 2}<div class="sep"></div>{/if}
           <button
