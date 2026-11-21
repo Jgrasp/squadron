@@ -8,7 +8,7 @@ import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
 import { migrate, shelf } from './artifacts.svelte'
 import { releaseAgent } from './cleanup.svelte'
-import { addRule, defaultsFor, editProject, projects, type Project } from './projects.svelte'
+import { addRule, defaultsFor, projects, remove as drop, type Project } from './projects.svelte'
 import { ask } from './asking.svelte'
 import { editable, matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
@@ -375,7 +375,7 @@ export async function restore() {
 }
 
 async function adoptSaved() {
-  const known = new Set([...projects.list, ...projects.archived].map((p) => p.path))
+  const known = new Set(projects.list.map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
       return [JSON.parse(text) as Agent]
@@ -1113,25 +1113,13 @@ export async function archive(id: string, extra: Record<string, unknown> = {}) {
   if (dir && !agents.list.some((a) => a.worktree?.path === dir)) invoke('drop_review_checkout', { dir }).catch(() => {})
 }
 
-export async function archiveProject(project: string) {
-  await Promise.all(ofProject(project).map((a) => archive(a.id)))
-}
-
-export async function shelve(project: Project) {
+export async function retire(project: Project) {
   const count = ofProject(project.path).length
   const sure = await ask(
-    count ? t('shell.archiveProjectAskAgents', { name: project.name, count }) : t('shell.archiveProjectAsk', { name: project.name }),
-    { title: t('shell.archiveProject'), kind: 'info', okLabel: t('common.archive'), cancelLabel: t('common.cancel') },
+    count ? t('shell.removeProjectAskAgents', { name: project.name, count }) : t('shell.removeProjectAsk', { name: project.name }),
+    { title: t('shell.removeProject'), kind: 'warning', danger: true, okLabel: t('common.remove'), cancelLabel: t('common.cancel') },
   )
   if (!sure) return
-  await Promise.all(ofProject(project.path).map((a) => archive(a.id, { withProject: true })))
-  await editProject(project.path, { archived: true })
-}
-
-export async function unshelve(path: string) {
-  await editProject(path, { archived: false })
-  for (const a of await archived()) if (a.withProject && a.project === path) await unarchive(a.id)
-  projects.overview = false
-  projects.board = false
-  projects.current = path
+  await Promise.all(ofProject(project.path).map((a) => archive(a.id)))
+  await drop(project.path)
 }

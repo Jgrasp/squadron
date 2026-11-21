@@ -27,7 +27,6 @@ export default {
   maximize: 'Agrandir',
   actionsOf: 'Actions pour {name}',
   projectSettings: 'Réglages du projet…',
-  archiveProjectEllipsis: 'Archiver le projet…',
 
   deleteAgentAsk: 'Supprimer « {name} » ? Sa conversation quitte Squadron pour de bon ; elle ne pourra pas être restaurée comme un agent archivé. Ses artifacts sont supprimés aussi, et leurs partages arrêtés.',
   deleteAgentTitle: 'Supprimer l’agent',
@@ -112,6 +111,7 @@ export default {
     other: 'Retirer {name} de Squadron ? Le dossier reste intact. Ses {count} agents seront arrêtés.',
   },
   removeProject: 'Retirer le projet',
+  removeProjectEllipsis: 'Retirer le projet…',
   resizeAgentList: 'Redimensionner la liste des agents',
   folderMissing: 'Le dossier {name} est introuvable',
   folderMissingText: 'Il a peut-être été déplacé ou renommé, ou il se trouve sur un disque non monté. Indiquez son nouvel emplacement pour créer des agents dans {name}.',
@@ -333,12 +333,6 @@ export default {
   startedAsking: 'Lancé, avec une demande pour chaque modification',
   forkName: '{name} (copie)',
   forkedFrom: 'Dupliqué depuis {name}',
-  archiveProjectAsk: 'Archiver {name} ? Désarchivez-le depuis Réglages › Projets pour tout récupérer.',
-  archiveProjectAskAgents: {
-    one: 'Archiver {name} ? Son agent s’arrête et reste avec lui. Désarchivez-le depuis Réglages › Projets pour tout récupérer.',
-    other: 'Archiver {name} ? Ses {count} agents s’arrêtent et restent avec lui. Désarchivez-le depuis Réglages › Projets pour tout récupérer.',
-  },
-  archiveProject: 'Archiver le projet',
 
   pilotStartOwn: 'dans son propre projet',
   pilotStartUnnamed: 'Agent sans nom',

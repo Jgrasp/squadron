@@ -42,7 +42,8 @@ export default {
   unhide: 'Réafficher « {name} »',
   projectShow: 'Actions et pipelines',
   repository: 'Dépôt',
-  repositoryPlaceholder: 'Dépôt : le remote origin, ou github.com/owner/name',
   repositoryHint: 'Laissez vide pour utiliser le remote origin, ou donnez son adresse, par exemple github.com/owner/name.',
+  repositoryShort: 'remote origin',
+  workflows: 'Workflows',
   filterHint: 'Vus récemment, cliquez pour masquer ici ou réafficher :',
 } satisfies Catalog['runs']

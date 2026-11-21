@@ -7,89 +7,65 @@
   let { project, act }: { project: Project; act: (work: () => Promise<unknown>) => Promise<void> } = $props()
 </script>
 
-<div class="group" class:off={!settings.runs}>
-  <label class="toggle">
-    <input type="checkbox" checked={project.runs} disabled={!settings.runs} onchange={(e) => act(() => editProject(project.path, { runs: e.currentTarget.checked }))} />
-    {t('runs.projectShow')}
-  </label>
-  {#if project.runs && settings.runs && settings.notify_runs !== 'never' && settings.notify_when !== 'never'}
-    <label class="toggle">
-      <input type="checkbox" checked={project.runs_notify} onchange={(e) => act(() => editProject(project.path, { runs_notify: e.currentTarget.checked }))} />
-      {t('runs.projectNotify')}
+<section>
+  <h4>{t('settings.projectRuns')}</h4>
+  <div class="options" class:off={!settings.runs}>
+    <label class="option">
+      <span class="label"><strong>{t('runs.projectShow')}</strong></span>
+      <input type="checkbox" class="switch" checked={project.runs} disabled={!settings.runs} onchange={(e) => act(() => editProject(project.path, { runs: e.currentTarget.checked }))} />
     </label>
-  {/if}
-</div>
-
-{#if project.runs && settings.runs}
-  <div class="group">
-    <label class="label" for="project-repository">{t('runs.repository')}</label>
-    <input
-      id="project-repository"
-      class="field repo"
-      value={project.repository}
-      placeholder={t('runs.repositoryPlaceholder')}
-      title={t('runs.repositoryHint')}
-      spellcheck="false"
-      onchange={(e) => act(() => editProject(project.path, { repository: e.currentTarget.value }).then(() => lookUpRuns(projects.list.find((p) => p.path === project.path)!, true)))}
-    />
-    {#if runs[project.path]?.error}<span class="hint bad">{errorText(runs[project.path].error)}</span>{/if}
+    {#if project.runs && settings.runs}
+      {#if settings.notify_runs !== 'never' && settings.notify_when !== 'never'}
+        <label class="option sub">
+          <span class="label"><strong>{t('runs.projectNotify')}</strong></span>
+          <input type="checkbox" class="switch" checked={project.runs_notify} onchange={(e) => act(() => editProject(project.path, { runs_notify: e.currentTarget.checked }))} />
+        </label>
+      {/if}
+      <div class="option sub">
+        <label class="label" for="project-repository">
+          <strong>{t('runs.repository')}</strong>
+          {#if runs[project.path]?.error}<small class="bad">{errorText(runs[project.path].error)}</small>{:else}<small>{t('runs.repositoryHint')}</small>{/if}
+        </label>
+        <input
+          id="project-repository"
+          class="field repo"
+          value={project.repository}
+          placeholder={t('runs.repositoryShort')}
+          spellcheck="false"
+          onchange={(e) => act(() => editProject(project.path, { repository: e.currentTarget.value }).then(() => lookUpRuns(projects.list.find((p) => p.path === project.path)!, true)))}
+        />
+      </div>
+      {#if project.runs_hidden.length || names(project).length}
+        <div class="option column sub">
+          <span class="label">
+            <strong>{t('runs.workflows')}</strong>
+            <small>{t('runs.filterHint')}</small>
+          </span>
+          <span class="names">
+            {#each project.runs_hidden as name (name)}
+              <button class="name hidden" aria-pressed="false" title={t('runs.unhide', { name })} onclick={() => act(() => editProject(project.path, { runs_hidden: project.runs_hidden.filter((n) => n !== name) }))}>
+                <s>{name}</s>
+              </button>
+            {/each}
+            {#each names(project).filter((n) => !project.runs_hidden.includes(n) && !settings.runs_hidden.includes(n)) as name (name)}
+              <button class="name" aria-pressed="true" title={t('runs.hideHere', { name })} onclick={() => act(() => editProject(project.path, { runs_hidden: [...project.runs_hidden, name] }))}>
+                {name}
+              </button>
+            {/each}
+          </span>
+        </div>
+      {/if}
+    {/if}
   </div>
-  {#if project.runs_hidden.length || names(project).length}
-    <div class="group">
-      <span class="hint">{t('runs.filterHint')}</span>
-      <span class="names">
-        {#each project.runs_hidden as name (name)}
-          <button class="name hidden" aria-pressed="false" title={t('runs.unhide', { name })} onclick={() => act(() => editProject(project.path, { runs_hidden: project.runs_hidden.filter((n) => n !== name) }))}>
-            <s>{name}</s>
-          </button>
-        {/each}
-        {#each names(project).filter((n) => !project.runs_hidden.includes(n) && !settings.runs_hidden.includes(n)) as name (name)}
-          <button class="name" aria-pressed="true" title={t('runs.hideHere', { name })} onclick={() => act(() => editProject(project.path, { runs_hidden: [...project.runs_hidden, name] }))}>
-            {name}
-          </button>
-        {/each}
-      </span>
-    </div>
-  {/if}
-{/if}
+</section>
 
 <style>
-  .group {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 10px;
-    max-width: 560px;
-  }
-
-  .group.off {
+  .off {
     opacity: 0.5;
   }
 
-  .label {
-    font-weight: 600;
-  }
-
-  .toggle {
-    display: inline-flex;
-    align-items: center;
-    gap: 8px;
-    cursor: pointer;
-  }
-
-  .toggle input {
-    accent-color: var(--accent);
-  }
-
   .repo {
-    align-self: stretch;
-    height: 36px;
-    font: 12.5px var(--mono);
-  }
-
-  .hint {
-    font-size: 12.5px;
-    color: var(--text-dim);
+    font-family: var(--mono);
   }
 
   .bad {

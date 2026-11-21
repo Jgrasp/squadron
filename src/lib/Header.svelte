@@ -1,7 +1,7 @@
 <script lang="ts">
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
-  import { calling, clock, ofProject, shelve, unread, waiting, waitingAgents } from './agents.svelte'
+  import { calling, clock, ofProject, retire, unread, waiting, waitingAgents } from './agents.svelte'
   import { needsYou } from './pulls.svelte'
   import { inBar, tabClosed } from './groups'
     import { getVersion } from '@tauri-apps/api/app'
@@ -349,7 +349,7 @@
         {closed ? t('shell.showInTabBar') : t('shell.removeFromTabBar')}
       </button>
       <button role="menuitem" onclick={() => ((ui.settingsProject = target.path), (context = null), (ui.settings = 'projects'))}>{t('shell.projectSettings')}</button>
-      <button role="menuitem" onclick={() => (shelve(target), (context = null))}>{t('shell.archiveProjectEllipsis')}</button>
+      <button role="menuitem" onclick={() => (retire(target), (context = null))}>{t('shell.removeProjectEllipsis')}</button>
     </div>
   {/if}
 

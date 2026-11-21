@@ -36,8 +36,6 @@ pub struct Project {
     pub color: String,
     #[serde(default)]
     pub pinned: bool,
-    #[serde(default)]
-    pub archived: bool,
     #[serde(
         default,
         alias = "tab_hidden",
@@ -89,7 +87,6 @@ pub struct Edit {
     pub color: Option<String>,
     pub pinned: Option<bool>,
     pub tab_closed_at: Option<u64>,
-    pub archived: Option<bool>,
     pub runs: Option<bool>,
     pub runs_notify: Option<bool>,
     pub runs_hidden: Option<Vec<String>>,
@@ -293,7 +290,6 @@ pub struct Folder {
     pub color: String,
     pub pinned: bool,
     pub tab_closed_at: u64,
-    pub archived: bool,
     pub group: String,
     pub runs: bool,
     pub runs_notify: bool,
@@ -318,7 +314,6 @@ impl Folder {
             color: project.color.clone(),
             pinned: project.pinned,
             tab_closed_at: project.tab_closed_at,
-            archived: project.archived,
             group: project.group.clone(),
             runs: !project.runs_off,
             runs_notify: !project.runs_quiet,
@@ -549,7 +544,6 @@ mod tests {
             color: "#A78BFA".into(),
             pinned: true,
             tab_closed_at: 0,
-            archived: false,
             group: "g1".into(),
             runs_off: true,
             runs_quiet: false,
@@ -584,6 +578,17 @@ mod tests {
         assert_eq!(read(r#"{"name":"a","path":"/a","tab_hidden":false}"#), 0);
         assert_eq!(read(r#"{"name":"a","path":"/a","tab_closed_at":42}"#), 42);
         assert_eq!(read(r#"{"name":"a","path":"/a"}"#), 0);
+    }
+
+    #[test]
+    fn an_archived_project_comes_back() {
+        let project: Project =
+            serde_json::from_str(r#"{"name":"a","path":"/a","archived":true}"#).unwrap();
+        assert!(
+            !serde_json::to_string(&project)
+                .unwrap()
+                .contains("archived")
+        );
     }
 
     fn group(id: &str, parent: &str) -> Group {

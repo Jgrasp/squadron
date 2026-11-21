@@ -28,7 +28,7 @@ describe('activity', () => {
 
   it('counts the agents of a project over the last week, archived ones included', () => {
     const now = 100 * 86_400_000
-    const project = { path: '/home/me/ring', name: 'Ring', color: '', group: 'g1', archived: false } as Project
+    const project = { path: '/home/me/ring', name: 'Ring', color: '', group: 'g1' } as Project
     const all = [activityOf(agent({ since: now - 86_400_000 })), activityOf(agent({ id: 'a2', since: now - 9 * 86_400_000 }), true), activityOf(agent({ id: 'a3', project: '/other', since: now }))]
     expect(projectOf(project, all, now)).toEqual({ id: '/home/me/ring', name: 'Ring', color: null, group: 'g1', archived: false, active: now - 86_400_000, week_agents: 1, agents: 2 })
   })
@@ -68,7 +68,7 @@ describe('activity', () => {
     expect(agentChanges(seen, [two, one], new Set(['a1']), false).events).toEqual([{ name: 'agent.status', data: one }])
 
     const projects = new Map<string, string>()
-    const ring = projectOf({ path: '/r', name: 'Ring', color: '#fff', group: '', archived: false } as Project, [])
+    const ring = projectOf({ path: '/r', name: 'Ring', color: '#fff', group: '' } as Project, [])
     expect(projectChanges(projects, [ring], true)).toEqual([])
     expect(projectChanges(projects, [{ ...ring, agents: 4, active: 9 }], false)).toEqual([])
     expect(projectChanges(projects, [{ ...ring, color: '#000' }], false).map((e) => e.name)).toEqual(['project.changed'])

@@ -40,7 +40,7 @@ async function everyone(fresh = false): Promise<AgentActivity[]> {
 
 async function projectList() {
   const all = await everyone()
-  return [...projects.list, ...projects.archived].map((p) => projectOf(p, all))
+  return projects.list.map((p) => projectOf(p, all))
 }
 
 const usage = () => usageOf(limits, claudeApi)

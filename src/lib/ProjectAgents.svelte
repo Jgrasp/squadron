@@ -69,76 +69,47 @@
   }
 </script>
 
-<p class="intro">{t('settings.agentsIntro', { name: project.name })}</p>
-
-<div class="fields">
-  <div class="group">
-    <span class="label">{t('settings.model')}</span>
-    <Select label={t('settings.model')} value={own.model ?? ''} options={modelOptions} marked={!!own.model} onpick={(value) => set('model', value)} />
+<section>
+  <h4>{t('settings.projectNewAgents')}</h4>
+  <p class="intro">{t('settings.agentsIntro', { name: project.name })}</p>
+  <div class="options">
+    <div class="option">
+      <span class="label"><strong>{t('settings.model')}</strong></span>
+      <Select label={t('settings.model')} value={own.model ?? ''} options={modelOptions} marked={!!own.model} onpick={(value) => set('model', value)} />
+    </div>
+    <div class="option">
+      <span class="label"><strong>{t('settings.effort')}</strong></span>
+      <Select label={t('settings.effort')} value={own.effort ?? ''} options={effortOptions} marked={!!own.effort} onpick={(value) => set('effort', value)} />
+    </div>
+    <div class="option">
+      <span class="label"><strong>{t('settings.permissionMode')}</strong></span>
+      <Select label={t('settings.permissionMode')} value={own.mode ?? ''} options={modeOptions} marked={!!own.mode} onpick={(value) => set('mode', value)} />
+    </div>
+    <div class="option column result">
+      <p>
+        {t('settings.agentsStart', { name: project.name })}
+        {#each summary as [text, marked], i (i)}
+          {#if i}<span aria-hidden="true">·</span>{/if}
+          <b class:marked>{text}</b>
+        {/each}
+      </p>
+      <span class="actions">
+        <button class="btn btn-ghost" disabled={!overridden} onclick={() => act(() => editProject(project.path, { defaults: {} }))}>{t('settings.agentsReset')}</button>
+        <button class="btn btn-ghost" onclick={() => (ui.settings = 'defaults')}>{t('settings.agentsGlobal')}</button>
+      </span>
+    </div>
   </div>
-  <div class="group">
-    <span class="label">{t('settings.effort')}</span>
-    <Select label={t('settings.effort')} value={own.effort ?? ''} options={effortOptions} marked={!!own.effort} onpick={(value) => set('effort', value)} />
-  </div>
-  <div class="group">
-    <span class="label">{t('settings.permissionMode')}</span>
-    <Select label={t('settings.permissionMode')} value={own.mode ?? ''} options={modeOptions} marked={!!own.mode} onpick={(value) => set('mode', value)} />
-  </div>
-</div>
-
-<p class="result">
-  <span>{t('settings.agentsStart', { name: project.name })}</span>
-  {#each summary as [text, marked], i (i)}
-    {#if i}<span aria-hidden="true">·</span>{/if}
-    <b class:marked>{text}</b>
-  {/each}
-</p>
-
-<div class="actions">
-  <button class="btn btn-secondary" disabled={!overridden} onclick={() => act(() => editProject(project.path, { defaults: {} }))}>{t('settings.agentsReset')}</button>
-  <button class="btn btn-secondary" onclick={() => (ui.settings = 'defaults')}>{t('settings.agentsGlobal')}</button>
-</div>
+</section>
 
 <style>
-  .intro {
-    margin: 0;
-    max-width: 620px;
-    color: var(--text-muted);
-    line-height: 1.5;
-  }
-
-  .fields {
-    align-self: stretch;
-    display: grid;
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-    gap: 14px;
-    max-width: 760px;
-  }
-
-  .group {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
-  .label {
-    font-weight: 600;
-  }
-
-  .result {
-    align-self: stretch;
+  .result p {
     display: flex;
     flex-wrap: wrap;
     align-items: center;
-    gap: 8px;
-    max-width: 760px;
+    gap: 6px;
     margin: 0;
-    padding: 12px 14px;
-    border-radius: 4px;
-    background: var(--surface-1);
-    box-shadow: inset 0 0 0 1px var(--border);
-    color: var(--text-dim);
     font-size: 12.5px;
+    color: var(--text-dim);
   }
 
   .result b {
@@ -153,9 +124,5 @@
   .actions {
     display: flex;
     gap: 8px;
-  }
-
-  .actions .btn {
-    height: 34px;
   }
 </style>

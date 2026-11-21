@@ -13,7 +13,7 @@ import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw
 import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
 import picker from '../../src-tauri/src/artifact-pick.js?raw'
 
-type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; tab_closed_at?: number; archived?: boolean; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; defaults?: Record<string, string> }
+type Project = { name: string; path: string; rules: string[]; group?: string; cards?: unknown[]; color?: string; pinned?: boolean; tab_closed_at?: number; runs?: boolean; runs_notify?: boolean; runs_hidden?: string[]; repository?: string; review_prompt?: string; defaults?: Record<string, string> }
 
 const projects: Project[] = JSON.parse(localStorage.getItem('projects') ?? 'null') ?? [
   { name: 'Orbit', path: '/home/demo/agence/orbit', rules: [] },
@@ -59,7 +59,7 @@ const folder = (name: string, path: string, rules: string[] = [], cards: unknown
   branch: path.includes('nova') ? null : 'feat/T15-segmentation',
 })
 
-const views = () => projects.map((p, i) => ({ group: p.group ?? '', ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, tab_closed_at: p.tab_closed_at ?? 0, archived: !!p.archived, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', defaults: p.defaults ?? {} }))
+const views = () => projects.map((p, i) => ({ group: p.group ?? '', ...folder(p.name, p.path, p.rules, p.cards, (p.color ??= COLORS[i % COLORS.length])), pinned: !!p.pinned, tab_closed_at: p.tab_closed_at ?? 0, runs: p.runs ?? true, runs_notify: p.runs_notify ?? true, runs_hidden: p.runs_hidden ?? [], repository: p.repository ?? '', review_prompt: p.review_prompt ?? '', defaults: p.defaults ?? {} }))
 
 const loaded = Date.now()
 const timers = new Map<string, number>()
@@ -614,7 +614,6 @@ mockIPC(
         return {
           ...folder(a.path.split('/').pop() ?? '', a.path),
           taken_by: projects.find((p) => p.path === a.path)?.name ?? null,
-          taken_archived: !!projects.find((p) => p.path === a.path)?.archived,
           near: a.path.includes('absent') ? a.path.replace(/-?absent.*$/, '') : null,
         }
       case 'add_project':
@@ -623,8 +622,7 @@ mockIPC(
       case 'scratch_project': {
         const path = '/home/user/.local/share/squadron/conversations'
         const found = projects.find((p) => p.path === path)
-        if (found) found.archived = false
-        else projects.push({ name: a.name, path, rules: [] })
+        if (!found) projects.push({ name: a.name, path, rules: [] })
         return [path, views()]
       }
       case 'remove_project':
