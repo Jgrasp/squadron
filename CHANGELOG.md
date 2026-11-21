@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.58.0 · 2026-11-21
+
+### Projects
+
+- Permission rules move into Settings › Projects, as a folded section of each project's page with a compact list to unfold. Settings no longer has an Agents group.
+
+### Fixes
+
+- Pasting a screenshot, copying text and opening links work again once an agent has opened a browser tab.
+- The display mode menu of the Browser panel shows above the page instead of under it.
+
 ## 0.57.0 · 2026-11-21
 
 ### Browser
