@@ -2098,7 +2098,7 @@ async fn extensions_option_set(
 
 #[tauri::command]
 fn extensions_field_link(
-    window: tauri::WebviewWindow,
+    window: tauri::Window,
     app: AppHandle,
     id: String,
     field: String,
@@ -2428,10 +2428,7 @@ fn close_tabs(browser: &browser::Browser, agent: &str) {
 }
 
 #[tauri::command]
-async fn paste_image(
-    app: AppHandle,
-    window: tauri::WebviewWindow,
-) -> Result<Option<PathBuf>, String> {
+async fn paste_image(app: AppHandle, window: tauri::Window) -> Result<Option<PathBuf>, String> {
     let folder = app
         .path()
         .app_data_dir()
@@ -2482,7 +2479,7 @@ fn forget_copy_on_focus() {
 }
 
 #[tauri::command]
-fn copy_text(window: tauri::WebviewWindow, text: String) -> Result<(), String> {
+fn copy_text(window: tauri::Window, text: String) -> Result<(), String> {
     #[cfg(target_os = "linux")]
     {
         let main = window.clone();
@@ -2628,7 +2625,7 @@ async fn link_preview(url: String) -> Option<preview::Preview> {
 }
 
 #[tauri::command]
-fn open_link(window: tauri::WebviewWindow, url: String) -> Result<(), String> {
+fn open_link(window: tauri::Window, url: String) -> Result<(), String> {
     if !url.starts_with("https://") && !url.starts_with("http://") {
         return Err("Only web links open from here.".into());
     }
