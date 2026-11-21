@@ -2,7 +2,6 @@
   import { invoke } from '@tauri-apps/api/core'
   import { open } from '@tauri-apps/plugin-dialog'
   import Dialog from './Dialog.svelte'
-  import OptionsFields from './OptionsFields.svelte'
   import { home, projects, removeRule } from './projects.svelte'
   import { ruleLabel } from './rules'
   import AboutSquadron from './AboutSquadron.svelte'
@@ -38,7 +37,7 @@
 
   let { onclose }: { onclose: () => void } = $props()
 
-  const tab = $derived(ui.settings ?? 'defaults')
+  const tab = $derived(ui.settings ?? 'projects')
 
   const groups: [Key, [Tab, Key][]][] = [
     [
@@ -48,7 +47,6 @@
     [
       'settings.agents',
       [
-        ['defaults', 'settings.tabDefaults'],
         ['rules', 'settings.tabRules'],
       ],
     ],
@@ -100,7 +98,6 @@
     ['pulse', 'settings.effectPulse', 'settings.effectPulseHint', 2],
   ]
 
-  let defaults = $state({ ...settings.defaults })
   let claude = $state(settings.claude)
   let effect = $state<TabEffect>(settings.tab_effect)
   let projectsEffect = $state<ProjectsEffect>(settings.projects_effect)
@@ -196,7 +193,7 @@
 
   const withRules = $derived(projects.list.filter((p) => p.rules.length))
 
-  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, browser, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
+  const form = $derived({ claude, tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, browser, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
@@ -271,9 +268,6 @@
       <AboutSquadron />
     {:else if tab === 'hosting'}
       <CodeHosting />
-    {:else if tab === 'defaults'}
-      <p class="intro">{t('settings.defaultsIntro')}</p>
-      <OptionsFields bind:options={defaults} />
     {:else if tab === 'rules'}
       <p class="intro">{t('settings.rulesIntro')}</p>
       {#each withRules as project (project.path)}

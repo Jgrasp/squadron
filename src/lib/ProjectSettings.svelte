@@ -2,6 +2,7 @@
   import { untrack } from 'svelte'
   import { ui } from './actions.svelte'
   import { retire } from './agents.svelte'
+  import Icon from './Icon.svelte'
   import ProjectAgents from './ProjectAgents.svelte'
   import ProjectGeneral from './ProjectGeneral.svelte'
   import ProjectReview from './ProjectReview.svelte'
@@ -20,8 +21,9 @@
   )
 
   const list = $derived(ordered())
-  const project = $derived(list.find((p) => p.path === picked) ?? list[0])
+  const project = $derived(picked === '' ? undefined : (list.find((p) => p.path === picked) ?? list[0]))
   const index = $derived(list.findIndex((p) => p === project))
+  const pick = (path: string) => (picked = path)
   const own = (path: string) => Object.keys(list.find((p) => p.path === path)?.defaults ?? {}).length
 
   async function act(work: () => Promise<unknown>) {
@@ -49,6 +51,16 @@
 <div class="frame">
   <div class="list">
     <ul>
+      <li>
+        <button class="item" aria-current={!project} onclick={() => (picked = '')}>
+          <span class="all"><Icon name="grid" /></span>
+          <span class="name">
+            <strong>{t('settings.allProjects')}</strong>
+            <small class="plain">{t('settings.allProjectsHint')}</small>
+          </span>
+        </button>
+      </li>
+      <li class="sep" aria-hidden="true"></li>
       {#each list as p (p.path)}
         <li style:--project={p.color}>
           <button class="item" aria-current={p === project} onclick={() => (picked = p.path)}>
@@ -85,7 +97,7 @@
         <div class="page">
           {#if error}<p class="bad" role="alert">{error}</p>{/if}
           <ProjectGeneral {project} {act} />
-          <ProjectAgents {project} {act} />
+          <ProjectAgents {project} {act} {pick} />
           <ProjectRuns {project} {act} />
           {#if project.git}<ProjectReview {project} {act} />{/if}
           <section>
@@ -102,9 +114,15 @@
         </div>
       {/key}
     {:else}
+      <header>
+        <span class="all"><Icon name="grid" /></span>
+        <h3>{t('settings.allProjects')}</h3>
+        <span class="sub">{t('settings.allProjectsSub')}</span>
+      </header>
       <div class="page">
-        <p class="empty">{t('settings.projectsNone')}</p>
-        <button class="btn btn-primary" onclick={() => (ui.adding = '')}>{t('settings.addProject')}</button>
+        {#if error}<p class="bad" role="alert">{error}</p>{/if}
+        <ProjectAgents {act} {pick} />
+        {#if !list.length}<p class="empty">{t('settings.projectsNone')}</p>{/if}
       </div>
     {/if}
   </div>
@@ -168,6 +186,20 @@
     box-shadow: inset 2px 0 0 var(--project);
   }
 
+  .sep {
+    height: 1px;
+    margin: 6px 4px;
+    background: var(--border);
+  }
+
+  .all {
+    flex: none;
+    display: grid;
+    place-items: center;
+    width: 14px;
+    color: var(--text-2);
+  }
+
   .square {
     flex: none;
     width: 12px;
@@ -188,6 +220,10 @@
     text-overflow: ellipsis;
     white-space: nowrap;
     font-weight: 600;
+  }
+
+  .name small.plain {
+    font: 12px var(--sans);
   }
 
   .name small {
@@ -280,6 +316,11 @@
   h3 {
     margin: 0;
     font-size: 17px;
+  }
+
+  header .sub {
+    font-size: 12px;
+    color: var(--text-dim);
   }
 
   header code {
