@@ -6,6 +6,8 @@ pub mod askpass;
 pub mod attach;
 pub mod claude;
 pub mod claude_flags;
+#[cfg(all(debug_assertions, target_os = "linux"))]
+mod debug;
 pub mod definitions;
 pub mod editors;
 pub mod extension_tools;
@@ -3020,6 +3022,10 @@ pub fn run() {
             }
         })
         .setup(|app| {
+            #[cfg(all(debug_assertions, target_os = "linux"))]
+            if let Some(dir) = std::env::var_os("SQUADRON_DEBUG_DIR") {
+                debug::watch(app.handle().clone(), dir.into());
+            }
             if cfg!(debug_assertions) && !app.config().identifier.starts_with(DEV_ID) {
                 return Err("Start the dev build with `pnpm app`: it keeps its own data, apart from the installed Squadron.".into());
             }
