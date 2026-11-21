@@ -639,7 +639,7 @@ mod tests {
     use std::time::Duration;
 
     async fn drive(model: &str, prompt: &str, reply: fn(&Call) -> String) -> Vec<Call> {
-        drive_in(model, prompt, reply, |_| {}).await
+        drive_in(model, prompt, reply, |_| {}).await.0
     }
 
     async fn drive_in(
@@ -647,7 +647,7 @@ mod tests {
         prompt: &str,
         reply: fn(&Call) -> String,
         setup: fn(&std::path::Path),
-    ) -> Vec<Call> {
+    ) -> (Vec<Call>, String) {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = Gate::new(move |ask| asks_tx.send(ask).unwrap());
         let asking = gate.clone();
@@ -657,6 +657,7 @@ mod tests {
             gate.clone(),
             pilot.clone(),
             crate::extension_tools::Tools::new(|_| {}),
+            crate::browser_mcp::Tools::new(crate::browser::Browser::detached()),
             axum::Router::new(),
         )
         .await
@@ -693,7 +694,7 @@ mod tests {
             advisor: None,
         };
         crate::keys::KEYS.set_pilot(true);
-        let config = mcp_config(port, "agent-7", true);
+        let config = mcp_config(port, "agent-7", true, false);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let mut session = Session::start_gated(
@@ -714,13 +715,13 @@ mod tests {
         session.stop().unwrap();
         let calls = seen.lock().unwrap().clone();
         assert!(calls.iter().all(|c| c.agent == "agent-7"));
-        calls
+        (calls, result)
     }
 
     #[tokio::test(flavor = "multi_thread")]
     #[ignore = "runs the real claude"]
     async fn real_claude_reviews_a_pull_request_into_the_users_draft() {
-        let calls = drive_in(
+        let (calls, _) = drive_in(
             "haiku",
             "Review pull request #12 “Cart total with discounts” by Ann, from feature/discount into main, on GitHub.\n\nThis folder is a checkout of the pull request branch: git diff origin/main...HEAD shows what it changes. Read the code around the changes too.\n\nDo not change any file. For each problem worth raising, call add_review_comment with the file, the line in the new version (or the removed line with removed: true) and a short comment: what is wrong and what to do. Leave out style nitpicks.\n\nEnd with a short summary of the pull request and of your main concerns.",
             |call| {
@@ -868,7 +869,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     #[ignore = "runs the real claude"]
     async fn real_claude_shows_its_progress_on_its_card() {
-        let calls = drive_in(
+        let (calls, _) = drive_in(
             "haiku",
             "Count the lines of each of the 4 files in this folder, one file at a time, and keep the progress on your Squadron card up to date, with a message under the bar. Remove the bar once you are done.",
             |_| "Done.".to_string(),

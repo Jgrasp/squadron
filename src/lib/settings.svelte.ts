@@ -37,6 +37,7 @@ export type Config = {
   editors: App[]
   pilot: boolean
   pilot_all: boolean
+  browser: boolean
   archive_after_days: number
   artifacts_after_days: number
   artifacts_since: number
@@ -81,6 +82,7 @@ export const settings = $state<Config>({
   editors: [],
   pilot: true,
   pilot_all: false,
+  browser: true,
   archive_after_days: 0,
   artifacts_after_days: 30,
   artifacts_since: 0,

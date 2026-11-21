@@ -227,4 +227,5 @@ export default {
   advisorWithout: 'Claude continue sans avis.',
   openTicket: 'Ouvrir le ticket Jira {key}',
   turnAdvised: { one: 'conseil ×{count} · {input} → {output}', other: 'conseil ×{count} · {input} → {output}' },
+  pageDetails: 'Détail de la page pour l’agent',
 } satisfies Catalog['conversation']

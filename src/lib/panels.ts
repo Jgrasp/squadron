@@ -30,6 +30,7 @@ export const PANELS: [PanelKind, Key][] = [
   ['diff', 'shell.diff'],
   ['subagents', 'conversation.subagents'],
   ['artifacts', 'agent.artifactsTitle'],
+  ['browser', 'browser.title'],
   ['kanban', 'shell.kanban'],
   ['pulls', 'shell.pullRequests'],
 ]

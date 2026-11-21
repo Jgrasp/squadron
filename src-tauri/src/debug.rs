@@ -9,7 +9,7 @@ pub fn watch(app: tauri::AppHandle, dir: PathBuf) {
         let mut listening = None;
         loop {
             std::thread::sleep(Duration::from_millis(200));
-            let Some(main) = app.get_webview_window("main") else {
+            let Some(main) = app.get_webview("main") else {
                 continue;
             };
             if let Ok(js) = std::fs::read_to_string(dir.join("run.js")) {
@@ -35,7 +35,7 @@ pub fn watch(app: tauri::AppHandle, dir: PathBuf) {
                 );
             }
             if std::fs::remove_file(dir.join("shot")).is_ok() {
-                for (label, webview) in app.webview_windows() {
+                for (label, webview) in app.webviews() {
                     let path = dir.join(format!("{label}.png"));
                     let _ = webview.with_webview(move |p| {
                         p.inner().snapshot(

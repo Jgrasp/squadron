@@ -4,6 +4,8 @@ pub mod agents;
 pub mod artifacts;
 pub mod askpass;
 pub mod attach;
+pub mod browser;
+pub mod browser_mcp;
 pub mod claude;
 pub mod claude_flags;
 #[cfg(all(debug_assertions, target_os = "linux"))]
@@ -421,6 +423,7 @@ struct Config {
     editors: Vec<editors::App>,
     pilot: bool,
     pilot_all: bool,
+    browser: bool,
     archive_after_days: u32,
     artifacts_after_days: u32,
     artifacts_since: u64,
@@ -471,6 +474,7 @@ impl Default for Config {
             editors: Vec::new(),
             pilot: true,
             pilot_all: false,
+            browser: true,
             archive_after_days: 0,
             artifacts_after_days: 30,
             artifacts_since: 0,
@@ -628,6 +632,7 @@ fn set_settings(
     config: Config,
 ) -> Result<(), String> {
     agents.set_pilot(config.pilot);
+    agents.set_browser(config.browser);
     let window = settings.config.lock().unwrap().compact_window;
     if config.compact_window != window {
         agents.refresh_all();
@@ -2171,7 +2176,13 @@ async fn save_agent(files: State<'_, AgentFiles>, id: String, data: String) -> R
 }
 
 #[tauri::command]
-fn delete_agent_file(app: AppHandle, files: State<AgentFiles>, id: String) -> Result<(), String> {
+fn delete_agent_file(
+    app: AppHandle,
+    files: State<AgentFiles>,
+    browser: State<browser::Browser>,
+    id: String,
+) -> Result<(), String> {
+    close_tabs(&browser, &id);
     let path = files.path(&id)?;
     let gone = std::fs::read_to_string(&path).unwrap_or_default();
     match std::fs::remove_file(path) {
@@ -2193,7 +2204,12 @@ fn forget_attachments(app: &AppHandle, agents: &Path, gone: &str) {
 }
 
 #[tauri::command]
-fn archive_agent_file(files: State<AgentFiles>, id: String) -> Result<(), String> {
+fn archive_agent_file(
+    files: State<AgentFiles>,
+    browser: State<browser::Browser>,
+    id: String,
+) -> Result<(), String> {
+    close_tabs(&browser, &id);
     let from = files.path(&id)?;
     let to = files.archived(&id)?;
     std::fs::create_dir_all(to.parent().unwrap()).map_err(|e| e.to_string())?;
@@ -2317,6 +2333,98 @@ fn send_message(
 fn save_attachment(app: AppHandle, name: String, data: String) -> Result<PathBuf, String> {
     let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
     attach::save(&dir.join("attachments"), &name, &data)
+}
+
+#[tauri::command]
+fn browser_status(browser: State<browser::Browser>) -> browser::Status {
+    browser.status()
+}
+
+#[tauri::command]
+async fn browser_open(
+    browser: State<'_, browser::Browser>,
+    agent: String,
+    url: String,
+) -> Result<String, String> {
+    browser.open(&agent, &browser::address(&url)).await
+}
+
+#[tauri::command]
+async fn browser_navigate(
+    browser: State<'_, browser::Browser>,
+    tab: String,
+    url: String,
+) -> Result<(), String> {
+    browser.navigate(&tab, &browser::address(&url)).await
+}
+
+#[tauri::command]
+async fn browser_history(
+    browser: State<'_, browser::Browser>,
+    tab: String,
+    delta: i64,
+) -> Result<(), String> {
+    browser.history(&tab, delta).await
+}
+
+#[tauri::command]
+async fn browser_reload(browser: State<'_, browser::Browser>, tab: String) -> Result<(), String> {
+    browser.reload(&tab).await
+}
+
+#[tauri::command]
+async fn browser_close(browser: State<'_, browser::Browser>, tab: String) -> Result<(), String> {
+    browser.close(&tab).await
+}
+
+#[tauri::command]
+fn browser_place(
+    browser: State<browser::Browser>,
+    tab: String,
+    rect: Option<[f64; 4]>,
+) -> Result<(), String> {
+    browser.place(&tab, rect)
+}
+
+#[tauri::command]
+async fn browser_picture(
+    browser: State<'_, browser::Browser>,
+    tab: String,
+) -> Result<tauri::ipc::Response, String> {
+    browser.picture(&tab).await.map(tauri::ipc::Response::new)
+}
+
+#[tauri::command]
+async fn browser_dialog(
+    browser: State<'_, browser::Browser>,
+    tab: String,
+    accept: bool,
+    text: Option<String>,
+) -> Result<(), String> {
+    browser.dialog(&tab, accept, text).await
+}
+
+#[tauri::command]
+async fn browser_pick(
+    browser: State<'_, browser::Browser>,
+    tab: String,
+    x: f64,
+    y: f64,
+    w: f64,
+    h: f64,
+) -> Result<Value, String> {
+    if w < 6.0 && h < 6.0 {
+        let at = serde_json::json!({"x": x + w / 2.0, "y": y + h / 2.0});
+        browser.page(&tab, "point", at).await
+    } else {
+        let area = serde_json::json!({"x": x, "y": y, "w": w, "h": h});
+        browser.page(&tab, "area", area).await
+    }
+}
+
+fn close_tabs(browser: &browser::Browser, agent: &str) {
+    let (browser, agent) = (browser.clone(), agent.to_string());
+    tauri::async_runtime::spawn(async move { browser.close_agent(&agent).await });
 }
 
 #[tauri::command]
@@ -2756,7 +2864,9 @@ pub fn run() {
             .map_or("squadron-dev".into(), |name| format!("squadron-dev-{name}"));
         gtk::glib::set_prgname(Some(instance.as_str()));
         // Wayland lets no window choose its position: X11 lets the dev build reopen where it was.
-        gtk::gdk::set_allowed_backends("x11");
+        if std::env::var_os("SQUADRON_WAYLAND").is_none() {
+            gtk::gdk::set_allowed_backends("x11");
+        }
     }
     #[cfg(all(debug_assertions, target_os = "linux"))]
     if let Some(data) = std::env::var_os("XDG_DATA_HOME")
@@ -2984,6 +3094,16 @@ pub fn run() {
             extensions_uninstall,
             send_message,
             save_attachment,
+            browser_status,
+            browser_open,
+            browser_navigate,
+            browser_history,
+            browser_reload,
+            browser_close,
+            browser_place,
+            browser_picture,
+            browser_dialog,
+            browser_pick,
             attachment_preview,
             attachment_size,
             save_capture,
@@ -3145,10 +3265,15 @@ pub fn run() {
             let askpass = Askpass::new(move |question| {
                 let _ = handle.emit("askpass-request", question);
             });
+            let handle = app.handle().clone();
+            let browser = browser::Browser::new(app.handle().clone(), app.path().app_data_dir()?.join("web"), move |status| {
+                let _ = handle.emit("browser-status", status);
+            });
             let port = tauri::async_runtime::block_on(permissions::serve_with_pilot(
                 gate.clone(),
                 pilot.clone(),
                 extension_tools.clone(),
+                browser_mcp::Tools::new(browser.clone()),
                 askpass.clone().router(),
             ))?;
             let helpers = app.path().app_data_dir()?.join("bin");
@@ -3164,6 +3289,18 @@ pub fn run() {
             agents.endpoint(port, app.path().app_data_dir()?.join("mcp"));
             let _ = agents::REVIEWS.set(app.path().app_data_dir()?.join("reviews"));
             agents.set_pilot(app.state::<Settings>().config.lock().unwrap().pilot);
+            agents.set_browser(app.state::<Settings>().config.lock().unwrap().browser);
+            #[cfg(debug_assertions)]
+            if std::env::var_os("SQUADRON_BROWSER_TEST").is_some() {
+                let browser = browser.clone();
+                tauri::async_runtime::spawn(async move {
+                    tokio::time::sleep(std::time::Duration::from_secs(5)).await;
+                    if let Err(e) = tauri::async_runtime::spawn(browser_mcp::self_test(browser)).await {
+                        log::warn!("browser self-test failed: {e}");
+                    }
+                });
+            }
+            app.manage(browser);
             app.manage(gate);
             app.manage(pilot);
             app.manage(extension_tools);

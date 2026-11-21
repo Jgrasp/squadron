@@ -27,6 +27,7 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
       ['editor', 'settings.itemEditor'],
       ['terminal', 'settings.itemTerminal'],
       ['diff', 'settings.itemDiff'],
+      ['browser', 'settings.itemBrowser'],
       ['kanban', 'settings.itemKanban'],
       ['pulls', 'settings.itemPulls', 'settings.itemPullsHint'],
       ['runs', 'settings.itemRuns', 'settings.itemRunsHint'],

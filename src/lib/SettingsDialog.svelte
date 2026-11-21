@@ -117,6 +117,7 @@
   ]
   let pilot = $state(settings.pilot)
   let pilotAll = $state(settings.pilot_all)
+  let browser = $state(settings.browser)
   let archiveAfter = $state(settings.archive_after_days)
   let artifactsAfter = $state(settings.artifacts_after_days)
   let compactWindow = $state(settings.compact_window)
@@ -195,7 +196,7 @@
 
   const withRules = $derived(projects.list.filter((p) => p.rules.length))
 
-  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
+  const form = $derived({ claude, defaults: $state.snapshot(defaults), tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, browser, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
@@ -465,6 +466,13 @@
         <span>
           <strong>{t('settings.pilotAll')}</strong>
           <small>{t('settings.pilotAllHint')}</small>
+        </span>
+      </label>
+      <label class="check">
+        <input type="checkbox" bind:checked={browser} />
+        <span>
+          <strong>{t('settings.browser')} <em class="alpha">{t('settings.alpha')}</em></strong>
+          <small>{t('settings.browserHint')}</small>
         </span>
       </label>
       <p class="intro">{t('settings.pilotApplies')}</p>
@@ -836,6 +844,19 @@
     font-size: 12.5px;
     line-height: 1.5;
     color: var(--text-dim);
+  }
+
+  .alpha {
+    margin-left: 6px;
+    padding: 1px 6px;
+    border-radius: 3px;
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+    color: var(--accent-soft);
+    font-size: 10.5px;
+    font-style: normal;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
   }
 
   .check.disabled {

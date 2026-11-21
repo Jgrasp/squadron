@@ -189,6 +189,7 @@ pub async fn serve_with_pilot(
     gate: Gate,
     pilot: crate::pilot::Pilot,
     extensions: crate::extension_tools::Tools,
+    browser: crate::browser_mcp::Tools,
     askpass: axum::Router,
 ) -> std::io::Result<u16> {
     listen(
@@ -205,6 +206,10 @@ pub async fn serve_with_pilot(
                 axum::Router::new().nest_service("/extensions", service(extensions)),
                 Route::Extensions,
             ))
+            .merge(guarded(
+                axum::Router::new().nest_service("/browser", service(browser)),
+                Route::Browser,
+            ))
             .nest_service("/askpass", askpass),
     )
     .await
@@ -214,7 +219,7 @@ pub fn deny(message: &str) -> Value {
     json!({"behavior": "deny", "message": message})
 }
 
-pub fn mcp_config(port: u16, agent: &str, pilot: bool) -> String {
+pub fn mcp_config(port: u16, agent: &str, pilot: bool, browser: bool) -> String {
     let server = |path: &str, route: Route| {
         json!({
             "type": "http",
@@ -229,6 +234,9 @@ pub fn mcp_config(port: u16, agent: &str, pilot: bool) -> String {
     });
     if pilot {
         servers["squadron-pilot"] = server("pilot", Route::Pilot);
+    }
+    if browser {
+        servers["squadron-browser"] = server("browser", Route::Browser);
     }
     json!({ "mcpServers": servers }).to_string()
 }
@@ -290,7 +298,7 @@ mod tests {
             agent: None,
             advisor: None,
         };
-        let config = mcp_config(port, "agent-1", false);
+        let config = mcp_config(port, "agent-1", false, false);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
         let record =

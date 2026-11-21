@@ -292,7 +292,7 @@
   let note = $state('')
 
   const review = $derived(reviewing ? (reviews[reviewKey] ?? []) : [])
-  const here = (c: Comment) => (c.pull ?? null) === (reviewing ? pull!.number : null)
+  const here = (c: Comment) => !c.page && (c.pull ?? null) === (reviewing ? pull!.number : null)
   const at = (path: string, line: Pick<Line, 'side' | 'number'>) => (c: Comment) =>
     c.path === path && c.line === line.number && c.removed === (line.side === 'old')
   function find(path: string, line: Pick<Line, 'side' | 'number'>) {
