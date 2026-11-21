@@ -1,5 +1,50 @@
 # Nouveautés
 
+## 0.57.0 · 2026-11-21
+
+### Navigateur
+
+- Les agents ont un navigateur intégré, en alpha et sous Linux pour l’instant : le bouton Navigateur d’un agent ouvre ses onglets dans un panneau, où vous naviguez comme dans n’importe quel navigateur et répondez aux dialogues de la page.
+- Avec le stylo, cliquez un élément ou entourez une zone de la page et écrivez un commentaire par note, puis Ajouter au message : l’agent reçoit vos notes numérotées avec le détail de chaque élément et une capture annotée, et la conversation montre vos commentaires, le détail replié dessous.
+- Les agents ouvrent, lisent et utilisent leurs onglets avec des outils qui dépensent peu de tokens : ils remplissent des formulaires, cliquent, envoient des fichiers, lisent la page et font des captures, sans jamais voir un mot de passe. Le réglage « Les agents peuvent utiliser le navigateur intégré » le désactive.
+
+### Pull requests
+
+- Les pull requests sont regroupées selon qui doit agir, chacune qui peut être fusionnée affiche Fusionner, et l’onglet Relectures est toujours là.
+- Une pull request peut être ignorée, pour de bon ou jusqu’à ses prochains commits.
+- Une relecture s’ouvre dans le panneau des pull requests, élargi à 1120px, avec une flèche de retour vers la liste. Les fils de discussion sont dans une colonne repliable à côté du diff, et un commentaire en brouillon s’affiche en Markdown et se modifie sur place.
+- Ctrl+Entrée ajoute un commentaire de ligne ou de pull request à la relecture ; le publier tout de suite ou l’envoyer à un agent passe dans un menu. La barre de relecture garde Demander à un agent, Abandonner et Terminer la relecture, où vous choisissez Approuver ou Demander des modifications.
+- La fusion utilise la méthode de fusion choisie dans les Réglages, et la forge supprime ou non la branche distante selon ses propres réglages.
+- La branche poussée d’un agent sans pull request a un bouton Ouvrir une pull request, avec un titre et une description que Haiku rédige à partir des commits.
+- Un projet peut faire relire par un agent chaque pull request dont on vous demande la relecture, et ses nouveaux commits. Désactivé par défaut, dans Réglages › Projets.
+- L’agent qui corrige une relecture de votre pull request y pousse ses commits, jamais en force, et rebase quand la branche a bougé.
+- Un agent qui attend seulement la fusion de sa pull request s’affiche comme en attente de vous, et Squadron vérifie cette pull request toutes les 20 secondes. Son projet affiche l’anneau d’attente et compte dans la Vue d’ensemble.
+- Les merge requests GitLab et les pull requests et pipelines Azure DevOps viennent désormais des extensions GitLab et Azure DevOps, à installer depuis Découvrir : chaque forge est désormais une extension.
+
+### Projets
+
+- Réglages › Projets montre un projet sur une seule page. Son entrée Tous les projets réunit les réglages par défaut des nouveaux agents, conseiller compris, s’enregistre aussitôt et liste les projets qui ont leurs propres valeurs.
+- Retirer un projet le sort de Squadron au lieu de l’archiver, et propose de supprimer ses agents, archivés compris. Les Réglages n’ont plus d’écran Agents archivés, et les projets archivés auparavant reviennent dans la liste.
+
+### Agents
+
+- Les questions et demandes de permission d’un agent en contrôle à distance arrivent sur claude.ai, où vous pouvez y répondre.
+- Le premier message d’un nouvel agent prend le focus une fois que Haiku l’a rempli, pas pendant qu’il écrit.
+
+### Extensions
+
+- API d’extension 1.13.0 : merge prend une méthode et le choix de supprimer la branche, et une pull request indique ses méthodes de fusion permises, la suppression de branche et sa protection.
+- API d’extension 1.14.0 : une forge peut ouvrir une pull request avec l’appel create.
+- Un champ de compte ou un secret qui renvoie vers une page affiche un bouton Ouvrir, dans un bloc avec ses valeurs à copier.
+
+### Correctifs
+
+- L’aperçu d’un bloc markdown et un fichier ouvert dans sa propre fenêtre grandissent avec la fenêtre au lieu de s’arrêter à 520px.
+- Un agent arrêté pendant qu’il posait une question ne s’affiche plus comme attendant une réponse après le redémarrage de Squadron.
+- Une réponse diffusée sans son identifiant de message, comme avec le contrôle à distance, s’affiche une fois au lieu de deux.
+- Fermer Squadron réduit sous Windows ne le rouvre plus hors de l’écran.
+- Squadron ne reste plus agrandi quand la taille de fenêtre enregistrée dépasse l’écran.
+
 ## 0.56.0 · 2026-11-20
 
 ### Extensions
