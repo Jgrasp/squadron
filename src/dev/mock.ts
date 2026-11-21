@@ -717,6 +717,8 @@ mockIPC(
       case 'set_claude_flag':
         claudeFlags[(args as { key: string }).key] = (args as { value: boolean }).value
         return
+      case 'claude_values':
+        return { outputStyle: 'Concise', language: 'French', thinking: 'true', recap: 'true', autoCompact: 'true', checkpoints: 'true', promptSuggestionEnabled: 'false', workflowKeywordTriggerEnabled: 'true', useAutoModeDuringPlan: 'true', worktreeBaseRef: 'fresh', remoteControl: 'default', workflows: 'true' }
       case 'claude_config':
         return new Promise((done) => setTimeout(() => done(a.setting ? `Set ${a.setting.replace('=', ' to ')}` : configUsage), 600))
       case 'stop_task': {

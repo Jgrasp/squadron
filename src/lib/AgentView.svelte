@@ -4,7 +4,7 @@
   import { tick, untrack, type Snippet } from 'svelte'
   import { archive, askEdits, clock, drafts, fork, interrupt, undo, undoable, keepDraft, markUnread, mcpAct, mcpStatus, note, reload, remote, rename, reply, send, servers, setOptions, shownQuietly, onScreen, persist, useServer, VALUES, type Server } from './agents.svelte'
   import { loadServers, mcp, type Listed } from './ondemand.svelte'
-  import { claudeConfig, labelOf as settingLabel, loadSettings, TERMINAL } from './claudeConfig.svelte'
+  import { claudeConfig, labelOf as settingLabel, loadSettings, loadValues, TERMINAL } from './claudeConfig.svelte'
   import Conversation from './Conversation.svelte'
   import { changedFiles, type Changes, type Proposal } from './diff'
   import DiffPanel from './DiffPanel.svelte'
@@ -311,7 +311,7 @@
   })
   const staged = $derived(stage?.command?.name)
   $effect(() => {
-    if (staged === 'config') untrack(loadSettings)
+    if (staged === 'config') untrack(() => (loadSettings(), loadValues()))
     if (staged === 'mcp') untrack(() => (mcpStatus(agent.id), loadServers().catch(() => {})))
   })
   $effect(() => {
@@ -338,7 +338,7 @@
           detail: settingLabel(s.key),
           text: `/config ${s.key}=`,
         })),
-      { value: '', label: t('agent.configWindow'), detail: t('agent.configWindowDetail'), text: '', action: () => ((claudeConfig.query = query), (ui.settings = 'claude')) },
+      { value: '', label: t('agent.configWindow'), detail: t('agent.configWindowDetail'), text: '', action: () => (ui.settings = 'claude') },
     ]
   }
 

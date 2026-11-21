@@ -1,102 +1,159 @@
 <script lang="ts">
-  import { applySetting, claudeConfig, labelOf, loadSettings, TERMINAL } from './claudeConfig.svelte'
-  import { errorText, t } from './i18n/index.svelte'
+  import { invoke } from '@tauri-apps/api/core'
+  import { open } from '@tauri-apps/plugin-dialog'
+  import { ui } from './actions.svelte'
+  import { account } from './catalogs.svelte'
+  import { applySetting, claudeConfig, labelOf, loadSettings, loadValues } from './claudeConfig.svelte'
+  import type { Setting } from './commands'
+  import Select from './Select.svelte'
+  import { errorText, t, type Key } from './i18n/index.svelte'
+
+  let { path = $bindable() }: { path: string } = $props()
 
   loadSettings()
-  $effect(() => () => (claudeConfig.query = ''))
+  loadValues()
 
+  const SECTIONS: [Key, string[]][] = [
+    ['settings.claudeModelSection', ['outputStyle', 'language', 'thinking', 'switchModelsOnFlag']],
+    ['settings.claudeContextSection', ['autoCompact', 'checkpoints', 'recap', 'promptSuggestionEnabled']],
+    ['settings.claudeWorkflowsSection', ['workflows', 'workflowSizeGuideline', 'workflowKeywordTriggerEnabled', 'useAutoModeDuringPlan']],
+    ['settings.claudeSessionsSection', ['remoteControl', 'worktreeBaseRef']],
+  ]
+
+  let version = $state('')
+  let unanswered = $state('')
   let saving = $state<Record<string, boolean>>({})
-  let replies = $state<Record<string, { text: string; bad: boolean }>>({})
-  let typed = $state<Record<string, string>>({})
+  let errors = $state<Record<string, string>>({})
 
-  const matching = $derived(
-    (claudeConfig.settings ?? []).filter((s) => `${s.key} ${labelOf(s.key)}`.toLowerCase().includes(claudeConfig.query.trim().toLowerCase())),
+  const sections = $derived(
+    SECTIONS.map(([title, keys]) => ({ title, settings: keys.flatMap((key) => claudeConfig.settings?.find((s) => s.key === key) ?? []) })).filter((s) => s.settings.length),
   )
-  const groups = $derived([
-    { name: t('settings.claudeConfigAgents'), terminal: false, settings: matching.filter((s) => !TERMINAL.has(s.key)) },
-    { name: t('settings.claudeConfigTerminal'), terminal: true, settings: matching.filter((s) => TERMINAL.has(s.key)) },
-  ])
+  const signedIn = $derived([account.value?.email, account.value?.organization, account.value?.subscriptionType].filter(Boolean).join(' · '))
 
-  async function set(key: string, value: string) {
-    if (!value.trim()) return
-    saving[key] = true
+  async function check() {
+    version = ''
+    unanswered = ''
     try {
-      replies[key] = { text: await applySetting(key, value.trim()), bad: false }
+      version = await invoke<string>('claude_version', { path })
     } catch (e) {
-      replies[key] = { text: errorText(e), bad: true }
-    } finally {
-      saving[key] = false
+      unanswered = errorText(e) || t('settings.claudeNoAnswer')
     }
   }
+  check()
+
+  async function browse() {
+    const chosen = await open({ directory: false })
+    if (typeof chosen === 'string') path = chosen
+  }
+
+  async function set(key: string, value: string) {
+    value = value.trim()
+    const before = claudeConfig.chosen[key]
+    if (!value || value === before) return
+    claudeConfig.chosen[key] = value
+    saving[key] = true
+    errors[key] = ''
+    try {
+      await applySetting(key, value)
+    } catch (e) {
+      errors[key] = errorText(e)
+      if (before === undefined) delete claudeConfig.chosen[key]
+      else claudeConfig.chosen[key] = before
+    } finally {
+      saving[key] = false
+      await loadValues()
+    }
+  }
+
+  const boolean = (setting: Setting) => setting.values.length === 2 && setting.values.includes('true') && setting.values.includes('false')
+  const options = (setting: Setting) => [
+    ...(claudeConfig.chosen[setting.key] === undefined ? [{ value: '', label: t('settings.claudeConfigPick'), disabled: true }] : []),
+    ...setting.values.map((value) => ({ value, label: value })),
+  ]
 </script>
 
-<section class="config">
-  <h2>{t('settings.claudeConfig')}</h2>
-  <p class="intro">{t('settings.claudeConfigIntro')}</p>
-  <input class="field" type="search" placeholder={t('settings.claudeConfigSearch')} aria-label={t('settings.claudeConfigSearch')} bind:value={claudeConfig.query} />
+<section class="claude">
+  <h3>{t('settings.executable')}</h3>
+  <div class="options">
+    <div class="option">
+      <span class="label"><strong>{t('settings.claudeProgram')}</strong><small>{t('settings.claudeIntro')}</small></span>
+      <input class="field mono" aria-label={t('settings.executable')} bind:value={path} spellcheck="false" />
+      <button class="btn btn-ghost" onclick={browse}>{t('common.browse')}</button>
+    </div>
+    <div class="option sub">
+      <span class="label">
+        {#if unanswered}
+          <small class="bad" role="alert">{unanswered}</small>
+        {:else}
+          <small>{#if version}<span class="good">{version}</span>{/if}{#if version && signedIn} · {/if}{#if signedIn}{t('settings.signedInAs', { account: signedIn })}{/if}</small>
+        {/if}
+      </span>
+      <button class="btn btn-ghost" onclick={check}>{t('settings.check')}</button>
+    </div>
+  </div>
+
   {#if claudeConfig.loading}
     <p class="intro">{t('settings.claudeConfigLoading')}</p>
   {:else if claudeConfig.failed}
     <p class="bad" role="alert">{errorText(claudeConfig.failed)}</p>
-  {:else if claudeConfig.settings && !matching.length}
-    <p class="intro">{t('settings.claudeConfigNone', { query: claudeConfig.query.trim() })}</p>
   {/if}
-  {#each groups as group (group.name)}
-    {#if group.settings.length}
-      <div class="group" class:terminal={group.terminal}>
-        <h3>{group.name}</h3>
-        {#if group.terminal}<p class="intro">{t('settings.claudeConfigTerminalHint')}</p>{/if}
-        {#each group.settings as setting (setting.key)}
-          {@const chosen = claudeConfig.chosen[setting.key]}
-          <div class="setting">
-            <div class="name">
-              <code>{setting.key}</code>
-              {#if labelOf(setting.key)}<span>{labelOf(setting.key)}</span>{/if}
-              {#if saving[setting.key]}
-                <small>{t('settings.claudeConfigSaving')}</small>
-              {:else if replies[setting.key]}
-                <small class:bad={replies[setting.key].bad}>{replies[setting.key].text}</small>
-              {/if}
-            </div>
-            {#if !setting.values.length}
-              <form class="free" onsubmit={(e) => (e.preventDefault(), set(setting.key, typed[setting.key] ?? ''))}>
-                <input class="field" aria-label={setting.key} placeholder={chosen} bind:value={typed[setting.key]} disabled={saving[setting.key]} />
-                <button class="btn btn-secondary" disabled={saving[setting.key] || !typed[setting.key]?.trim()}>{t('settings.claudeConfigApply')}</button>
-              </form>
-            {:else if setting.values.length <= 4}
-              <div class="choices" role="group" aria-label={setting.key}>
-                {#each setting.values as value (value)}
-                  <button aria-pressed={chosen === value} disabled={saving[setting.key]} onclick={() => set(setting.key, value)}>{value}</button>
-                {/each}
-              </div>
-            {:else}
-              <select class="field" aria-label={setting.key} value={chosen ?? ''} disabled={saving[setting.key]} onchange={(e) => set(setting.key, e.currentTarget.value)}>
-                <option value="" disabled>{t('settings.claudeConfigPick')}</option>
-                {#each setting.values as value (value)}<option {value}>{value}</option>{/each}
-              </select>
-            {/if}
-          </div>
-        {/each}
-      </div>
-    {/if}
+  {#each sections as section (section.title)}
+    <h3>{t(section.title)}</h3>
+    <div class="options">
+      {#each section.settings as setting (setting.key)}
+        {@const chosen = claudeConfig.chosen[setting.key]}
+        <div class="option">
+          <span class="label">
+            <strong>{labelOf(setting.key) || setting.key}</strong>
+            {#if errors[setting.key]}<small class="bad" role="alert">{errors[setting.key]}</small>{:else}<small><code>{setting.key}</code></small>{/if}
+          </span>
+          {#if !setting.values.length}
+            <input
+              class="field"
+              aria-label={labelOf(setting.key) || setting.key}
+              placeholder={t('settings.claudeLanguageDefault')}
+              value={chosen ?? ''}
+              disabled={saving[setting.key]}
+              onchange={(e) => set(setting.key, e.currentTarget.value)}
+            />
+          {:else if boolean(setting) && chosen !== undefined}
+            <input
+              type="checkbox"
+              class="switch"
+              aria-label={labelOf(setting.key) || setting.key}
+              checked={chosen === 'true'}
+              disabled={saving[setting.key]}
+              onchange={(e) => set(setting.key, String(e.currentTarget.checked))}
+            />
+          {:else}
+            <Select label={labelOf(setting.key) || setting.key} value={chosen ?? ''} options={options(setting)} onpick={(value) => set(setting.key, value)} />
+          {/if}
+        </div>
+      {/each}
+    </div>
   {/each}
+
+  <div class="elsewhere">
+    <div>
+      <span>{t('settings.claudeElsewhereDefaults')}</span>
+      <button class="btn btn-ghost" onclick={() => ((ui.settingsProject = '*'), (ui.settings = 'projects'))}>{t('settings.claudeElsewhereDefaultsGo')}</button>
+    </div>
+    <div>
+      <span>{t('settings.claudeElsewherePhone')}</span>
+      <button class="btn btn-ghost" onclick={() => (ui.settings = 'notifications')}>{t('settings.tabNotifications')}</button>
+    </div>
+  </div>
 </section>
 
 <style>
-  .config {
+  .claude {
     display: flex;
     flex-direction: column;
     gap: 10px;
   }
 
-  h2 {
-    margin: 12px 0 0;
-    font-size: 13.5px;
-    font-weight: 600;
-  }
-
   h3 {
-    margin: 14px 0 4px;
+    margin: 6px 0 -2px;
     font-size: 11px;
     font-weight: 700;
     letter-spacing: 0.08em;
@@ -115,84 +172,143 @@
     color: var(--err-text);
   }
 
-  .terminal .setting {
-    opacity: 0.55;
+  .options {
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
   }
 
-  .setting {
+  .option {
     display: flex;
     align-items: center;
-    gap: 16px;
-    padding: 10px 0;
-    border-bottom: 1px solid var(--border);
+    gap: 14px;
+    min-height: 52px;
+    padding: 8px 14px;
   }
 
-  .name {
+  .option + .option {
+    border-top: 1px solid var(--border);
+  }
+
+  .option.sub {
+    min-height: 44px;
+    padding-left: 40px;
+  }
+
+  .label {
     flex: 1;
     min-width: 0;
     display: flex;
     flex-direction: column;
-    gap: 2px;
+    gap: 1px;
   }
 
-  .name code {
-    font: 12px var(--mono);
-    color: var(--text-dim);
-  }
-
-  .name span {
+  .option strong {
     font-size: 13px;
+    font-weight: 600;
   }
 
-  .name small {
+  .option small {
+    color: var(--text-dim);
     font-size: 12px;
-    color: var(--ok);
   }
 
-  .name small.bad {
+  .option small.bad {
     color: var(--err-text);
   }
 
-  .choices {
-    flex: none;
-    display: flex;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
+  .option code {
+    font: 11.5px var(--mono);
+    color: var(--text-faint);
   }
 
-  .choices button {
-    height: 30px;
-    padding: 0 12px;
+  .good {
     font: 12px var(--mono);
-    color: var(--text-muted);
+    color: var(--ok-text);
   }
 
-  .choices button[aria-pressed='true'] {
-    border-radius: 4px;
-    background: var(--surface-3);
-    box-shadow: inset 0 0 0 2px var(--text);
-    color: var(--text-strong);
-  }
-
-  select.field {
+  .option .field,
+  .option :global(.select) {
     flex: none;
-    width: 220px;
+    width: 260px;
+  }
+
+  .option .field {
     height: 32px;
-    font: 12px var(--mono);
+    padding: 0 10px;
+    font-size: 12.5px;
   }
 
-  .free {
+  .option .field.mono {
+    font-family: var(--mono);
+  }
+
+  .option .btn,
+  .elsewhere .btn {
     flex: none;
+    height: 32px;
+  }
+
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface-5);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .switch::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s;
+  }
+
+  .switch:checked {
+    background: var(--accent);
+  }
+
+  .switch:checked::before {
+    transform: translateX(14px);
+    background: var(--ink);
+  }
+
+  .switch:disabled {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .switch:focus-visible {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: 2px;
+  }
+
+  .elsewhere {
     display: flex;
-    gap: 8px;
+    flex-direction: column;
+    gap: 6px;
+    margin-top: 4px;
+    font-size: 12.5px;
+    color: var(--text-dim);
   }
 
-  .free .field {
-    width: 180px;
-    height: 32px;
+  .elsewhere div {
+    display: flex;
+    align-items: center;
+    gap: 10px;
   }
 
-  .free .btn {
-    height: 32px;
+  .elsewhere span {
+    flex: 1;
   }
 </style>

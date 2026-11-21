@@ -27,7 +27,6 @@ export const claudeConfig = $state({
   settings: null as Setting[] | null,
   loading: false,
   failed: '',
-  query: '',
   chosen: {} as Record<string, string>,
 })
 
@@ -48,6 +47,10 @@ export async function loadSettings() {
   } finally {
     claudeConfig.loading = false
   }
+}
+
+export async function loadValues() {
+  Object.assign(claudeConfig.chosen, await invoke<Record<string, string>>('claude_values'))
 }
 
 export async function applySetting(key: string, value: string) {

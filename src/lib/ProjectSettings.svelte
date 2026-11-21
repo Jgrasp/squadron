@@ -17,7 +17,7 @@
     untrack(() => {
       const asked = ui.settingsProject
       ui.settingsProject = ''
-      return asked || projects.current
+      return asked === '*' ? '' : asked || projects.current
     }),
   )
 
