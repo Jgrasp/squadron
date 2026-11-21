@@ -1,5 +1,50 @@
 # Changelog
 
+## 0.57.0 · 2026-11-21
+
+### Browser
+
+- Agents get a built-in browser, in alpha and on Linux for now: an agent's Browser button opens its tabs in a panel, where you browse as in any browser and answer the page's dialogs.
+- With the pen, click an element or circle an area of the page and write a comment for each note, then Add to the message: the agent gets your numbered notes with each element's details and an annotated screenshot, and the conversation shows your comments with the details folded under them.
+- Agents open, read and use their tabs with tools that spend few tokens: they fill forms, click, upload files, read the page and take screenshots, without ever seeing a password. The setting "Agents can use the built-in browser" turns it off.
+
+### Pull requests
+
+- Pull requests are grouped by who must act, every one that can be merged shows Merge, and the Reviews tab is always there.
+- A pull request can be ignored, for good or until it gets new commits.
+- A review opens in the pull requests panel, widened to 1120px, with a back arrow to the list. Threads sit in a foldable column beside the diff, and a draft comment shows as Markdown and can be edited in place.
+- Ctrl+Enter adds a line or pull request comment to the review; posting it at once or sending it to an agent is in a menu. The review bar keeps Ask an agent, Discard and Finish review, where you choose Approve or Request changes.
+- Merging uses the merge method set in Settings, and the forge deletes the remote branch or not according to its own settings.
+- An agent's pushed branch without a pull request gets an Open a pull request button, with a title and description Haiku drafts from the commits.
+- A project can have an agent review each pull request you are asked to review, and its new commits. Off by default, in Settings › Projects.
+- The agent that fixes a review of your pull request pushes its commits to it, never by force, and rebases when the branch has moved.
+- An agent that only waits for its pull request to be merged shows as waiting for you, and Squadron checks that pull request every 20 seconds. Its project shows the waiting ring and counts in the Overview.
+- GitLab merge requests and Azure DevOps pull requests and pipelines now come from the GitLab and Azure DevOps extensions, to install from Discover: every forge is now an extension.
+
+### Projects
+
+- Settings › Projects shows a project on one page. Its All projects entry holds the defaults of new agents, the advisor included, saves at once and lists the projects that set their own values.
+- Removing a project takes it out of Squadron instead of archiving it, and offers to delete its agents, archived ones included. Settings no longer has an Archived agents screen, and projects archived before are back in the list.
+
+### Agents
+
+- Questions and permission requests of an agent under remote control reach claude.ai, where you can answer them.
+- The first message of a new agent gets the focus once Haiku has filled it, not while it is writing.
+
+### Extensions
+
+- Extension API 1.13.0: merge takes a method and whether to delete the branch, and a pull request tells its allowed merge methods, branch deletion and protection.
+- Extension API 1.14.0: a forge can open a pull request with the create call.
+- An account field or secret that links to a page shows an Open button, in a block with its values to copy.
+
+### Fixes
+
+- A markdown block preview and a file opened in its own window grow with the window instead of stopping at 520px.
+- An agent stopped while asking a question no longer shows as waiting for an answer after Squadron restarts.
+- A reply streamed without its message id, as with Remote Control, shows once instead of twice.
+- Closing Squadron while minimized on Windows no longer reopens it off screen.
+- Squadron no longer stays maximized when its saved window size is larger than the screen.
+
 ## 0.56.0 · 2026-11-20
 
 ### Extensions
