@@ -706,6 +706,11 @@ fn claude_flags() -> std::collections::BTreeMap<String, bool> {
 }
 
 #[tauri::command]
+fn claude_values() -> std::collections::BTreeMap<String, String> {
+    claude_flags::read_values()
+}
+
+#[tauri::command]
 fn set_claude_flag(key: String, value: bool) -> Result<(), String> {
     claude_flags::write_flag(&key, value)
 }
@@ -716,9 +721,16 @@ async fn claude_config(
     settings: State<'_, Settings>,
     setting: String,
 ) -> Result<String, String> {
+    static WRITING: std::sync::Mutex<()> = std::sync::Mutex::new(());
+    if let Some(style) = setting.strip_prefix("outputStyle=") {
+        let _lock = WRITING.lock().unwrap_or_else(|e| e.into_inner());
+        claude_flags::write_setting("outputStyle", style.into())?;
+        return Ok(format!("Set Output style to {style}"));
+    }
     let program = settings.claude();
     let dir = scratch(&app)?;
     let output = tauri::async_runtime::spawn_blocking(move || {
+        let _lock = WRITING.lock().unwrap_or_else(|e| e.into_inner());
         process::command(program)
             .current_dir(dir)
             .args([
@@ -2978,6 +2990,7 @@ pub fn run() {
             stop_task,
             mcp_request,
             claude_config,
+            claude_values,
             claude_flags,
             set_claude_flag,
             cancel_permissions,

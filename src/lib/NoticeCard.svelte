@@ -62,7 +62,7 @@
       </div>
       <input class="search" type="search" placeholder={t(config ? 'settings.claudeConfigSearch' : 'conversation.mcpSearch')} aria-label={t(config ? 'settings.claudeConfigSearch' : 'conversation.mcpSearch')} bind:value={query} />
       {#if config}
-        <button class="link" onclick={() => ((claudeConfig.query = query), (ui.settings = 'claude'))}>{t('agent.configWindow')} ›</button>
+        <button class="link" onclick={() => (ui.settings = 'claude')}>{t('agent.configWindow')} ›</button>
       {:else}
         <button class="link" onclick={() => mcpStatus(id)}>{t('conversation.mcpRefresh')}</button>
       {/if}

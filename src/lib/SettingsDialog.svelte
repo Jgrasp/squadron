@@ -1,13 +1,11 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { open } from '@tauri-apps/plugin-dialog'
   import Dialog from './Dialog.svelte'
   import AboutSquadron from './AboutSquadron.svelte'
   import Changelog from './Changelog.svelte'
   import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
-  import { account } from './catalogs.svelte'
   import ProjectSettings from './ProjectSettings.svelte'
   import { reset } from './layout-slots.svelte'
   import PanelSettings from './PanelSettings.svelte'
@@ -179,7 +177,6 @@
       conflict = ''
     }
   }
-  let version = $state('')
   let error = $state('')
   let saved = $state(false)
 
@@ -199,20 +196,6 @@
     }
   }
 
-  async function check() {
-    version = ''
-    error = ''
-    try {
-      version = await invoke<string>('claude_version', { path: claude })
-    } catch (e) {
-      error = errorText(e) || t('settings.claudeNoAnswer')
-    }
-  }
-
-  async function browse() {
-    const chosen = await open({ directory: false })
-    if (typeof chosen === 'string') claude = chosen
-  }
 </script>
 
 <svelte:window onkeydowncapture={record} />
@@ -448,20 +431,7 @@
         {#each LANGUAGES as [id, name] (id)}<option value={id}>{name}</option>{/each}
       </select>
     {:else}
-      <p class="intro">{t('settings.claudeIntro')}</p>
-      <label for="claude-path">{t('settings.executable')}</label>
-      <div class="row">
-        <input id="claude-path" class="field mono" bind:value={claude} spellcheck="false" />
-        <button class="btn btn-secondary" onclick={browse}>{t('common.browse')}</button>
-        <button class="btn btn-secondary" onclick={check}>{t('settings.check')}</button>
-      </div>
-      {#if version}<p class="good">{version}</p>{/if}
-      {#if account.value}
-        <p class="intro">
-          {t('settings.signedInAs', { account: [account.value.email, account.value.organization, account.value.subscriptionType].filter(Boolean).join(' · ') })}
-        </p>
-      {/if}
-      <ClaudeSettings />
+      <ClaudeSettings bind:path={claude} />
     {/if}
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
