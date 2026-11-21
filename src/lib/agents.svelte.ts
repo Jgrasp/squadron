@@ -1115,11 +1115,15 @@ export async function archive(id: string, extra: Record<string, unknown> = {}) {
 
 export async function retire(project: Project) {
   const count = ofProject(project.path).length
+  const all = count + (await archived()).filter((a) => a.project === project.path).length
+  let purge = false
+  const check = all ? { label: t('shell.removeProjectForget'), hint: t('shell.removeProjectForgetHint', { count: all }), onchange: (on: boolean) => (purge = on) } : undefined
   const sure = await ask(
     count ? t('shell.removeProjectAskAgents', { name: project.name, count }) : t('shell.removeProjectAsk', { name: project.name }),
-    { title: t('shell.removeProject'), kind: 'warning', danger: true, okLabel: t('common.remove'), cancelLabel: t('common.cancel') },
+    { title: t('shell.removeProject'), kind: 'warning', danger: true, okLabel: t('common.remove'), cancelLabel: t('common.cancel'), check },
   )
   if (!sure) return
   await Promise.all(ofProject(project.path).map((a) => archive(a.id)))
+  if (purge) await Promise.all((await archived()).filter((a) => a.project === project.path).map((a) => forget(a.id)))
   await drop(project.path)
 }

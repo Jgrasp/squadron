@@ -108,6 +108,11 @@ export default {
     one: 'Remove {name} from Squadron? The folder is left untouched. Its {count} agent will be stopped.',
     other: 'Remove {name} from Squadron? The folder is left untouched. Its {count} agents will be stopped.',
   },
+  removeProjectForget: 'Also delete its agents',
+  removeProjectForgetHint: {
+    one: '{count} agent, archived ones included. Squadron forgets it; Claude Code keeps its session in its own history.',
+    other: '{count} agents, archived ones included. Squadron forgets them; Claude Code keeps their sessions in its own history.',
+  },
   removeProject: 'Remove project',
   removeProjectEllipsis: 'Remove project…',
   resizeAgentList: 'Resize the agent list',

@@ -10,7 +10,6 @@
   import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
-  import ArchivedAgents from './ArchivedAgents.svelte'
   import { account } from './catalogs.svelte'
   import ProjectSettings from './ProjectSettings.svelte'
   import { reset } from './layout-slots.svelte'
@@ -44,10 +43,7 @@
   const groups: [Key, [Tab, Key][]][] = [
     [
       'settings.projects',
-      [
-        ['projects', 'settings.projects'],
-        ['archived', 'settings.tabArchived'],
-      ],
+      [['projects', 'settings.projects']],
     ],
     [
       'settings.agents',
@@ -268,8 +264,6 @@
   <div class="body" class:flush={tab === 'projects'} class:page={tab.startsWith('ext:')}>
     {#if tab === 'projects'}
       <ProjectSettings />
-    {:else if tab === 'archived'}
-      <ArchivedAgents />
     {:else if tab === 'changelog'}
       <Changelog />
     {:else if tab === 'about'}
@@ -498,7 +492,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['rules', 'layout', 'panels', 'discover', 'projects', 'archived', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
+  {#if !['rules', 'layout', 'panels', 'discover', 'projects', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
