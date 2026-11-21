@@ -6,6 +6,7 @@
   import ProjectAgents from './ProjectAgents.svelte'
   import ProjectGeneral from './ProjectGeneral.svelte'
   import ProjectReview from './ProjectReview.svelte'
+  import ProjectRules from './ProjectRules.svelte'
   import ProjectRuns from './ProjectRuns.svelte'
   import { home, ordered, orderProjects, projects } from './projects.svelte'
   import { saveSettings, settings } from './settings.svelte'
@@ -98,6 +99,7 @@
           {#if error}<p class="bad" role="alert">{error}</p>{/if}
           <ProjectGeneral {project} {act} />
           <ProjectAgents {project} {act} {pick} />
+          <ProjectRules {project} {act} />
           <ProjectRuns {project} {act} />
           {#if project.git}<ProjectReview {project} {act} />{/if}
           <section>

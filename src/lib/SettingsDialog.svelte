@@ -2,8 +2,6 @@
   import { invoke } from '@tauri-apps/api/core'
   import { open } from '@tauri-apps/plugin-dialog'
   import Dialog from './Dialog.svelte'
-  import { home, projects, removeRule } from './projects.svelte'
-  import { ruleLabel } from './rules'
   import AboutSquadron from './AboutSquadron.svelte'
   import Changelog from './Changelog.svelte'
   import ClaudeSettings from './ClaudeSettings.svelte'
@@ -43,12 +41,6 @@
     [
       'settings.projects',
       [['projects', 'settings.projects']],
-    ],
-    [
-      'settings.agents',
-      [
-        ['rules', 'settings.tabRules'],
-      ],
     ],
     [
       'settings.groupTools',
@@ -191,8 +183,6 @@
   let error = $state('')
   let saved = $state(false)
 
-  const withRules = $derived(projects.list.filter((p) => p.rules.length))
-
   const form = $derived({ claude, tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, browser, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
@@ -268,24 +258,6 @@
       <AboutSquadron />
     {:else if tab === 'hosting'}
       <CodeHosting />
-    {:else if tab === 'rules'}
-      <p class="intro">{t('settings.rulesIntro')}</p>
-      {#each withRules as project (project.path)}
-        <section>
-          <h2>{project.name} <span>{home(project.path)}</span></h2>
-          <ul>
-            {#each project.rules as rule (rule)}
-              <li>
-                <code>{ruleLabel(rule)}</code>
-                <span class="tool">{rule.startsWith('Bash(') ? 'Bash' : rule.split('(')[0]}</span>
-                <button class="remove" onclick={() => removeRule(project.path, rule)}>{t('common.remove')}</button>
-              </li>
-            {/each}
-          </ul>
-        </section>
-      {:else}
-        <p class="empty">{t('settings.rulesEmpty')}</p>
-      {/each}
     {:else if tab === 'editors'}
       <p class="intro">
         <Trans k="settings.editorsIntro">{#snippet project()}<code>{'{project}'}</code>{/snippet}{#snippet file()}<code>{'{file}'}</code>{/snippet}</Trans>
@@ -494,7 +466,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['rules', 'layout', 'panels', 'discover', 'projects', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
+  {#if !['layout', 'panels', 'discover', 'projects', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
@@ -731,18 +703,6 @@
     padding: 8px 10px;
     border-radius: 4px;
     background: var(--surface-1);
-  }
-
-  li code {
-    flex: 1;
-    min-width: 0;
-    overflow-wrap: anywhere;
-    font-size: 12.5px;
-  }
-
-  .tool {
-    font-size: 12px;
-    color: var(--text-dim);
   }
 
   .remove {
