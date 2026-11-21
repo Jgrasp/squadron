@@ -4,7 +4,7 @@ import { defaultsFor, projects } from './projects.svelte'
 import { layout, requestPanel, setPanel } from './layout.svelte'
 import { settings, type MergeMethod } from './settings.svelte'
 import { ask } from './asking.svelte'
-import { prompt, workdir, type Agent, type Comment } from './stream'
+import { calls, prompt, workdir, type Agent, type Comment } from './stream'
 import { pushedTo } from './pushed'
 import { byHead } from './rounds'
 import type { Linked } from './linked.svelte'
@@ -355,6 +355,14 @@ async function lookUpOwned(agent: Agent, force = false) {
 
 export const pullOf = (agent: Agent) => owned[agent.id] ?? pulls[workdir(agent)] ?? null
 
+export function pullWait(agent: Agent) {
+  const pull = pullOf(agent)
+  if (!agent.held || pull?.state !== 'open' || !agent.background.length || agent.subagents.some((s) => s.status === 'running')) return null
+  const commands = agent.background.map((b) => String(calls(agent).find((c) => c.id === b.toolUseId)?.input?.command ?? ''))
+  if (!commands.every((c) => /\bgh\s+pr\s+(checks|view)\b/.test(c))) return null
+  return { pull, merge: !commands.some((c) => /\bchecks\b|statusCheckRollup/.test(c)) }
+}
+
 export function pullToOpen(agent: Agent) {
   if (agent.review || pullOf(agent)) return null
   const ref = pushedTo(agent)
@@ -375,6 +383,14 @@ export function lookUpAgent(agent: Agent, force = false) {
 export const lookUpAll = (force = false) => {
   new Set(agents.list.map(workdir)).forEach((dir) => lookUp(dir, force))
   agents.list.forEach((agent) => lookUpOwned(agent, force))
+}
+
+let following = new Set<string>()
+
+export function followPullWaits() {
+  const waiting = new Set(agents.list.filter((agent) => pullWait(agent)).map((agent) => agent.id))
+  agents.list.filter((agent) => waiting.has(agent.id) || following.has(agent.id)).forEach((agent) => lookUpAgent(agent, true))
+  following = waiting
 }
 
 const tidied = new Set<string>()

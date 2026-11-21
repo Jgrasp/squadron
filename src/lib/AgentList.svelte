@@ -14,7 +14,7 @@
   import PersonaChip from './PersonaChip.svelte'
   import PullTag from './PullTag.svelte'
   import Icon from './Icon.svelte'
-  import { behind, lists, lookUpLists } from './pulls.svelte'
+  import { behind, lists, lookUpLists, pullWait } from './pulls.svelte'
   import BackgroundTip from './BackgroundTip.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, blank, created, type Agent } from './stream'
@@ -240,10 +240,12 @@
   const rows = $derived(tab === 'reviews' ? groups.flatMap(([, group]) => group) : shown)
 
   const blocked = (agent: Agent) => !!agent.attention && agent.status !== 'working' && agent.status !== 'error' && !agent.asks.length
-  const look = (agent: Agent) => (blocked(agent) ? 'waiting' : agent.status === 'working' && agent.held ? 'background' : agent.status)
+  const look = (agent: Agent) => (blocked(agent) || pullWait(agent)?.merge ? 'waiting' : agent.status === 'working' && agent.held ? 'background' : agent.status)
 
   function label(agent: Agent) {
     if (blocked(agent)) return t('shell.waitingForYou')
+    const wait = pullWait(agent)
+    if (wait) return t(wait.merge ? 'shell.mergeYourPull' : 'shell.pullChecksRunning', { number: String(wait.pull.number) })
     if (blank(agent)) return t('shell.readyForFirst')
     switch (agent.status) {
       case 'working':

@@ -15,7 +15,7 @@ import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
 import { deliver, take } from './shells.svelte'
 import { forget as unask } from './askpass.svelte'
-import { lookUpAgent } from './pulls.svelte'
+import { lookUpAgent, pullWait } from './pulls.svelte'
 import { errorText, t, type Key } from './i18n/index.svelte'
 import {
   apply,
@@ -125,7 +125,7 @@ export function branchOf(agent: Agent) {
     .catch(() => {})
 }
 
-export const calling = (a: Agent) => !!a.attention && !(a.status === 'error' && a.errorSeen)
+export const calling = (a: Agent) => (!!a.attention && !(a.status === 'error' && a.errorSeen)) || !!pullWait(a)?.merge
 
 export function waitingAgents() {
   return agents.list.filter(calling).sort((a, b) => a.since - b.since)

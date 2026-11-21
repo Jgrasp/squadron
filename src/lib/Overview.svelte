@@ -5,7 +5,7 @@
   import { home, projects } from './projects.svelte'
   import { showPulls } from './linked.svelte'
   import PullTag from './PullTag.svelte'
-  import { lists, needsYou } from './pulls.svelte'
+  import { lists, needsYou, pullWait } from './pulls.svelte'
   import StatusIcon from './StatusIcon.svelte'
   import { activity, blank, type Agent } from './stream'
   import { t } from './i18n/index.svelte'
@@ -15,7 +15,7 @@
 
   const order = { waiting: 0, error: 1, working: 2, interrupted: 3, done: 4 }
   const rank = (a: Agent) => (a.attention && a.status !== 'working' ? -1 : order[a.status])
-  const look = (a: Agent) => (a.attention && a.status !== 'working' && a.status !== 'error' ? 'waiting' : a.status)
+  const look = (a: Agent) => ((a.attention && a.status !== 'working' && a.status !== 'error') || pullWait(a)?.merge ? 'waiting' : a.status)
   const groups = $derived(
     projects.list
       .map((project) => ({
@@ -49,6 +49,8 @@
   function last(agent: Agent) {
     if (agent.status === 'waiting') return waitingDetail(agent)
     if (agent.attention) return agent.attention
+    const wait = pullWait(agent)
+    if (wait?.merge) return t('shell.mergeYourPull', { number: String(wait.pull.number) })
     if (agent.status === 'done' && agent.summary) return agent.summary
     return (agent.status === 'working' ? activity(agent) : agent.action) || agent.summary
   }

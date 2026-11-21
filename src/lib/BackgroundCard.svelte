@@ -3,10 +3,14 @@
   import { clock } from './agents.svelte'
   import { duration } from './format'
   import { t } from './i18n/index.svelte'
+  import Icon from './Icon.svelte'
+  import { pullWait } from './pulls.svelte'
   import { calls, type Agent } from './stream'
 
   let { agent, onterminal }: { agent: Agent; onterminal: (command: string) => void } = $props()
 
+  const wait = $derived(pullWait(agent))
+  const merge = $derived(wait?.merge ? wait.pull : null)
   const started = $derived(Math.min(...agent.background.map((b) => b.started)))
   const callOf = (id: string) => calls(agent).find((c) => c.id === id)
   const outputOf = (id: string) =>
@@ -15,16 +19,26 @@
       : /Output is being written to: (\S+?)\.?(\s|$)/.exec(callOf(id)?.result?.text ?? '')?.[1]
 </script>
 
-<section class="background" aria-label={t('conversation.inBackground')}>
+<section class="background" class:merge aria-label={t('conversation.inBackground')}>
   <div class="head">
-    <span class="icon" aria-hidden="true">
-      <svg class="slow" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="4 5" /></svg>
-    </span>
-    <span class="what">
-      <strong>{t('conversation.inBackground')}</strong>
-      <small>{t('conversation.resumesAlone')}</small>
-    </span>
-    <span class="mono">{duration(clock.now - started)}</span>
+    {#if merge}
+      <span class="icon" aria-hidden="true"><Icon name="pull" size={15} /></span>
+      <span class="what">
+        <strong>{t('conversation.pullMergeWait', { number: String(merge.number) })}</strong>
+        <small>{t('conversation.pullMergeResumes')}</small>
+      </span>
+      <span class="mono">{duration(clock.now - started)}</span>
+      <button class="btn open" onclick={() => invoke('open_link', { url: merge.url })}>{t('conversation.openPullPage')}</button>
+    {:else}
+      <span class="icon" aria-hidden="true">
+        <svg class="slow" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="4 5" /></svg>
+      </span>
+      <span class="what">
+        <strong>{t('conversation.inBackground')}</strong>
+        <small>{t('conversation.resumesAlone')}</small>
+      </span>
+      <span class="mono">{duration(clock.now - started)}</span>
+    {/if}
   </div>
   {#each agent.background as task (task.id)}
     {@const output = outputOf(task.toolUseId)}
@@ -49,6 +63,36 @@
     border-radius: 6px;
     background: var(--surface-1);
     box-shadow: inset 0 0 0 1px var(--background-line);
+  }
+
+  .merge {
+    background: var(--wait-bg);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+  }
+
+  .merge .icon {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .merge strong {
+    color: var(--wait-text);
+  }
+
+  .merge small,
+  .merge .mono {
+    color: var(--wait-muted);
+  }
+
+  .merge .task {
+    background: var(--wait-note);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--wait-border) 70%, transparent);
+  }
+
+  .open {
+    background: var(--accent);
+    color: var(--accent-ink);
+    font-weight: 700;
   }
 
   .head {
