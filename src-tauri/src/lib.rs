@@ -3130,6 +3130,10 @@ pub fn run() {
                 let _ = handle.emit("permission-request", ask);
             });
             let handle = app.handle().clone();
+            let gate = gate.on_withdraw(move |agent, id| {
+                let _ = handle.emit("permission-withdrawn", serde_json::json!({"agent": agent, "id": id}));
+            });
+            let handle = app.handle().clone();
             let pilot = Pilot::new(move |call| {
                 let _ = handle.emit_to("main", "pilot-request", call);
             });

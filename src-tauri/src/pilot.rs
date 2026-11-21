@@ -650,6 +650,7 @@ mod tests {
     ) -> Vec<Call> {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = Gate::new(move |ask| asks_tx.send(ask).unwrap());
+        let asking = gate.clone();
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
         let pilot = Pilot::new(move |call| calls_tx.send(call).unwrap());
         let port = serve_with_pilot(
@@ -695,8 +696,9 @@ mod tests {
         let config = mcp_config(port, "agent-7", true);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
-        let mut session = Session::start(
+        let mut session = Session::start_gated(
             cmd,
+            Some((asking, "agent-7".into())),
             move |line, event| {
                 if let Event::Result { .. } = event {
                     tx.send(line.to_string()).unwrap();

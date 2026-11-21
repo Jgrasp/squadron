@@ -577,6 +577,13 @@ listen<Ask>('permission-request', ({ payload: ask }) => {
   waitFor(agent)
 })
 
+listen<{ agent: string; id: string }>('permission-withdrawn', ({ payload }) => {
+  const agent = find(payload.agent)
+  if (!agent) return
+  agent.asks = agent.asks.filter((a) => a.id !== payload.id)
+  waitFor(agent)
+})
+
 export function toolLabel(name: string) {
   const mcp = /^mcp__(.+?)__(.+)$/.exec(name)
   return mcp ? `${mcp[1]} · ${mcp[2]}` : name
