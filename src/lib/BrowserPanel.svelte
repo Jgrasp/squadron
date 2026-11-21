@@ -45,7 +45,7 @@
     notes = []
   })
 
-  const COVERS = 'dialog[open], [role=menu], [role=dialog], [role=listbox], [role=alertdialog], [role=tooltip]'
+  const COVERS = 'dialog[open], [data-covers], [role=menu], [role=dialog], [role=listbox], [role=alertdialog], [role=tooltip]'
 
   function covered(b: DOMRect) {
     for (const e of document.querySelectorAll(COVERS)) {
