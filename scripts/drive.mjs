@@ -12,6 +12,8 @@ export const answer = (lines, id) =>
     .flatMap((line) => JSON.parse(line))
     .find((a) => a.id === id)
 
+export const since = (file, from) => readFileSync(file).subarray(from).toString()
+
 const wait = (ms) => new Promise((done) => setTimeout(done, ms))
 
 async function run(dir, code, timeout) {
@@ -20,7 +22,7 @@ async function run(dir, code, timeout) {
   const from = existsSync(file) ? statSync(file).size : 0
   writeFileSync(join(dir, 'run.js'), wrap(code, id))
   for (const start = Date.now(); Date.now() - start < timeout; await wait(100)) {
-    const found = existsSync(file) && answer(readFileSync(file, 'utf8').slice(from), id)
+    const found = existsSync(file) && answer(since(file, from), id)
     if (found) {
       console.log(found.error ? `error ${found.error}` : JSON.stringify(found.value))
       process.exit(found.error ? 1 : 0)
