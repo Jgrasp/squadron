@@ -24,7 +24,6 @@ export type World = { projects: Project[]; current?: Project; agents: Agent[]; s
 
 const TABS: [SettingsTab, Key][] = [
   ['projects', 'settings.projects'],
-  ['defaults', 'settings.tabDefaults'],
   ['rules', 'settings.tabRules'],
   ['claude', 'settings.tabClaude'],
   ['editors', 'settings.tabEditors'],
