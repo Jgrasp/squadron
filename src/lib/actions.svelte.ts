@@ -11,7 +11,6 @@ import { saveSettings, settings } from './settings.svelte'
 
 export type SettingsTab =
   | 'projects'
-  | 'archived'
   | 'mcp'
   | 'defaults'
   | 'rules'

@@ -112,6 +112,11 @@ export default {
     one: 'Retirer {name} de Squadron ? Le dossier reste intact. Son agent sera arrêté.',
     other: 'Retirer {name} de Squadron ? Le dossier reste intact. Ses {count} agents seront arrêtés.',
   },
+  removeProjectForget: 'Supprimer aussi ses agents',
+  removeProjectForgetHint: {
+    one: '{count} agent, archivés compris. Squadron l’oublie ; Claude Code garde sa session dans son propre historique.',
+    other: '{count} agents, archivés compris. Squadron les oublie ; Claude Code garde leurs sessions dans son propre historique.',
+  },
   removeProject: 'Retirer le projet',
   removeProjectEllipsis: 'Retirer le projet…',
   resizeAgentList: 'Redimensionner la liste des agents',
