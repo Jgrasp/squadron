@@ -345,6 +345,7 @@ mod tests {
         use serde_json::json;
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel();
         let gate = Gate::new(move |ask| asks_tx.send(ask).unwrap());
+        let asking = gate.clone();
         let (calls_tx, mut calls_rx) = tokio::sync::mpsc::unbounded_channel::<Call>();
         let tools = Tools::new(move |call| calls_tx.send(call).unwrap());
         let pilot = crate::pilot::Pilot::new(|_| {});
@@ -384,8 +385,9 @@ mod tests {
         let config = mcp_config(port, "agent-3", false);
         let cmd = claude::command("claude", &dir, &options, None, false, None, Some(&config));
         let (tx, rx) = std::sync::mpsc::channel();
-        let mut session = Session::start(
+        let mut session = Session::start_gated(
             cmd,
+            Some((asking, "agent-3".into())),
             move |line, event| {
                 if let Event::Result { .. } = event {
                     tx.send(line.to_string()).unwrap();

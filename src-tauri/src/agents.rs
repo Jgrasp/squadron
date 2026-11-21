@@ -515,8 +515,10 @@ fn spawn(
     let (lines_run, exit_run) = (agent.run.clone(), agent.run.clone());
     let session_id = agent.session_id.clone();
     let project = agent.project.clone();
-    let session = Session::start(
+    let gate = app.state::<crate::permissions::Gate>().inner().clone();
+    let session = Session::start_gated(
         cmd,
+        Some((gate, id.to_string())),
         move |line, event| {
             if lines_run.load(Ordering::SeqCst) != run {
                 return;

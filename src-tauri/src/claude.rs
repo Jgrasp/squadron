@@ -101,6 +101,16 @@ pub enum Event {
         total_cost_usd: f64,
         session_id: String,
     },
+    ControlRequest {
+        #[serde(default)]
+        request_id: String,
+        #[serde(default)]
+        request: Value,
+    },
+    ControlCancelRequest {
+        #[serde(default)]
+        request_id: String,
+    },
     #[serde(other)]
     Other,
 }
@@ -218,19 +228,22 @@ pub fn command(
         cmd.arg("--plugin-dir").arg(plugin);
     }
     if let Some(config) = mcp {
-        cmd.args([
-            "--mcp-config",
-            config,
-            "--permission-prompt-tool",
-            crate::permissions::TOOL,
-        ]);
+        cmd.args(["--mcp-config", config, "--permission-prompt-tool", "stdio"]);
     }
     cmd
 }
 
+type Stdin = Arc<Mutex<ChildStdin>>;
+
+fn write_line(stdin: &Stdin, message: &Value) -> io::Result<()> {
+    let mut stdin = stdin.lock().unwrap();
+    writeln!(stdin, "{message}")?;
+    stdin.flush()
+}
+
 pub struct Session {
     pid: u32,
-    stdin: ChildStdin,
+    stdin: Stdin,
     alive: Arc<AtomicBool>,
     busy: Arc<AtomicBool>,
     sent: Arc<Mutex<Vec<(String, Value)>>>,
@@ -238,7 +251,17 @@ pub struct Session {
 
 impl Session {
     pub fn start(
+        cmd: Command,
+        on_event: impl FnMut(&str, Event) + Send + 'static,
+        on_exit: impl FnOnce(String) + Send + 'static,
+    ) -> io::Result<Self> {
+        Self::start_gated(cmd, None, on_event, on_exit)
+    }
+
+    /// Hands the permission requests of Claude Code to the gate, under the given agent.
+    pub fn start_gated(
         mut cmd: Command,
+        gate: Option<(crate::permissions::Gate, String)>,
         mut on_event: impl FnMut(&str, Event) + Send + 'static,
         on_exit: impl FnOnce(String) + Send + 'static,
     ) -> io::Result<Self> {
@@ -247,7 +270,8 @@ impl Session {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped())
             .spawn()?;
-        let stdin = child.stdin.take().expect("stdin is piped");
+        let stdin = Arc::new(Mutex::new(child.stdin.take().expect("stdin is piped")));
+        let replies = Arc::downgrade(&stdin);
         let stdout = child.stdout.take().expect("stdout is piped");
         let mut stderr = child.stderr.take().expect("stderr is piped");
         let errors = thread::spawn(move || {
@@ -278,6 +302,44 @@ impl Session {
                         }
                         if let Event::Result { .. } = event {
                             turn.store(false, Ordering::SeqCst);
+                        }
+                        if let Some((gate, agent)) = &gate {
+                            match &event {
+                                Event::ControlRequest {
+                                    request_id,
+                                    request,
+                                } if request["subtype"] == "can_use_tool" => {
+                                    let answer = gate.ask(agent, request_id, request.clone());
+                                    let (replies, request_id, tool_use_id) = (
+                                        replies.clone(),
+                                        request_id.clone(),
+                                        request["tool_use_id"].clone(),
+                                    );
+                                    thread::spawn(move || {
+                                        let mut decision =
+                                            answer.blocking_recv().unwrap_or_else(|_| {
+                                                crate::permissions::deny("Request cancelled.")
+                                            });
+                                        let Some(stdin) = replies.upgrade() else {
+                                            return;
+                                        };
+                                        if decision.is_null() {
+                                            return;
+                                        }
+                                        decision["toolUseID"] = tool_use_id;
+                                        let _ = write_line(
+                                            &stdin,
+                                            &json!({"type": "control_response", "response": {"subtype": "success", "request_id": request_id, "response": decision}}),
+                                        );
+                                    });
+                                    continue;
+                                }
+                                Event::ControlCancelRequest { request_id } => {
+                                    gate.withdraw(agent, request_id);
+                                    continue;
+                                }
+                                _ => {}
+                            }
                         }
                         if let Event::User {
                             replay: true,
@@ -338,10 +400,10 @@ impl Session {
             .lock()
             .unwrap()
             .push((uuid.clone(), content.clone()));
-        let message =
-            json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": content}});
-        writeln!(self.stdin, "{message}")?;
-        self.stdin.flush()?;
+        write_line(
+            &self.stdin,
+            &json!({"type": "user", "uuid": uuid, "message": {"role": "user", "content": content}}),
+        )?;
         self.busy.store(true, Ordering::SeqCst);
         Ok(uuid)
     }
@@ -352,12 +414,10 @@ impl Session {
     }
 
     pub fn request(&mut self, id: &str, request: Value) -> io::Result<()> {
-        writeln!(
-            self.stdin,
-            "{}",
-            json!({"type": "control_request", "request_id": id, "request": request})
-        )?;
-        self.stdin.flush()
+        write_line(
+            &self.stdin,
+            &json!({"type": "control_request", "request_id": id, "request": request}),
+        )
     }
 
     /// Claude Code ends the turn with an error then exits: continuing needs `--resume`.
@@ -513,6 +573,68 @@ mod tests {
         assert_eq!(
             rx.recv_timeout(Duration::from_millis(100)),
             Err(RecvTimeoutError::Disconnected)
+        );
+    }
+
+    fn gated(
+        script: &str,
+        answer: bool,
+    ) -> (Session, mpsc::Receiver<String>, mpsc::Receiver<String>) {
+        let (asks_tx, asks) = mpsc::channel();
+        let (withdrawn_tx, withdrawn) = mpsc::channel();
+        let gate = crate::permissions::Gate::new(move |ask| asks_tx.send(ask).unwrap())
+            .on_withdraw(move |_, id| withdrawn_tx.send(id.to_string()).unwrap());
+        let answering = gate.clone();
+        thread::spawn(move || {
+            for ask in asks.iter().filter(|_| answer) {
+                let ask: crate::permissions::Ask = ask;
+                let allow = json!({"behavior": "allow", "updatedInput": ask.input});
+                answering.answer(&ask.id, allow).unwrap();
+            }
+        });
+        let (tx, rx) = mpsc::channel();
+        let mut session = Session::start_gated(
+            fake_claude(script, ""),
+            Some((gate, "a1".into())),
+            move |line, _| tx.send(line.to_string()).unwrap(),
+            |_| {},
+        )
+        .unwrap();
+        session.send("hello").unwrap();
+        (session, rx, withdrawn)
+    }
+
+    const CAN_USE_TOOL: &str = r#"{"type":"control_request","request_id":"r1","request":{"subtype":"can_use_tool","tool_name":"Bash","input":{"command":"ls"},"tool_use_id":"t1"}}"#;
+
+    #[test]
+    fn answers_permission_requests_over_stdio() {
+        let (_session, lines, _) = gated(
+            &format!("read -r _ && echo '{CAN_USE_TOOL}' && read -r answer && echo \"$answer\""),
+            true,
+        );
+        let answer: Value =
+            serde_json::from_str(&lines.recv_timeout(Duration::from_secs(5)).unwrap()).unwrap();
+        assert_eq!(
+            answer,
+            json!({"type": "control_response", "response": {"subtype": "success", "request_id": "r1", "response": {"behavior": "allow", "updatedInput": {"command": "ls"}, "toolUseID": "t1"}}})
+        );
+    }
+
+    #[test]
+    fn withdraws_a_request_claude_cancelled() {
+        let (_session, lines, withdrawn) = gated(
+            &format!(
+                "read -r _ && echo '{CAN_USE_TOOL}' && echo '{{\"type\":\"control_cancel_request\",\"request_id\":\"r1\"}}' && echo '{{\"type\":\"end\"}}'"
+            ),
+            false,
+        );
+        assert_eq!(
+            lines.recv_timeout(Duration::from_secs(5)).unwrap(),
+            r#"{"type":"end"}"#
+        );
+        assert_eq!(
+            withdrawn.recv_timeout(Duration::from_secs(5)),
+            Ok("a1:r1".into())
         );
     }
 

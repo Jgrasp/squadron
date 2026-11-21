@@ -14,8 +14,6 @@ use tokio::sync::oneshot;
 
 use crate::keys::{KEYS, Route, guarded};
 
-pub const TOOL: &str = "mcp__squadron__permission";
-
 #[derive(Clone, Debug, Serialize)]
 pub struct Ask {
     pub id: String,
@@ -37,11 +35,14 @@ struct Request {
 
 type Pending = Arc<Mutex<HashMap<String, (String, oneshot::Sender<Value>)>>>;
 
+type Withdrawn = Arc<dyn Fn(&str, &str) + Send + Sync>;
+
 #[derive(Clone)]
 pub struct Gate {
     pending: Pending,
     next: Arc<AtomicU64>,
     notify: Arc<dyn Fn(Ask) + Send + Sync>,
+    withdrawn: Withdrawn,
     tool_router: ToolRouter<Self>,
 }
 
@@ -52,8 +53,56 @@ impl Gate {
             pending: Default::default(),
             next: Default::default(),
             notify: Arc::new(notify),
+            withdrawn: Arc::new(|_, _| {}),
             tool_router: Self::tool_router(),
         }
+    }
+
+    pub fn on_withdraw(mut self, withdrawn: impl Fn(&str, &str) + Send + Sync + 'static) -> Self {
+        self.withdrawn = Arc::new(withdrawn);
+        self
+    }
+
+    fn open(&self, id: String, agent: String, request: Request) -> oneshot::Receiver<Value> {
+        let (tx, rx) = oneshot::channel();
+        self.pending
+            .lock()
+            .unwrap()
+            .insert(id.clone(), (agent.clone(), tx));
+        (self.notify)(Ask {
+            id,
+            agent,
+            tool_name: request.tool_name,
+            input: request.input,
+            tool_use_id: request.tool_use_id,
+            extra: request.extra,
+        });
+        rx
+    }
+
+    /// A `can_use_tool` request of Claude Code; the answer is `Null` when Claude Code withdrew it.
+    pub fn ask(&self, agent: &str, request_id: &str, request: Value) -> oneshot::Receiver<Value> {
+        let id = format!("{agent}:{request_id}");
+        match serde_json::from_value::<Request>(request) {
+            Ok(mut request) => {
+                request.extra.remove("subtype");
+                self.open(id, agent.into(), request)
+            }
+            Err(e) => {
+                let (tx, rx) = oneshot::channel();
+                let _ = tx.send(deny(&format!("Unreadable permission request: {e}")));
+                rx
+            }
+        }
+    }
+
+    pub fn withdraw(&self, agent: &str, request_id: &str) {
+        let id = format!("{agent}:{request_id}");
+        let Some((_, tx)) = self.pending.lock().unwrap().remove(&id) else {
+            return;
+        };
+        let _ = tx.send(Value::Null);
+        (self.withdrawn)(agent, &id);
     }
 
     /// Asks the Squadron user whether a tool may run.
@@ -70,20 +119,8 @@ impl Gate {
             .unwrap_or_default()
             .to_string();
         let id = self.next.fetch_add(1, Ordering::SeqCst).to_string();
-        let (tx, rx) = oneshot::channel();
-        self.pending
-            .lock()
-            .unwrap()
-            .insert(id.clone(), (agent.clone(), tx));
-        (self.notify)(Ask {
-            id,
-            agent,
-            tool_name: request.tool_name,
-            input: request.input,
-            tool_use_id: request.tool_use_id,
-            extra: request.extra,
-        });
-        rx.await
+        self.open(id, agent, request)
+            .await
             .unwrap_or_else(|_| deny("Request cancelled."))
             .to_string()
     }
@@ -173,7 +210,7 @@ pub async fn serve_with_pilot(
     .await
 }
 
-fn deny(message: &str) -> Value {
+pub fn deny(message: &str) -> Value {
     json!({"behavior": "deny", "message": message})
 }
 
@@ -229,7 +266,7 @@ mod tests {
         let (asks_tx, mut asks_rx) = tokio::sync::mpsc::unbounded_channel::<Ask>();
         let gate = Gate::new(move |ask| asks_tx.send(ask).unwrap());
         let port = gate.clone().serve().await.unwrap();
-        let answering = gate.clone();
+        let (answering, asking) = (gate.clone(), gate.clone());
         tokio::spawn(async move {
             while let Some(ask) = asks_rx.recv().await {
                 println!(
@@ -258,8 +295,9 @@ mod tests {
         let (tx, rx) = std::sync::mpsc::channel();
         let record =
             std::sync::Mutex::new(std::fs::File::create(dir.join("stream.jsonl")).unwrap());
-        let mut session = Session::start(
+        let mut session = Session::start_gated(
             cmd,
+            Some((asking, "agent-1".into())),
             move |line, event| {
                 use std::io::Write;
                 writeln!(record.lock().unwrap(), "{line}").unwrap();
