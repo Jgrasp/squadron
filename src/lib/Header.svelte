@@ -2,7 +2,7 @@
   import { getCurrentWindow } from '@tauri-apps/api/window'
   import { flip } from 'svelte/animate'
   import { calling, clock, ofProject, retire, unread, waiting, waitingAgents } from './agents.svelte'
-  import { needsYou } from './pulls.svelte'
+  import { needsYou, pullWait } from './pulls.svelte'
   import { inBar, tabClosed } from './groups'
     import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
@@ -19,7 +19,7 @@
   let { onadd }: { onadd: () => void } = $props()
 
   const glow = (busy: boolean) => (busy ? `effect-${settings.tab_effect}` : '')
-  const working = (path: string) => ofProject(path).some((a) => a.status === 'working')
+  const working = (path: string) => ofProject(path).some((a) => a.status === 'working' && !pullWait(a)?.merge)
   const failed = (path: string) => ofProject(path).filter((a) => a.status === 'error' && !a.errorSeen).length
 
   let heard = new Set<string>()
