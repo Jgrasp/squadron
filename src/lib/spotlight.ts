@@ -49,7 +49,7 @@ export const VERBS: Verb[] = [
   { id: 'terminal', words: ['term', 'terminal'], title: () => t('spotlight.terminal'), icon: 'terminal', scope: 'project', action: 'terminal', forProject: (p) => p.exists },
   { id: 'editor', words: ['edit', 'editor'], title: () => t('spotlight.editor'), icon: 'editor', scope: 'project', action: 'editor', forProject: (p) => p.exists },
   { id: 'archive', words: ['arc', 'archive'], title: () => t('spotlight.archive'), icon: 'archive', scope: 'agent' },
-  { id: 'archiveProject', words: ['arc', 'archive'], title: () => t('spotlight.archiveProject'), icon: 'archive', scope: 'project', onlyCurrent: true },
+  { id: 'removeProject', words: ['remove', 'delete'], title: () => t('spotlight.removeProject'), icon: 'trash', scope: 'project', onlyCurrent: true },
   { id: 'fork', words: ['fork'], title: () => t('spotlight.fork'), icon: 'branch', scope: 'agent', forAgent: (a) => !!a.sessionId },
   { id: 'interrupt', words: ['stop', 'interrupt'], title: () => t('spotlight.interrupt'), icon: 'stop', scope: 'agent', action: 'interrupt', forAgent: running },
   { id: 'pin', words: ['pin'], title: () => t('spotlight.pin'), icon: 'pin', scope: 'agent', forAgent: (a) => !a.pinned },

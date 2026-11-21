@@ -39,7 +39,7 @@ export default {
   terminal: 'Terminal',
   editor: 'Éditeur',
   archive: 'Archiver',
-  archiveProject: 'Archiver le projet',
+  removeProject: 'Retirer le projet',
   fork: 'Dupliquer',
   interrupt: 'Interrompre',
   pin: 'Épingler',

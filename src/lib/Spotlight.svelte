@@ -78,7 +78,7 @@
   let dialog: HTMLDialogElement
   let field: HTMLInputElement
 
-  const projectOf = (path: string) => [...projects.list, ...projects.archived].find((p) => p.path === path)
+  const projectOf = (path: string) => projects.list.find((p) => p.path === path)
 
   function snippet(text: string, at: number, length: number) {
     const from = Math.max(0, at - 50)
@@ -358,7 +358,7 @@
   function meta(row: Row): { tone: 'wait' | 'quiet' | 'dim'; text: string } | null {
     const path = row.project?.path
     if (!path) return null
-    if (row.verb.id === 'archiveProject') return { tone: 'quiet', text: t('spotlight.agentCount', { count: ofProject(path).length }) }
+    if (row.verb.id === 'removeProject') return { tone: 'quiet', text: t('spotlight.agentCount', { count: ofProject(path).length }) }
     if (focus?.kind === 'verb' && row.verb.id !== 'pulls') return ofProject(path).length ? { tone: 'quiet', text: t('spotlight.agentCount', { count: ofProject(path).length }) } : null
     if (row.verb.id !== 'pulls') return null
     const found = lists[path]

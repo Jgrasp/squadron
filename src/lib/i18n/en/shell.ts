@@ -25,7 +25,6 @@ export default {
   maximize: 'Maximize',
   actionsOf: '{name} actions',
   projectSettings: 'Project settings…',
-  archiveProjectEllipsis: 'Archive project…',
 
   deleteAgentAsk: 'Delete “{name}”? Its conversation leaves Squadron for good; it cannot be restored like an archived agent. Its artifacts are deleted too, and their shares stopped.',
   deleteAgentTitle: 'Delete agent',
@@ -110,6 +109,7 @@ export default {
     other: 'Remove {name} from Squadron? The folder is left untouched. Its {count} agents will be stopped.',
   },
   removeProject: 'Remove project',
+  removeProjectEllipsis: 'Remove project…',
   resizeAgentList: 'Resize the agent list',
   folderMissing: 'The {name} folder cannot be found',
   folderMissingText: 'It may have been moved, renamed, or it lives on an unmounted disk. Point to its new location to create agents in {name}.',
@@ -331,12 +331,6 @@ export default {
   startedAsking: 'Started, asking for each edit',
   forkName: '{name} (fork)',
   forkedFrom: 'Forked from {name}',
-  archiveProjectAsk: 'Archive {name}? Unarchive it from Settings › Projects to get everything back.',
-  archiveProjectAskAgents: {
-    one: 'Archive {name}? Its {count} agent stop and stay with it. Unarchive it from Settings › Projects to get everything back.',
-    other: 'Archive {name}? Its {count} agents stop and stay with it. Unarchive it from Settings › Projects to get everything back.',
-  },
-  archiveProject: 'Archive project',
 
   pilotStartOwn: 'in its own project',
   pilotStartUnnamed: 'Unnamed agent',

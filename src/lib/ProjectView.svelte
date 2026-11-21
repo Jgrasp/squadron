@@ -1,13 +1,12 @@
 <script lang="ts">
   import { untrack, type Snippet } from 'svelte'
   import { open } from '@tauri-apps/plugin-dialog'
-  import { ask } from './asking.svelte'
   import AgentList from './AgentList.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import AgentView from './AgentView.svelte'
   import { ui } from './actions.svelte'
   import { composing, drafts } from './drafts.svelte'
-  import { archiveProject, create, ensureLoaded, ofProject, onDisk, rehome, selected, waiting } from './agents.svelte'
+  import { create, ensureLoaded, onDisk, rehome, retire, selected, waiting } from './agents.svelte'
   import {
     bottomShare,
     sideSpan,
@@ -34,7 +33,7 @@
   import TerminalPanel from './TerminalPanel.svelte'
   import { hint, settings } from './settings.svelte'
   import NewAgent from './NewAgent.svelte'
-  import { load, move, projects, remove, toggleBoard, togglePulls, type Project } from './projects.svelte'
+  import { load, move, projects, toggleBoard, togglePulls, type Project } from './projects.svelte'
   import { errorText, t } from './i18n/index.svelte'
 
   let { project, overlay }: { project: Project; overlay?: Snippet } = $props()
@@ -74,17 +73,6 @@
       .then((result) => path === project.path && (changes = result))
       .catch(() => path === project.path && (changes = null))
   })
-
-  async function retire() {
-    const running = ofProject(project.path).length
-    const confirmed = await ask(
-      running ? t('shell.removeProjectAskAgents', { name: project.name, count: running }) : t('shell.removeProjectAsk', { name: project.name }),
-      { title: t('shell.removeProject'), kind: 'warning', okLabel: t('common.remove'), cancelLabel: t('common.cancel') },
-    )
-    if (!confirmed) return
-    await archiveProject(project.path)
-    await remove(project.path)
-  }
 
   async function relocate() {
     const chosen = await open({ directory: true })
@@ -166,7 +154,7 @@
         <div class="row">
           <button class="btn btn-primary" onclick={relocate}>{t('shell.chooseNewLocation')}</button>
           <button class="btn btn-danger" onclick={load}>{t('common.retry')}</button>
-          <button class="btn btn-danger" onclick={retire}>{t('shell.removeProject')}</button>
+          <button class="btn btn-danger" onclick={() => retire(project)}>{t('shell.removeProject')}</button>
         </div>
       </section>
     </main>

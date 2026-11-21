@@ -39,9 +39,9 @@ describe('spotlight actions', () => {
   })
 
   it('targets the current agent and project when none is named', () => {
-    expect(ids('arc')).toEqual(['archive:1', 'archiveProject:/p/squadron'])
-    expect(ids('arc', { shown: undefined })).toEqual(['archiveProject:/p/squadron'])
-    expect(ids('archive uh')).toEqual(['archive:2', 'archiveProject:/p/uh'])
+    expect(ids('arc')).toEqual(['archive:1'])
+    expect(ids('remove', { shown: undefined })).toEqual(['removeProject:/p/squadron'])
+    expect(ids('remove uh')).toEqual(['removeProject:/p/uh'])
   })
 
   it('finds an agent by its name', () => {
@@ -90,7 +90,7 @@ describe('spotlight chips', () => {
   it('lists the actions of a project, the named one first', () => {
     expect(keys(verbsOf(uh, 'pr'))).toEqual(['pulls:/p/uh'])
     expect(keys(verbsOf(uh, 'kan'))).toEqual(['board:/p/uh'])
-    expect(keys(verbsOf(gone, ''))).toEqual(['open:/p/gone', 'pulls:/p/gone', 'board:/p/gone', 'archiveProject:/p/gone'])
+    expect(keys(verbsOf(gone, ''))).toEqual(['open:/p/gone', 'pulls:/p/gone', 'board:/p/gone', 'removeProject:/p/gone'])
   })
 
   it('lists the projects of an action, the current one first, then by priority', () => {

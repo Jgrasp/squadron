@@ -1,31 +1,16 @@
 <script lang="ts">
   import { untrack } from 'svelte'
   import { ui } from './actions.svelte'
-  import { unshelve } from './agents.svelte'
-  import { ALWAYS } from './groups'
+  import { retire } from './agents.svelte'
   import ProjectAgents from './ProjectAgents.svelte'
   import ProjectGeneral from './ProjectGeneral.svelte'
   import ProjectReview from './ProjectReview.svelte'
   import ProjectRuns from './ProjectRuns.svelte'
   import { home, ordered, orderProjects, projects } from './projects.svelte'
-  import Select, { type Option } from './Select.svelte'
   import { saveSettings, settings } from './settings.svelte'
-  import { errorText, t, type Key } from './i18n/index.svelte'
-
-  type Section = 'general' | 'agents' | 'runs' | 'review'
-
-  const SECTIONS: [Section, Key][] = [
-    ['general', 'settings.projectGeneral'],
-    ['agents', 'settings.projectAgents'],
-    ['runs', 'settings.projectRuns'],
-    ['review', 'settings.projectReview'],
-  ]
-  const HOURS = [1, 4, 12, 24, ALWAYS, 0]
-  const STORE = 'squadron.project-section'
+  import { errorText, t } from './i18n/index.svelte'
 
   let error = $state('')
-  let archivedOpen = $state(false)
-  let section = $state<Section>(SECTIONS.find(([id]) => id === localStorage.getItem(STORE))?.[0] ?? 'general')
   let picked = $state(
     untrack(() => {
       const asked = ui.settingsProject
@@ -37,16 +22,7 @@
   const list = $derived(ordered())
   const project = $derived(list.find((p) => p.path === picked) ?? list[0])
   const index = $derived(list.findIndex((p) => p === project))
-  const sections = $derived(SECTIONS.filter(([id]) => id !== 'review' || project?.git))
-  const shown = $derived(sections.some(([id]) => id === section) ? section : 'general')
   const own = (path: string) => Object.keys(list.find((p) => p.path === path)?.defaults ?? {}).length
-
-  const orders = $derived<Option[]>([
-    { value: 'manual', label: t('settings.orderManual'), detail: t('settings.orderManualHint') },
-    { value: 'name', label: t('common.name'), detail: t('settings.orderNameHint') },
-    { value: 'activity', label: t('settings.orderActivity'), detail: t('settings.orderActivityHint') },
-  ])
-  const delays = $derived<Option[]>(HOURS.map((hours) => ({ value: String(hours), label: hours === ALWAYS ? t('settings.tabHoursAlways') : hours ? t('settings.tabHoursOption', { count: hours }) : t('settings.tabHoursPinned') })))
 
   async function act(work: () => Promise<unknown>) {
     error = ''
@@ -57,33 +33,21 @@
     }
   }
 
-  function open(next: Section) {
-    section = next
-    localStorage.setItem(STORE, next)
-  }
-
   const movable = (by: number) => list[index + by]?.pinned === list[index].pinned
 
   function shift(by: number) {
     const paths = list.map((p) => p.path)
     const [path] = paths.splice(index, 1)
     paths.splice(index + by, 0, path)
-    act(() => orderProjects(paths))
+    act(async () => {
+      if (settings.tab_order !== 'manual') await saveSettings({ ...$state.snapshot(settings), tab_order: 'manual' })
+      await orderProjects(paths)
+    })
   }
 </script>
 
 <div class="frame">
   <div class="list">
-    <div class="tabbar">
-      <div class="pair">
-        <span class="label">{t('settings.tabOrder')}</span>
-        <Select label={t('settings.tabOrder')} value={settings.tab_order} options={orders} onpick={(order) => act(() => saveSettings({ ...$state.snapshot(settings), tab_order: order as typeof settings.tab_order }))} />
-      </div>
-      <div class="pair">
-        <span class="label">{t('settings.tabHours')}</span>
-        <Select label={t('settings.tabHours')} value={String(settings.tab_hours)} options={delays} onpick={(hours) => act(() => saveSettings({ ...$state.snapshot(settings), tab_hours: Number(hours) }))} />
-      </div>
-    </div>
     <ul>
       {#each list as p (p.path)}
         <li style:--project={p.color}>
@@ -95,7 +59,7 @@
             </span>
             {#if own(p.path)}<span class="count" title={t('settings.projectOverrides', { count: own(p.path) })}>{own(p.path)}</span>{/if}
           </button>
-          {#if p === project && settings.tab_order === 'manual'}
+          {#if p === project}
             <span class="move">
               <button aria-label={t('settings.moveUp', { name: p.name })} disabled={!movable(-1)} onclick={() => shift(-1)}>↑</button>
               <button aria-label={t('settings.moveDown', { name: p.name })} disabled={!movable(1)} onclick={() => shift(1)}>↓</button>
@@ -106,23 +70,6 @@
     </ul>
     <div class="foot">
       <button class="btn btn-primary" onclick={() => (ui.adding = '')}>{t('settings.addProject')}</button>
-      {#if projects.archived.length}
-        <button class="btn btn-secondary" aria-expanded={archivedOpen} onclick={() => (archivedOpen = !archivedOpen)}>{t('settings.archivedProjects')} ({projects.archived.length})</button>
-        {#if archivedOpen}
-          <ul class="archived">
-            {#each projects.archived as p (p.path)}
-              <li style:--project={p.color}>
-                <span class="square" aria-hidden="true"></span>
-                <span class="name">
-                  <strong>{p.name}</strong>
-                  <small>{home(p.path)}</small>
-                </span>
-                <button class="btn btn-secondary" onclick={() => act(() => unshelve(p.path))}>{t('settings.unarchive')}</button>
-              </li>
-            {/each}
-          </ul>
-        {/if}
-      {/if}
     </div>
   </div>
 
@@ -134,28 +81,28 @@
         <code>{home(project.path)}</code>
         {#if !project.exists}<span class="missing">{t('settings.folderMissing')}</span>{/if}
       </header>
-      <div class="tabs" role="tablist" aria-label={t('settings.projectSections')}>
-        {#each sections as [id, name] (id)}
-          <button role="tab" aria-selected={shown === id} onclick={() => open(id)}>
-            {t(name)}
-            {#if id === 'agents' && own(project.path)}<span class="count">{own(project.path)}</span>{/if}
-          </button>
-        {/each}
-      </div>
-      <div class="pane" role="tabpanel">
-        {#if shown === 'general'}
+      {#key project.path}
+        <div class="page">
+          {#if error}<p class="bad" role="alert">{error}</p>{/if}
           <ProjectGeneral {project} {act} />
-        {:else if shown === 'agents'}
           <ProjectAgents {project} {act} />
-        {:else if shown === 'runs'}
           <ProjectRuns {project} {act} />
-        {:else}
-          <ProjectReview {project} {act} />
-        {/if}
-        {#if error}<p class="bad" role="alert">{error}</p>{/if}
-      </div>
+          {#if project.git}<ProjectReview {project} {act} />{/if}
+          <section>
+            <div class="options">
+              <div class="option">
+                <span class="label">
+                  <strong>{t('settings.removeProject')}</strong>
+                  <small>{t('settings.removeProjectHint')}</small>
+                </span>
+                <button class="btn btn-ghost" onclick={() => act(() => retire(project))}>{t('settings.removeEllipsis')}</button>
+              </div>
+            </div>
+          </section>
+        </div>
+      {/key}
     {:else}
-      <div class="pane">
+      <div class="page">
         <p class="empty">{t('settings.projectsNone')}</p>
         <button class="btn btn-primary" onclick={() => (ui.adding = '')}>{t('settings.addProject')}</button>
       </div>
@@ -177,26 +124,6 @@
     flex-direction: column;
     border-right: 1px solid var(--border);
     background: var(--bg-sidebar);
-  }
-
-  .tabbar {
-    display: grid;
-    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-    gap: 8px;
-    padding: 14px 12px;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .pair {
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .label {
-    font-size: 12px;
-    color: var(--text-dim);
   }
 
   ul {
@@ -330,25 +257,6 @@
     flex: none;
   }
 
-  .archived {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
-  .archived li {
-    gap: 10px;
-    padding: 6px 4px 6px 8px;
-    border-radius: 4px;
-    background: var(--surface-1);
-  }
-
-  .archived .btn {
-    height: 28px;
-    padding: 0 10px;
-    font-size: 12.5px;
-  }
-
   .detail {
     min-width: 0;
     min-height: 0;
@@ -360,7 +268,8 @@
     display: flex;
     align-items: center;
     gap: 12px;
-    padding: 18px 28px 0;
+    padding: 18px 28px 14px;
+    border-bottom: 1px solid var(--border);
   }
 
   header .square {
@@ -387,51 +296,152 @@
     color: var(--err-text);
   }
 
-  .tabs {
-    display: flex;
-    gap: 2px;
-    padding: 12px 28px 0;
-    border-bottom: 1px solid var(--border);
-  }
-
-  .tabs button {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 36px;
-    margin-bottom: -1px;
-    padding: 0 14px;
-    border-bottom: 2px solid transparent;
-    color: var(--text-muted);
-  }
-
-  .tabs button:hover {
-    color: var(--text);
-  }
-
-  .tabs button[aria-selected='true'] {
-    border-bottom-color: var(--accent);
-    color: var(--text-strong);
-    font-weight: 600;
-  }
-
-  .pane {
+  .page {
     flex: 1;
     min-height: 0;
     overflow-y: auto;
     display: flex;
     flex-direction: column;
-    align-items: flex-start;
     gap: 18px;
-    padding: 22px 28px 28px;
+    padding: 22px 28px 40px;
   }
 
-  .pane > :global(*) {
-    max-width: 100%;
+  .page > :global(*) {
+    max-width: 720px;
   }
 
-  .pane > :global(textarea) {
-    width: 100%;
+  .page :global(section) {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+  }
+
+  .page :global(h4) {
+    margin: 0;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+    color: var(--text-dim);
+  }
+
+  .page :global(.intro) {
+    margin: 0;
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .page :global(.options) {
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
+  }
+
+  .page :global(.option) {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-height: 52px;
+    padding: 8px 14px;
+  }
+
+  .page :global(.option + .option) {
+    border-top: 1px solid var(--border);
+  }
+
+  .page :global(.option.sub) {
+    min-height: 44px;
+    padding-left: 40px;
+  }
+
+  .page :global(.option.column) {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    padding: 12px 14px 14px;
+  }
+
+  .page :global(.option.column.sub) {
+    padding-left: 40px;
+  }
+
+  .page :global(.option .label) {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 1px;
+  }
+
+  .page :global(.option strong) {
+    font-size: 13px;
+    font-weight: 600;
+  }
+
+  .page :global(.option small) {
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .page :global(.option .field),
+  .page :global(.option .select) {
+    flex: none;
+    width: 260px;
+  }
+
+  .page :global(.option .field) {
+    height: 32px;
+    padding: 0 10px;
+    font-size: 12.5px;
+  }
+
+  .page :global(.option .btn) {
+    flex: none;
+    height: 32px;
+  }
+
+  .page :global(.switch) {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface-5);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .page :global(.switch::before) {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s;
+  }
+
+  .page :global(.switch:checked) {
+    background: var(--accent);
+  }
+
+  .page :global(.switch:checked::before) {
+    transform: translateX(14px);
+    background: var(--ink);
+  }
+
+  .page :global(.switch:disabled) {
+    cursor: default;
+    opacity: 0.5;
+  }
+
+  .page :global(.switch:focus-visible) {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: 2px;
   }
 
   .empty {

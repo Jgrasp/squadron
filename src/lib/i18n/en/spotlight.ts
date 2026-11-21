@@ -37,7 +37,7 @@ export default {
   terminal: 'Terminal',
   editor: 'Editor',
   archive: 'Archive',
-  archiveProject: 'Archive project',
+  removeProject: 'Remove project',
   fork: 'Fork',
   interrupt: 'Interrupt',
   pin: 'Pin',

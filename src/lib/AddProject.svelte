@@ -1,7 +1,6 @@
 <script lang="ts">
   import { open } from '@tauri-apps/plugin-dialog'
   import { untrack } from 'svelte'
-  import { unshelve } from './agents.svelte'
   import Dialog from './Dialog.svelte'
   import ColorPick from './ColorPick.svelte'
   import { errorText, t } from './i18n/index.svelte'
@@ -21,12 +20,10 @@
   const problem = $derived.by(() => {
     if (!info || !path.trim()) return ''
     if (!info.exists) return t('board.folderMissing')
-    if (info.taken_by && info.taken_archived) return ''
     if (info.taken_by) return t('board.folderTaken', { project: info.taken_by })
     return ''
   })
-  const revive = $derived(!!info?.taken_by && info.taken_archived)
-  const ready = $derived(!busy && (revive || (!!info?.exists && !info.taken_by && !!name.trim())))
+  const ready = $derived(!busy && !!info?.exists && !info.taken_by && !!name.trim())
 
   $effect(() => {
     const target = path.trim()
@@ -51,8 +48,7 @@
     if (!ready) return
     busy = true
     try {
-      if (revive) await unshelve(projects.archived.find((p) => p.name === info?.taken_by)?.path ?? path.trim())
-      else await add(path.trim(), name, color)
+      await add(path.trim(), name, color)
       onclose()
     } catch (e) {
       error = errorText(e)
@@ -112,8 +108,6 @@
                 <button type="button" class="link mono" onclick={() => (path = info!.near!)}>{home(info.near)}</button>
               {/if}
             </span>
-          {:else if revive}
-            <span class="good">{t('board.folderArchived', { project: info?.taken_by ?? '' })}</span>
           {:else if info?.git}
             <span class="good">
               <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M4 12l5 5L20 6" /></svg>
@@ -129,19 +123,17 @@
         <input id="name" class="field" bind:value={name} disabled={!info?.exists || !!info.taken_by} />
         <span class="state">{t('board.nameFromFolder')}</span>
       </div>
-      {#if !revive}
-        <div class="group">
-          <span class="label">{t('board.color')}</span>
-          <ColorPick value={color} label={t('board.colorLabel')} onpick={(picked) => (color = picked)} />
-          <span class="state">{color ? t('board.colorChosen') : t('board.colorAuto')}</span>
-        </div>
-      {/if}
+      <div class="group">
+        <span class="label">{t('board.color')}</span>
+        <ColorPick value={color} label={t('board.colorLabel')} onpick={(picked) => (color = picked)} />
+        <span class="state">{color ? t('board.colorChosen') : t('board.colorAuto')}</span>
+      </div>
       {#if error}<p class="bad" role="alert">{error}</p>{/if}
     </div>
     <footer>
       <button type="button" class="btn btn-ghost scratch" disabled={busy} title={t('board.scratchTitle')} onclick={converse}>{t('board.scratch')}</button>
       <button type="button" class="btn btn-secondary" onclick={onclose}>{t('common.cancel')}</button>
-      <button class="btn btn-primary" disabled={!ready}>{revive ? t('board.unarchive', { project: info?.taken_by ?? '' }) : t('board.addProjectButton')}</button>
+      <button class="btn btn-primary" disabled={!ready}>{t('board.addProjectButton')}</button>
     </footer>
   </form>
 </Dialog>

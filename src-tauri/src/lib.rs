@@ -113,7 +113,6 @@ struct Inspection {
     #[serde(flatten)]
     folder: Folder,
     taken_by: Option<String>,
-    taken_archived: bool,
     near: Option<PathBuf>,
 }
 
@@ -176,7 +175,6 @@ fn inspect_folder(projects: State<Projects>, path: PathBuf) -> Inspection {
             ..Default::default()
         }),
         taken_by: taken.map(|p| p.name.clone()),
-        taken_archived: taken.is_some_and(|p| p.archived),
         near: projects::near(&path),
     }
 }
@@ -222,13 +220,12 @@ fn scratch_project(
         .join("conversations");
     std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
     let list = projects.update(|list| {
-        match list.iter_mut().find(|p| p.path == dir) {
-            Some(project) => project.archived = false,
-            None => list.push(Project {
+        if !list.iter().any(|p| p.path == dir) {
+            list.push(Project {
                 name,
                 path: dir.clone(),
                 ..Default::default()
-            }),
+            });
         }
         Ok(())
     })?;
@@ -335,9 +332,6 @@ fn edit_project(
         if let Some(at) = changes.tab_closed_at {
             project.tab_closed_at = at;
             project.pinned &= at == 0;
-        }
-        if let Some(archived) = changes.archived {
-            project.archived = archived;
         }
         if let Some(runs) = changes.runs {
             project.runs_off = !runs;

@@ -1,5 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
-import { archive, fork, interrupt, jumpToWaiting, pin, shelve, show } from './agents.svelte'
+import { archive, fork, interrupt, jumpToWaiting, pin, retire, show } from './agents.svelte'
 import { layout, setPanel } from './layout.svelte'
 import { projects, showBoard, toggleBoard, type Project } from './projects.svelte'
 import { showPulls } from './linked.svelte'
@@ -92,8 +92,8 @@ export async function perform({ verb, project, agent }: Row) {
     case 'terminal':
     case 'diff':
       return project && setPanel(project.path, verb.id)
-    case 'archiveProject':
-      return project && shelve(project)
+    case 'removeProject':
+      return project && retire(project)
     case 'archive':
       return agent && archive(agent.id)
     case 'show':

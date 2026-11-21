@@ -40,7 +40,8 @@ export default {
   unhide: 'Show “{name}” again',
   projectShow: 'Actions and pipelines',
   repository: 'Repository',
-  repositoryPlaceholder: 'Repository: the origin remote, or github.com/owner/name',
   repositoryHint: 'Leave empty to use the origin remote, or give the address, such as github.com/owner/name.',
+  repositoryShort: 'origin remote',
+  workflows: 'Workflows',
   filterHint: 'Seen lately, click one to hide it here or show it again:',
 }

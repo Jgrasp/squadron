@@ -94,7 +94,7 @@ export function projectOf(project: Project, all: AgentActivity[], now = Date.now
     name: project.name,
     color: project.color || null,
     group: project.group || null,
-    archived: project.archived,
+    archived: false,
     active: mine.reduce((last, a) => Math.max(last, a.since), 0),
     week_agents: mine.filter((a) => a.since >= now - WEEK).length,
     agents: mine.length,

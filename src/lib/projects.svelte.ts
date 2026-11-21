@@ -16,7 +16,6 @@ export type Project = {
   color: string
   pinned: boolean
   tab_closed_at: number
-  archived: boolean
   group: string
   runs: boolean
   runs_notify: boolean
@@ -34,9 +33,9 @@ export type Group = { id: string; name: string; parent: string }
 
 type Tree = { groups: Group[]; projects: Project[] }
 
-export type Inspection = Project & { taken_by: string | null; taken_archived: boolean; near: string | null }
+export type Inspection = Project & { taken_by: string | null; near: string | null }
 
-export const projects = $state({ list: [] as Project[], archived: [] as Project[], groups: [] as Group[], current: localStorage.getItem('squadron.project') ?? '', overview: false, board: false, pulls: false })
+export const projects = $state({ list: [] as Project[], groups: [] as Group[], current: localStorage.getItem('squadron.project') ?? '', overview: false, board: false, pulls: false })
 
 $effect.root(() => {
   $effect(() => {
@@ -55,10 +54,8 @@ export function current(): Project | undefined {
   return projects.list.find((p) => p.path === projects.current)
 }
 
-export function set(all: Project[]) {
-  const list = all.filter((p) => !p.archived)
+export function set(list: Project[]) {
   projects.list = list
-  projects.archived = all.filter((p) => p.archived)
   if (!list.some((p) => p.path === projects.current)) projects.current = list[0]?.path ?? ''
 }
 
