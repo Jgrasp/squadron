@@ -46,6 +46,7 @@ tauri-plugin-notification = "2"
 
 [target.'cfg(target_os = "linux")'.dependencies]
 gtk = "0.18"
+webkit2gtk = { version = "2.0.2", features = ["v2_40"] }
 keyring = { version = "3", features = ["sync-secret-service"] }
 
 [target.'cfg(windows)'.dependencies]

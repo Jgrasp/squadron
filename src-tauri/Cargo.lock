@@ -4832,6 +4832,7 @@ dependencies = [
  "uuid",
  "wasmtime",
  "wasmtime-wasi",
+ "webkit2gtk",
 ]
 
 [[package]]
