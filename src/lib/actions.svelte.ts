@@ -14,7 +14,6 @@ export type SettingsTab =
   | 'mcp'
   | 'claude'
   | 'plugins'
-  | 'editors'
   | 'hosting'
   | 'preferences'
   | 'notifications'
