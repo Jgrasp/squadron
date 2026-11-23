@@ -26,6 +26,8 @@ export default {
   clearNotes: 'Clear',
   sendNotes: 'Add to the message',
   notesTitle: 'Notes',
+  width: '{width} px',
+  widthReset: 'The agent set this page width: go back to the panel width',
   resizeNotes: 'Resize the notes',
   foldNotes: 'Fold the notes',
   openNotes: 'Open the notes',

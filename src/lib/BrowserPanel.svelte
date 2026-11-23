@@ -198,6 +198,11 @@
       onfocus={() => ((editing = true), field?.select())}
       onblur={() => (editing = false)}
     />
+    {#if tab?.width}
+      <button type="button" class="width mono" title={t('browser.widthReset')} onclick={() => invoke('browser_resize', { tab: tab.id, width: null }).catch(fail)}>
+        {t('browser.width', { width: tab.width })} ×
+      </button>
+    {/if}
   </form>
   <div class="progress" class:on={tab?.loading} aria-hidden="true"></div>
 
@@ -368,6 +373,21 @@
     min-width: 0;
     margin-left: 4px;
     font-size: 12.5px;
+  }
+
+  .width {
+    height: 30px;
+    flex: none;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .width:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
   }
 
   .progress {

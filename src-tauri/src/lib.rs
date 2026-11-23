@@ -2431,13 +2431,30 @@ async fn browser_pick(
     w: f64,
     h: f64,
 ) -> Result<Value, String> {
-    if w < 6.0 && h < 6.0 {
+    let z = browser.zoom(&tab);
+    let (x, y, w, h) = (x / z, y / z, w / z, h / z);
+    let mut picked = if w * z < 6.0 && h * z < 6.0 {
         let at = serde_json::json!({"x": x + w / 2.0, "y": y + h / 2.0});
         browser.page(&tab, "point", at).await
     } else {
         let area = serde_json::json!({"x": x, "y": y, "w": w, "h": h});
         browser.page(&tab, "area", area).await
+    }?;
+    if let Some(rect) = picked["rect"].as_array_mut() {
+        for v in rect.iter_mut() {
+            *v = (v.as_f64().unwrap_or_default() * z).into();
+        }
     }
+    Ok(picked)
+}
+
+#[tauri::command]
+fn browser_resize(
+    browser: State<browser::Browser>,
+    tab: String,
+    width: Option<u32>,
+) -> Result<(), String> {
+    browser.resize(&tab, width)
 }
 
 fn close_tabs(browser: &browser::Browser, agent: &str) {
@@ -3113,6 +3130,7 @@ pub fn run() {
             browser_status,
             browser_open,
             browser_restore,
+            browser_resize,
             browser_navigate,
             browser_history,
             browser_reload,

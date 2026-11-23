@@ -25,6 +25,7 @@ pub struct TabInfo {
     pub title: String,
     pub loading: bool,
     pub dialog: Option<Value>,
+    pub width: Option<u32>,
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -51,6 +52,8 @@ struct Tab {
     failed: Option<String>,
     logs: Vec<Log>,
     failures: u64,
+    shown: f64,
+    zoom: f64,
 }
 
 pub struct Log {
@@ -319,6 +322,7 @@ impl Browser {
                 title,
                 loading: false,
                 dialog: None,
+                width: None,
             },
             view,
             session,
@@ -329,6 +333,8 @@ impl Browser {
             failed: None,
             logs: Vec::new(),
             failures: 0,
+            shown: SIZE.0,
+            zoom: 1.0,
         });
         self.changed();
     }
@@ -645,7 +651,45 @@ impl Browser {
     }
 
     pub fn place(&self, tab: &str, rect: Option<[f64; 4]>) -> Result<(), String> {
-        native::place(&self.view(tab)?, tab, rect)
+        let view = self.view(tab)?;
+        native::place(&view, tab, rect)?;
+        if let Some([.., w, _]) = rect {
+            self.update(tab, |t| {
+                t.shown = w.max(1.0);
+                false
+            });
+        }
+        self.zoom_to_width(tab, &view)
+    }
+
+    pub fn resize(&self, tab: &str, width: Option<u32>) -> Result<(), String> {
+        let view = self.view(tab)?;
+        self.update(tab, |t| {
+            t.info.width = width.filter(|w| *w > 0);
+            true
+        });
+        self.zoom_to_width(tab, &view)
+    }
+
+    fn zoom_to_width(&self, tab: &str, view: &tauri::Webview) -> Result<(), String> {
+        let mut zoom = None;
+        self.update(tab, |t| {
+            let want = t.info.width.map_or(1.0, |w| t.shown / w as f64);
+            if (want - t.zoom).abs() > 0.001 {
+                t.zoom = want;
+                zoom = Some(want);
+            }
+            false
+        });
+        zoom.map_or(Ok(()), |z| native::zoom(view, z))
+    }
+
+    pub fn zoom(&self, tab: &str) -> f64 {
+        let st = self.0.state.lock().unwrap();
+        st.tabs
+            .iter()
+            .find(|t| t.info.id == tab)
+            .map_or(1.0, |t| t.zoom)
     }
 
     async fn guarded(
@@ -1018,6 +1062,11 @@ mod native {
         .map_err(|e| e.to_string())
     }
 
+    pub fn zoom(view: &tauri::Webview, zoom: f64) -> Result<(), String> {
+        view.with_webview(move |p| p.inner().set_zoom_level(zoom))
+            .map_err(|e| e.to_string())
+    }
+
     pub fn forget(view: &tauri::Webview, tab: &str) {
         let tab = tab.to_string();
         let _ = view.with_webview(move |_| {
@@ -1244,6 +1293,9 @@ mod native {
         Err(ONLY.into())
     }
     pub fn place(_: &tauri::Webview, _: &str, _: Option<[f64; 4]>) -> Result<(), String> {
+        Err(ONLY.into())
+    }
+    pub fn zoom(_: &tauri::Webview, _: f64) -> Result<(), String> {
         Err(ONLY.into())
     }
     pub fn forget(_: &tauri::Webview, _: &str) {}

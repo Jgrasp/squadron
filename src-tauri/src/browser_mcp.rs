@@ -25,13 +25,15 @@ const CHANGES: usize = 40;
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
 struct Tabs {
-    /// list (default), open, switch or close.
+    /// list (default), open, switch, close or resize.
     #[serde(rename = "do")]
     action: Option<String>,
     /// open: the address, such as https://example.com or localhost:3000.
     url: Option<String>,
-    /// switch or close: the tab, such as t2.
+    /// switch, close or resize: the tab, such as t2.
     tab: Option<String>,
+    /// resize: the page width in CSS pixels, such as 390 for a phone; 0 goes back to the panel's width.
+    width: Option<u32>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -541,7 +543,15 @@ impl Tools {
                     let current = self.tab(&agent, None).unwrap_or_default();
                     Ok(self.list(&self.visible(&agent), &current))
                 }
-                other => Err(format!("Unknown do={other}: list, open, switch or close.")),
+                "resize" => {
+                    let tab = self.tab(&agent, args.tab)?;
+                    self.browser.resize(&tab, args.width)?;
+                    tokio::time::sleep(Duration::from_millis(200)).await;
+                    self.page(&agent, &tab, LINES).await
+                }
+                other => Err(format!(
+                    "Unknown do={other}: list, open, switch, close or resize."
+                )),
             }
         }
         .await;
@@ -708,7 +718,8 @@ impl Tools {
                         self.browser.page(&tab, "rect", json!(target)).await?,
                     )
                     .map_err(|e| e.to_string())?;
-                    Some([rect[0], rect[1], rect[2], rect[3]])
+                    let z = self.browser.zoom(&tab);
+                    Some([rect[0] * z, rect[1] * z, rect[2] * z, rect[3] * z])
                 }
                 None => None,
             };
@@ -879,6 +890,7 @@ pub async fn self_test(browser: Browser) {
                 action: Some("open".into()),
                 url: Some("localhost:8765".into()),
                 tab: None,
+                width: None,
             }),
         )
         .await;
@@ -911,6 +923,26 @@ pub async fn self_test(browser: Browser) {
             .await,
         "Nothing new."
     );
+    let resize = |width: u32| {
+        t.tabs(
+            p(),
+            Parameters(Tabs {
+                action: Some("resize".into()),
+                url: None,
+                tab: None,
+                width: Some(width),
+            }),
+        )
+    };
+    let first = browser.status().tabs.last().unwrap().id.clone();
+    let width = "[innerWidth, matchMedia('(max-width: 500px)').matches]";
+    resize(390).await;
+    let phone = browser.eval_main(&first, width).await.unwrap();
+    resize(0).await;
+    let wide = browser.eval_main(&first, width).await.unwrap();
+    println!("WIDTH {phone} {wide}\n");
+    assert_eq!(phone, json!([390, true]));
+    assert_eq!(wide[1], false);
     let id = browser.status().tabs.last().unwrap().id.clone();
     let ring: Vec<f64> = serde_json::from_value(browser.eval_main(&id, "(() => { const [a, b] = [...document.querySelectorAll('nav a')].map((e) => e.getBoundingClientRect()); return [a.x - 6, a.y - 6, b.right - a.x + 12, a.height + 12] })()").await.unwrap()).unwrap();
     let circled = browser
@@ -1073,6 +1105,7 @@ pub async fn self_test(browser: Browser) {
                 action: Some("open".into()),
                 url: Some("localhost:8765/b".into()),
                 tab: None,
+                width: None,
             }),
         )
         .await;
@@ -1084,6 +1117,7 @@ pub async fn self_test(browser: Browser) {
                 action: None,
                 url: None,
                 tab: None,
+                width: None,
             }),
         )
         .await;
