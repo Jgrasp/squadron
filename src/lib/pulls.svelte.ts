@@ -432,6 +432,7 @@ export async function post(dir: string, pull: Pull, list: Comment[], summary = '
   const groups = byHead(list, head)
   const sent: Comment[] = []
   let said = false
+  if (!summary.trim() && verdict === 'request_changes' && pull.host === 'github') summary = 'See the open threads.'
   try {
     for (const [i, { at, items }] of groups.entries()) {
       const last = i === groups.length - 1
