@@ -19,13 +19,13 @@
   import PluginSettings from './PluginSettings.svelte'
   import PreferenceSettings from './PreferenceSettings.svelte'
   import AgentSettings from './AgentSettings.svelte'
+  import ShortcutSettings from './ShortcutSettings.svelte'
   import McpServers from './McpServers.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
   import { saveSettings, settings } from './settings.svelte'
   import { untrack } from 'svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
-  import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
   type Tab = SettingsTab
 
@@ -84,30 +84,10 @@
     return key ? t(key) : ''
   })
   let claude = $state(settings.claude)
-  let keys = $state<Record<string, string>>({ ...settings.keys })
-  let recording = $state<Action | null>(null)
-  let conflict = $state('')
-
-  function record(event: KeyboardEvent) {
-    if (!recording) return
-    event.preventDefault()
-    event.stopPropagation()
-    const value = combo(event)
-    if (!value) return
-    const other = ACTIONS.find(([id]) => id !== recording && binding(keys, id) === value)
-    if (other) conflict = t('settings.conflictUsed', { keys: label(value), action: t(other[1]) })
-    else if (!usable(value)) conflict = t('settings.conflictTyping', { keys: label(value) })
-    else {
-      if (value === ACTIONS.find(([id]) => id === recording)![2]) delete keys[recording]
-      else keys[recording] = value
-      recording = null
-      conflict = ''
-    }
-  }
   let error = $state('')
   let saved = $state(false)
 
-  const form = $derived({ claude, keys: $state.snapshot(keys) })
+  const form = $derived({ claude })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
@@ -124,8 +104,6 @@
   }
 
 </script>
-
-<svelte:window onkeydowncapture={record} />
 
 <Dialog title={t('settings.title')} {onclose} full>
   <div class="frame">
@@ -193,26 +171,7 @@
     {:else if tab === 'mcp'}
       <McpServers />
     {:else if tab === 'shortcuts'}
-      <p class="intro">{t('settings.shortcutsIntro')}</p>
-      <ul class="keys">
-        {#each ACTIONS as [id, name] (id)}
-          <li>
-            <span class="what">{t(name)}</span>
-            {#if recording === id}
-              <span class="listening" role="status">{t('settings.pressKeys')}</span>
-              <button class="remove" onclick={() => ((recording = null), (conflict = ''))}>{t('common.cancel')}</button>
-            {:else}
-              <button class="combo" class:custom={!!keys[id]} title={t('settings.change')} onclick={() => ((recording = id), (conflict = ''))}>
-                <kbd>{label(binding(keys, id))}</kbd>
-              </button>
-              {#if keys[id]}
-                <button class="remove" onclick={() => delete keys[id]}>{t('common.default')}</button>
-              {/if}
-            {/if}
-          </li>
-        {/each}
-      </ul>
-      {#if conflict}<p class="bad" role="alert">{conflict}</p>{/if}
+      <ShortcutSettings />
     {:else if tab === 'preferences'}
       <PreferenceSettings />
     {:else if tab === 'agents'}
@@ -223,7 +182,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['layout', 'panels', 'discover', 'projects', 'agents', 'preferences', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
+  {#if !['layout', 'panels', 'discover', 'projects', 'agents', 'preferences', 'changelog', 'about', 'hosting', 'notifications', 'shortcuts'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
@@ -443,38 +402,6 @@
     color: var(--text-dim);
   }
 
-  ul {
-    margin: 0;
-    padding: 0;
-    list-style: none;
-    display: flex;
-    flex-direction: column;
-    gap: 4px;
-  }
-
-  li {
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 8px 10px;
-    border-radius: 4px;
-    background: var(--surface-1);
-  }
-
-  .remove {
-    height: 28px;
-    padding: 0 10px;
-    border-radius: 4px;
-    background: var(--surface-3);
-    color: var(--text-2);
-    font-size: 12.5px;
-  }
-
-  .remove:hover {
-    background: #3a2420;
-    color: #f8d5cc;
-  }
-
   .good {
     margin: 0;
     font: 12.5px var(--mono);
@@ -484,10 +411,6 @@
   .bad {
     margin: 0;
     color: var(--err-text);
-  }
-
-  .keys {
-    gap: 2px;
   }
 
   h2 .hint-text {
@@ -505,60 +428,10 @@
     height: 34px;
   }
 
-
-
-
-
-
-  .remove:disabled {
-    opacity: 0.3;
-  }
-
   .link {
     align-self: flex-start;
     font-size: 12.5px;
     color: var(--accent-link);
-  }
-
-  .keys li {
-    padding: 6px 6px 6px 12px;
-  }
-
-  .what {
-    flex: 1;
-  }
-
-  .combo {
-    min-width: 96px;
-    height: 30px;
-    padding: 0 12px;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    color: var(--text-2);
-    font: 12.5px var(--mono);
-  }
-
-  .combo:hover {
-    background: var(--surface-3);
-    color: var(--text-strong);
-  }
-
-  .combo.custom {
-    box-shadow: inset 0 0 0 1px var(--accent);
-    color: var(--accent-soft);
-  }
-
-  .listening {
-    min-width: 96px;
-    height: 30px;
-    display: flex;
-    align-items: center;
-    padding: 0 12px;
-    border-radius: 4px;
-    background: var(--wait-bg);
-    box-shadow: inset 0 0 0 1px var(--wait-border);
-    color: var(--wait-text-2);
-    font-size: 12.5px;
   }
 
   footer {
