@@ -18,15 +18,13 @@
   import { nameOf, pageOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
   import PluginSettings from './PluginSettings.svelte'
   import McpServers from './McpServers.svelte'
-  import { detect } from './OpenWith.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { COLD_TOKENS, COMPACT_WINDOWS, hint as keyOf, saveSettings, settings, type App, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
+  import { COLD_TOKENS, COMPACT_WINDOWS, hint as keyOf, saveSettings, settings, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
   import { untrack } from 'svelte'
   import { chime } from './chime'
   import { tokens } from './format'
-  import { errorText, LANGUAGES, list, systemLocale, t, type Key } from './i18n/index.svelte'
-  import Trans from './Trans.svelte'
+  import { errorText, LANGUAGES, systemLocale, t, type Key } from './i18n/index.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
   type Tab = SettingsTab
@@ -46,7 +44,6 @@
         ['claude', 'settings.tabClaude'],
         ['plugins', 'settings.tabPlugins'],
         ['mcp', 'mcp.tab'],
-        ['editors', 'settings.tabEditors'],
         ['hosting', 'settings.tabHosting'],
       ],
     ],
@@ -151,13 +148,6 @@
     [365, 'settings.archiveYear'],
   ]
   let keys = $state<Record<string, string>>({ ...settings.keys })
-  let editors = $state<App[]>(settings.editors.map((e) => ({ ...e })))
-  let found = $state<App[]>([])
-  detect().then((list) => (found = list))
-
-  function addFound() {
-    for (const app of found) if (!editors.some((e) => e.name === app.name)) editors.push({ ...app })
-  }
   let recording = $state<Action | null>(null)
   let conflict = $state('')
 
@@ -180,7 +170,7 @@
   let error = $state('')
   let saved = $state(false)
 
-  const form = $derived({ claude, tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), editors: $state.snapshot(editors), pilot, pilot_all: pilotAll, browser, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
+  const form = $derived({ claude, tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), pilot, pilot_all: pilotAll, browser, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
@@ -241,27 +231,6 @@
       <AboutSquadron />
     {:else if tab === 'hosting'}
       <CodeHosting />
-    {:else if tab === 'editors'}
-      <p class="intro">
-        <Trans k="settings.editorsIntro">{#snippet project()}<code>{'{project}'}</code>{/snippet}{#snippet file()}<code>{'{file}'}</code>{/snippet}</Trans>
-      </p>
-      {#each editors as app, i (i)}
-        <div class="app">
-          <input class="field" bind:value={app.name} placeholder={t('common.name')} aria-label={t('common.name')} />
-          <input class="field mono" bind:value={app.command} placeholder={'zed {project} {file}'} aria-label={t('settings.editorCommand')} spellcheck="false" />
-          <button class="remove" onclick={() => editors.splice(i, 1)}>{t('common.remove')}</button>
-        </div>
-      {:else}
-        <p class="empty">
-          {found.length ? t('settings.editorsNoneFound', { apps: list(found.map((a) => a.name)) }) : t('settings.editorsNone')}
-        </p>
-      {/each}
-      <div class="row">
-        <button class="btn btn-secondary" onclick={() => editors.push({ name: '', command: '' })}>{t('settings.addApp')}</button>
-        <button class="btn btn-secondary" disabled={!found.some((f) => !editors.some((e) => e.name === f.name))} onclick={addFound}>
-          {t('settings.addFoundApps')}
-        </button>
-      </div>
     {:else if tab === 'layout'}
       <div class="intro row-intro">
         <p class="intro">{t('settings.layoutIntro')}</p>
@@ -632,8 +601,7 @@
     max-width: none;
   }
 
-  .intro,
-  .empty {
+  .intro {
     margin: 0;
     font-size: 13px;
     color: var(--text-dim);
@@ -693,19 +661,6 @@
     font-weight: 600;
   }
 
-  .row {
-    display: flex;
-    gap: 8px;
-  }
-
-  .row .btn {
-    height: 42px;
-  }
-
-  .mono {
-    font: 13px var(--mono);
-  }
-
   .good {
     margin: 0;
     font: 12.5px var(--mono);
@@ -715,22 +670,6 @@
   .bad {
     margin: 0;
     color: var(--err-text);
-  }
-
-  .app {
-    display: grid;
-    grid-template-columns: 150px 1fr auto;
-    gap: 8px;
-    align-items: center;
-  }
-
-  .app .field {
-    height: 36px;
-  }
-
-  .intro code {
-    font-size: 12px;
-    color: var(--text-2);
   }
 
   .keys {
