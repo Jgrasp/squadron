@@ -135,7 +135,9 @@ impl Browser {
         ]
         .map(String::from)
         .to_vec();
-        if let Some(dev) = &app.config().build.dev_url {
+        if tauri::is_dev()
+            && let Some(dev) = &app.config().build.dev_url
+        {
             blocked.push(dev.origin().ascii_serialization());
         }
         let saved = std::fs::read(dir.join("tabs.json"))
