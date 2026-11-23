@@ -14,7 +14,8 @@
   import ChangedFiles, { type Note } from './ChangedFiles.svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
-  import { layout, setFileTree, setSplit, setThreads } from './layout.svelte'
+  import { layout, setFileTree, setSplit, setThreads, setThreadsWidth } from './layout.svelte'
+  import { settle } from './unread.svelte'
   import OpenWith from './OpenWith.svelte'
   import Markdown from './Markdown.svelte'
   import { ask } from './asking.svelte'
@@ -125,8 +126,9 @@
     void fresh
     if (!reviewing || !pull) return
     const { number } = pull
+    const key = reviewKey
     invoke<Remark[]>('pull_remarks', { dir: folder, number })
-      .then((found) => (remarks = found))
+      .then((found) => ((remarks = found), settle(key, found)))
       .catch(() => (remarks = []))
   })
 
@@ -154,6 +156,7 @@
     outdated: 'review.threadOutdated',
   }
   const pending = $derived(threads.filter((th) => ['open', 'answered', 'fixed'].includes(stateOf(reviewKey, th))))
+  const opened = $derived(threads.filter((th) => stateOf(reviewKey, th) === 'open').length)
   const resolvables = $derived(pull && can(pull.host, 'resolve') ? pending.filter((th) => th.root.resolved === false) : [])
   let toResolve = $state<string[]>([])
 
@@ -177,10 +180,26 @@
     if (finishing) untrack(() => (toResolve = resolvables.filter((th) => stateOf(reviewKey, th) === 'fixed').map((th) => th.root.id)))
   })
 
+  let picked = $state('')
   function goToThread(th: Thread) {
     const there = spots.find((s) => s.key === `thread:${th.root.id}`)
-    if (there) goToSpot(there)
-    else if (th.root.path) scrollToFile(th.root.path)
+    picked = there ? '' : th.root.id
+    if (there) return goToSpot(there)
+    const el = body?.querySelector(`[data-thread="${th.root.id}"]`)
+    if (!el) return th.root.path && scrollToFile(th.root.path)
+    el.closest('details')?.setAttribute('open', '')
+    within(el, 'start')
+  }
+
+  function dragThreads(event: PointerEvent) {
+    const handle = event.currentTarget as HTMLElement
+    const from = event.clientX
+    const width = layout.threadsWidth
+    handle.setPointerCapture(event.pointerId)
+    const move = (e: PointerEvent) => (e.buttons ? setThreadsWidth(width + from - e.clientX) : up())
+    const up = () => (handle.removeEventListener('pointermove', move), handle.removeEventListener('pointerup', up))
+    handle.addEventListener('pointermove', move)
+    handle.addEventListener('pointerup', up)
   }
 
   const goToDraft = (c: Comment) => goTo(c)
@@ -346,6 +365,7 @@
   let aim = $state<Spot | null>(null)
 
   function goToSpot(s: Spot) {
+    picked = ''
     current = s.key
     spot = s.path
     steered = Date.now()
@@ -639,7 +659,7 @@
     ['request_changes', 'review.verdictRequestChanges'],
   ]
   const closed = $derived(!!pull && pull.state !== 'open')
-  const ready = $derived(verdict === 'request_changes' ? !!summary.trim() || review.length > 0 : verdict === 'approve' || !!summary.trim() || review.length > 0)
+  const ready = $derived(!!verdict || !!summary.trim() || review.length > 0)
 
   async function submit() {
     if (!pull || !ready) return
@@ -868,7 +888,11 @@
                 <button role="radio" aria-checked={verdict === id} onclick={() => (verdict = id)}>{t(label)}</button>
               {/each}
             </div>
-            <span class="hint"></span>
+            <span class="hint">
+              {#if verdict === 'request_changes' && !summary.trim()}
+                {pull.host === 'github' ? t('review.emptyGetsDefault', { host: hostName(pull) }) : opened ? t('review.threadsSayWhat', { count: opened }) : ''}
+              {/if}
+            </span>
             <button class="btn btn-primary" disabled={posting || !ready} onclick={submit}>{posting ? t('review.posting') : t('review.submitOn', { host: hostName(pull) })}</button>
           {/if}
         </div>
@@ -1108,7 +1132,22 @@
       {/if}
     </div>
     {#if reviewing && pull && layout.threads}
-      <aside class="threads-column" aria-label={t('review.viewThreads')}>
+      <aside class="threads-column" style:width="min({layout.threadsWidth}px, 40%)" aria-label={t('review.viewThreads')}>
+        <!-- svelte-ignore a11y_no_noninteractive_tabindex, a11y_no_noninteractive_element_interactions -->
+        <div
+          class="threads-resizer"
+          role="separator"
+          aria-orientation="vertical"
+          aria-label={t('review.resizeThreads')}
+          aria-valuenow={layout.threadsWidth}
+          aria-valuemin={280}
+          aria-valuemax={640}
+          tabindex="0"
+          title={t('review.dragToResizeThreads')}
+          onpointerdown={dragThreads}
+          onkeydown={(e) => (e.key === 'ArrowLeft' ? setThreadsWidth(layout.threadsWidth + 20) : e.key === 'ArrowRight' && setThreadsWidth(layout.threadsWidth - 20))}
+          ondblclick={() => setThreadsWidth(320)}
+        ></div>
         <div class="threads-head">
           <strong>{t('review.viewThreads')}</strong>
           {#if pending.length}<span class="talks">{pending.length}</span>{/if}
@@ -1116,7 +1155,7 @@
             <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
           </button>
         </div>
-        <PullThreads {pull} {folder} {reviewKey} {threads} drafts={review} onfresh={() => fresh++} ongo={goToThread} ondraft={goToDraft} ondrop={drop} onedit={(c, text) => (c.note = text)} />
+        <PullThreads {pull} {folder} {reviewKey} {threads} self={me?.name ?? ''} drafts={review} onfresh={() => fresh++} ongo={goToThread} ondraft={goToDraft} ondrop={drop} onedit={(c, text) => (c.note = text)} />
       </aside>
     {/if}
     </div>
@@ -1178,7 +1217,7 @@
 {/snippet}
 
 {#snippet thread(th: Thread, line?: Line)}
-  <div class="thread" class:inline-thread={!!line} class:hit={lit?.key === `thread:${th.root.id}`}>
+  <div class="thread" class:inline-thread={!!line} class:hit={lit?.key === `thread:${th.root.id}` || picked === th.root.id} data-thread={th.root.id}>
     {#if !line && th.root.path}<span class="where">{t('review.outdated', { path: th.root.path })}</span>{/if}
     {#each th.all as r (r.id)}
       <div class="remark" class:reply={r !== th.root}>
@@ -1410,6 +1449,10 @@
 
   .inline-thread.hit {
     box-shadow: inset 3px 0 0 var(--accent), inset 0 0 0 1px var(--border-strong), 0 0 0 2px var(--accent-soft);
+  }
+
+  .thread.hit:not(.inline-thread) {
+    box-shadow: inset 0 0 0 2px var(--accent-soft);
   }
 
   .who {
@@ -1921,13 +1964,30 @@
   }
 
   .threads-column {
+    position: relative;
     flex: none;
-    width: 320px;
     min-height: 0;
     display: flex;
     flex-direction: column;
     border-left: 1px solid var(--border);
     background: var(--bg-sidebar);
+  }
+
+  .threads-resizer {
+    position: absolute;
+    top: 0;
+    bottom: 0;
+    left: -4px;
+    z-index: 2;
+    width: 6px;
+    cursor: col-resize;
+  }
+
+  .threads-resizer:hover,
+  .threads-resizer:focus-visible,
+  .threads-resizer:active {
+    background: var(--border-strong);
+    outline: none;
   }
 
   .threads-head {

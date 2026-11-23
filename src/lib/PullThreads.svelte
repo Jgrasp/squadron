@@ -17,6 +17,7 @@
 
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
+  import { untrack } from 'svelte'
   import Avatar from './Avatar.svelte'
   import Icon from './Icon.svelte'
   import Markdown from './Markdown.svelte'
@@ -24,6 +25,7 @@
   import { can } from './forges.svelte'
   import { hostName, rounds, type Pull } from './pulls.svelte'
   import type { Comment } from './stream'
+  import { isUnread, markSeen } from './unread.svelte'
   import { date, errorText, t, type Key } from './i18n/index.svelte'
 
   let {
@@ -31,6 +33,7 @@
     folder,
     reviewKey,
     threads,
+    self,
     drafts,
     onfresh,
     ongo,
@@ -42,6 +45,7 @@
     folder: string
     reviewKey: string
     threads: Thread[]
+    self: string
     drafts: Comment[]
     onfresh: () => void
     ongo: (thread: Thread) => void
@@ -125,6 +129,34 @@
     }
   }
 
+  let listed = $state<string[]>([])
+  $effect(() => {
+    const ids = threads.flatMap((th) => th.all.filter((r) => isUnread(reviewKey, r, self)).map((r) => r.id))
+    untrack(() => {
+      const added = ids.filter((id) => !listed.includes(id))
+      if (added.length) listed = [...listed, ...added]
+    })
+  })
+  const feed = $derived(
+    threads
+      .flatMap((th) => th.all.filter((r) => listed.includes(r.id)).map((r) => ({ r, th })))
+      .sort((a, b) => b.r.at.localeCompare(a.r.at)),
+  )
+  const unread = $derived(feed.filter(({ r }) => isUnread(reviewKey, r, self)).length)
+  const did = (r: Remark, th: Thread): Key =>
+    r === th.root ? (r.path ? 'review.remarkOpened' : 'review.remarkCommented') : th.root.author === self ? 'review.remarkAnsweredYou' : 'review.remarkReplied'
+
+  let picked = $state('')
+  function go(th: Thread, ids = th.all.map((r) => r.id)) {
+    picked = th.root.id
+    markSeen(reviewKey, ids)
+    ongo(th)
+  }
+  function goFrom(th: Thread, event: MouseEvent) {
+    if ((event.target as HTMLElement).closest('button, a, textarea, form') || getSelection()?.toString()) return
+    go(th)
+  }
+
   const resolvable = (th: Thread) => th.root.resolved !== undefined && th.root.resolved !== null && can(pull.host, 'resolve')
 </script>
 
@@ -151,6 +183,24 @@
   </ol>
 
   <div class="body">
+    {#if unread}
+      <h3 class="caps">{t('review.newRemarks')} <span class="n wait">{unread}</span><button class="link" onclick={() => markSeen(reviewKey, listed)}>{t('review.markAllRead')}</button></h3>
+      <div class="feed">
+        {#each feed as { r, th } (r.id)}
+          <button class="item" class:seen={!isUnread(reviewKey, r, self)} class:on={picked === th.root.id} onclick={() => go(th, [r.id])}>
+            <span class="dot" aria-hidden="true"></span>
+            <Avatar name={r.author} src={r.avatar} size={20} />
+            <span class="itxt">
+              <span class="what"><strong>{r.author}</strong> {t(did(r, th))} · {when(r.at)}</span>
+              <span class="said">{r.body.split('\n')[0]}</span>
+              <span class={th.root.path ? 'path' : 'general'}>{where(th.root)}</span>
+            </span>
+            <svg class="chev" width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><path d="M9 6l6 6-6 6" /></svg>
+          </button>
+        {/each}
+      </div>
+    {/if}
+
     {#if counts.length}
       <div class="counts" aria-label={t('review.threadStates')}>
         {#each counts as [state, n] (state)}
@@ -211,7 +261,8 @@
       <h3 class="caps">{t('review.closedThreads')} <span class="n">{closed.length}</span></h3>
       {#each closed as th (th.root.id)}
         {@const state = states.get(th.root.id)!}
-        <div class="card line {state}">
+        <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+        <div class="card line go {state}" class:on={picked === th.root.id} onclick={(e) => goFrom(th, e)}>
           <span class="pill {state}">{label(state)}</span>
           <span class="mono path-text">{where(th.root)}</span>
           <span class="said">{th.root.author}: {th.root.body.split('\n')[0]}</span>
@@ -231,10 +282,14 @@
 {#snippet card(th: Thread)}
   {@const state = states.get(th.root.id)!}
   {@const judged = judgementOf(reviewKey, th.root.id)}
-  <div class="card {state}">
+  <!-- svelte-ignore a11y_click_events_have_key_events, a11y_no_static_element_interactions -->
+  <div class="card go {state}" class:on={picked === th.root.id} onclick={(e) => goFrom(th, e)}>
     <div class="top">
       <span class="pill {state}">{label(state)}</span>
-      {#if th.root.path}<button class="path" onclick={() => ongo(th)}>{where(th.root)}</button>{:else}<span class="general">{where(th.root)}</span>{/if}
+      <button class="to" title={t('review.goToThread')} onclick={() => go(th)}>
+        <span class={th.root.path ? 'path' : 'general'}>{where(th.root)}</span>
+        <span class="jump" aria-hidden="true"><Icon name="jump" size={13} /></span>
+      </button>
     </div>
     {#each th.all as r (r.id)}
       <div class="remark" class:reply={r !== th.root}>
@@ -443,18 +498,21 @@
   }
 
   .card.open {
+    --tone: var(--err);
     box-shadow:
       inset 3px 0 0 var(--err),
       inset 0 0 0 1px var(--border);
   }
 
   .card.answered {
+    --tone: var(--remote-dot);
     box-shadow:
       inset 3px 0 0 var(--remote-dot),
       inset 0 0 0 1px var(--border);
   }
 
   .card.fixed {
+    --tone: var(--ok);
     box-shadow:
       inset 3px 0 0 var(--ok),
       inset 0 0 0 1px var(--border);
@@ -464,6 +522,13 @@
     box-shadow:
       inset 3px 0 0 var(--accent),
       inset 0 0 0 1px var(--border);
+  }
+
+  .card.on {
+    box-shadow:
+      inset 3px 0 0 var(--tone, var(--text-faint)),
+      inset 0 0 0 1px var(--border-strong),
+      0 0 0 2px var(--accent-soft);
   }
 
   .card.line {
@@ -525,6 +590,153 @@
     color: var(--text-faint);
   }
 
+  .caps .n.wait {
+    background: var(--accent);
+    color: var(--accent-ink);
+  }
+
+  .caps .link {
+    margin-left: auto;
+    font: 500 12px var(--sans);
+    letter-spacing: 0;
+    text-transform: none;
+    color: var(--text-dim);
+  }
+
+  .caps .link:hover {
+    color: var(--accent-link);
+  }
+
+  .feed {
+    flex: none;
+    display: flex;
+    flex-direction: column;
+    overflow: hidden;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--wait-border);
+  }
+
+  .item {
+    display: grid;
+    grid-template-columns: 7px 20px minmax(0, 1fr) 14px;
+    align-items: start;
+    gap: 2px 8px;
+    padding: 10px 10px 10px 12px;
+    border-top: 1px solid var(--border);
+    text-align: left;
+    color: var(--text);
+  }
+
+  .item:first-child {
+    border-top: none;
+  }
+
+  .item:hover {
+    background: var(--surface-2);
+  }
+
+  .item.on {
+    background: var(--surface-3);
+  }
+
+  .item.seen {
+    opacity: 0.6;
+  }
+
+  .dot {
+    width: 7px;
+    height: 7px;
+    margin-top: 7px;
+    border-radius: 50%;
+    background: var(--accent);
+  }
+
+  .item.seen .dot {
+    background: transparent;
+  }
+
+  .itxt {
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+  }
+
+  .what {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .what strong {
+    font-weight: 600;
+    color: var(--text-2);
+  }
+
+  .itxt .said {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font-size: 12.5px;
+  }
+
+  .itxt .path,
+  .itxt .general {
+    font-size: 11.5px;
+  }
+
+  .item:hover .path,
+  .item:hover .general {
+    color: var(--accent-link);
+  }
+
+  .chev {
+    margin-top: 3px;
+    color: var(--text-faint);
+  }
+
+  .card.go {
+    cursor: pointer;
+  }
+
+  .card.go:hover {
+    background: var(--surface-2);
+  }
+
+  .to {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    text-align: left;
+  }
+
+  .to .path,
+  .to .general {
+    flex: 1;
+  }
+
+  .jump {
+    flex: none;
+    width: 24px;
+    height: 24px;
+    display: grid;
+    place-items: center;
+    border-radius: 4px;
+    color: var(--text-dim);
+  }
+
+  .card.go:hover .jump {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .card.go:hover .path,
+  .card.go:hover .general {
+    color: var(--accent-link);
+  }
+
   .path,
   .path-text {
     min-width: 0;
@@ -538,10 +750,6 @@
   .general {
     font-size: 12.5px;
     color: var(--text-dim);
-  }
-
-  .path:hover {
-    color: var(--accent-link);
   }
 
   .remark {

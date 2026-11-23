@@ -21,6 +21,7 @@ let stored = 304
 let split = false
 let fileTree = true
 let threads = true
+let threadsWidth = 320
 let widths: Record<string, number> = { unified: 680, split: 1120, editor: 780, terminal: 680, subagents: 680, artifacts: 680, panel: 760 }
 let full: Record<string, boolean> = {}
 let panels: Record<string, PanelKind> = {}
@@ -44,6 +45,7 @@ try {
   split = localStorage.getItem('squadron.diff') === 'split'
   fileTree = localStorage.getItem('squadron.diff-tree') !== 'off'
   threads = localStorage.getItem('squadron.diff-threads') !== 'off'
+  threadsWidth = Number(localStorage.getItem('squadron.diff-threads-width')) || 320
   widths = { ...widths, ...read('squadron.diff-widths'), ...read('squadron.widths') }
   full = { diff: localStorage.getItem('squadron.diff-full') === '1', ...read('squadron.full') }
   panels = read('squadron.panels')
@@ -58,6 +60,7 @@ export const layout = $state({
   split,
   fileTree,
   threads,
+  threadsWidth,
   widths,
   full,
   panels,
@@ -114,6 +117,11 @@ export function setContextShown(shown: string) {
 export function setThreads(on: boolean) {
   layout.threads = on
   keep('squadron.diff-threads', on ? 'on' : 'off')
+}
+
+export function setThreadsWidth(width: number) {
+  layout.threadsWidth = Math.round(Math.min(640, Math.max(280, width)))
+  keep('squadron.diff-threads-width', String(layout.threadsWidth))
 }
 
 export function setFileTree(on: boolean) {
