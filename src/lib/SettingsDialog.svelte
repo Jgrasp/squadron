@@ -17,14 +17,14 @@
   import { brokenAccounts, checkAccounts, extensions } from './extensions.svelte'
   import { nameOf, pageOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
   import PluginSettings from './PluginSettings.svelte'
+  import PreferenceSettings from './PreferenceSettings.svelte'
+  import AgentSettings from './AgentSettings.svelte'
   import McpServers from './McpServers.svelte'
   import SlotPreview from './SlotPreview.svelte'
   import { SLOTS, type Slot } from './slots'
-  import { COLD_TOKENS, COMPACT_WINDOWS, hint as keyOf, saveSettings, settings, type ProjectsEffect, type TabEffect, type TabRing } from './settings.svelte'
+  import { saveSettings, settings } from './settings.svelte'
   import { untrack } from 'svelte'
-  import { chime } from './chime'
-  import { tokens } from './format'
-  import { errorText, LANGUAGES, systemLocale, t, type Key } from './i18n/index.svelte'
+  import { errorText, t, type Key } from './i18n/index.svelte'
   import { ACTIONS, binding, combo, label, usable, type Action } from './shortcuts'
 
   type Tab = SettingsTab
@@ -36,7 +36,10 @@
   const groups: [Key, [Tab, Key][]][] = [
     [
       'settings.projects',
-      [['projects', 'settings.projects']],
+      [
+        ['projects', 'settings.projects'],
+        ['agents', 'settings.agents'],
+      ],
     ],
     [
       'settings.groupTools',
@@ -80,73 +83,7 @@
     const key = groups.flatMap(([, items]) => items).find(([id]) => id === tab)?.[1]
     return key ? t(key) : ''
   })
-  const effects: [TabEffect, Key, Key, number][] = [
-    ['snake', 'settings.effectSnake', 'settings.effectSnakeHint', 2.4],
-    ['pulse', 'settings.effectPulse', 'settings.effectPulseHint', 2],
-  ]
-
   let claude = $state(settings.claude)
-  let effect = $state<TabEffect>(settings.tab_effect)
-  let projectsEffect = $state<ProjectsEffect>(settings.projects_effect)
-  const PROJECT_EFFECTS: [ProjectsEffect, Key, Key, number][] = [
-    ['snake', 'settings.effectSnake', 'settings.projectsSnakeHint', 2.4],
-    ['bar', 'settings.effectBar', 'settings.projectsBarHint', 1.6],
-    ['pulse', 'settings.effectPulse', 'settings.projectsPulseHint', 2],
-  ]
-  let ring = $state<TabRing>(settings.tab_ring)
-  const RINGS: [TabRing, Key, Key][] = [
-    ['off', 'settings.ringOff', 'settings.ringOffHint'],
-    ['shake', 'settings.ringShake', 'settings.ringShakeHint'],
-    ['sound', 'settings.ringSound', 'settings.ringSoundHint'],
-  ]
-  let pilot = $state(settings.pilot)
-  let pilotAll = $state(settings.pilot_all)
-  let browser = $state(settings.browser)
-  let archiveAfter = $state(settings.archive_after_days)
-  let artifactsAfter = $state(settings.artifacts_after_days)
-  let compactWindow = $state(settings.compact_window)
-  let coldTokens = $state(settings.cold_tokens)
-  let steps = $state(settings.steps)
-  let thinking = $state(settings.thinking)
-  let language = $state(settings.language)
-  let width = $state(settings.conversation_width)
-  let sidebar = $state<'pinned' | 'peek'>(settings.sidebar === 'pinned' ? 'pinned' : 'peek')
-  const WIDTHS: [number, Key, Key][] = [
-    [640, 'settings.widthNarrow', 'settings.widthPx'],
-    [740, 'settings.widthNormal', 'settings.widthPx'],
-    [960, 'settings.widthWide', 'settings.widthPx'],
-    [0, 'settings.widthFull', 'settings.widthFullHint'],
-  ]
-  const custom = $derived(!WIDTHS.some(([px]) => px === width))
-  const SIDEBARS: [typeof sidebar, Key, Key][] = [
-    ['pinned', 'settings.sidebarPinned', 'settings.sidebarPinnedHint'],
-    ['peek', 'settings.sidebarPeek', 'settings.sidebarPeekHint'],
-  ]
-  const STEPS: [typeof steps, Key, Key][] = [
-    ['grouped', 'settings.stepsGrouped', 'settings.stepsGroupedHint'],
-    ['detailed', 'settings.stepsDetailed', 'settings.stepsDetailedHint'],
-  ]
-  const THINKING: [typeof thinking, Key][] = [
-    ['hidden', 'settings.thinkingHidden'],
-    ['duration', 'settings.thinkingDuration'],
-    ['summary', 'settings.thinkingSummary'],
-    ['shown', 'settings.thinkingShown'],
-  ]
-  const AGES: [number, Key][] = [
-    [0, 'settings.archiveNever'],
-    [1, 'settings.archiveDay'],
-    [3, 'settings.archiveDays'],
-    [7, 'settings.archiveWeek'],
-    [14, 'settings.archiveTwoWeeks'],
-    [30, 'settings.archiveMonth'],
-  ]
-  const KEEP: [number, Key][] = [
-    [0, 'settings.archiveNever'],
-    [7, 'settings.archiveWeek'],
-    [30, 'settings.archiveMonth'],
-    [90, 'settings.archiveDays'],
-    [365, 'settings.archiveYear'],
-  ]
   let keys = $state<Record<string, string>>({ ...settings.keys })
   let recording = $state<Action | null>(null)
   let conflict = $state('')
@@ -170,7 +107,7 @@
   let error = $state('')
   let saved = $state(false)
 
-  const form = $derived({ claude, tab_effect: effect, projects_effect: projectsEffect, tab_ring: ring, keys: $state.snapshot(keys), pilot, pilot_all: pilotAll, browser, archive_after_days: archiveAfter, artifacts_after_days: artifactsAfter, compact_window: compactWindow, cold_tokens: coldTokens, steps, thinking, language, conversation_width: width, sidebar })
+  const form = $derived({ claude, keys: $state.snapshot(keys) })
   let baseline = $state(untrack(() => JSON.stringify(form)))
   const dirty = $derived(JSON.stringify(form) !== baseline)
 
@@ -277,135 +214,16 @@
       </ul>
       {#if conflict}<p class="bad" role="alert">{conflict}</p>{/if}
     {:else if tab === 'preferences'}
-      <p class="intro">{t('settings.tabEffectIntro')}</p>
-      <div class="effects" role="group" aria-label={t('settings.workingTabEffect')}>
-        {#each effects as [id, title, hint, seconds] (id)}
-          <button aria-pressed={effect === id} onclick={() => (effect = id)}>
-            <span class="sample effect-{id}">
-              <span class="dot" aria-hidden="true"></span>Orbit
-            </span>
-            <strong>{t(title)}</strong>
-            <span class="hint">{t(hint, { seconds })}</span>
-          </button>
-        {/each}
-      </div>
-      <span class="label">{t('settings.waitingTab')}</span>
-      <div class="effects three" role="group" aria-label={t('settings.waitingTab')}>
-        {#each RINGS as [id, title, hint] (id)}
-          <button aria-pressed={ring === id} onclick={() => ((ring = id), id === 'sound' && chime())}>
-            <span class="sample" class:ring={id !== 'off'}>
-              <span class="dot" aria-hidden="true"></span>Orbit<span class="badge">1</span>
-            </span>
-            <strong>{t(title)}</strong>
-            <span class="hint">{t(hint, { seconds: 2.4 })}</span>
-          </button>
-        {/each}
-      </div>
-      <span class="label">{t('settings.projectsEffect')}</span>
-      <div class="effects three" role="group" aria-label={t('settings.projectsEffect')}>
-        {#each PROJECT_EFFECTS as [id, title, hint, seconds] (id)}
-          <button aria-pressed={projectsEffect === id} onclick={() => (projectsEffect = id)}>
-            <span class="sample card stripe effect-{id}">Orbit</span>
-            <strong>{t(title)}</strong>
-            <span class="hint">{t(hint, { seconds })}</span>
-          </button>
-        {/each}
-      </div>
-      <span class="label">{t('settings.agentsBar')}</span>
-      <div class="effects" role="group" aria-label={t('settings.agentsBar')}>
-        {#each SIDEBARS as [id, title, detail] (id)}
-          <button aria-pressed={sidebar === id} onclick={() => (sidebar = id)}>
-            <strong>{t(title)}</strong>
-            <span class="hint">{t(detail, { key: keyOf('sidebar') })}</span>
-          </button>
-        {/each}
-      </div>
-      <h2>{t('settings.conversation')}</h2>
-      <span class="label">{t('settings.conversationWidth')}</span>
-      <div class="effects four" role="group" aria-label={t('settings.conversationWidth')}>
-        {#each WIDTHS as [px, title, detail] (px)}
-          <button aria-pressed={width === px} onclick={() => (width = px)}>
-            <strong>{t(title)}</strong>
-            <span class="hint">{t(detail, { px })}</span>
-          </button>
-        {/each}
-      </div>
-      <div class="width-custom">
-        <button aria-pressed={custom} onclick={() => custom || (width = 1100)}><strong>{t('settings.widthCustom')}</strong></button>
-        <input type="range" min="520" max="1600" step="20" aria-label={t('settings.widthCustom')} value={width || 1100} oninput={(e) => (width = +e.currentTarget.value)} />
-        <span class="field px"><input type="number" min="520" max="1600" step="20" aria-label={t('settings.widthCustom')} value={width || 1100} onchange={(e) => (width = Math.min(1600, Math.max(520, +e.currentTarget.value || 740)))} />px</span>
-      </div>
-      <p class="intro">{t('settings.conversationWidthHint')}</p>
-      <span class="label">{t('settings.agentSteps')}</span>
-      <div class="effects" role="group" aria-label={t('settings.agentSteps')}>
-        {#each STEPS as [id, title, detail] (id)}
-          <button aria-pressed={steps === id} onclick={() => (steps = id)}>
-            <strong>{t(title)}</strong>
-            <span class="hint">{t(detail)}</span>
-          </button>
-        {/each}
-      </div>
-      <span class="label">{t('settings.thinking')}</span>
-      <div class="effects" role="group" aria-label={t('settings.thinking')}>
-        {#each THINKING as [id, title] (id)}
-          <button aria-pressed={thinking === id} onclick={() => (thinking = id)}><strong>{t(title)}</strong></button>
-        {/each}
-      </div>
-      <h2>{t('settings.agentsAndSquadron')}</h2>
-      <label for="archive-after">{t('settings.archiveIdle')}</label>
-      <select id="archive-after" class="field" bind:value={archiveAfter}>
-        {#each AGES as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
-      </select>
-      <p class="intro">{t('settings.archiveIdleHint')}</p>
-      <label for="artifacts-after">{t('settings.artifactsExpire')}</label>
-      <select id="artifacts-after" class="field" bind:value={artifactsAfter}>
-        {#each KEEP as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
-      </select>
-      <p class="intro">{t('settings.artifactsExpireHint')}</p>
-      <label for="compact-window">{t('settings.compactWindow')}</label>
-      <select id="compact-window" class="field" bind:value={compactWindow}>
-        {#each COMPACT_WINDOWS as size (size)}<option value={size}>{size ? t('settings.compactAround', { tokens: tokens(size) }) : t('settings.compactDefault')}</option>{/each}
-      </select>
-      <p class="intro">{t('settings.compactWindowHint')}</p>
-      <label for="cold-tokens">{t('settings.coldTokens')}</label>
-      <select id="cold-tokens" class="field" bind:value={coldTokens}>
-        {#each COLD_TOKENS as size (size)}<option value={size}>{size ? t('settings.coldFrom', { tokens: tokens(size) }) : t('settings.coldNever')}</option>{/each}
-      </select>
-      <p class="intro">{t('settings.coldTokensHint')}</p>
-      <label class="check">
-        <input type="checkbox" bind:checked={pilot} />
-        <span>
-          <strong>{t('settings.pilot')}</strong>
-          <small>{t('settings.pilotHint')}</small>
-        </span>
-      </label>
-      <label class="check" class:disabled={!pilot}>
-        <input type="checkbox" bind:checked={pilotAll} disabled={!pilot} />
-        <span>
-          <strong>{t('settings.pilotAll')}</strong>
-          <small>{t('settings.pilotAllHint')}</small>
-        </span>
-      </label>
-      <label class="check">
-        <input type="checkbox" bind:checked={browser} />
-        <span>
-          <strong>{t('settings.browser')} <em class="alpha">{t('settings.alpha')}</em></strong>
-          <small>{t('settings.browserHint')}</small>
-        </span>
-      </label>
-      <p class="intro">{t('settings.pilotApplies')}</p>
-      <h2 id="language-heading">{t('settings.language')}</h2>
-      <select id="language" class="field" aria-labelledby="language-heading" bind:value={language}>
-        <option value="system">{t('settings.languageSystem', { language: LANGUAGES.find(([id]) => id === systemLocale())?.[1] ?? '' })}</option>
-        {#each LANGUAGES as [id, name] (id)}<option value={id}>{name}</option>{/each}
-      </select>
+      <PreferenceSettings />
+    {:else if tab === 'agents'}
+      <AgentSettings />
     {:else}
       <ClaudeSettings bind:path={claude} />
     {/if}
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['layout', 'panels', 'discover', 'projects', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
+  {#if !['layout', 'panels', 'discover', 'projects', 'agents', 'preferences', 'changelog', 'about', 'hosting', 'notifications'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
@@ -657,10 +475,6 @@
     color: #f8d5cc;
   }
 
-  label {
-    font-weight: 600;
-  }
-
   .good {
     margin: 0;
     font: 12.5px var(--mono);
@@ -678,52 +492,6 @@
 
   h2 .hint-text {
     font: 400 12.5px var(--sans);
-  }
-
-  .check {
-    display: flex;
-    align-items: flex-start;
-    gap: 10px;
-    font-weight: 400;
-    cursor: pointer;
-  }
-
-  .check input {
-    margin-top: 3px;
-    accent-color: var(--accent);
-  }
-
-  .check span {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-  }
-
-  .check strong {
-    font-weight: 600;
-  }
-
-  .check small {
-    font-size: 12.5px;
-    line-height: 1.5;
-    color: var(--text-dim);
-  }
-
-  .alpha {
-    margin-left: 6px;
-    padding: 1px 6px;
-    border-radius: 3px;
-    box-shadow: inset 0 0 0 1px var(--wait-border);
-    color: var(--accent-soft);
-    font-size: 10.5px;
-    font-style: normal;
-    font-weight: 700;
-    letter-spacing: 0.04em;
-    text-transform: uppercase;
-  }
-
-  .check.disabled {
-    opacity: 0.5;
   }
 
   .row-intro {
@@ -791,135 +559,6 @@
     box-shadow: inset 0 0 0 1px var(--wait-border);
     color: var(--wait-text-2);
     font-size: 12.5px;
-  }
-
-  .effects {
-    display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
-    gap: 8px;
-  }
-
-  .effects.three {
-    grid-template-columns: repeat(3, minmax(0, 1fr));
-  }
-
-  .effects.four {
-    grid-template-columns: repeat(4, minmax(0, 1fr));
-  }
-
-  .width-custom {
-    display: flex;
-    align-items: center;
-    gap: 12px;
-    margin-top: 8px;
-  }
-
-  .width-custom input[type='range'] {
-    flex: 1;
-    accent-color: var(--accent);
-  }
-
-  .width-custom > button {
-    padding: 10px 14px;
-  }
-
-  .width-custom .px {
-    flex: none;
-    width: auto;
-    display: flex;
-    align-items: center;
-    gap: 4px;
-    color: var(--text-dim);
-  }
-
-  .width-custom .px input {
-    width: 56px;
-    border: 0;
-    background: none;
-    color: var(--text);
-    font: inherit;
-    outline: none;
-  }
-
-  .label {
-    display: block;
-    margin: 16px 0 8px;
-    font-weight: 600;
-  }
-
-  .effects button,
-  .width-custom > button {
-    display: flex;
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 6px;
-    padding: 14px;
-    border-radius: 4px;
-    background: var(--surface-1);
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-    text-align: left;
-  }
-
-  .effects button[aria-pressed='true'],
-  .width-custom > button[aria-pressed='true'] {
-    background: var(--surface-3);
-    box-shadow: inset 0 0 0 2px var(--text);
-  }
-
-  .effects strong {
-    font-weight: 600;
-  }
-
-  .effects .hint {
-    font-size: 12.5px;
-    color: var(--text-dim);
-  }
-
-  .sample {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    height: 30px;
-    margin-bottom: 4px;
-    padding: 0 14px 0 12px;
-    border-radius: 4px;
-    background: var(--bg-tabs);
-    color: var(--text-strong);
-    font-weight: 600;
-  }
-
-  .sample.card {
-    align-self: stretch;
-    height: 36px;
-    padding-left: 16px;
-    border-radius: 6px;
-    background-color: var(--surface-1);
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
-
-  .sample.card::after {
-    border-radius: inherit;
-  }
-
-  .sample .dot {
-    width: 9px;
-    height: 9px;
-    border-radius: 2px;
-    background: var(--accent);
-  }
-
-  .sample .badge {
-    height: 20px;
-    min-width: 20px;
-    padding: 0 6px;
-    display: inline-flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 4px;
-    background: var(--accent);
-    color: var(--accent-ink);
-    font-size: 11.5px;
-    font-weight: 700;
   }
 
   footer {

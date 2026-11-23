@@ -279,7 +279,7 @@
       }
       if (act === 'agent') {
         if (!settings.pilot) {
-          ui.settings = 'preferences'
+          ui.settings = 'agents'
           return
         }
         await reviewWithAgent(dir, pull)

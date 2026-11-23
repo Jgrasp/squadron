@@ -104,7 +104,7 @@
     label: t('review.agentButton'),
     icon: 'persona',
     title: settings.pilot ? t('review.askAgentTitle') : t('review.askAgentNeedsPilot'),
-    run: () => (settings.pilot ? askAgent(pull).catch((e) => (failure = `#${pull.number}: ${errorText(e)}`)) : (ui.settings = 'preferences')),
+    run: () => (settings.pilot ? askAgent(pull).catch((e) => (failure = `#${pull.number}: ${errorText(e)}`)) : (ui.settings = 'agents')),
   })
   async function askAgain(agent: Agent, pull: Pull) {
     failure = ''
