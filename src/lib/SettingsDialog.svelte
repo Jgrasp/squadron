@@ -14,7 +14,7 @@
   import ExtensionsDiscover from './ExtensionsDiscover.svelte'
   import Icon from './Icon.svelte'
   import { brokenAccounts, checkAccounts, extensions } from './extensions.svelte'
-  import { nameOf, pageOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
+  import { nameOf, pageOf, problemOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
   import PluginSettings from './PluginSettings.svelte'
   import PreferenceSettings from './PreferenceSettings.svelte'
   import AgentSettings from './AgentSettings.svelte'
@@ -75,7 +75,7 @@
   })
 
   const current = $derived.by(() => {
-    if (tab === 'discover') return t('extensions.discoverTitle')
+    if (tab === 'discover') return t('settings.tabExtensions')
     const key = groups.flatMap(([, items]) => items).find(([id]) => id === tab)?.[1]
     return key ? t(key) : ''
   })
@@ -105,30 +105,26 @@
   <div class="frame">
   <div class="side" role="tablist" aria-label={t('settings.sections')} aria-orientation="vertical">
     {#each groups as [title, items] (title)}
-      {#if title === 'settings.groupSquadron'}
-        <div class="group tools">
-          <span>{t('settings.tabExtensions')}</span>
-          <button class="tool" role="tab" aria-selected={tab === 'discover'} title={t('extensions.discoverTitle')} aria-label={t('extensions.discoverTitle')} onclick={() => (ui.settings = 'discover')}><Icon name="plus" size={15} /></button>
-        </div>
-        {#each listed as e (e.dir)}
-          {@const update = updateOf(e)}
-          <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${pageOf(e)}`} onclick={() => (ui.settings = `ext:${pageOf(e)}`)}>
-            <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={16} />
-            <span class="name">{nameOf(e)}</span>
-            {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if brokenAccounts(e)}<span class="broken" title={t('extensions.accountBroken')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
-          </button>
-        {/each}
-        {#if enabled.length > LISTED}
-          <button class="more" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
-            <span class="chevron" class:up={expanded}><Icon name="chevron" size={12} /></span>{expanded ? t('extensions.showLess') : t('extensions.moreCount', { count: enabled.length - LISTED })}
-          </button>
-        {/if}
-      {/if}
       <span class="group">{t(title)}</span>
       {#each items as [id, label] (id)}
         <button role="tab" aria-selected={tab === id} onclick={() => (ui.settings = id)}>{t(label)}</button>
       {/each}
     {/each}
+    <span class="group">{t('settings.tabExtensions')}</span>
+    <button role="tab" class="all" aria-selected={tab === 'discover'} onclick={() => (ui.settings = 'discover')}><Icon name="grid" />{t('extensions.allExtensions')}</button>
+    {#each listed as e (e.dir)}
+      {@const update = updateOf(e)}
+      <button role="tab" class="ext" class:off={!e.enabled} aria-selected={tab === `ext:${pageOf(e)}`} onclick={() => (ui.settings = `ext:${pageOf(e)}`)}>
+        <ExtensionLogo id={e.id} name={nameOf(e)} logo={e.logo} size={16} />
+        <span class="name">{nameOf(e)}</span>
+        {#if waitingOf(e)}<span class="wait" title={t('extensions.toAllow')}></span>{:else if problemOf(e) || brokenAccounts(e)}<span class="broken" title={problemOf(e) || t('extensions.accountBroken')}></span>{:else if update}<span class="tag" title={t('extensions.update', { version: update.version })}>{t('extensions.updateNow')}</span>{/if}
+      </button>
+    {/each}
+    {#if enabled.length > LISTED}
+      <button class="more" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
+        <span class="chevron" class:up={expanded}><Icon name="chevron" size={12} /></span>{expanded ? t('extensions.showLess') : t('extensions.moreCount', { count: enabled.length - LISTED })}
+      </button>
+    {/if}
   </div>
 
   <div class="content">
@@ -231,26 +227,7 @@
     font-weight: 600;
   }
 
-  .group.tools {
-    display: flex;
-    align-items: center;
-    gap: 2px;
-    padding: 8px 4px 2px 10px;
-  }
-
-  .group.tools span {
-    flex: 1;
-  }
-
-  .side .tool {
-    width: 26px;
-    height: 26px;
-    display: grid;
-    place-items: center;
-    padding: 0;
-    color: var(--text-dim);
-  }
-
+  .side .all,
   .side .ext {
     display: flex;
     align-items: center;

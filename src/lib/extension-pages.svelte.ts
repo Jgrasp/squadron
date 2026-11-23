@@ -1,6 +1,6 @@
 import { errorText, locale, t } from './i18n/index.svelte'
 import { OFFICIAL, text, updatesOf, type Extension, type Text } from './extensions'
-import { catalog, commandLine, extensions, loadExtensions } from './extensions.svelte'
+import { brokenAccounts, catalog, commandLine, extensions, loadExtensions } from './extensions.svelte'
 
 export type From = 'official' | 'imported' | 'local'
 
@@ -35,9 +35,9 @@ export const problemOf = (e: Extension) =>
 
 export const pendingOf = (e: Extension) => (waitingOf(e) ? e.pending.map(commandLine) : [])
 
-const rank = (e: Extension) => (waitingOf(e) ? 0 : updateOf(e) ? 1 : 2)
+export const rankOf = (e: Extension) => (waitingOf(e) ? 0 : problemOf(e) || brokenAccounts(e) ? 1 : updateOf(e) ? 2 : 3)
 
-export const sorted = (list: Extension[]) => [...list].sort((a, b) => rank(a) - rank(b) || nameOf(a).localeCompare(nameOf(b), locale()))
+export const sorted = (list: Extension[]) => [...list].sort((a, b) => rankOf(a) - rankOf(b) || nameOf(a).localeCompare(nameOf(b), locale()))
 
 export const work = $state({ busy: '', error: '' })
 

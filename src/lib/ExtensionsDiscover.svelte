@@ -9,8 +9,8 @@
   import { ui } from './actions.svelte'
   import { locale, t } from './i18n/index.svelte'
   import { OFFICIAL, shownOf, type CatalogEntry, type Extension, type Source } from './extensions'
-  import { addSource, asks, catalog, extensions, install, loadCatalog, removeSource } from './extensions.svelte'
-  import { attempt, brand, fromOf, named, nameOf, originOf, pendingOf, problemOf, updateOf, work } from './extension-pages.svelte'
+  import { addSource, asks, brokenAccounts, catalog, extensions, install, loadCatalog, removeSource } from './extensions.svelte'
+  import { attempt, brand, fromOf, named, nameOf, originOf, pendingOf, problemOf, rankOf, updateOf, work } from './extension-pages.svelte'
 
   type Item = { id: string; name: string; source?: string; words: string; entry?: CatalogEntry; ext?: Extension }
 
@@ -19,13 +19,12 @@
   let dialog = $state<'sources' | 'local' | null>(null)
   let chosen = $state<CatalogEntry | null>(null)
   let source = $state('')
-  let menu = $state<string | null>(null)
 
   onMount(loadCatalog)
 
   const sources = $derived<Source[]>(catalog.sources.length ? catalog.sources : [{ source: OFFICIAL, official: true }, ...extensions.sources.map((s) => ({ source: s, official: false }))])
   const entries = $derived(shownOf(catalog.entries ?? [], extensions.origins).filter((c) => !extensions.list.some((e) => e.id === c.id)))
-  const rank = (item: Item) => (item.ext && (pendingOf(item.ext).length || updateOf(item.ext)) ? 0 : 1)
+  const rank = (item: Item) => (item.ext ? rankOf(item.ext) : 3)
   const items = $derived<Item[]>(
     [
       ...extensions.list.map((e) => ({ id: e.id, name: nameOf(e), source: originOf(e), ext: e, words: [nameOf(e), named(e.manifest?.description), e.id, originOf(e) ?? ''].join(' ') })),
@@ -59,14 +58,16 @@
   const close = () => ((dialog = null), (chosen = null), (work.error = ''))
 </script>
 
-<svelte:window onclick={(e) => menu && !(e.target as HTMLElement).closest('.pair') && (menu = null)} />
-
 <div class="discover">
 <div class="top">
-  <label class="search">
-    <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
-    <input placeholder={t('extensions.searchCatalog')} aria-label={t('extensions.searchLabel')} spellcheck="false" autocomplete="off" bind:value={query} />
-  </label>
+  <div class="bar">
+    <label class="search">
+      <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"><circle cx="11" cy="11" r="7" /><path d="m20 20-3.5-3.5" /></svg>
+      <input placeholder={t('extensions.searchCatalog')} aria-label={t('extensions.searchLabel')} spellcheck="false" autocomplete="off" bind:value={query} />
+    </label>
+    <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'local'))}><Icon name="folder" />{t('extensions.localExtension')}</button>
+    <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'sources'))}><Icon name="plus" />{t('extensions.marketplaces')}</button>
+  </div>
   <div class="chips" role="group" aria-label={t('extensions.filters')}>
     {#each [['', 'extensions.filterAll'], ['installed', 'extensions.filterInstalled'], ['discover', 'extensions.filterDiscover']] as const as [id, key] (id)}
       <button class="chip" aria-pressed={filter === id} onclick={() => (filter = id)}>{t(key)}<span class="n">{items.filter((item) => keep(item, id)).length}</span></button>
@@ -74,9 +75,6 @@
     {#each sources.filter((s) => items.some((item) => item.source === s.source)) as s (s.source)}
       <button class="chip" aria-pressed={filter === s.source} onclick={() => (filter = s.source)}>{s.official ? '✓ ' : ''}{s.source}<span class="n">{items.filter((item) => item.source === s.source).length}</span></button>
     {/each}
-    <span class="grow"></span>
-    <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'local'))}><Icon name="folder" />{t('extensions.addLocal')}</button>
-    <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'sources'))}><Icon name="plus" />{t('extensions.addMarketplace')}</button>
   </div>
 </div>
 
@@ -96,30 +94,21 @@
             <strong>{item.name}</strong>
             <span class="version">{e.manifest?.version ?? ''}{#if update}{' → '}<b>{update.version}</b>{/if}</span>
             <span class="pill {fromOf(e)}">{fromOf(e) === 'official' ? `✓ ${t('extensions.official')}` : fromOf(e) === 'imported' ? `⇄ ${t('extensions.imported', { owner: (item.source ?? '').split('/')[0] })}` : `▣ ${t('extensions.local')}`}</span>
-            {#if problem}<span class="pill error" title={problem}>⚠ {t('extensions.error')}</span>{:else if pendingOf(e).length}<span class="pill pending">{t('extensions.toAllow')}</span>{/if}
+            {#if pendingOf(e).length}<span class="pill pending">{t('extensions.toAllow')}</span>{:else if problem}<span class="pill error" title={problem}>⚠ {t('extensions.error')}</span>{:else if brokenAccounts(e)}<span class="pill error" title={t('extensions.accountBroken')}>{t('extensions.accountProblem')}</span>{/if}
           </span>
           <small>{named(e.manifest?.description)}</small>
         </button>
         <span class="tail">
+          {#if update}
+            <button class="btn btn-secondary update" disabled={!!work.busy} title={t('extensions.update', { version: update.version })} onclick={() => attempt(() => install(update), e.id)}>
+              <Icon name="arrow-up" />{work.busy === e.id ? t('extensions.updating') : t('extensions.updateNow')}
+            </button>
+          {/if}
           {#if e.manifest}
             <input class="switch" type="checkbox" role="switch" checked={e.enabled} aria-label={t('extensions.enabledFor', { name: item.name })} onchange={(event) => enable(e, event.currentTarget.checked)} />
           {/if}
-          <span class="pair">
-            {#if update}
-              <button class="main up" disabled={!!work.busy} title={t('extensions.update', { version: update.version })} onclick={() => attempt(() => install(update), e.id)}>
-                <Icon name="arrow-up" />{work.busy === e.id ? t('extensions.updating') : t('extensions.updateNow')}
-              </button>
-              <button class="caret" aria-label={t('extensions.moreFor', { name: item.name })} aria-expanded={menu === e.id} onclick={() => (menu = menu === e.id ? null : e.id)}><Icon name="chevron" /></button>
-              {#if menu === e.id}
-                <div class="menu" role="menu">
-                  <button role="menuitem" onclick={() => ((menu = null), settingsOf(e))}><Icon name="gear" />{t('extensions.settings')}</button>
-                </div>
-              {/if}
-            {:else}
-              <button class="main solo" onclick={() => settingsOf(e)}><Icon name="gear" />{t('extensions.settings')}</button>
-            {/if}
-          </span>
         </span>
+        <span class="open" aria-hidden="true"><Icon name="chevron" /></span>
       </div>
     {:else if item.entry}
       {@const c = item.entry}
@@ -138,7 +127,7 @@
         </button>
         <span class="tail">
           {#if permissions}<small class="asks">{t('extensions.permissionCount', { count: permissions })}</small>{/if}
-          <button class="btn btn-primary install" disabled={!!work.busy} onclick={() => pick(c)}>{work.busy === c.id ? t('extensions.installing') : t('extensions.install')}</button>
+          <button class="btn btn-primary" disabled={!!work.busy} onclick={() => pick(c)}>{work.busy === c.id ? t('extensions.installing') : t('extensions.install')}</button>
         </span>
       </div>
     {/if}
@@ -261,8 +250,15 @@
     color: var(--text-faint);
   }
 
-  .grow {
+  .bar {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+  }
+
+  .bar .search {
     flex: 1;
+    min-width: 0;
   }
 
   .btn {
@@ -361,10 +357,6 @@
     gap: 14px;
   }
 
-  .row:has(.menu) .tail {
-    z-index: 2;
-  }
-
   .pill {
     flex: none;
     display: inline-flex;
@@ -444,95 +436,29 @@
     outline-offset: 2px;
   }
 
-  .pair {
-    position: relative;
-    display: inline-flex;
-    border-radius: 4px;
-    box-shadow: inset 0 0 0 1px var(--border-strong);
-  }
-
-  .pair > button {
-    height: 30px;
+  .update {
     display: inline-flex;
     align-items: center;
-    justify-content: center;
     gap: 6px;
-    padding: 0 12px;
-    border-radius: 4px;
-    color: var(--text-2);
-    font-size: 13px;
-  }
-
-  .pair > button:hover:not(:disabled) {
-    background: var(--surface-3);
-    color: var(--text);
-  }
-
-  .pair .main {
-    width: 104px;
-  }
-
-  .pair .solo {
-    width: 132px;
-  }
-
-  .pair .up {
-    border-radius: 4px 0 0 4px;
-    color: var(--text);
     font-weight: 600;
   }
 
-  .pair .caret {
-    width: 28px;
-    padding: 0;
-    border-radius: 0 4px 4px 0;
-    box-shadow: inset 1px 0 0 var(--border-strong);
+  .open {
+    flex: none;
+    display: grid;
+    color: var(--text-faint);
+    transform: rotate(-90deg);
+    pointer-events: none;
   }
 
-  .pair .caret[aria-expanded='true'] {
-    background: var(--surface-4);
-    color: var(--text);
-  }
-
-  .menu {
-    position: absolute;
-    top: 34px;
-    right: 0;
-    width: 200px;
-    padding: 5px;
-    border-radius: 6px;
-    background: var(--menu);
-    box-shadow:
-      0 14px 36px rgba(0, 0, 0, 0.5),
-      0 0 0 1px var(--border-strong);
-  }
-
-  .menu button {
-    width: 100%;
-    height: 32px;
-    display: flex;
-    align-items: center;
-    gap: 10px;
-    padding: 0 10px;
-    border-radius: 4px;
+  .row:hover .open {
     color: var(--text-2);
-    font-size: 13px;
-    text-align: left;
-  }
-
-  .menu button:hover {
-    background: var(--menu-hover);
-    color: var(--text);
   }
 
   .asks {
     color: var(--text-dim);
     font-size: 12px;
     white-space: nowrap;
-  }
-
-  .tail .install {
-    width: 132px;
   }
 
   .empty {
