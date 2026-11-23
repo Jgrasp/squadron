@@ -7,6 +7,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import type { BrowserTab } from './browser.svelte'
   import { t } from './i18n/index.svelte'
+  import { layout, resizeNotes } from './layout.svelte'
   import { base64 } from './paste'
   import type { Comment } from './stream'
 
@@ -34,7 +35,6 @@
   let aiming = false
   let shift = $state(0)
   let edge = 0
-  const COLUMN = 250
 
   $effect(() => {
     canvas.style.translate = shift ? `${-shift}px 0` : ''
@@ -43,7 +43,8 @@
 
   function approach(x: number) {
     const box = canvas.parentElement!.getBoundingClientRect()
-    const want = x - box.left < 24 ? 0 : x - box.left > box.width - COLUMN - 24 ? COLUMN : shift
+    const width = Math.min(layout.notesWidth, box.width - 80)
+    const want = x - box.left < 24 ? 0 : x - box.left > box.width - width - 24 ? width : shift
     clearTimeout(edge)
     if (want !== shift) edge = window.setTimeout(() => (shift = want), 300)
   }
@@ -51,6 +52,22 @@
   function fold() {
     folded = true
     shift = 0
+  }
+
+  function resize(event: PointerEvent) {
+    const handle = event.currentTarget as HTMLElement
+    handle.setPointerCapture(event.pointerId)
+    const box = canvas.parentElement!.getBoundingClientRect()
+    const follow = (e: PointerEvent) => {
+      resizeNotes(box.right - e.clientX, box.width - 80)
+      if (shift) shift = layout.notesWidth
+    }
+    const stop = () => {
+      handle.removeEventListener('pointermove', follow)
+      handle.removeEventListener('pointerup', stop)
+    }
+    handle.addEventListener('pointermove', follow)
+    handle.addEventListener('pointerup', stop)
   }
 
   function at(e: PointerEvent): [number, number] {
@@ -193,7 +210,8 @@
     </button>
   </div>
 {:else}
-  <aside class="notes" aria-label={t('browser.notesTitle')}>
+  <aside class="notes" aria-label={t('browser.notesTitle')} style:width="{layout.notesWidth}px">
+    <div class="grab" role="separator" aria-orientation="vertical" aria-label={t('browser.resizeNotes')} onpointerdown={resize}><i></i></div>
     <div class="head">
       <strong>{t('browser.notesTitle')}</strong>
       <span class="total">{notes.length || ''}</span>
@@ -276,13 +294,42 @@
     top: 0;
     right: 0;
     bottom: 0;
-    width: 250px;
+    max-width: calc(100% - 80px);
     display: flex;
     flex-direction: column;
     background: var(--bg-sidebar);
     box-shadow:
       -1px 0 0 var(--border),
       -14px 0 36px rgba(0, 0, 0, 0.35);
+  }
+
+  .grab {
+    position: absolute;
+    top: 0;
+    left: -6px;
+    bottom: 0;
+    width: 12px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    cursor: col-resize;
+    touch-action: none;
+  }
+
+  .grab i {
+    width: 6px;
+    height: 56px;
+    border-radius: 3px;
+    background: var(--text-dim);
+    box-shadow:
+      0 0 0 3px var(--bg-sidebar),
+      0 0 0 4px var(--border-strong);
+    opacity: 0;
+    transition: opacity 0.12s;
+  }
+
+  .grab:hover i {
+    opacity: 0.7;
   }
 
   .head {

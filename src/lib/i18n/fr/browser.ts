@@ -26,6 +26,7 @@ export default {
   clearNotes: 'Effacer',
   sendNotes: 'Ajouter au message',
   notesTitle: 'Notes',
+  resizeNotes: 'Redimensionner les notes',
   foldNotes: 'Rabattre les notes',
   openNotes: 'Ouvrir les notes',
   closeNotes: 'Fermer les notes : elles restent jusqu’à leur envoi',
