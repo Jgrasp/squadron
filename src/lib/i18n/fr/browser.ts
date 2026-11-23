@@ -21,7 +21,7 @@ export default {
   notesArea: 'Page à annoter : cliquez un élément ou entourez une zone',
   notesHint: 'Cliquez un élément ou entourez une zone de la page.',
   spot: 'Un endroit de la page',
-  notePlaceholder: 'Ajouter un commentaire…',
+  notePlaceholder: 'Ajoutez un commentaire, Entrée l’ajoute au message',
   removeNote: 'Retirer l’annotation {n}',
   clearNotes: 'Effacer',
   sendNotes: 'Ajouter au message',

@@ -21,7 +21,7 @@ export default {
   notesArea: 'Page to annotate: click an element or circle an area',
   notesHint: 'Click an element or circle an area of the page.',
   spot: 'A spot on the page',
-  notePlaceholder: 'Add a comment…',
+  notePlaceholder: 'Add a comment, Enter adds it to the message',
   removeNote: 'Remove note {n}',
   clearNotes: 'Clear',
   sendNotes: 'Add to the message',

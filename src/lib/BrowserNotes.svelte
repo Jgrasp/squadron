@@ -30,6 +30,7 @@
   let drawing = $state<[number, number][] | null>(null)
   let fields = $state<HTMLTextAreaElement[]>([])
   let sending = $state(false)
+  let sent = $state(0)
   let folded = $state(false)
   let hovered = $state<Picked | null>(null)
   let aiming = false
@@ -141,7 +142,7 @@
       g.font = 'bold 12px sans-serif'
       g.textAlign = 'center'
       g.textBaseline = 'middle'
-      g.fillText(String(i + 1), x, y + 0.5)
+      g.fillText(String(sent + i + 1), x, y + 0.5)
     })
     const blob = await new Promise<Blob | null>((done) => shot.toBlob(done, 'image/png'))
     if (!blob) return ''
@@ -161,9 +162,10 @@
         removed: false,
         code: '',
         note: note.comment.trim(),
-        page: { ...page, n: i + 1, what: note.picked ? what(note.picked) : '', selector: note.picked?.selector ?? '', ref: note.picked?.ref ?? '', html: note.picked?.html ?? '' },
+        page: { ...page, n: sent + i + 1, what: note.picked ? what(note.picked) : '', selector: note.picked?.selector ?? '', ref: note.picked?.ref ?? '', html: note.picked?.html ?? '' },
       }))
       onsend(comments, image)
+      sent += notes.length
       notes = []
     } catch (e) {
       onfail(e)
@@ -194,7 +196,7 @@
     {/if}
     <g class="badge" transform={`translate(${pin(note).join(',')})`}>
       <circle r="11" />
-      <text dy="0.35em">{i + 1}</text>
+      <text dy="0.35em">{sent + i + 1}</text>
     </g>
   {/each}
   {#if drawing && drawing.length > 1}
@@ -224,16 +226,16 @@
       {#each notes as note, i (note)}
         <div class="note">
           <div class="top">
-            <span class="n">{i + 1}</span>
+            <span class="n">{sent + i + 1}</span>
             <span class="what" title={note.picked?.selector}>{what(note.picked)}</span>
-            <button class="icon" aria-label={t('browser.removeNote', { n: i + 1 })} onclick={() => notes.splice(i, 1)}>×</button>
+            <button class="icon" aria-label={t('browser.removeNote', { n: sent + i + 1 })} onclick={() => notes.splice(i, 1)}>×</button>
           </div>
           <textarea
             bind:this={fields[i]}
             bind:value={note.comment}
             placeholder={t('browser.notePlaceholder')}
             aria-label={t('browser.notePlaceholder')}
-            onkeydown={(e) => e.key === 'Enter' && (e.ctrlKey || e.metaKey) && (e.preventDefault(), send())}
+            onkeydown={(e) => e.key === 'Enter' && !e.shiftKey && !e.isComposing && (e.preventDefault(), send())}
           ></textarea>
         </div>
       {:else}
