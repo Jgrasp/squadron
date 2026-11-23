@@ -65,6 +65,7 @@ export type Config = {
   notify_remote: NotifyRemote
   remote_new_agents: boolean
   merge_others: 'second' | 'menu' | 'hidden'
+  merge_review: 'banner' | 'header'
   merge_method: 'repo' | MergeMethod
 }
 
@@ -110,6 +111,7 @@ export const settings = $state<Config>({
   notify_remote: 'keep',
   remote_new_agents: false,
   merge_others: 'second',
+  merge_review: 'banner',
   merge_method: 'repo',
 })
 

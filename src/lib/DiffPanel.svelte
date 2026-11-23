@@ -21,7 +21,7 @@
   import { ask } from './asking.svelte'
   import { show } from './agents.svelte'
   import { settings } from './settings.svelte'
-  import { behind, closeRound, hostName, inRound, judgementOf, markReviewed, openRound, post, reviewChanges, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
+  import { askMerge, behind, closeRound, hostName, inRound, judgementOf, markReviewed, merge, openRound, post, reviewChanges, reviews, setViewed, viewedFiles, type Pull, type Remark } from './pulls.svelte'
   import SidePanel from './SidePanel.svelte'
   import PullThreads, { stateOf, type ThreadState } from './PullThreads.svelte'
   import { calls, relative, workdir, type Agent, type Comment } from './stream'
@@ -710,6 +710,36 @@
     finishing = false
   }
 
+  const ours = $derived(own || (!!agent && !agent.review))
+  const merger = $derived(!!pull && reviewing && pull.state === 'open' && can(pull.host, 'merge') && (ours || settings.merge_others !== 'hidden'))
+  const mergeState = $derived.by(() => {
+    if (!pull) return null
+    const { base, branch } = pull
+    const host = hostName(pull)
+    if (pull.mergeable) return { tone: 'ok', icon: 'check', label: t('review.readyToMerge'), help: pull.checks === 'passing' ? t('review.readyChecksPassed', { base }) : t('review.readyNoConflicts', { base }) }
+    if (pull.conflicts) return { tone: 'err', icon: 'alert', label: t('review.conflictsWithBase', { base }), help: t('review.conflictsHelp', { base, branch }) }
+    if (pull.draft) return { tone: 'plain', icon: 'info', label: t('review.draft'), help: t('review.draftHelp', { host }) }
+    if (pull.checks === 'failing') return { tone: 'err', icon: 'alert', label: t('review.checksFailing'), help: t('review.checksFailingHelp') }
+    if (pull.checks === 'pending') return { tone: 'wait', icon: 'clock', label: t('review.checksRunning'), help: t('review.checksRunningHelp') }
+    return { tone: 'plain', icon: 'info', label: t('review.mergeBlocked'), help: t('review.mergeBlockedHelp', { host }) }
+  })
+  let merging = $state(false)
+
+  async function mergeIt() {
+    if (!pull) return
+    const choice = await askMerge(pull, review.length ? t('review.draftsNotPosted', { count: review.length }) : '')
+    if (!choice) return
+    merging = true
+    postError = null
+    try {
+      await merge(folder, pull, choice)
+      onposted?.()
+    } catch (e) {
+      postError = { text: String(e), done: 0 }
+    }
+    merging = false
+  }
+
   function remove() {
     if (existing) existing.list.splice(existing.index, 1)
     commenting = null
@@ -735,6 +765,11 @@
     {/if}
   {/snippet}
   {#snippet actions()}
+    {#if merger && mergeState && settings.merge_review === 'header'}
+      <span class="merge-state {mergeState.tone}" title={mergeState.help}><Icon name={mergeState.icon} size={12} />{mergeState.label}</span>
+      {@render mergeButton()}
+      <span class="merge-sep" aria-hidden="true"></span>
+    {/if}
     <button
       class="tree-toggle"
       aria-pressed={layout.fileTree}
@@ -768,6 +803,13 @@
     </div>
   {/snippet}
   {@render banner?.()}
+  {#if merger && mergeState && settings.merge_review === 'banner'}
+    <div class="merge-box {mergeState.tone}" role="status">
+      <span class="merge-icon" aria-hidden="true"><Icon name={mergeState.icon} size={14} /></span>
+      <span class="merge-text"><strong>{mergeState.label}</strong><span>{mergeState.help}</span></span>
+      {@render mergeButton()}
+    </div>
+  {/if}
   {#if reviewing && pull}
     <div class="pr-head">
       <strong class="pr-title">{pull.title}</strong>
@@ -1216,6 +1258,12 @@
   {/if}
 {/snippet}
 
+{#snippet mergeButton()}
+  <button class="btn merge-btn {ours ? 'btn-primary' : 'btn-secondary'}" disabled={!pull?.mergeable || merging} title={t('review.mergeInto', { base: pull?.base ?? '' })} onclick={mergeIt}>
+    <Icon name="pull" size={14} />{merging ? t('review.merging') : t('review.merge')}
+  </button>
+{/snippet}
+
 {#snippet thread(th: Thread, line?: Line)}
   <div class="thread" class:inline-thread={!!line} class:hit={lit?.key === `thread:${th.root.id}` || picked === th.root.id} data-thread={th.root.id}>
     {#if !line && th.root.path}<span class="where">{t('review.outdated', { path: th.root.path })}</span>{/if}
@@ -1531,6 +1579,118 @@
     background: var(--surface-1);
     box-shadow: inset 0 0 0 1px var(--border);
     font-size: 13.5px;
+  }
+
+  .merge-btn {
+    flex: none;
+    height: 32px;
+    padding: 0 14px;
+    gap: 6px;
+  }
+
+  .merge-state {
+    flex: none;
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    height: 24px;
+    padding: 0 9px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    font-size: 12px;
+    color: var(--text-2);
+    white-space: nowrap;
+  }
+
+  .merge-state.ok {
+    background: var(--ok-bg);
+    color: var(--ok-text);
+  }
+
+  .merge-state.wait {
+    color: var(--accent-link);
+  }
+
+  .merge-state.err {
+    background: var(--err-bg);
+    color: var(--err-text);
+  }
+
+  .merge-sep {
+    flex: none;
+    width: 1px;
+    height: 22px;
+    background: var(--border);
+  }
+
+  .merge-box {
+    flex: none;
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    padding: 10px 16px;
+    border-bottom: 1px solid var(--border);
+    background: var(--surface-1);
+    box-shadow: inset 3px 0 0 var(--text-faint);
+  }
+
+  .merge-box.ok {
+    background: var(--ok-bg);
+    box-shadow: inset 3px 0 0 var(--ok);
+  }
+
+  .merge-box.wait {
+    box-shadow: inset 3px 0 0 var(--accent-link);
+  }
+
+  .merge-box.err {
+    background: var(--err-bg);
+    box-shadow: inset 3px 0 0 var(--err);
+  }
+
+  .merge-icon {
+    flex: none;
+    width: 28px;
+    height: 28px;
+    display: grid;
+    place-items: center;
+    border-radius: 6px;
+    background: var(--surface-3);
+    color: var(--text-2);
+  }
+
+  .ok .merge-icon {
+    color: var(--ok);
+  }
+
+  .wait .merge-icon {
+    color: var(--accent-link);
+  }
+
+  .err .merge-icon {
+    color: var(--err);
+  }
+
+  .merge-text {
+    flex: 1;
+    min-width: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .merge-text strong {
+    font-size: 13.5px;
+    color: var(--text-strong);
+  }
+
+  .merge-text span {
+    font-size: 12px;
+    color: var(--text-dim);
+  }
+
+  .merge-box .merge-btn {
+    height: 34px;
+    padding: 0 16px;
   }
 
   .review-bar {

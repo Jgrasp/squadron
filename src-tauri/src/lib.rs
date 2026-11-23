@@ -452,6 +452,7 @@ struct Config {
     remote_new_agents: bool,
     merge_others: String,
     merge_method: String,
+    merge_review: String,
 }
 
 impl Default for Config {
@@ -505,6 +506,7 @@ impl Default for Config {
             remote_new_agents: false,
             merge_others: "second".into(),
             merge_method: "repo".into(),
+            merge_review: "banner".into(),
         }
     }
 }
@@ -580,6 +582,12 @@ impl Settings {
             return Err(format!(
                 "Unknown merge button placement: {}",
                 config.merge_others
+            ));
+        }
+        if !["banner", "header"].contains(&config.merge_review.as_str()) {
+            return Err(format!(
+                "Unknown merge placement in the review: {}",
+                config.merge_review
             ));
         }
         if !["repo", "merge", "squash", "rebase"].contains(&config.merge_method.as_str()) {
