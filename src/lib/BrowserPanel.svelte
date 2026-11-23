@@ -224,7 +224,7 @@
           bind:notes
           onfail={fail}
           onclose={() => (annotating = false)}
-          onsend={(comments, image) => onnote(comments, image ? [image] : [])}
+          onsend={(comments, image, done) => (onnote(comments, image ? [image] : []), done && onclose())}
         />
       {/if}
     {:else}

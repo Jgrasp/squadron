@@ -22,7 +22,7 @@
     tab: BrowserTab
     canvas: HTMLCanvasElement
     notes: Note[]
-    onsend: (comments: Comment[], image: string) => void
+    onsend: (comments: Comment[], image: string, done: boolean) => void
     onclose: () => void
     onfail: (e: unknown) => void
   } = $props()
@@ -150,7 +150,7 @@
     return invoke<string>('save_attachment', { name, data: await base64(blob) })
   }
 
-  async function send() {
+  async function send(done = false) {
     if (!notes.length || sending) return
     sending = true
     try {
@@ -164,7 +164,7 @@
         note: note.comment.trim(),
         page: { ...page, n: sent + i + 1, what: note.picked ? what(note.picked) : '', selector: note.picked?.selector ?? '', ref: note.picked?.ref ?? '', html: note.picked?.html ?? '' },
       }))
-      onsend(comments, image)
+      onsend(comments, image, done)
       sent += notes.length
       notes = []
     } catch (e) {
@@ -244,7 +244,7 @@
     </div>
     <div class="foot">
       <button class="btn btn-ghost" disabled={!notes.length} onclick={() => (notes = [])}>{t('browser.clearNotes')}</button>
-      <button class="btn btn-primary" disabled={!notes.length || sending} onclick={send}>{t('browser.sendNotes')}</button>
+      <button class="btn btn-primary" disabled={!notes.length || sending} onclick={() => send(true)}>{t('browser.sendNotes')}</button>
     </div>
   </aside>
 {/if}
