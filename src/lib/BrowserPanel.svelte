@@ -66,6 +66,19 @@
     image.close()
   }
 
+  const landed = new Set(untrack(() => tabs.filter((x) => !x.loading).map((x) => x.id)))
+  const started = new Set<string>()
+  $effect(() => {
+    for (const x of tabs) {
+      if (!x.loading) {
+        if (started.delete(x.id)) landed.add(x.id)
+      } else if (!started.has(x.id)) {
+        started.add(x.id)
+        setTimeout(() => landed.add(x.id), 3000)
+      }
+    }
+  })
+
   const viewed = $derived(tab?.id)
   const painted = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
 
@@ -80,7 +93,7 @@
       if (busy || !screen) return
       const b = screen.getBoundingClientRect()
       const hide = annotating || !b.width || !b.height || covered(b)
-      const key = hide ? 'hidden' : [b.x, b.y, b.width, b.height].map(Math.round).join()
+      const key = hide ? 'hidden' : landed.has(id) ? [b.x, b.y, b.width, b.height].map(Math.round).join() : 'away'
       if (key === placed) return
       busy = true
       placed = key
@@ -91,7 +104,7 @@
         )
         await painted()
       }
-      await invoke('browser_place', { tab: id, rect: hide ? null : [b.x, b.y, b.width, b.height] }).catch(fail)
+      await invoke('browser_place', { tab: id, rect: hide || key === 'away' ? null : [b.x, b.y, b.width, b.height] }).catch(fail)
       if (!hide && frozen) {
         await painted()
         frozen = false
