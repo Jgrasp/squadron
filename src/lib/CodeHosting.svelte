@@ -111,6 +111,14 @@
     </div>
   </div>
 
+  <h3>{t('settings.pullLists')}</h3>
+  <div class="options">
+    <label class="option">
+      <span class="label"><strong>{t('settings.pullsOthers')}</strong><small>{t('settings.pullsOthersHint')}</small></span>
+      <input class="switch" type="checkbox" role="switch" checked={settings.pulls_others} onchange={(e) => change({ pulls_others: e.currentTarget.checked })} />
+    </label>
+  </div>
+
   <div class="elsewhere">
     <span>{t('settings.hostingElsewhere')}</span>
     <button class="btn btn-ghost" onclick={() => ((ui.settingsProject = '*'), (ui.settings = 'projects'))}>{t('settings.claudeElsewhereDefaultsGo')}</button>
@@ -191,6 +199,45 @@
 
   .option small.bad {
     color: var(--err-text);
+  }
+
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface-5);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .switch::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s;
+  }
+
+  .switch:checked {
+    background: var(--accent);
+  }
+
+  .switch:checked::before {
+    transform: translateX(14px);
+    background: var(--ink);
+  }
+
+  .switch:focus-visible {
+    outline: 2px solid var(--border-focus);
+    outline-offset: 2px;
   }
 
   .option :global(.select) {

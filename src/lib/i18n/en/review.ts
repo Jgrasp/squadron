@@ -56,6 +56,8 @@ export default {
   noForgeWhy: 'Squadron reads pull requests from the forge extensions you install.',
   findForge: 'Find an extension',
   waitingOnOthers: 'Waiting on others',
+  otherPulls: 'Other pull requests',
+  otherPullsHint: 'open in the repository, neither yours nor waiting for your review',
   drafts: 'Drafts',
   nothingNeedsYou: 'Nothing needs you in {project}.',
   mergeOthers: 'Merge on other people’s pull requests',

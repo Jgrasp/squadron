@@ -67,6 +67,7 @@ export type Config = {
   merge_others: 'second' | 'menu' | 'hidden'
   merge_review: 'banner' | 'header'
   merge_method: 'repo' | MergeMethod
+  pulls_others: boolean
 }
 
 export type MergeMethod = 'merge' | 'squash' | 'rebase'
@@ -113,6 +114,7 @@ export const settings = $state<Config>({
   merge_others: 'second',
   merge_review: 'banner',
   merge_method: 'repo',
+  pulls_others: false,
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)
