@@ -15,6 +15,9 @@
   }: { agent: Agent; onnote: (comments: Comment[], files: string[]) => void; onclose: () => void } = $props()
 
   const tabs = $derived(browser.tabs.filter((x) => x.agent === agent.id))
+  $effect(() => {
+    invoke('browser_restore', { agent: agent.id }).catch(() => {})
+  })
   let chosen = $state('')
   const tab = $derived<BrowserTab | undefined>(tabs.find((x) => x.id === chosen) ?? tabs.at(-1))
 

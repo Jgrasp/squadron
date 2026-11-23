@@ -1,5 +1,5 @@
 use base64::Engine;
-use serde::Serialize;
+use serde::{Deserialize, Serialize};
 use serde_json::{Value, json};
 use std::path::PathBuf;
 use std::pin::Pin;
@@ -28,9 +28,18 @@ pub struct Status {
     pub tabs: Vec<TabInfo>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
+struct Saved {
+    agent: String,
+    url: String,
+    title: String,
+    session: String,
+}
+
 struct Tab {
     info: TabInfo,
     view: tauri::Webview,
+    session: String,
     refs: u64,
     last: Vec<String>,
     starts: u64,
@@ -49,6 +58,7 @@ pub(crate) struct Inner {
     dir: PathBuf,
     blocked: Vec<String>,
     state: Mutex<State>,
+    saved: Mutex<Vec<Saved>>,
     notify: Box<dyn Fn(Status) + Send + Sync>,
 }
 
@@ -128,11 +138,16 @@ impl Browser {
         if let Some(dev) = &app.config().build.dev_url {
             blocked.push(dev.origin().ascii_serialization());
         }
+        let saved = std::fs::read(dir.join("tabs.json"))
+            .ok()
+            .and_then(|b| serde_json::from_slice(&b).ok())
+            .unwrap_or_default();
         Self(Arc::new(Inner {
             app: Some(app),
             dir,
             blocked,
             state: Default::default(),
+            saved: Mutex::new(saved),
             notify: Box::new(notify),
         }))
     }
@@ -144,6 +159,7 @@ impl Browser {
             dir: PathBuf::new(),
             blocked: Vec::new(),
             state: Default::default(),
+            saved: Default::default(),
             notify: Box::new(|_| {}),
         }))
     }
@@ -166,6 +182,115 @@ impl Browser {
 
     fn changed(&self) {
         (self.0.notify)(self.status());
+    }
+
+    fn save(&self) {
+        if self.0.app.is_none() {
+            return;
+        }
+        let mut all: Vec<Saved> = {
+            let st = self.0.state.lock().unwrap();
+            st.tabs
+                .iter()
+                .filter(|t| !blank(&t.info.url))
+                .map(|t| Saved {
+                    agent: t.info.agent.clone(),
+                    url: t.info.url.clone(),
+                    title: t.info.title.clone(),
+                    session: t.session.clone(),
+                })
+                .collect()
+        };
+        all.extend(self.0.saved.lock().unwrap().iter().cloned());
+        let path = self.0.dir.join("tabs.json");
+        let tmp = path.with_extension("json.tmp");
+        let written = serde_json::to_vec(&all)
+            .map_err(|e| e.to_string())
+            .and_then(|b| std::fs::write(&tmp, b).map_err(|e| e.to_string()))
+            .and_then(|_| std::fs::rename(&tmp, &path).map_err(|e| e.to_string()));
+        if let Err(e) = written {
+            log::warn!("browser: saving tabs: {e}");
+        }
+    }
+
+    pub(crate) fn kept(&self, tab: &str, session: &[u8]) {
+        let session = base64::engine::general_purpose::STANDARD.encode(session);
+        self.update(tab, |t| {
+            t.session = session;
+            false
+        });
+        self.save();
+    }
+
+    pub async fn restore(&self, agent: &str) {
+        let mine: Vec<Saved> = {
+            let mut saved = self.0.saved.lock().unwrap();
+            let (mine, rest) = saved.drain(..).partition(|s| s.agent == agent);
+            *saved = rest;
+            mine
+        };
+        for s in mine {
+            if let Err(e) = self.reopen(s).await {
+                log::warn!("browser: restoring a tab: {e}");
+            }
+        }
+    }
+
+    async fn reopen(&self, s: Saved) -> Result<(), String> {
+        self.check(&s.url)?;
+        let id = self.next();
+        let view = self.create(&id).await?;
+        let session = base64::engine::general_purpose::STANDARD
+            .decode(&s.session)
+            .unwrap_or_default();
+        self.add(
+            &id,
+            &s.agent,
+            view.clone(),
+            s.url.clone(),
+            s.title,
+            s.session,
+        );
+        if session.is_empty() || !native::restore(&view, session).await? {
+            view.navigate(Url::parse(&s.url).map_err(|e| e.to_string())?)
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    fn next(&self) -> String {
+        let mut st = self.0.state.lock().unwrap();
+        st.next += 1;
+        format!("t{}", st.next)
+    }
+
+    fn add(
+        &self,
+        id: &str,
+        agent: &str,
+        view: tauri::Webview,
+        url: String,
+        title: String,
+        session: String,
+    ) {
+        self.0.state.lock().unwrap().tabs.push(Tab {
+            info: TabInfo {
+                id: id.into(),
+                agent: agent.into(),
+                url,
+                title,
+                loading: false,
+                dialog: None,
+            },
+            view,
+            session,
+            refs: 0,
+            last: Vec::new(),
+            starts: 0,
+            loads: 0,
+            failed: None,
+        });
+        self.changed();
     }
 
     fn update(&self, tab: &str, f: impl FnOnce(&mut Tab) -> bool) {
@@ -271,29 +396,16 @@ impl Browser {
         Box::pin(async move {
             let url = address(url);
             self.check(&url)?;
-            let id = {
-                let mut st = self.0.state.lock().unwrap();
-                st.next += 1;
-                format!("t{}", st.next)
-            };
+            let id = self.next();
             let view = self.create(&id).await?;
-            self.0.state.lock().unwrap().tabs.push(Tab {
-                info: TabInfo {
-                    id: id.clone(),
-                    agent: agent.into(),
-                    url: "about:blank".into(),
-                    title: String::new(),
-                    loading: false,
-                    dialog: None,
-                },
+            self.add(
+                &id,
+                agent,
                 view,
-                refs: 0,
-                last: Vec::new(),
-                starts: 0,
-                loads: 0,
-                failed: None,
-            });
-            self.changed();
+                "about:blank".into(),
+                String::new(),
+                String::new(),
+            );
             if !blank(&url) {
                 self.navigate(&id, &url)
                     .await
@@ -367,14 +479,17 @@ impl Browser {
             .tabs
             .retain(|t| t.info.id != tab);
         self.changed();
+        self.save();
         native::forget(&view, tab);
         view.close().map_err(|e| e.to_string())
     }
 
     pub async fn close_agent(&self, agent: &str) {
+        self.0.saved.lock().unwrap().retain(|s| s.agent != agent);
         for tab in self.tabs(agent) {
             let _ = self.close(&tab.id).await;
         }
+        self.save();
     }
 
     pub async fn navigate(&self, tab: &str, url: &str) -> Result<(), String> {
@@ -579,9 +694,9 @@ mod native {
     use std::sync::Weak;
     use tokio::sync::oneshot;
     use webkit2gtk::{
-        FileChooserRequestExt, LoadEvent, ScriptDialog, ScriptDialogType,
+        BackForwardListExt, FileChooserRequestExt, LoadEvent, ScriptDialog, ScriptDialogType,
         UserContentInjectedFrames, UserContentManagerExt, UserScript, UserScriptInjectionTime,
-        WebView, WebViewExt,
+        WebView, WebViewExt, WebViewSessionState,
     };
 
     thread_local! {
@@ -668,7 +783,12 @@ mod native {
                 match event {
                     LoadEvent::Started => b.loading(&t, true),
                     LoadEvent::Committed => b.located(&t, v.uri().unwrap_or_default().into()),
-                    LoadEvent::Finished => b.loading(&t, false),
+                    LoadEvent::Finished => {
+                        b.loading(&t, false);
+                        if let Some(state) = v.session_state().and_then(|s| s.serialize()) {
+                            b.kept(&t, &state);
+                        }
+                    }
                     _ => {}
                 }
             });
@@ -824,6 +944,19 @@ mod native {
         .await?
     }
 
+    pub async fn restore(view: &tauri::Webview, session: Vec<u8>) -> Result<bool, String> {
+        answer(on_main(view, move |v, tx| {
+            let state = WebViewSessionState::new(&gtk::glib::Bytes::from_owned(session));
+            v.restore_session_state(&state);
+            let item = v.back_forward_list().and_then(|l| l.current_item());
+            if let Some(item) = &item {
+                v.go_to_back_forward_list_item(item);
+            }
+            let _ = tx.send(item.is_some());
+        }))
+        .await
+    }
+
     fn encode(
         r: Result<gtk::cairo::Surface, gtk::glib::Error>,
         css: f64,
@@ -960,6 +1093,9 @@ mod native {
         Err(ONLY.into())
     }
     pub async fn history(_: &tauri::Webview, _: i64) -> Result<(), String> {
+        Err(ONLY.into())
+    }
+    pub async fn restore(_: &tauri::Webview, _: Vec<u8>) -> Result<bool, String> {
         Err(ONLY.into())
     }
     pub async fn snapshot(

@@ -2362,6 +2362,12 @@ async fn browser_open(
 }
 
 #[tauri::command]
+async fn browser_restore(browser: State<'_, browser::Browser>, agent: String) -> Result<(), ()> {
+    browser.restore(&agent).await;
+    Ok(())
+}
+
+#[tauri::command]
 async fn browser_navigate(
     browser: State<'_, browser::Browser>,
     tab: String,
@@ -3106,6 +3112,7 @@ pub fn run() {
             save_attachment,
             browser_status,
             browser_open,
+            browser_restore,
             browser_navigate,
             browser_history,
             browser_reload,

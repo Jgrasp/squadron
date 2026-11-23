@@ -502,6 +502,7 @@ impl Tools {
     ) -> String {
         let result: Result<String, String> = async {
             let agent = self.agent(&parts)?;
+            self.browser.restore(&agent).await;
             match args.action.as_deref().unwrap_or("list") {
                 "list" => {
                     let current = self.tab(&agent, None).unwrap_or_default();
