@@ -1,6 +1,7 @@
 <!doctype html>
 <meta charset="utf-8">
 <title>Commande</title>
+<style>@media (max-width: 500px) { h1 { color: teal } }</style>
 <h1>Commande</h1>
 <form onsubmit="event.preventDefault()">
   <label>Email <input type="email" required></label>
@@ -13,3 +14,5 @@
 <form action="/b/"><label>Recherche <input name="q"></label></form>
 <nav><a href="/a">A</a> <a href="/b">B</a></nav>
 <div id="done"></div>
+<div style="height: 2400px"></div>
+<script>console.error("boom", { code: 1 }); fetch("/missing.json?token=secret")</script>

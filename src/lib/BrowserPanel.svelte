@@ -15,6 +15,9 @@
   }: { agent: Agent; onnote: (comments: Comment[], files: string[]) => void; onclose: () => void } = $props()
 
   const tabs = $derived(browser.tabs.filter((x) => x.agent === agent.id))
+  $effect(() => {
+    invoke('browser_restore', { agent: agent.id }).catch(() => {})
+  })
   let chosen = $state('')
   const tab = $derived<BrowserTab | undefined>(tabs.find((x) => x.id === chosen) ?? tabs.at(-1))
 
@@ -66,6 +69,19 @@
     image.close()
   }
 
+  const landed = new Set(untrack(() => tabs.filter((x) => !x.loading).map((x) => x.id)))
+  const started = new Set<string>()
+  $effect(() => {
+    for (const x of tabs) {
+      if (!x.loading) {
+        if (started.delete(x.id)) landed.add(x.id)
+      } else if (!started.has(x.id)) {
+        started.add(x.id)
+        setTimeout(() => landed.add(x.id), 3000)
+      }
+    }
+  })
+
   const viewed = $derived(tab?.id)
   const painted = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)))
 
@@ -80,7 +96,7 @@
       if (busy || !screen) return
       const b = screen.getBoundingClientRect()
       const hide = annotating || !b.width || !b.height || covered(b)
-      const key = hide ? 'hidden' : [b.x, b.y, b.width, b.height].map(Math.round).join()
+      const key = hide ? 'hidden' : landed.has(id) ? [b.x, b.y, b.width, b.height].map(Math.round).join() : 'away'
       if (key === placed) return
       busy = true
       placed = key
@@ -91,7 +107,7 @@
         )
         await painted()
       }
-      await invoke('browser_place', { tab: id, rect: hide ? null : [b.x, b.y, b.width, b.height] }).catch(fail)
+      await invoke('browser_place', { tab: id, rect: hide || key === 'away' ? null : [b.x, b.y, b.width, b.height] }).catch(fail)
       if (!hide && frozen) {
         await painted()
         frozen = false
@@ -182,6 +198,11 @@
       onfocus={() => ((editing = true), field?.select())}
       onblur={() => (editing = false)}
     />
+    {#if tab?.width}
+      <button type="button" class="width mono" title={t('browser.widthReset')} onclick={() => invoke('browser_resize', { tab: tab.id, width: null }).catch(fail)}>
+        {t('browser.width', { width: tab.width })} ×
+      </button>
+    {/if}
   </form>
   <div class="progress" class:on={tab?.loading} aria-hidden="true"></div>
 
@@ -211,7 +232,7 @@
           bind:notes
           onfail={fail}
           onclose={() => (annotating = false)}
-          onsend={(comments, image) => (onnote(comments, image ? [image] : []), (annotating = false))}
+          onsend={(comments, image, done) => (onnote(comments, image ? [image] : []), done && onclose())}
         />
       {/if}
     {:else}
@@ -352,6 +373,21 @@
     min-width: 0;
     margin-left: 4px;
     font-size: 12.5px;
+  }
+
+  .width {
+    height: 30px;
+    flex: none;
+    padding: 0 10px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    color: var(--text-2);
+    font-size: 12px;
+  }
+
+  .width:hover {
+    background: var(--surface-4);
+    color: var(--text-strong);
   }
 
   .progress {

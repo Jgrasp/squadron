@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 
 export type Dialog = { type: 'alert' | 'confirm' | 'prompt' | 'beforeunload'; message: string; defaultPrompt?: string }
 
-export type BrowserTab = { id: string; agent: string; url: string; title: string; loading: boolean; dialog: Dialog | null }
+export type BrowserTab = { id: string; agent: string; url: string; title: string; loading: boolean; dialog: Dialog | null; width: number | null }
 
 export type BrowserStatus = { tabs: BrowserTab[] }
 

@@ -32,6 +32,7 @@ export type AgentTab = 'agents' | 'reviews'
 let sort: AgentSort = { by: 'none', desc: false }
 let sorts: Record<string, AgentSort> = {}
 let projectsWidth = 380
+let notesWidth = 250
 let foldedGroups: Record<string, boolean> = {}
 let orders: Record<string, string[]> = {}
 let agentTabs: Record<string, AgentTab> = {}
@@ -51,6 +52,7 @@ try {
   panels = read('squadron.panels')
   display = read('squadron.display')
   projectsWidth = Number(localStorage.getItem('squadron.projects-width')) || 380
+  notesWidth = Number(localStorage.getItem('squadron.notes-width')) || 250
   foldedGroups = read('squadron.groups-folded')
   contextShown = localStorage.getItem('squadron.context-shown') ?? 'percent'
 } catch {}
@@ -70,6 +72,7 @@ export const layout = $state({
   orders,
   agentTabs,
   projectsWidth,
+  notesWidth,
   foldedGroups,
   contextShown,
   review: null as { project: string; number: number } | null,
@@ -202,6 +205,13 @@ export const MIN_PROJECTS = 340
 export function resizeProjects(width: number) {
   layout.projectsWidth = Math.round(Math.min(window.innerWidth, Math.max(MIN_PROJECTS, width)))
   keep('squadron.projects-width', String(layout.projectsWidth))
+}
+
+export const MIN_NOTES = 220
+
+export function resizeNotes(width: number, room: number) {
+  layout.notesWidth = Math.round(Math.min(Math.max(MIN_NOTES, room), Math.max(MIN_NOTES, width)))
+  keep('squadron.notes-width', String(layout.notesWidth))
 }
 
 export function foldGroup(id: string, folded: boolean) {
