@@ -14,7 +14,7 @@
   import AskpassDialog from './lib/AskpassDialog.svelte'
   import StartAgentDialog from './lib/StartAgentDialog.svelte'
   import { loadSettings, settings, shortcut } from './lib/settings.svelte'
-  import { agents, archiveIdle, closeAll, create, find, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
+  import { agents, archive, archiveIdle, closeAll, create, find, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
@@ -72,6 +72,7 @@ import './lib/extensionWindows.svelte'
       setPanel(agent.project, 'diff')
       getCurrentWindow().setFocus()
     },
+    archive: (ids) => Promise.all(ids.filter(find).map((id) => archive(id))),
   }
 
   const boardState = () => ({ projects: $state.snapshot(projects.list), current: projects.current, agents: mirrored })

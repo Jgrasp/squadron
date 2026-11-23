@@ -44,6 +44,9 @@
   let drag = $state<{ id: string; x: number; y: number; over: Column | null; before: string | null } | null>(null)
   let focusId = ''
   let picking = $state(false)
+  let picked = $state<string[]>([])
+  let anchor = ''
+  let lasso = $state<{ left: number; top: number; width: number; height: number } | null>(null)
 
   const GOALS: Record<Goal['state'], Key> = {
     planned: 'board.goalPlanned',
@@ -67,6 +70,7 @@
   )
   const cards = $derived([...project.cards, ...virtual])
   const dragged = $derived(cards.find((c) => c.id === drag?.id))
+  const chosen = $derived(cards.filter((c) => picked.includes(c.id)))
 
   function save(next: Card[], keep = '') {
     const kept = next.filter((c) => c.id === keep || !virtual.some((v) => v.id === c.id))
@@ -118,6 +122,8 @@
 
   function grab(event: PointerEvent, card: Card) {
     if (event.button !== 0 || (event.target as HTMLElement).closest('button')) return
+    if (event.ctrlKey || event.metaKey || event.shiftKey) return pick(event, card)
+    picked = []
     const [x0, y0] = [event.clientX, event.clientY]
     let moved = false
     ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
@@ -152,6 +158,58 @@
     for (const [name, listener] of listeners) window.addEventListener(name, listener)
   }
 
+  function pick(event: PointerEvent, card: Card) {
+    event.preventDefault()
+    const ids = COLUMNS.flatMap(([column]) => cards.filter((c) => follow(c, agentOf(c)).column === column).map((c) => c.id))
+    if (event.shiftKey && ids.includes(anchor)) {
+      const [from, to] = [ids.indexOf(anchor), ids.indexOf(card.id)].sort((a, b) => a - b)
+      picked = [...new Set([...picked, ...ids.slice(from, to + 1)])]
+      return
+    }
+    anchor = card.id
+    picked = picked.includes(card.id) ? picked.filter((id) => id !== card.id) : [...picked, card.id]
+  }
+
+  function sweep(event: PointerEvent) {
+    const target = event.target as HTMLElement
+    if (event.button !== 0 || target.closest('[data-card], button, .bulk')) return
+    if (event.offsetX > target.clientWidth || event.offsetY > target.clientHeight) return
+    event.preventDefault()
+    const stage = event.currentTarget as HTMLElement
+    const box = stage.getBoundingClientRect()
+    const [x0, y0] = [event.clientX, event.clientY]
+    const base = event.ctrlKey || event.metaKey ? picked : []
+    let drawn = false
+    const move = (e: PointerEvent) => {
+      if (!e.buttons) return up()
+      if (!drawn && Math.hypot(e.clientX - x0, e.clientY - y0) < 5) return
+      drawn = true
+      const [left, right, top, bottom] = [Math.min(x0, e.clientX), Math.max(x0, e.clientX), Math.min(y0, e.clientY), Math.max(y0, e.clientY)]
+      lasso = { left: left - box.left, top: top - box.top, width: right - left, height: bottom - top }
+      const hit = [...stage.querySelectorAll<HTMLElement>('[data-card]')].filter((el) => {
+        const card = el.getBoundingClientRect()
+        const list = el.parentElement!.getBoundingClientRect()
+        const [from, to] = [Math.max(card.top, list.top), Math.min(card.bottom, list.bottom)]
+        return to > from && card.left < right && card.right > left && from < bottom && to > top
+      })
+      picked = [...new Set([...base, ...hit.map((el) => el.dataset.card!)])]
+    }
+    const up = () => {
+      window.removeEventListener('pointermove', move)
+      window.removeEventListener('pointerup', up)
+      if (!drawn) picked = base
+      lasso = null
+    }
+    window.addEventListener('pointermove', move)
+    window.addEventListener('pointerup', up)
+  }
+
+  function archiveChosen() {
+    const agents = chosen.flatMap((c) => (c.agent ? [c.agent] : []))
+    save(cards.filter((c) => !picked.includes(c.id)))
+    actions.archive(agents)
+    picked = []
+  }
 
   function keys(event: KeyboardEvent, card: Card, column: Column) {
     if (event.target !== event.currentTarget) return
@@ -166,7 +224,9 @@
   }
 
   function boardKeys(event: KeyboardEvent) {
-    if (event.key === 'Escape') picking = false
+    if (event.key !== 'Escape') return
+    picking = false
+    picked = []
   }
 
   function refocus(el: HTMLElement, id: string) {
@@ -235,7 +295,8 @@
     </div>
   </div>
 
-  <div class="stage">
+  <!-- svelte-ignore a11y_no_static_element_interactions -->
+  <div class="stage" class:selecting={chosen.length} onpointerdown={sweep}>
     <div class="columns" style:--count={COLUMNS.length}>
       {#each COLUMNS as [column, title] (column)}
         {@const list = cards.filter((c) => follow(c, agentOf(c)).column === column)}
@@ -251,6 +312,7 @@
                 class="card {agent ? look(agent) : 'task'} {agent && look(agent) === 'working' ? `effect-${settings.tab_effect}` : ''}"
                 class:finished={column === 'done'}
                 class:dragging={drag?.id === card.id}
+                class:picked={picked.includes(card.id)}
                 class:before={drag && drag.over === column && drag.before === card.id && drag.id !== card.id}
                 tabindex="0"
                 aria-keyshortcuts="Enter Alt+ArrowLeft Alt+ArrowRight"
@@ -303,6 +365,16 @@
         </section>
       {/each}
     </div>
+    {#if lasso}
+      <div class="lasso" style:left="{lasso.left}px" style:top="{lasso.top}px" style:width="{lasso.width}px" style:height="{lasso.height}px" aria-hidden="true"></div>
+    {/if}
+    {#if chosen.length}
+      <div class="bulk" role="toolbar" aria-label={t('board.selectionActions')}>
+        <span class="selection">{t('board.selectedCount', { count: chosen.length })}</span>
+        <button title={t('board.archiveHint')} onclick={archiveChosen}>{t('common.archive')}</button>
+        <button class="clear" aria-label={t('shell.clearSelection')} title={t('shell.clearSelection')} onclick={() => (picked = [])}>×</button>
+      </div>
+    {/if}
   </div>
 </main>
 
@@ -564,6 +636,63 @@
     overflow-x: auto;
   }
 
+  .selecting .columns {
+    padding-bottom: 72px;
+  }
+
+  .lasso {
+    position: absolute;
+    z-index: 4;
+    border-radius: 2px;
+    background: color-mix(in srgb, var(--accent-soft) 8%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent-soft) 70%, transparent);
+    pointer-events: none;
+  }
+
+  .bulk {
+    position: absolute;
+    z-index: 5;
+    left: 50%;
+    bottom: 20px;
+    transform: translateX(-50%);
+    display: flex;
+    align-items: center;
+    gap: 4px;
+    padding: 6px 6px 6px 14px;
+    border-radius: 6px;
+    background: var(--menu);
+    box-shadow:
+      0 0 0 1px var(--border-strong),
+      0 14px 36px rgba(0, 0, 0, 0.5);
+    white-space: nowrap;
+  }
+
+  .bulk .selection {
+    margin-right: 8px;
+    font-size: 12.5px;
+    font-weight: 600;
+  }
+
+  .bulk button {
+    height: 28px;
+    padding: 0 10px;
+    border-radius: 4px;
+    font-size: 12.5px;
+    color: var(--text-2);
+  }
+
+  .bulk button:hover {
+    background: var(--menu-hover);
+    color: var(--text);
+  }
+
+  .bulk .clear {
+    width: 28px;
+    padding: 0;
+    font-size: 15px;
+    color: var(--text-dim);
+  }
+
   section {
     min-height: 0;
     display: flex;
@@ -656,6 +785,19 @@
 
   .card.finished strong {
     color: var(--text-3);
+  }
+
+  .card.picked {
+    background: var(--surface-2);
+    box-shadow: inset 0 0 0 2px var(--accent-soft);
+  }
+
+  .card.waiting.picked {
+    background: var(--wait-bg);
+  }
+
+  .card.error.picked {
+    background: var(--err-bg);
   }
 
   .card.dragging {

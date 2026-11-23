@@ -151,6 +151,8 @@ export async function removeRule(path: string, rule: string) {
 }
 
 export async function setCards(path: string, cards: Card[]) {
+  const project = projects.list.find((p) => p.path === path)
+  if (project) project.cards = cards
   set(await invoke<Project[]>('set_cards', { path, cards }))
 }
 

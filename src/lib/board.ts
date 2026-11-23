@@ -13,6 +13,7 @@ export type Actions = {
   start(path: string, card: string, name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[]): void
   show(agent: string): void
   diff(agent: string): void
+  archive(agents: string[]): void
 }
 
 export const COLUMNS: [Column, Key][] = [

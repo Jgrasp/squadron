@@ -8,7 +8,7 @@ import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
 import { migrate, shelf } from './artifacts.svelte'
 import { releaseAgent } from './cleanup.svelte'
-import { addRule, defaultsFor, projects, remove as drop, type Project } from './projects.svelte'
+import { addRule, defaultsFor, projects, remove as drop, setCards, type Project } from './projects.svelte'
 import { ask } from './asking.svelte'
 import { editable, matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
@@ -1109,6 +1109,8 @@ export async function archive(id: string, extra: Record<string, unknown> = {}) {
   if (agent) await save(agent, { archived: Date.now(), remote: null, ...extra })
   await invoke('archive_agent_file', { id }).catch(() => invoke('delete_agent_file', { id }))
   agents.list = agents.list.filter((a) => a.id !== id)
+  const board = projects.list.find((p) => p.cards.some((c) => c.agent === id))
+  if (board) setCards(board.path, $state.snapshot(board.cards).filter((c) => c.agent !== id))
   const dir = agent?.worktree?.path
   if (dir && !agents.list.some((a) => a.worktree?.path === dir)) invoke('drop_review_checkout', { dir }).catch(() => {})
 }
