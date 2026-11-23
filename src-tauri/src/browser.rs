@@ -10,6 +10,10 @@ use tauri::{AppHandle, LogicalPosition, LogicalSize, Manager, Url, WebviewBuilde
 const PAGE: &str = include_str!("browser-page.js");
 const SIZE: (f64, f64) = (1280.0, 800.0);
 const AWAY: f64 = -20000.0;
+const CONSOLE: &str = "(() => { const key = Symbol.for('squadron.console'); if (window[key]) return; const kept = []; Object.defineProperty(window, key, { value: kept }); const plain = (a) => { const p = Object.getPrototypeOf(a); return p === Object.prototype || p === Array.prototype || p === null }; const text = (a) => { try { if (a instanceof Error) return a.stack || String(a); if (a === null || typeof a !== 'object') return String(a); return plain(a) ? JSON.stringify(a) : Object.prototype.toString.call(a) } catch { return '?' } }; const add = (level, args) => { try { if (kept.length >= 200) kept.shift(); kept.push([level, Array.from(args, text).join(' ').slice(0, 600)]) } catch {} }; for (const level of ['error', 'warn']) { const f = console[level]; console[level] = function (...args) { add(level, args); return f.apply(this, args) } } addEventListener('error', (e) => { if (e instanceof ErrorEvent) add('error', [e.error || e.message]) }, true); addEventListener('unhandledrejection', (e) => add('error', ['Unhandled rejection:', e.reason])) })()";
+const LOGS: usize = 300;
+const TALL: i32 = 16384;
+const TALL_INLINE: f64 = 2000.0;
 const NATIVE_DIALOGS: &str = "for (const name of ['alert', 'confirm']) window[name] = function () { const f = document.createElement('iframe'); f.style.display = 'none'; document.documentElement.appendChild(f); try { return f.contentWindow[name](...arguments) } finally { f.remove() } }";
 
 #[derive(Clone, Debug, Serialize)]
@@ -45,6 +49,13 @@ struct Tab {
     starts: u64,
     loads: u64,
     failed: Option<String>,
+    logs: Vec<Log>,
+    failures: u64,
+}
+
+pub struct Log {
+    pub failed: bool,
+    pub line: String,
 }
 
 #[derive(Default)]
@@ -65,11 +76,36 @@ pub(crate) struct Inner {
 #[derive(Clone)]
 pub struct Browser(Arc<Inner>);
 
+pub struct Image {
+    pub bytes: Vec<u8>,
+    pub width: i32,
+    pub height: i32,
+    pub cut: bool,
+}
+
 pub struct Handle {
     pub agent: String,
     pub url: String,
     pub loading: bool,
     pub dialog: Option<Value>,
+}
+
+fn log(t: &mut Tab, failed: bool, line: String) {
+    if t.logs.len() >= LOGS {
+        t.logs.remove(0);
+    }
+    t.failures += failed as u64;
+    t.logs.push(Log { failed, line });
+}
+
+pub fn bare(url: &str) -> Option<String> {
+    let mut url = Url::parse(url).ok()?;
+    if !matches!(url.scheme(), "http" | "https") {
+        return None;
+    }
+    url.set_query(None);
+    url.set_fragment(None);
+    Some(url.into())
 }
 
 fn blank(url: &str) -> bool {
@@ -291,6 +327,8 @@ impl Browser {
             starts: 0,
             loads: 0,
             failed: None,
+            logs: Vec::new(),
+            failures: 0,
         });
         self.changed();
     }
@@ -341,6 +379,56 @@ impl Browser {
             t.failed = Some(error);
             false
         });
+    }
+
+    pub(crate) fn logged(&self, tab: &str, failed: bool, line: String) {
+        self.update(tab, |t| {
+            log(t, failed, line);
+            false
+        });
+    }
+
+    async fn pull(&self, tab: &str) {
+        let Ok(Value::Array(found)) = self
+            .eval_main(
+                tab,
+                "(() => { const k = window[Symbol.for('squadron.console')]; return k ? k.splice(0) : [] })()",
+            )
+            .await
+        else {
+            return;
+        };
+        self.update(tab, |t| {
+            for entry in found {
+                let level = entry[0].as_str().unwrap_or("error");
+                let text = entry[1].as_str().unwrap_or_default();
+                // Tauri also injects its plugins' scripts into tabs, where their calls are refused.
+                if text.contains(" not allowed on window ") && text.contains(" webview \"tab-") {
+                    continue;
+                }
+                log(t, level == "error", format!("console {level}: {text}"));
+            }
+            false
+        });
+    }
+
+    pub async fn failures(&self, tab: &str) -> u64 {
+        self.pull(tab).await;
+        let st = self.0.state.lock().unwrap();
+        st.tabs
+            .iter()
+            .find(|t| t.info.id == tab)
+            .map_or(0, |t| t.failures)
+    }
+
+    pub async fn logs(&self, tab: &str) -> Vec<Log> {
+        self.pull(tab).await;
+        let mut st = self.0.state.lock().unwrap();
+        st.tabs
+            .iter_mut()
+            .find(|t| t.info.id == tab)
+            .map(|t| std::mem::take(&mut t.logs))
+            .unwrap_or_default()
     }
 
     pub(crate) fn asked(&self, tab: &str, dialog: Option<Value>) {
@@ -433,6 +521,7 @@ impl Browser {
         )
         .data_directory(self.0.dir.clone())
         .initialization_script(NATIVE_DIALOGS)
+        .initialization_script(CONSOLE)
         .on_navigation(move |url| {
             let ok = safe(url.as_str(), &blocked);
             if !ok {
@@ -641,16 +730,34 @@ impl Browser {
     pub async fn shot(
         &self,
         tab: &str,
+        full: bool,
         clip: Option<[f64; 4]>,
-        width: f64,
+        width: Option<f64>,
         quality: u32,
-    ) -> Result<String, String> {
-        let jpeg = native::snapshot(&self.view(tab)?, clip, Some(width), quality).await?;
-        Ok(base64::engine::general_purpose::STANDARD.encode(jpeg))
+    ) -> Result<Image, String> {
+        native::snapshot(&self.view(tab)?, full, clip, width, quality).await
     }
 
     pub async fn picture(&self, tab: &str) -> Result<Vec<u8>, String> {
-        native::snapshot(&self.view(tab)?, None, None, 90).await
+        Ok(native::snapshot(&self.view(tab)?, false, None, None, 90)
+            .await?
+            .bytes)
+    }
+
+    pub fn keep(&self, tab: &str, png: &[u8]) -> Result<PathBuf, String> {
+        let dir = self
+            .0
+            .app
+            .as_ref()
+            .ok_or("No app.")?
+            .path()
+            .app_data_dir()
+            .map_err(|e| e.to_string())?;
+        crate::attach::save(
+            &dir.join("attachments"),
+            &format!("page-{tab}.png"),
+            &base64::engine::general_purpose::STANDARD.encode(png),
+        )
     }
 
     pub async fn dialog(
@@ -687,18 +794,21 @@ impl Browser {
 
 #[cfg(target_os = "linux")]
 mod native {
-    use super::{AWAY, Browser, Inner, PAGE, SIZE};
+    use super::{AWAY, Browser, Image, Inner, PAGE, SIZE, TALL, TALL_INLINE};
     use gtk::prelude::*;
     use javascriptcore::ValueExt;
     use serde_json::{Value, json};
     use std::cell::RefCell;
     use std::collections::HashMap;
+    use std::rc::Rc;
     use std::sync::Weak;
+    use std::time::Instant;
     use tokio::sync::oneshot;
     use webkit2gtk::{
         BackForwardListExt, FileChooserRequestExt, LoadEvent, ScriptDialog, ScriptDialogType,
-        UserContentInjectedFrames, UserContentManagerExt, UserScript, UserScriptInjectionTime,
-        WebView, WebViewExt, WebViewSessionState,
+        URIRequestExt, URIResponseExt, UserContentInjectedFrames, UserContentManagerExt,
+        UserScript, UserScriptInjectionTime, WebResourceExt, WebView, WebViewExt,
+        WebViewSessionState,
     };
 
     thread_local! {
@@ -805,6 +915,37 @@ mod native {
                 if let Some(b) = browser(&b) {
                     b.titled(&t, v.title().unwrap_or_default().into());
                 }
+            });
+            let (b, t) = (weak.clone(), tab.clone());
+            v.connect_resource_load_started(move |_, resource, request| {
+                let Some(url) = resource.uri().and_then(|u| super::bare(&u)) else {
+                    return;
+                };
+                let method = request.http_method().unwrap_or_else(|| "GET".into());
+                let start = Instant::now();
+                let error: Rc<RefCell<Option<String>>> = Default::default();
+                let e = error.clone();
+                resource.connect_failed(move |_, err| {
+                    if !err.matches(webkit2gtk::NetworkError::Cancelled) {
+                        *e.borrow_mut() = Some(err.message().to_string());
+                    }
+                });
+                let (b, t) = (b.clone(), t.clone());
+                resource.connect_finished(move |r| {
+                    let Some(b) = browser(&b) else { return };
+                    let ms = start.elapsed().as_millis();
+                    let status = r.response().map_or(0, |r| r.status_code());
+                    match error.borrow_mut().take() {
+                        Some(err) => {
+                            b.logged(&t, true, format!("{method} failed {url}: {err} ({ms} ms)"))
+                        }
+                        None => b.logged(
+                            &t,
+                            status >= 400,
+                            format!("{method} {status} {url} ({ms} ms)"),
+                        ),
+                    }
+                });
             });
             let (b, t) = (weak.clone(), tab.clone());
             v.connect_load_failed(move |_, _, uri, error| {
@@ -961,20 +1102,24 @@ mod native {
 
     fn encode(
         r: Result<gtk::cairo::Surface, gtk::glib::Error>,
-        css: f64,
+        scale: f64,
         clip: Option<[f64; 4]>,
         width: Option<f64>,
         quality: u32,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<Image, String> {
         let surface = gtk::cairo::ImageSurface::try_from(r.map_err(|e| e.message().to_string())?)
             .map_err(|_| "No image.".to_string())?;
         let (sw, sh) = (surface.width(), surface.height());
-        let scale = sw as f64 / css;
-        let [x, y, w, h] = clip.unwrap_or([0.0, 0.0, css, sh as f64 / scale]);
+        let [x, y, w, h] = clip.unwrap_or([0.0, 0.0, sw as f64 / scale, sh as f64 / scale]);
         let x0 = ((x * scale).round() as i32).clamp(0, sw - 1);
         let y0 = ((y * scale).round() as i32).clamp(0, sh - 1);
         let w0 = ((w * scale).round() as i32).clamp(1, sw - x0);
-        let h0 = ((h * scale).round() as i32).clamp(1, sh - y0);
+        let tallest = match width {
+            Some(max) => (TALL_INLINE * w0 as f64 / max.min(w0 as f64)) as i32,
+            None => TALL,
+        };
+        let h1 = ((h * scale).round() as i32).clamp(1, sh - y0);
+        let h0 = h1.min(tallest);
         let mut rgb = Vec::with_capacity((w0 * h0 * 3) as usize);
         let stride = surface.stride() as usize;
         surface
@@ -1004,25 +1149,39 @@ mod native {
                 .scale_simple(max as i32, h1, gtk::gdk_pixbuf::InterpType::Bilinear)
                 .ok_or("No image.")?;
         }
-        pixbuf
-            .save_to_bufferv("jpeg", &[("quality", &quality.to_string())])
-            .map_err(|e| e.message().to_string())
+        let bytes = if quality == 0 {
+            pixbuf.save_to_bufferv("png", &[])
+        } else {
+            pixbuf.save_to_bufferv("jpeg", &[("quality", &quality.to_string())])
+        }
+        .map_err(|e| e.message().to_string())?;
+        Ok(Image {
+            bytes,
+            width: pixbuf.width(),
+            height: pixbuf.height(),
+            cut: h0 < h1,
+        })
     }
 
     pub async fn snapshot(
         view: &tauri::Webview,
+        full: bool,
         clip: Option<[f64; 4]>,
         width: Option<f64>,
         quality: u32,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<Image, String> {
         answer(on_main(view, move |v, tx| {
-            let css = v.allocated_width().max(1) as f64;
+            let scale = v.scale_factor().max(1) as f64;
             v.snapshot(
-                webkit2gtk::SnapshotRegion::Visible,
+                if full {
+                    webkit2gtk::SnapshotRegion::FullDocument
+                } else {
+                    webkit2gtk::SnapshotRegion::Visible
+                },
                 webkit2gtk::SnapshotOptions::NONE,
                 None::<&gtk::gio::Cancellable>,
                 move |r| {
-                    let _ = tx.send(encode(r, css, clip, width, quality));
+                    let _ = tx.send(encode(r, scale, clip, width, quality));
                 },
             );
         }))
@@ -1075,7 +1234,7 @@ mod native {
 
 #[cfg(not(target_os = "linux"))]
 mod native {
-    use super::Inner;
+    use super::{Image, Inner};
     use serde_json::Value;
     use std::sync::Weak;
 
@@ -1102,10 +1261,11 @@ mod native {
     }
     pub async fn snapshot(
         _: &tauri::Webview,
+        _: bool,
         _: Option<[f64; 4]>,
         _: Option<f64>,
         _: u32,
-    ) -> Result<Vec<u8>, String> {
+    ) -> Result<Image, String> {
         Err(ONLY.into())
     }
     pub async fn dialog(
