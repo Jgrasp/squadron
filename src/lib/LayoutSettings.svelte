@@ -1,5 +1,7 @@
 <script lang="ts">
+  import { ui } from './actions.svelte'
   import { displayOf, layout, resetDisplay, setDisplay, setFileTree, setSplit, type PanelSize } from './layout.svelte'
+  import { reset } from './layout-slots.svelte'
   import { MODES, modeLabel, modeShort, PANELS } from './panels'
   import { errorText, t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
@@ -7,6 +9,7 @@
   import { detect } from './OpenWith.svelte'
   import Select from './Select.svelte'
   import { saveSettings, settings, type App } from './settings.svelte'
+  import SlotList from './SlotList.svelte'
   import Trans from './Trans.svelte'
 
   const sizes = (custom: boolean) => [
@@ -62,59 +65,78 @@
   }
 </script>
 
-<div class="intro">
-  <p>{t('settings.panelsIntro')}</p>
-  <button class="btn btn-secondary" onclick={resetDisplay}>{t('settings.backToDefault')}</button>
+<p class="hint">{t('settings.layoutIntro')}</p>
+<h3>
+  <span>{t('settings.layoutHeader')}</span>
+  <button class="btn btn-ghost" onclick={() => ((ui.settings = null), (ui.customizing = true))}>{t('settings.customizeInPlace')}</button>
+  <button class="btn btn-ghost" onclick={() => (reset('agent.info'), reset('agent.tools'))}>{t('settings.backToDefault')}</button>
+</h3>
+<div class="two">
+  <SlotList slot="agent.info" />
+  <SlotList slot="agent.tools" />
 </div>
-<div class="table">
-  <div class="row head">
-    <span></span>
-    {#each MODES as mode (mode)}
-      <span class="col"><ModeIcon {mode} size={64} />{t(modeShort[mode])}</span>
-    {/each}
-    <span class="col size">{t('settings.panelSize')}</span>
+<h3>
+  <span>{t('settings.layoutMenus')}</span>
+  <button class="btn btn-ghost" onclick={() => (reset('agent.menu'), reset('menu.squadron'), reset('artifact.actions'))}>{t('settings.backToDefault')}</button>
+</h3>
+<div class="two">
+  <SlotList slot="agent.menu" />
+  <div class="stack">
+    <SlotList slot="menu.squadron" />
+    <SlotList slot="artifact.actions" />
   </div>
+</div>
+<h3>
+  <span>{t('settings.tabPanels')}</span>
+  <button class="btn btn-ghost" onclick={resetDisplay}>{t('settings.backToDefault')}</button>
+</h3>
+<p class="hint">{t('settings.panelsIntro')}</p>
+<div class="options">
   {#each PANELS as [kind, title] (kind)}
     {@const shown = displayOf(kind)}
-    <div class="row" role="radiogroup" aria-label={t(title)}>
-      <span class="name">{t(title)}</span>
-      {#each MODES as mode (mode)}
-        <button class="cell" role="radio" aria-checked={shown.mode === mode} aria-label={t(modeLabel[mode])} title={t(modeLabel[mode])} onclick={() => setDisplay(kind, { mode })}>
-          <span class="dot"></span>
-        </button>
-      {/each}
-      {#if shown.mode === 'full'}
-        <span class="whole">{t('settings.sizeWhole')}</span>
-      {:else}
-        <Select
-          value={shown.size ?? 'custom'}
-          options={sizes(!shown.size)}
-          label={`${t('settings.panelSize')} · ${t(title)}`}
-          onpick={(size) => setDisplay(kind, { size: size as PanelSize })}
-        />
-      {/if}
+    <div class="option">
+      <strong class="name">{t(title)}</strong>
+      <div class="segs" role="radiogroup" aria-label={t(title)}>
+        {#each MODES as mode (mode)}
+          <button role="radio" aria-checked={shown.mode === mode} title={t(modeLabel[mode])} onclick={() => setDisplay(kind, { mode })}>
+            <ModeIcon {mode} />{t(modeShort[mode])}
+          </button>
+        {/each}
+      </div>
+      <div class="size">
+        {#if shown.mode === 'full'}
+          <span class="whole">{t('settings.sizeWhole')}</span>
+        {:else}
+          <Select
+            value={shown.size ?? 'custom'}
+            options={sizes(!shown.size)}
+            label={`${t('settings.panelSize')} · ${t(title)}`}
+            onpick={(size) => setDisplay(kind, { size: size as PanelSize })}
+          />
+        {/if}
+      </div>
     </div>
   {/each}
 </div>
-<section>
-  <h2>{t('shell.diff')}</h2>
+<h3><span>{t('shell.diff')}</span></h3>
+<div class="options">
   <div class="option">
-    <span>{t('settings.diffLayout')}</span>
-    <div class="pair" role="group" aria-label={t('settings.diffLayout')}>
+    <span class="label"><strong>{t('settings.diffLayout')}</strong><small>{t('settings.diffLayoutHint')}</small></span>
+    <div class="segs" role="group" aria-label={t('settings.diffLayout')}>
       <button aria-pressed={!layout.split} onclick={() => setSplit(false)}>{t('review.unified')}</button>
       <button aria-pressed={layout.split} onclick={() => setSplit(true)}>{t('review.split')}</button>
     </div>
   </div>
   <label class="option">
-    <span>{t('review.fileTree')}</span>
-    <input type="checkbox" checked={layout.fileTree} onchange={(e) => setFileTree(e.currentTarget.checked)} />
+    <span class="label"><strong>{t('review.fileTree')}</strong><small>{t('settings.fileTreeHint')}</small></span>
+    <input type="checkbox" class="switch" checked={layout.fileTree} onchange={(e) => setFileTree(e.currentTarget.checked)} />
   </label>
-</section>
+</div>
+<h3>
+  <span>{t('settings.editorsTitle')}</span>
+  {#if own}<button class="btn btn-ghost" onclick={back}>{t('settings.editorsBack')}</button>{/if}
+</h3>
 <section>
-  <div class="titled">
-    <h2>{t('settings.editorsTitle')}</h2>
-    {#if own}<button class="btn btn-ghost" onclick={back}>{t('settings.editorsBack')}</button>{/if}
-  </div>
   <p class="hint">
     <Trans k="settings.editorsIntro">{#snippet project()}<code>{'{project}'}</code>{/snippet}{#snippet file()}<code>{'{file}'}</code>{/snippet}</Trans>
   </p>
@@ -147,145 +169,78 @@
 </section>
 
 <style>
-  .intro {
+  h3 {
     display: flex;
     align-items: center;
-    gap: 16px;
-  }
-
-  .intro p {
-    margin: 0;
-    font-size: 13px;
+    gap: 8px;
+    min-height: 30px;
+    margin: 10px 0 -6px;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
     color: var(--text-dim);
   }
 
-  .intro .btn {
-    flex: none;
-    height: 34px;
+  h3 span {
+    flex: 1;
   }
 
-  .table {
-    padding: 6px;
-    border-radius: 8px;
-    background: var(--surface-1);
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
-
-  .row {
-    display: grid;
-    grid-template-columns: minmax(110px, 1fr) repeat(4, 76px) 168px;
-    align-items: center;
-    gap: 6px;
-    padding: 4px 8px;
-    border-radius: 6px;
-  }
-
-  .row:not(.head):hover {
-    background: var(--surface-2);
-  }
-
-  .head {
-    margin-bottom: 4px;
-    padding: 10px 8px 12px;
-    border-bottom: 1px solid var(--border);
-    border-radius: 0;
-  }
-
-  .col {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    gap: 7px;
-    font-size: 11.5px;
-    color: var(--text-2);
-    text-align: center;
-  }
-
-  .col.size {
-    align-self: end;
-    align-items: flex-start;
-    padding-left: 2px;
-    color: var(--text-dim);
-  }
-
-  .name {
-    padding-left: 4px;
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .cell {
-    height: 36px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    border-radius: 5px;
-  }
-
-  .cell:hover {
-    background: var(--surface-3);
-  }
-
-  .dot {
-    width: 16px;
-    height: 16px;
-    border-radius: 50%;
-    box-shadow: inset 0 0 0 1.5px var(--border-strong);
-  }
-
-  .cell[aria-checked='true'] {
-    background: color-mix(in srgb, var(--accent) 8%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--accent) 35%, transparent);
-  }
-
-  .cell[aria-checked='true'] .dot {
-    box-shadow: inset 0 0 0 4.5px var(--accent);
-  }
-
-  .row :global(.trigger) {
-    height: 32px;
-  }
-
-  .whole {
-    padding-left: 12px;
+  h3 .btn {
     font-size: 12.5px;
-    color: var(--text-dim);
+    font-weight: 500;
+    letter-spacing: 0;
+    text-transform: none;
   }
 
-  section {
+  .two {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px;
+    align-items: start;
+  }
+
+  .stack {
     display: flex;
     flex-direction: column;
     gap: 10px;
-    padding-top: 18px;
-    border-top: 1px solid var(--border);
   }
 
-  h2 {
-    margin: 0;
-    font-size: 13.5px;
-    font-weight: 600;
+  .options {
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border);
   }
 
   .option {
     display: flex;
     align-items: center;
-    gap: 12px;
+    gap: 14px;
+    min-height: 52px;
+    padding: 8px 14px;
+  }
+
+  .option + .option {
+    border-top: 1px solid var(--border);
+  }
+
+  .option .name,
+  .option .label {
+    flex: 1;
+    min-width: 0;
+  }
+
+  .name {
     font-size: 13px;
-    color: var(--text-muted);
+    font-weight: 600;
   }
 
-  .option > span {
-    width: 110px;
-    flex: none;
+  .label small {
+    font-size: 12px;
+    color: var(--text-dim);
   }
 
-  .option input {
-    width: 16px;
-    height: 16px;
-    accent-color: var(--accent);
-  }
-
-  .pair {
+  .segs {
     display: flex;
     gap: 2px;
     padding: 2px;
@@ -293,17 +248,79 @@
     background: var(--surface-2);
   }
 
-  .pair button {
-    padding: 5px 12px;
+  .segs button {
+    height: 26px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    padding: 0 10px;
     border-radius: 4px;
+    color: var(--text-dim);
+    font-size: 12.5px;
+  }
+
+  .segs button:hover {
+    color: var(--text);
+  }
+
+  .segs [aria-checked='true'],
+  .segs [aria-pressed='true'] {
+    background: var(--surface-4);
+    color: var(--text-strong);
+  }
+
+  .size {
+    width: 150px;
+    flex: none;
+  }
+
+  .size :global(.trigger) {
+    height: 32px;
+  }
+
+  .whole {
+    font-size: 12.5px;
     color: var(--text-dim);
   }
 
-  .titled {
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface-5);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+
+  .switch::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s;
+  }
+
+  .switch:checked {
+    background: var(--accent);
+  }
+
+  .switch:checked::before {
+    transform: translateX(14px);
+    background: var(--ink);
+  }
+
+  section {
     display: flex;
-    align-items: center;
-    justify-content: space-between;
-    gap: 12px;
+    flex-direction: column;
+    gap: 10px;
   }
 
   .btn-ghost {
@@ -418,8 +435,4 @@
     color: var(--err-text);
   }
 
-  .pair button[aria-pressed='true'] {
-    background: var(--surface-4);
-    color: var(--text-strong);
-  }
 </style>
