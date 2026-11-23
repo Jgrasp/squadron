@@ -20,7 +20,6 @@ export type SettingsTab =
   | 'notifications'
   | 'shortcuts'
   | 'layout'
-  | 'panels'
   | 'discover'
   | `ext:${string}`
   | 'changelog'

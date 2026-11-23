@@ -7,8 +7,7 @@
   import CodeHosting from './CodeHosting.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
   import ProjectSettings from './ProjectSettings.svelte'
-  import { reset } from './layout-slots.svelte'
-  import PanelSettings from './PanelSettings.svelte'
+  import LayoutSettings from './LayoutSettings.svelte'
   import NotificationSettings from './NotificationSettings.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
   import ExtensionPage from './ExtensionPage.svelte'
@@ -21,8 +20,6 @@
   import AgentSettings from './AgentSettings.svelte'
   import ShortcutSettings from './ShortcutSettings.svelte'
   import McpServers from './McpServers.svelte'
-  import SlotPreview from './SlotPreview.svelte'
-  import { SLOTS, type Slot } from './slots'
   import { saveSettings, settings } from './settings.svelte'
   import { untrack } from 'svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
@@ -57,7 +54,6 @@
         ['notifications', 'settings.tabNotifications'],
         ['shortcuts', 'settings.tabShortcuts'],
         ['layout', 'settings.tabLayout'],
-        ['panels', 'settings.tabPanels'],
       ],
     ],
     [
@@ -147,21 +143,9 @@
     {:else if tab === 'hosting'}
       <CodeHosting />
     {:else if tab === 'layout'}
-      <div class="intro row-intro">
-        <p class="intro">{t('settings.layoutIntro')}</p>
-        <button class="btn btn-secondary" onclick={() => ((ui.settings = null), (ui.customizing = true))}>{t('settings.customizeInPlace')}</button>
-      </div>
-      {#each Object.entries(SLOTS) as [slot, def] (slot)}
-        <section>
-          <h2>{t(def.title)} <span class="hint-text">{t(def.hint)}</span></h2>
-          <SlotPreview slot={slot as Slot} />
-          <button class="link" onclick={() => reset(slot as Slot)}>{t('settings.backToDefault')}</button>
-        </section>
-      {/each}
+      <LayoutSettings />
     {:else if tab === 'notifications'}
       <NotificationSettings />
-    {:else if tab === 'panels'}
-      <PanelSettings />
     {:else if tab === 'discover'}
       <ExtensionsDiscover />
     {:else if tab.startsWith('ext:')}
@@ -182,7 +166,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['layout', 'panels', 'discover', 'projects', 'agents', 'preferences', 'changelog', 'about', 'hosting', 'notifications', 'shortcuts'].includes(tab) && !tab.startsWith('ext:')}
+  {#if !['layout', 'discover', 'projects', 'agents', 'preferences', 'changelog', 'about', 'hosting', 'notifications', 'shortcuts'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
@@ -378,28 +362,10 @@
     max-width: none;
   }
 
-  .intro {
-    margin: 0;
-    font-size: 13px;
-    color: var(--text-dim);
-  }
-
-  section {
-    display: flex;
-    flex-direction: column;
-    gap: 8px;
-  }
-
   h2 {
     margin: 0;
     font-size: 13.5px;
     font-weight: 600;
-  }
-
-  h2 span {
-    margin-left: 6px;
-    font: 400 12px var(--mono);
-    color: var(--text-dim);
   }
 
   .good {
@@ -411,27 +377,6 @@
   .bad {
     margin: 0;
     color: var(--err-text);
-  }
-
-  h2 .hint-text {
-    font: 400 12.5px var(--sans);
-  }
-
-  .row-intro {
-    display: flex;
-    align-items: center;
-    gap: 16px;
-  }
-
-  .row-intro .btn {
-    flex: none;
-    height: 34px;
-  }
-
-  .link {
-    align-self: flex-start;
-    font-size: 12.5px;
-    color: var(--accent-link);
   }
 
   footer {
