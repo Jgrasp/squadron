@@ -936,12 +936,21 @@ pub async fn self_test(browser: Browser) {
     };
     let first = browser.status().tabs.last().unwrap().id.clone();
     let width = "[innerWidth, matchMedia('(max-width: 500px)').matches]";
-    resize(390).await;
+    let page = resize(390).await;
     let phone = browser.eval_main(&first, width).await.unwrap();
+    let out = act(json!([{"do": "click", "ref": by(&page, "CGV")}])).await;
+    assert!(
+        out.starts_with("ok 1/1") && out.contains("CGV\" on"),
+        "{out}"
+    );
+    act(json!([{"do": "click", "ref": by(&page, "CGV")}])).await;
+    resize(4000).await;
+    let large = browser.eval_main(&first, width).await.unwrap();
     resize(0).await;
     let wide = browser.eval_main(&first, width).await.unwrap();
-    println!("WIDTH {phone} {wide}\n");
+    println!("WIDTH {phone} {large} {wide}\n");
     assert_eq!(phone, json!([390, true]));
+    assert_eq!(large, json!([4000, false]));
     assert_eq!(wide[1], false);
     let id = browser.status().tabs.last().unwrap().id.clone();
     let ring: Vec<f64> = serde_json::from_value(browser.eval_main(&id, "(() => { const [a, b] = [...document.querySelectorAll('nav a')].map((e) => e.getBoundingClientRect()); return [a.x - 6, a.y - 6, b.right - a.x + 12, a.height + 12] })()").await.unwrap()).unwrap();
@@ -1052,7 +1061,7 @@ pub async fn self_test(browser: Browser) {
         )
         .await;
     println!("SCREEN\n{look}\n\nREAD\n{read}\n");
-    assert!(look.starts_with("[t1] \"Payé\""), "{look}");
+    assert!(look.starts_with(&format!("[{id}] \"Payé\"")), "{look}");
     let shot = tools
         .shot(
             parts(),
@@ -1109,7 +1118,10 @@ pub async fn self_test(browser: Browser) {
             }),
         )
         .await;
-    assert!(list.starts_with("[t2]"), "{list}");
+    assert!(
+        list.starts_with("[t") && !list.starts_with(&format!("[{id}]")),
+        "{list}"
+    );
     let list = tools
         .tabs(
             parts(),
@@ -1123,7 +1135,9 @@ pub async fn self_test(browser: Browser) {
         .await;
     println!("LIST\n{list}\n");
     assert!(
-        list.contains("[t1]") && list.contains("[t2]") && list.contains("(current)"),
+        list.contains(&format!("[{id}]"))
+            && list.lines().count() == 2
+            && list.contains("(current)"),
         "{list}"
     );
     let out = act(json!([{"do": "goto", "text": "localhost:8765"}])).await;

@@ -27,7 +27,7 @@ export default {
   sendNotes: 'Ajouter au message',
   notesTitle: 'Notes',
   width: '{width} px',
-  widthReset: 'L’agent a fixé cette largeur de page : revenir à la largeur du panneau',
+  widthReset: 'L’agent a fixé cette largeur de page : revenir à la largeur du panneau',
   resizeNotes: 'Redimensionner les notes',
   foldNotes: 'Rabattre les notes',
   openNotes: 'Ouvrir les notes',

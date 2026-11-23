@@ -108,6 +108,8 @@ pub fn bare(url: &str) -> Option<String> {
     }
     url.set_query(None);
     url.set_fragment(None);
+    let _ = url.set_username("");
+    let _ = url.set_password(None);
     Some(url.into())
 }
 
