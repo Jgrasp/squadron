@@ -124,6 +124,8 @@
       <div class="page">
         {#if error}<p class="bad" role="alert">{error}</p>{/if}
         <ProjectAgents {act} {pick} />
+        <ProjectRuns {act} />
+        <ProjectReview {act} />
         {#if !list.length}<p class="empty">{t('settings.projectsNone')}</p>{/if}
       </div>
     {/if}
@@ -436,6 +438,24 @@
     height: 32px;
     padding: 0 10px;
     font-size: 12.5px;
+  }
+
+  .page :global(.option .prompt) {
+    width: auto;
+    height: auto;
+    padding: 10px 12px;
+    resize: vertical;
+    line-height: 1.5;
+  }
+
+  .page :global(.option .add) {
+    display: flex;
+    gap: 8px;
+  }
+
+  .page :global(.option .add .field) {
+    flex: 1;
+    width: auto;
   }
 
   .page :global(.option .btn) {
