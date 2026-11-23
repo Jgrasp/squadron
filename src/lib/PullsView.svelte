@@ -122,7 +122,7 @@
   const waiting = $derived(found?.review.filter((p) => waitsFor(project.path, p)) ?? [])
   const reviewed = $derived(found?.review.filter((p) => shown(p) && !waitsFor(project.path, p)) ?? [])
   const watched = $derived(found?.others.filter((p) => shown(p) && reviewerOf(project.path, p)) ?? [])
-  const others = $derived(found?.others.filter((p) => shown(p) && !p.draft && !reviewerOf(project.path, p)) ?? [])
+  const others = $derived(settings.pulls_others ? (found?.others.filter((p) => shown(p) && !p.draft && !reviewerOf(project.path, p)) ?? []) : [])
   const watchNeeds = (p: Pull) => reviewerOf(project.path, p)?.status !== 'working' && (!p.reviewed || moved(project.path, p))
   const mineNeeds = (p: Pull) => p.changes_requested || p.mergeable
   type Entry = { kind: 'review' | 'watched' | 'other' | 'mine'; pull: Pull }
@@ -135,11 +135,11 @@
   const waitingOnOthers = $derived([
     ...entries('review', reviewed),
     ...entries('watched', watched.filter((p) => !watchNeeds(p))),
-    ...entries('other', others),
     ...entries('mine', found?.mine.filter((p) => !p.draft && !mineNeeds(p)) ?? []),
   ])
   const drafts = $derived(entries('mine', found?.mine.filter((p) => p.draft) ?? []))
-  const hidden = $derived(found ? [...found.review, ...found.others].filter((p) => !shown(p)) : [])
+  const otherPulls = $derived(entries('other', others))
+  const hidden = $derived(found ? [...found.review, ...found.others.filter((p) => settings.pulls_others || reviewerOf(project.path, p))].filter((p) => !shown(p)) : [])
   const ignoredGroups = $derived([
     { title: t('review.ignoredUntilCommits'), pulls: hidden.filter((p) => ignoredUntil(project.path, p)) },
     { title: t('review.ignoredForGood'), pulls: hidden.filter((p) => !ignoredUntil(project.path, p)) },
@@ -279,10 +279,10 @@
         {/each}
       </section>
 
-      {#each [{ title: t('review.waitingOnOthers'), list: waitingOnOthers }, { title: t('review.drafts'), list: drafts }] as group (group.title)}
+      {#each [{ title: t('review.waitingOnOthers'), list: waitingOnOthers, hint: '' }, { title: t('review.drafts'), list: drafts, hint: '' }, { title: t('review.otherPulls'), list: otherPulls, hint: t('review.otherPullsHint') }] as group (group.title)}
         {#if group.list.length}
           <section>
-            <h2>{group.title} <span class="n">{group.list.length}</span></h2>
+            <h2>{group.title} <span class="n">{group.list.length}</span>{#if group.hint}<span class="hint">{group.hint}</span>{/if}</h2>
             {#each group.list as e (e.pull.number)}
               {@render entry(e)}
             {/each}

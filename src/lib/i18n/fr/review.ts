@@ -58,6 +58,8 @@ export default {
   noForgeWhy: 'Squadron lit les pull requests des extensions de forge que vous installez.',
   findForge: 'Trouver une extension',
   waitingOnOthers: 'En attente des autres',
+  otherPulls: 'Autres pull requests',
+  otherPullsHint: 'ouvertes dans le dépôt, ni à vous ni en attente de votre relecture',
   drafts: 'Brouillons',
   nothingNeedsYou: 'Rien ne vous attend dans {project}.',
   mergeOthers: 'Fusionner les pull requests des autres',

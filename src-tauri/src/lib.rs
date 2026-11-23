@@ -453,6 +453,7 @@ struct Config {
     merge_others: String,
     merge_method: String,
     merge_review: String,
+    pulls_others: bool,
 }
 
 impl Default for Config {
@@ -507,6 +508,7 @@ impl Default for Config {
             merge_others: "second".into(),
             merge_method: "repo".into(),
             merge_review: "banner".into(),
+            pulls_others: false,
         }
     }
 }
