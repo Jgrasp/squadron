@@ -484,13 +484,14 @@ const METHODS: Record<MergeMethod, [Key, Key]> = {
   rebase: ['review.methodRebase', 'review.mergeRebase'],
 }
 
-export async function askMerge(pull: Pull): Promise<MergeChoice | null> {
+export async function askMerge(pull: Pull, note = ''): Promise<MergeChoice | null> {
   const host = hostName(pull)
   const wanted = settings.merge_method === 'repo' ? null : settings.merge_method
   const method = wanted && pull.merge_methods?.includes(wanted) ? wanted : null
   const lines = [t('review.mergeAsk', { number: String(pull.number), title: pull.title, base: pull.base, host })]
   if (method) lines.push(t('review.mergeWith', { method: t(METHODS[method][0]) }))
   else if (wanted && pull.merge_methods?.length) lines.push(t('review.mergeNotHere', { method: t(METHODS[wanted][0]), host }))
+  if (note) lines.push(note)
   let remove = !!pull.delete_branch
   const settable = !pull.branch_protected && !!pull.delete_branch_settable
   if (pull.branch_protected) lines.push(t('review.branchProtected', { branch: pull.branch, host }))

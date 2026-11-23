@@ -117,6 +117,15 @@
 </section>
 
 <section>
+  <h3>{t('review.mergeReview')}</h3>
+  <p class="intro">{t('review.mergeReviewIntro')}</p>
+  <select class="field" aria-label={t('review.mergeReview')} value={settings.merge_review} onchange={(e) => change({ merge_review: e.currentTarget.value as typeof settings.merge_review })}>
+    <option value="banner">{t('review.mergeReviewBanner')}</option>
+    <option value="header">{t('review.mergeReviewHeader')}</option>
+  </select>
+</section>
+
+<section>
   <h3>{t('review.promptTitle')}</h3>
   <p class="intro">{t('review.promptIntro')}</p>
   <textarea
