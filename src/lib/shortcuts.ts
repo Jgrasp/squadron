@@ -43,9 +43,10 @@ const KEYS: Record<string, Key> = {
   Enter: 'settings.keyEnter',
   Backspace: 'settings.keyBackspace',
   Delete: 'settings.keyDelete',
+  Click: 'settings.keyClick',
 }
 
-const ARROWS: Record<string, string> = { ArrowLeft: '←', ArrowRight: '→' }
+const ARROWS: Record<string, string> = { ArrowLeft: '←', ArrowRight: '→', ArrowUp: '↑' }
 
 export const label = (value: string) =>
   value
