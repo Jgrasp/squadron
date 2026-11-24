@@ -342,7 +342,7 @@ function openDraft(extension: string, id: string, from: string, fields: string) 
   if (!project || !projects.list.some((p) => p.path === project && p.exists)) return
   if (drafts.open) draftClosed(drafts.open)
   ui.creating = false
-  projects.overview = projects.board = projects.pulls = false
+  projects.overview = projects.usage = projects.board = projects.pulls = false
   projects.current = project
   drafts.open = { id, extension, project, agent: from, draft: parseDraft(fields), updates: [] }
 }

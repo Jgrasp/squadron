@@ -11,6 +11,8 @@
   import { updatesOf } from './extensions'
   import { catalog, extensions } from './extensions.svelte'
   import { settings } from './settings.svelte'
+  import { projects, toggleUsage } from './projects.svelte'
+  import Icon from './Icon.svelte'
 
   type Load = { cpu: number; used: number; total: number }
 
@@ -101,6 +103,17 @@
     </button>
   {/if}
   <span class="spacer"></span>
+  {#if settings.usage}
+    <button class="limits" aria-pressed={projects.usage} title={t('stats.openTitle')} onclick={toggleUsage}>
+      {@render limitsOf()}
+      <Icon name="next" size={12} />
+    </button>
+  {:else}
+    {@render limitsOf()}
+  {/if}
+</footer>
+
+{#snippet limitsOf()}
   {#each windows as [label, hint, limit] (label)}
     {@const at = limit.resetsAt * 1000}
     <span class="item" title={hint}>
@@ -115,7 +128,7 @@
   {:else}
     <span class="item reset">{t('shell.planUsageEmpty')}</span>
   {/each}
-</footer>
+{/snippet}
 
 {#if ui.updates}<Updates onclose={() => (ui.updates = false)} />{/if}
 
@@ -181,6 +194,32 @@
 
   .untested {
     color: var(--err-text);
+  }
+
+  .limits {
+    display: inline-flex;
+    align-items: center;
+    gap: 18px;
+    height: 20px;
+    margin-right: -8px;
+    padding: 0 8px;
+    border-radius: 3px;
+    color: inherit;
+    font: inherit;
+  }
+
+  .limits:hover,
+  .limits[aria-pressed='true'] {
+    background: var(--surface-2);
+  }
+
+  .limits > :global(.icon) {
+    margin-left: -10px;
+    color: var(--text-faint);
+  }
+
+  .limits:hover > :global(.icon) {
+    color: var(--text-2);
   }
 
   .spacer {

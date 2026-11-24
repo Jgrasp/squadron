@@ -90,7 +90,7 @@
     projects: projects.list,
     current: projects.list.find((p) => p.path === projects.current),
     agents: agents.list,
-    shown: projects.overview || projects.board || projects.pulls ? undefined : selected(projects.current),
+    shown: projects.overview || projects.usage || projects.board || projects.pulls ? undefined : selected(projects.current),
     priority: (p: Project) => needsYou(p.path),
   })
   const rows = $derived(focus ? [] : match(query, world))

@@ -134,7 +134,7 @@ export function waitingAgents() {
 }
 
 export function show(agent: Agent) {
-  projects.overview = false
+  projects.overview = projects.usage = false
   projects.board = false
   projects.pulls = false
   projects.current = agent.project
@@ -144,7 +144,7 @@ export function show(agent: Agent) {
 export function jumpToWaiting() {
   const queue = waitingAgents()
   if (!queue.length) return false
-  const shown = projects.overview ? undefined : selected(projects.current)
+  const shown = projects.overview || projects.usage ? undefined : selected(projects.current)
   const at = queue.findIndex((a) => a.id === shown?.id)
   show(queue[(at + 1) % queue.length])
   return true
@@ -172,7 +172,7 @@ export function unread(project: string) {
 }
 
 export const onScreen = (agent: Agent) =>
-  !projects.overview && !projects.board && !projects.pulls && projects.current === agent.project && selected(agent.project)?.id === agent.id
+  !projects.overview && !projects.usage && !projects.board && !projects.pulls && projects.current === agent.project && selected(agent.project)?.id === agent.id
 
 export function markUnread(id: string, value: boolean) {
   const agent = find(id)
@@ -333,7 +333,7 @@ export function shelveHidden() {
       }, () => {})
 }
 
-export const shownAgent = () => (projects.overview ? undefined : agents.current[projects.current])
+export const shownAgent = () => (projects.overview || projects.usage ? undefined : agents.current[projects.current])
 
 export const archivable = (agent: Agent) =>
   ['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && !agent.pinned && agent.id !== shownAgent()

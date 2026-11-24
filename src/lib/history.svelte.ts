@@ -1,12 +1,13 @@
 import { agents, selected } from './agents.svelte'
 import { projects } from './projects.svelte'
 
-type View = { project: string; agent?: string; overview: boolean; board: boolean; pulls: boolean }
+type View = { project: string; agent?: string; overview: boolean; usage?: boolean; board: boolean; pulls: boolean }
 
 const view = (): View => ({
   project: projects.current,
   agent: selected(projects.current)?.id,
   overview: projects.overview,
+  usage: projects.usage,
   board: projects.board,
   pulls: projects.pulls,
 })
@@ -16,6 +17,7 @@ const same = (a: View, b: View | null) => JSON.stringify(a) === JSON.stringify(b
 function restore(state: View) {
   if (projects.list.some((p) => p.path === state.project)) projects.current = state.project
   projects.overview = state.overview
+  projects.usage = !!state.usage
   projects.board = state.board
   projects.pulls = state.pulls
   if (agents.list.some((a) => a.id === state.agent && a.project === state.project)) agents.current[state.project] = state.agent!

@@ -44,7 +44,7 @@ async function timely(agent?: Agent) {
   const hidden = await away()
   if (settings.notify_when === 'background' && !hidden) return false
   if (agent) {
-    if (!hidden && projects.current === agent.project && !projects.overview && !projects.board && !projects.pulls && selected(agent.project)?.id === agent.id) return false
+    if (!hidden && projects.current === agent.project && !projects.overview && !projects.usage && !projects.board && !projects.pulls && selected(agent.project)?.id === agent.id) return false
     if (agent.remote && (settings.notify_remote === 'skip' || (settings.notify_remote === 'background' && hidden))) return false
   }
   return true

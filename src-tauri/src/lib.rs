@@ -32,6 +32,7 @@ pub mod stored;
 pub mod sudo;
 pub mod system;
 pub mod terminal;
+pub mod usage;
 pub mod wasm;
 
 use agents::Agents;
@@ -458,6 +459,7 @@ struct Config {
     chips_motion: String,
     chips_every: u32,
     chips_scope: String,
+    usage: bool,
 }
 
 impl Default for Config {
@@ -517,6 +519,7 @@ impl Default for Config {
             chips_motion: "down".into(),
             chips_every: 3,
             chips_scope: "all".into(),
+            usage: true,
         }
     }
 }
@@ -2600,6 +2603,18 @@ async fn copy_image(window: tauri::Window, path: PathBuf) -> Result<(), String> 
 }
 
 #[tauri::command]
+async fn usage_stats(app: tauri::AppHandle) -> Result<usage::Usage, String> {
+    let dir = app.path().app_data_dir().map_err(|e| e.to_string())?;
+    std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
+    let root = sessions::claude_dir()
+        .ok_or("no Claude Code folder")?
+        .join("projects");
+    tauri::async_runtime::spawn_blocking(move || usage::collect(&root, &dir.join("usage.json")))
+        .await
+        .map_err(|e| e.to_string())
+}
+
+#[tauri::command]
 async fn project_sessions(project: PathBuf) -> Vec<sessions::Found> {
     tauri::async_runtime::spawn_blocking(move || sessions::list(&project))
         .await
@@ -3201,6 +3216,7 @@ pub fn run() {
             copy_text,
             copy_image,
             project_sessions,
+            usage_stats,
             read_session,
             interrupt_agent,
             reload_agent,

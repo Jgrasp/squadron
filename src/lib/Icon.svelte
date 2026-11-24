@@ -15,6 +15,8 @@
     <path d="M4 17l6-6-6-6M12 19h8" />
   {:else if name === 'diff'}
     <circle cx="6" cy="6" r="2" /><circle cx="18" cy="18" r="2" /><path d="M6 8v8a2 2 0 0 0 2 2h8M18 16V8a2 2 0 0 0-2-2H8" />
+  {:else if name === 'usage'}
+    <path d="M4 20V11M10 20V4M16 20v-7M22 20H2" />
   {:else if name === 'kanban'}
     <rect x="3" y="4" width="5" height="16" rx="1" /><rect x="10" y="4" width="5" height="10" rx="1" /><rect x="17" y="4" width="4" height="13" rx="1" />
   {:else if name === 'remote'}
@@ -39,6 +41,8 @@
     <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
   {:else if name === 'sound'}
     <path d="M11 5 6 9H3v6h3l5 4zM15.5 8.5a5 5 0 0 1 0 7" />
+  {:else if name === 'next'}
+    <path d="M9 6l6 6-6 6" />
   {:else if name === 'chevron'}
     <path d="m6 9 6 6 6-6" />
   {:else if name === 'options'}

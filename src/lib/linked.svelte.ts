@@ -27,7 +27,7 @@ export function lookUpLink(url: string) {
 }
 
 export function showPulls(project: string) {
-  projects.overview = false
+  projects.overview = projects.usage = false
   projects.board = false
   projects.current = project
   projects.pulls = true

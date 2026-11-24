@@ -208,6 +208,10 @@
 <h3>{t('settings.groupSquadron')}</h3>
 <div class="options">
   <label class="option">
+    <span class="label"><strong>{t('settings.usage')}</strong><small>{t('settings.usageHint')}</small></span>
+    <input class="switch" type="checkbox" role="switch" checked={settings.usage} onchange={(e) => change({ usage: e.currentTarget.checked })} />
+  </label>
+  <label class="option">
     <span class="label"><strong>{t('settings.artifactsExpire')}</strong><small>{t('settings.artifactsExpireHint')}</small></span>
     <select class="field" value={settings.artifacts_after_days} onchange={(e) => change({ artifacts_after_days: Number(e.currentTarget.value) })}>
       {#each KEEP as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
@@ -393,5 +397,43 @@
   .bad {
     margin: 0;
     color: var(--err-text);
+  }
+
+  .switch {
+    appearance: none;
+    flex: none;
+    position: relative;
+    width: 32px;
+    height: 18px;
+    margin: 0;
+    border-radius: 999px;
+    background: var(--surface-5);
+    cursor: pointer;
+    transition: background 0.15s;
+  }
+  .switch::before {
+    content: '';
+    position: absolute;
+    top: 3px;
+    left: 3px;
+    width: 12px;
+    height: 12px;
+    border-radius: 50%;
+    background: var(--text-dim);
+    transition: transform 0.15s;
+  }
+  .switch:checked {
+    background: var(--accent);
+  }
+  .switch:checked::before {
+    transform: translateX(14px);
+    background: var(--ink);
+  }
+  .switch:disabled {
+    cursor: default;
+  }
+  .switch:focus-visible {
+    outline: 2px solid var(--accent-soft);
+    outline-offset: 2px;
   }
 </style>

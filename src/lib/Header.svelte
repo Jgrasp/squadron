@@ -11,10 +11,11 @@
   import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
   import { badgeOf, extensionItem, runItem } from './extensions.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
-  import { editProject, ordered, orderProjects, projects } from './projects.svelte'
+  import { editProject, ordered, orderProjects, projects, toggleUsage } from './projects.svelte'
   import { showPulls } from './linked.svelte'
   import { t } from './i18n/index.svelte'
   import Trans from './Trans.svelte'
+  import Icon from './Icon.svelte'
 
   let { onadd }: { onadd: () => void } = $props()
 
@@ -99,7 +100,7 @@
   }
 
   function choose(path: string) {
-    projects.overview = projects.pulls = projects.board = false
+    projects.overview = projects.usage = projects.pulls = projects.board = false
     projects.current = path
     moreOpen = false
     search = ''
@@ -110,7 +111,7 @@
       const at = visible.findIndex((p) => p.path === path)
       const next = visible[at + 1] ?? visible[at - 1]
       if (next) choose(next.path)
-      else projects.overview = true
+      else (projects.usage = false), (projects.overview = true)
     }
     editProject(path, { tab_closed_at: Date.now() })
   }
@@ -224,7 +225,7 @@
       class="tab overview"
       aria-current={projects.overview ? 'page' : undefined}
       title={t('shell.overviewTitle', { key: hint('jump') })}
-      onclick={() => (projects.overview = true)}
+      onclick={() => ((projects.usage = false), (projects.overview = true))}
     >
       <svg width="14" height="14" viewBox="0 0 24 24" aria-hidden="true"
         ><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><rect x="14" y="14" width="7" height="7" rx="1" /></svg
@@ -238,7 +239,7 @@
         animate:flip={{ duration: dropped ? 0 : 260 }}
         data-item={project.path}
         class="tab {glow(working(project.path))}"
-        aria-current={!projects.overview && project.path === projects.current ? 'page' : undefined}
+        aria-current={!projects.overview && !projects.usage && project.path === projects.current ? 'page' : undefined}
         class:ring={settings.tab_ring !== 'off' && waiting(project.path) > 0}
         style:--project={project.color}
         onclick={() => choose(project.path)}
@@ -302,6 +303,11 @@
   </nav>
 
   <div class="end" data-tauri-drag-region bind:clientWidth={endWidth}>
+    {#if settings.usage}
+      <button class="usebtn" aria-pressed={projects.usage} title={t('stats.openTitle')} onclick={toggleUsage}>
+        <Icon name="usage" /><span class="prlabel">{t('stats.title')}</span>
+      </button>
+    {/if}
     {#if pullTotal}
       <div class="anchor" data-menu>
         <button
@@ -423,6 +429,23 @@
     border-radius: 4px;
     box-shadow: inset 0 0 0 1px var(--wait-border);
     color: var(--accent-soft);
+  }
+
+  .usebtn {
+    height: 30px;
+    padding: 0 10px 0 9px;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    border-radius: 4px;
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+    color: var(--text-2);
+  }
+
+  .usebtn:hover,
+  .usebtn[aria-pressed='true'] {
+    background: var(--surface-5);
+    color: var(--text-strong);
   }
 
   .prlabel {
