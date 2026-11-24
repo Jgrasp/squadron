@@ -46,6 +46,7 @@ export default {
   jump: 'Next waiting agent',
   layout: 'Customize layout',
   updates: 'Check for updates',
+  rules: 'Permission rules',
   settings: 'Settings › {tab}',
   toReview: '{count} to review',
   openPulls: { one: '{count} open', other: '{count} open' },

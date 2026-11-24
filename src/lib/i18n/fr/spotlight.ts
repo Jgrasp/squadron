@@ -48,6 +48,7 @@ export default {
   jump: 'Prochain agent en attente',
   layout: 'Personnaliser la disposition',
   updates: 'Rechercher des mises à jour',
+  rules: 'Règles de permission',
   settings: 'Réglages › {tab}',
   toReview: '{count} à relire',
   openPulls: { one: '{count} ouverte', other: '{count} ouvertes' },

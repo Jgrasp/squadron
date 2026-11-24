@@ -15,7 +15,7 @@
   import { openUsage, skillCost } from './plugins.svelte'
   import { uses } from './pluginuse'
   import Select from './Select.svelte'
-  import { COMPACT_WINDOWS, saveSettings, settings } from './settings.svelte'
+  import { COMPACT_WINDOWS, patchSettings, settings } from './settings.svelte'
   import type { Agent } from './stream'
 
   let { agent, onclose }: { agent: Agent; onclose: () => void } = $props()
@@ -69,7 +69,6 @@
     ui.settings = 'plugins'
   }
 
-  const save = (patch: Partial<typeof settings>) => saveSettings({ ...$state.snapshot(settings), ...patch })
 </script>
 
 {#snippet logo(plugin: string)}
@@ -150,7 +149,7 @@
         label={t('usage.autoCompaction')}
         value={String(settings.compact_window)}
         options={COMPACT_WINDOWS.map((size) => ({ value: String(size), label: size ? t('settings.compactAround', { tokens: tokens(size) }) : t('settings.compactDefault') }))}
-        onpick={(value) => save({ compact_window: Number(value) })}
+        onpick={(value) => patchSettings({ compact_window: Number(value) })}
       />
     </div>
     <div class="field-row">
@@ -159,15 +158,15 @@
         label={t('usage.pluginLines')}
         value={settings.plugin_lines}
         options={SHOWS.map(([id, key]) => ({ value: id, label: t(key) }))}
-        onpick={(value) => save({ plugin_lines: value as typeof settings.plugin_lines })}
+        onpick={(value) => patchSettings({ plugin_lines: value as typeof settings.plugin_lines })}
       />
     </div>
     {#if settings.plugin_lines === 'card'}
       <div class="field-row">
         <span>{t('usage.cardStyle')}</span>
         <div class="segments" role="group" aria-label={t('usage.cardStyle')}>
-          <button aria-pressed={settings.plugin_card !== 'minimal'} onclick={() => save({ plugin_card: 'normal' })}>{t('plugins.cardNormal')}</button>
-          <button aria-pressed={settings.plugin_card === 'minimal'} onclick={() => save({ plugin_card: 'minimal' })}>{t('plugins.cardMinimal')}</button>
+          <button aria-pressed={settings.plugin_card !== 'minimal'} onclick={() => patchSettings({ plugin_card: 'normal' })}>{t('plugins.cardNormal')}</button>
+          <button aria-pressed={settings.plugin_card === 'minimal'} onclick={() => patchSettings({ plugin_card: 'minimal' })}>{t('plugins.cardMinimal')}</button>
         </div>
       </div>
     {/if}

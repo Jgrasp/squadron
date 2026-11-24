@@ -437,7 +437,7 @@ fn theme() -> String {
         .filter(|line| !line.starts_with("@import"))
         .collect::<Vec<_>>()
         .join("\n");
-    format!("{faces}{app}\nhtml,body{{height:auto;overflow:auto}}\n")
+    format!("{faces}{app}\nhtml,body{{height:auto!important;overflow:auto!important}}\n")
 }
 
 fn respond(status: u16, mime: &str, body: Vec<u8>) -> http::Response<Vec<u8>> {
