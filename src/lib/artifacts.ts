@@ -47,16 +47,25 @@ export function docsOf(agent: Agent, linked: string[] = []): Doc[] {
   const seen = new Set(linked)
   const hidden = new Set(agent.hiddenDocs ?? [])
   return calls(agent).flatMap((call) => {
+    if (!call.result || call.result.error) return []
     const create = (call.input.container as { create?: { name?: unknown } } | undefined)?.create
-    if (!/^mcp__.*Claude_Docs__batch$/.test(call.name) || !create || !call.result || call.result.error) return []
+    const title = /^mcp__.*Claude_Docs__batch$/.test(call.name) && create ? create.name : call.name === 'Artifact' && /^Created a new Artifact at /.test(call.result.text) ? call.input.title : undefined
+    if (title === undefined) return []
     const link = call.result.text.match(/https:\/\/(preview\.)?claude\.ai\/(code\/)?artifact\/[\w-]+/)?.[0]
     if (!link || seen.has(link) || hidden.has(link)) return []
     seen.add(link)
-    return [{ id: link, title: String(create.name ?? '') || link, kind: 'doc' as const, link }]
+    return [{ id: link, title: String(title ?? '') || link, kind: 'doc' as const, link }]
   })
 }
 
 export const fillShare = (text: string, values: Record<string, string>) => text.replace(/\{(artifact\.(?:id|title|dir|entry)|extension\.data|agent\.id|agent|destination|link|delete)\}/g, (all, key: string) => values[key] ?? all)
 
-export const sharePrompt = (artifact: ArtifactInfo) =>
-  `Publish the artifact ${artifact.id} “${artifact.title}” as a Claude Doc on claude.ai with the Claude Docs connector, keeping its content as it is. Then call publish_artifact with id ${artifact.id} and the doc's link, without content, so that I can share it from Squadron.`
+export const SLIDES = 'slides'
+
+export function sharePrompt(artifact: ArtifactInfo, dir: string, slides = false) {
+  const it = `the artifact ${artifact.id} “${artifact.title}”`
+  const then = (what: string, destination = '') => ` Then call publish_artifact with id ${artifact.id}${destination}, the ${what}'s link and no content, so that I can share it from Squadron.`
+  if (slides) return `Make ${it}, in ${dir}, into a Slides presentation on claude.ai with your Artifact tool, starting from the Slides type, its slides carrying the artifact's content.${then('presentation', `, destination ${SLIDES}`)}`
+  if (artifact.kind === 'markdown') return `Publish ${it} as a Claude Doc on claude.ai with the Claude Docs connector, keeping its content as it is.${then('doc')}`
+  return `Publish ${it} on claude.ai as a page with your Artifact tool, from its files in ${dir} with ${artifact.entry} as the page, keeping them as they are.${then('page')}`
+}

@@ -4,7 +4,7 @@
   import { WebviewWindow } from '@tauri-apps/api/webviewWindow'
   import { save } from '@tauri-apps/plugin-dialog'
   import { persist, send } from './agents.svelte'
-  import { artifactUrl, docsOf, fileName, fillShare, sharePrompt, type ArtifactInfo, type Doc } from './artifacts'
+  import { artifactUrl, docsOf, fileName, fillShare, sharePrompt, SLIDES, type ArtifactInfo, type Doc } from './artifacts'
   import { answer, bands, finish, refresh, setWork, shelf, workKey, type Work } from './artifacts.svelte'
   import { cleanupErrors, dueAt, extensionName, keepLabel, release, ruleOf } from './cleanup.svelte'
   import { ask, message as tell } from './asking.svelte'
@@ -38,7 +38,7 @@
   let more = $state(false)
 
   const local = $derived(shelf.of[agent.id] ?? [])
-  const docs = $derived(docsOf(agent, local.flatMap((a) => (a.link ? [a.link] : []))))
+  const docs = $derived(docsOf(agent, local.flatMap((a) => [a.link ?? '', ...Object.values(a.links ?? {}).map((s) => s.link)])))
   const list = $derived<(ArtifactInfo | Doc)[]>([...local, ...docs])
   const latest = $derived(local.reduce<ArtifactInfo | undefined>((best, a) => (!best || a.modified > best.modified ? a : best), undefined))
   const open = $derived.by(() => {
@@ -82,6 +82,7 @@
     await invoke('set_artifact_keep', { agent: agent.id, id: local_.id, keep }).catch((e) => tell(errorText(e), { kind: 'error' }))
     await refresh(agent.id)
   }
+  const own = (id: string) => id === 'claude' || id === SLIDES
   const shareOf = (item?: Item) => (item && 'artifact.share' in item.action ? item.action['artifact.share'] : undefined)
   const tr = (value?: Text) => (value ? text(value, locale()) : '')
   const madeBy = (extension: string) => {
@@ -92,7 +93,7 @@
   function pick(id: string) {
     menu = false
     const item = extensionItem('artifact.actions', id)
-    if (id === 'claude' && open && open.kind !== 'doc') share(open)
+    if (own(id) && open && open.kind !== 'doc') share(open, id === SLIDES)
     else if (item && shareOf(item)) step(item, 'share')
     else if (item) runItem(item, { agent })
   }
@@ -180,10 +181,12 @@
     await invoke('save_text_file', { path, text }).catch((e) => ask(errorText(e), { kind: 'error' }))
   }
 
-  async function share(artifact: ArtifactInfo) {
-    if (!(await ask(t('agent.artifactShareAsk', { title: artifact.title, name: agent.name }), { title: t('agent.artifactShareTitle'), okLabel: t('agent.artifactShare') }))) return
-    setWork(workKey(agent.id, artifact.id), { destination: 'claude', verb: 'share', by: agent.name, since: Date.now() })
-    onshare(sharePrompt(artifact))
+  async function share(artifact: ArtifactInfo, slides: boolean) {
+    const label = t(slides ? 'agent.artifactSlides' : 'agent.artifactShare')
+    const words = t(slides ? 'agent.artifactSlidesAsk' : artifact.kind === 'markdown' ? 'agent.artifactShareAsk' : 'agent.artifactSharePageAsk', { title: artifact.title, name: agent.name })
+    if (!(await ask(words, { title: label, okLabel: label }))) return
+    setWork(workKey(agent.id, artifact.id), { destination: slides ? SLIDES : 'claude', verb: 'share', by: agent.name, since: Date.now() })
+    onshare(sharePrompt(artifact, `${shelf.root}/${agent.id}/${artifact.id}`, slides))
   }
 
   async function popOut() {
@@ -250,16 +253,17 @@
         <div class="menu" role="menu" aria-label={t('agent.artifactShareMenu')}>
           {#each destinations as id, i (id)}
             {@const item = extensionItem('artifact.actions', id)}
-            {#if i > 0 && (id === 'claude') !== (destinations[i - 1] === 'claude')}<span class="sep" aria-hidden="true"></span>{/if}
-            {#if id === 'claude' && link}
+            {#if i > 0 && own(id) !== own(destinations[i - 1])}<span class="sep" aria-hidden="true"></span>{/if}
+            {@const at = id === 'claude' ? link : id === SLIDES ? local_?.links?.[SLIDES]?.link : undefined}
+            {#if at}
               <div class="entry">
                 <div class="option">
                   <span class="ico"><Icon name="artifact" /></span>
-                  <span class="text"><b><span class="dot" aria-hidden="true"></span>{t('agent.artifactSharedOn')}</b><span>{t('agent.artifactOnClaude')}</span></span>
+                  <span class="text"><b><span class="dot" aria-hidden="true"></span>{t(id === SLIDES ? 'agent.artifactSlidesOn' : 'agent.artifactSharedOn')}</b><span>{t(id === SLIDES ? 'agent.artifactOnSlides' : open.kind === 'markdown' ? 'agent.artifactOnClaude' : 'agent.artifactOnPage')}</span></span>
                 </div>
                 <div class="acts">
-                  <button class="btn btn-primary" role="menuitem" onclick={() => ((menu = false), invoke('open_link', { url: link }))}>{t('agent.artifactOpenClaude')}</button>
-                  <button class="btn btn-ghost" role="menuitem" onclick={() => copy('link', link)}>{copied === 'link' ? t('common.copied') : t('agent.artifactCopyLink')}</button>
+                  <button class="btn btn-primary" role="menuitem" onclick={() => ((menu = false), invoke('open_link', { url: at }))}>{t('agent.artifactOpenClaude')}</button>
+                  <button class="btn btn-ghost" role="menuitem" onclick={() => copy(id, at)}>{copied === id ? t('common.copied') : t('agent.artifactCopyLink')}</button>
                 </div>
               </div>
             {:else if item && shareOf(item) && local_?.links?.[id]}
@@ -282,12 +286,12 @@
                   {#if action.unshare}<span class="gap"></span><button class="btn btn-ghost danger" role="menuitem" disabled={!!busy} onclick={() => step(item, 'unshare')}>{t('agent.artifactStop')}</button>{/if}
                 </div>
               </div>
-            {:else if id === 'claude' || item}
-              <button class="option" role="menuitem" disabled={(id === 'claude' && open.kind !== 'markdown') || (!!busy && (id === 'claude' || !!shareOf(item)))} onclick={() => pick(id)}>
+            {:else if own(id) || item}
+              <button class="option" role="menuitem" disabled={!!busy && (own(id) || !!shareOf(item))} onclick={() => pick(id)}>
                 <span class="ico">{#if item}<ItemIcon icon={item.icon} extension={item.extension} fallback="plugins" />{:else}<Icon name="artifact" />{/if}</span>
                 <span class="text">
                   <b>{labelOf('artifact.actions', id)}</b>
-                  <span>{id === 'claude' && open.kind !== 'markdown' ? t('agent.artifactMarkdownOnly') : detailOf('artifact.actions', id)}</span>
+                  <span>{detailOf('artifact.actions', id)}</span>
                   {#if item}<span class="by">{madeBy(item.extension)}</span>{/if}
                 </span>
               </button>
@@ -398,7 +402,7 @@
           ? (bandLink ?? '')
           : band.state === 'err'
             ? band.reason?.split('\n').find((l) => l.trim()) || t(band.extension && !band.reason ? 'agent.artifactNotStarted' : 'agent.artifactStoppedHint')
-            : p?.message || (band.queued ? t('agent.artifactQueued') : band.destination === 'claude' ? t('agent.artifactSharing', { name: agent.name }) : t(band.verb === 'share' ? 'agent.artifactBusyShare' : band.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: band.by }))}
+            : p?.message || (band.queued ? t('agent.artifactQueued') : own(band.destination) ? t('agent.artifactSharing', { name: agent.name }) : t(band.verb === 'share' ? 'agent.artifactBusyShare' : band.verb === 'update' ? 'agent.artifactBusyUpdate' : 'agent.artifactBusyUnshare', { who: band.by }))}
     <div class="band {band.state}" role="status">
       {#if band.state === 'done'}
         <span class="badge" aria-hidden="true"><svg width="12" height="12" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7" /></svg></span>

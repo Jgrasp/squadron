@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { docsOf, fileName, fillShare, freeId, insideArtifacts } from './artifacts'
+import { docsOf, fileName, fillShare, freeId, insideArtifacts, sharePrompt, type ArtifactInfo } from './artifacts'
 import { newAgent, type ToolCall } from './stream'
 
 describe('fileName', () => {
@@ -55,6 +55,24 @@ describe('docsOf', () => {
     hidden.hiddenDocs = [link]
     expect(docsOf(hidden)).toEqual([])
     expect(docsOf(agentWith([birth(link)]), [link])).toEqual([])
+  })
+
+  it('lists what the Artifact tool created, not its updates', () => {
+    const deck = 'https://claude.ai/artifact/61qyoH18ecsnyRYCxSSjgx'
+    const tool = (input: Record<string, unknown>, text: string): ToolCall => ({ id: crypto.randomUUID(), name: 'Artifact', input, result: { text, error: false } })
+    const created = tool({ title: 'Deck' }, `Created a new Artifact at ${deck} (version 1)`)
+    const updated = tool({ url: deck }, `Updated the Artifact at ${deck} (Version 2)`)
+    expect(docsOf(agentWith([created, updated]))).toEqual([{ id: deck, title: 'Deck', kind: 'doc', link: deck }])
+  })
+})
+
+describe('sharePrompt', () => {
+  const artifact = (kind: ArtifactInfo['kind']) => ({ id: 'plan', title: 'Plan', kind, entry: kind === 'html' ? 'index.html' : 'index.md' }) as ArtifactInfo
+
+  it('publishes markdown as a Claude Doc, html as a page and asks for a presentation on demand', () => {
+    expect(sharePrompt(artifact('markdown'), '/a/plan')).toContain('Claude Docs connector')
+    expect(sharePrompt(artifact('html'), '/a/plan')).toMatch(/as a page with your Artifact tool, from its files in \/a\/plan with index\.html/)
+    expect(sharePrompt(artifact('markdown'), '/a/plan', true)).toMatch(/Slides presentation.*destination slides/)
   })
 })
 

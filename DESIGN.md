@@ -18,7 +18,7 @@ Reread before any mockup, artifact, html block or style change.
 ## Mockups and artifacts
 
 - **```html block in the conversation**: rendered in an iframe that receives the app's `:root` and `@font-face` (`Markdown.svelte`, `themeCss`). The tokens and DM Sans / DM Mono are there; the classes (`.btn`, `.field`…) are not: copy their rules from `app.css`. Background `--bg-main`, 13.5px/1.5. Its CSP only lets through inline styles and images and fonts from the app or `data:`: no network, no script.
-- **Artifact** (`$SQUADRON_ARTIFACTS`, `artifact://` iframe): `<link rel="stylesheet" href="/__squadron/theme.css">` in the `<head>` gives all of `app.css` (tokens, classes, keyframes) and DM Sans / DM Mono, served by `artifacts.rs`. Do not copy the tokens by hand. Page background `--bg-app` by default, put `--bg-main` on the mocked-up area.
+- **Artifact** (`$SQUADRON_ARTIFACTS`, `artifact://` iframe): `<link rel="stylesheet" href="/__squadron/theme.css">` in the `<head>` gives all of `app.css` (tokens, classes, keyframes) and DM Sans / DM Mono, served by `artifacts.rs`, for a mock-up of Squadron only: any other artifact carries its own CSS, since claude.ai has no `theme.css` once it is published. Do not copy the tokens by hand. Page background `--bg-app` by default, put `--bg-main` on the mocked-up area.
 - Mock up at real size: widths from "Layout", conversation at 740px.
 - Several variants: stack them on the same page, the current state first, each titled, same data, at its real width.
 - Interactive mockup: its controls work (segments, switches, menus, fields) thanks to a small script in the artifact. An html block has no script: switch to an artifact as soon as interaction is needed.
