@@ -92,6 +92,8 @@ export default {
   messageActions: 'Message actions',
   forkFromHere: 'Fork from here',
   download: 'Download…',
+  copyImage: 'Copy image',
+  saveImage: 'Save image…',
 
   openInDiff: 'Open in the Diff panel',
   diffLink: 'Diff →',

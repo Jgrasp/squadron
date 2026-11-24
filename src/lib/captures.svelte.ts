@@ -1,3 +1,8 @@
+import { invoke } from '@tauri-apps/api/core'
+import { downloadDir, join } from '@tauri-apps/api/path'
+import { ask, save } from '@tauri-apps/plugin-dialog'
+import { errorText } from './i18n/index.svelte'
+
 export const viewer = $state<{ paths: string[]; index: number }>({ paths: [], index: 0 })
 
 export function showCapture(from: Element, path: string) {
@@ -10,4 +15,10 @@ export function showCapture(from: Element, path: string) {
   if (!paths.includes(path)) paths.splice(0, paths.length, path)
   viewer.paths = paths
   viewer.index = paths.indexOf(path)
+}
+
+export async function saveCopy(file: string) {
+  const name = file.split('/').pop() ?? file
+  const to = await save({ defaultPath: await downloadDir().then((dir) => join(dir, name)).catch(() => name) })
+  if (to) await invoke('download_attachment', { path: file, to }).catch((e) => ask(errorText(e), { kind: 'error' }))
 }

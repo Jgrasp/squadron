@@ -2574,6 +2574,32 @@ fn copy_text(window: tauri::Window, text: String) -> Result<(), String> {
 }
 
 #[tauri::command]
+async fn copy_image(window: tauri::Window, path: PathBuf) -> Result<(), String> {
+    #[cfg(target_os = "linux")]
+    {
+        let (done, result) = std::sync::mpsc::channel();
+        window
+            .run_on_main_thread(move || {
+                forget_copy_on_focus();
+                let _ = done.send(
+                    gtk::gdk_pixbuf::Pixbuf::from_file(&path)
+                        .map(|image| {
+                            gtk::Clipboard::get(&gtk::gdk::SELECTION_CLIPBOARD).set_image(&image)
+                        })
+                        .map_err(|e| e.to_string()),
+                );
+            })
+            .map_err(|e| e.to_string())?;
+        result.recv().map_err(|e| e.to_string())?
+    }
+    #[cfg(not(target_os = "linux"))]
+    {
+        let _ = (window, path);
+        Err("unsupported".into())
+    }
+}
+
+#[tauri::command]
 async fn project_sessions(project: PathBuf) -> Vec<sessions::Found> {
     tauri::async_runtime::spawn_blocking(move || sessions::list(&project))
         .await
@@ -3173,6 +3199,7 @@ pub fn run() {
             reveal_attachment,
             paste_image,
             copy_text,
+            copy_image,
             project_sessions,
             read_session,
             interrupt_agent,

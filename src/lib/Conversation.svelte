@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { copyText } from './clipboard'
+  import { copyImage, copyText } from './clipboard'
   import { ticketBlocks } from './ticketBlocks'
   import { SvelteSet } from 'svelte/reactivity'
   import { clock, forkPoint, readNow, SSH_KEY, SUDO, VALUES } from './agents.svelte'
@@ -19,7 +19,8 @@ import { fences } from './codepaste'
   import ErrorCard from './ErrorCard.svelte'
   import Icon from './Icon.svelte'
   import { duration, time, tokens } from './format'
-  import { errorText, list, t, type Key } from './i18n/index.svelte'
+  import { saveCopy } from './captures.svelte'
+  import { list, t, type Key } from './i18n/index.svelte'
   import Markdown from './Markdown.svelte'
   import NoticeCard, { cardOf } from './NoticeCard.svelte'
   import PermissionCard from './PermissionCard.svelte'
@@ -36,8 +37,6 @@ import { fences } from './codepaste'
   import FileChip from './FileChip.svelte'
   import { filesIn, splitCited } from './mention.svelte'
   import { invoke } from '@tauri-apps/api/core'
-  import { downloadDir, join } from '@tauri-apps/api/path'
-  import { ask, save } from '@tauri-apps/plugin-dialog'
   import PluginLine from './PluginLine.svelte'
   import { useOf, type Use } from './pluginuse'
   import Shots from './Shots.svelte'
@@ -74,19 +73,23 @@ import { fences } from './codepaste'
 
   const folded = new SvelteSet<number>()
 
-  let menu = $state<{ index: number; text: string; file?: string; x: number; y: number } | null>(null)
+  let menu = $state<{ index: number; text: string; file?: string; shot?: HTMLImageElement; x: number; y: number } | null>(null)
 
   function openMenu(event: MouseEvent, index: number, text: string) {
     event.preventDefault()
     const file = (event.target as Element).closest<HTMLElement>('[data-file]')?.dataset.file
-    menu = { index, text, file, x: event.clientX, y: event.clientY }
+    const shot = (event.target as Element).closest<HTMLElement>('[data-shot]:not(.gone)')?.querySelector('img') ?? undefined
+    menu = { index, text, file, shot, x: event.clientX, y: event.clientY }
   }
 
-  async function download(file: string) {
+  function download(file: string) {
     menu = null
-    const name = file.split('/').pop() ?? file
-    const to = await save({ defaultPath: await downloadDir().then((dir) => join(dir, name)).catch(() => name) })
-    if (to) await invoke('download_attachment', { path: file, to }).catch((e) => ask(errorText(e), { kind: 'error' }))
+    saveCopy(file)
+  }
+
+  function copyShot(img: HTMLImageElement, path: string) {
+    menu = null
+    copyImage(path, img.src)
   }
 
   function copy() {
@@ -576,6 +579,13 @@ import { fences } from './codepaste'
   <div class="menu" role="menu" aria-label={t('conversation.messageActions')} style:left="{menu.x}px" style:top="{menu.y}px">
     {#if onfork && agent.entries[index]?.kind === 'user' && forkPoint(agent, index)}
       <button class="accent" role="menuitem" onclick={() => (onfork(index), (menu = null))}><Icon name="branch" />{t('conversation.forkFromHere')}</button>
+      <hr />
+    {/if}
+    {#if menu.shot}
+      {@const shot = menu.shot}
+      {@const path = shot.closest<HTMLElement>('[data-shot]')!.dataset.shot!}
+      <button role="menuitem" onclick={() => copyShot(shot, path)}><Icon name="copy" />{t('conversation.copyImage')}</button>
+      <button role="menuitem" onclick={() => download(path)}><Icon name="download" />{t('conversation.saveImage')}</button>
       <hr />
     {/if}
     {#if menu.file}
