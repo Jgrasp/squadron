@@ -22,7 +22,6 @@ export type SettingsTab =
   | 'layout'
   | 'discover'
   | `ext:${string}`
-  | 'changelog'
   | 'about'
 
 export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', settingsAnchor: '', adding: null as string | null, drops: 0, finding: 0, drawer: false, updates: false })

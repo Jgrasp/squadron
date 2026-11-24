@@ -2,7 +2,6 @@
   import { invoke } from '@tauri-apps/api/core'
   import Dialog from './Dialog.svelte'
   import AboutSquadron from './AboutSquadron.svelte'
-  import Changelog from './Changelog.svelte'
   import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
   import { ui, type SettingsTab } from './actions.svelte'
@@ -59,7 +58,6 @@
     [
       'settings.groupSquadron',
       [
-        ['changelog', 'settings.tabChangelog'],
         ['about', 'settings.tabAbout'],
       ],
     ],
@@ -132,8 +130,6 @@
   <div class="body" class:flush={tab === 'projects'} class:page={tab.startsWith('ext:')}>
     {#if tab === 'projects'}
       <ProjectSettings />
-    {:else if tab === 'changelog'}
-      <Changelog />
     {:else if tab === 'about'}
       <AboutSquadron />
     {:else if tab === 'hosting'}
@@ -162,7 +158,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['layout', 'discover', 'projects', 'agents', 'preferences', 'changelog', 'about', 'hosting', 'notifications', 'shortcuts'].includes(tab) && !tab.startsWith('ext:')}
+  {#if !['layout', 'discover', 'projects', 'agents', 'preferences', 'about', 'hosting', 'notifications', 'shortcuts'].includes(tab) && !tab.startsWith('ext:')}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>
