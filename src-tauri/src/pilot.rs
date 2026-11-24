@@ -271,9 +271,9 @@ struct Artifact {
     kind: Option<String>,
     /// The artifact's folder name in $SQUADRON_ARTIFACTS, to replace its index file. A new artifact when left empty.
     id: Option<String>,
-    /// The claude.ai link of the Claude Doc you published this artifact as, when the user asked you to share it. With id and no content, only sets the link.
+    /// The claude.ai link of the Claude Doc or page you published this artifact as, when the user asked you to share it. With id and no content, only sets the link.
     link: Option<String>,
-    /// The Share menu destination the link is for, as named in the prompt that asked you to share the artifact, such as team-share.team. Then link is any https:// address, and an empty link with id and no content only removes that destination's link.
+    /// The Share menu destination the link is for, as named in the prompt that asked you to share the artifact, such as slides or team-share.team. Then link is any https:// address, and an empty link with id and no content only removes that destination's link.
     destination: Option<String>,
 }
 
@@ -566,7 +566,7 @@ impl Pilot {
         self.forward(&parts, "set_info_panel", json!(args)).await
     }
 
-    /// Writes a single-file artifact: index.md (markdown, the default), index.html or index.svg in a folder of its own in $SQUADRON_ARTIFACTS, and returns its folder name and path. Squadron shows it in the Artifacts panel beside your conversation, where the user reads it, points at its elements, copies or saves it. For a page with its own CSS, scripts or images, write the files in that folder yourself: Squadron reloads the panel on each save. Call again with the id to replace the index file, with an empty content to delete the artifact. A markdown artifact the user wants to share goes to claude.ai as a Claude Doc: when they ask for it, publish it there with the Claude Docs connector, then pass its link here.
+    /// Writes a single-file artifact: index.md (markdown, the default), index.html or index.svg in a folder of its own in $SQUADRON_ARTIFACTS, and returns its folder name and path. Squadron shows it in the Artifacts panel beside your conversation, where the user reads it, points at its elements, copies or saves it. For a page with its own CSS, scripts or images, write the files in that folder yourself: Squadron reloads the panel on each save. Call again with the id to replace the index file, with an empty content to delete the artifact. When the user asks you to share an artifact on claude.ai, publish it there, a markdown one as a Claude Doc with the Claude Docs connector, an html or svg one as a page with your Artifact tool, then pass its link here.
     #[tool]
     async fn publish_artifact(
         &self,

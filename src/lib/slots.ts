@@ -61,7 +61,10 @@ export const SLOTS: Record<Slot, { title: Key; hint: Key; items: [string, Key, K
   'artifact.actions': {
     title: 'settings.slotArtifact',
     hint: 'settings.slotArtifactHint',
-    items: [['claude', 'agent.artifactShare', 'settings.itemClaudeHint']],
+    items: [
+      ['claude', 'agent.artifactShare', 'settings.itemClaudeHint'],
+      ['slides', 'agent.artifactSlides', 'settings.itemSlidesHint'],
+    ],
   },
 }
 
