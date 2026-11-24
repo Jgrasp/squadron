@@ -1,5 +1,15 @@
 # Nouveautés
 
+## 0.62.0 · 2026-11-24
+
+### Usage
+- Une page Usage montre combien de tokens chaque session Claude Code de cette machine a consommé par jour, sur 7, 30 ou 90 jours, et ce qui les a consommés : sorties d’outils, réponses, votre configuration, hooks, serveurs MCP, plugins, advisor.
+- Elle pointe ce qui pèse le plus, chaque fois avec une action : compacter plus tôt, voir les conversations les plus longues et les grosses sorties relues tour après tour, désactiver les plugins chargés mais jamais appelés.
+- Ouvrez-la avec le bouton Usage de l’en-tête ou en cliquant les limites Session et Semaine de la barre d’état. Réglages › Préférences › Page Usage la désactive.
+
+### Agents
+- Le champ de la fenêtre Nouvel agent grandit avec son texte et s’agrandit en fenêtre pleine hauteur. Effacer demande un second clic, et Échap ferme par étapes en gardant votre brouillon.
+
 ## 0.61.0 · 2026-11-24
 
 ### Artifacts
