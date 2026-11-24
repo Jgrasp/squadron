@@ -41,7 +41,8 @@ export async function showChangelogOnce() {
 
 export function openChangelog() {
   news.version = ''
-  ui.settings = 'changelog'
+  ui.settingsAnchor = 'news'
+  ui.settings = 'about'
 }
 
 export async function checkNow() {
