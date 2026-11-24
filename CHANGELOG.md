@@ -1,5 +1,19 @@
 # Changelog
 
+## 0.60.0 · 2026-11-24
+
+### Conversation
+
+- Images in the conversation can be copied as images and saved, from the right-click menu and the full-size viewer.
+
+### Updates
+
+- When everything is up to date, Updates shows an animated seal and the installed extensions; Manage extensions becomes a button.
+
+### Browser
+
+- Pages in a tab the Browser panel does not show keep running: Turbo forms and other pages that wait for an animation frame no longer stall.
+
 ## 0.59.0 · 2026-11-24
 
 ### Settings

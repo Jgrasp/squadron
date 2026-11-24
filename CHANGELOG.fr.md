@@ -1,5 +1,19 @@
 # Nouveautés
 
+## 0.60.0 · 2026-11-24
+
+### Conversation
+
+- Les images de la conversation se copient comme images et s’enregistrent, depuis le clic droit et la visionneuse plein écran.
+
+### Mises à jour
+
+- Quand tout est à jour, Mises à jour affiche un sceau animé et les extensions installées ; Gérer les extensions devient un bouton.
+
+### Navigateur
+
+- Les pages d’un onglet que le panneau Navigateur n’affiche pas continuent de tourner : les formulaires Turbo et les autres pages qui attendent une image ne restent plus bloqués.
+
 ## 0.59.0 · 2026-11-24
 
 ### Réglages
