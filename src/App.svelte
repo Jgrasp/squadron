@@ -28,6 +28,7 @@ import './lib/extensionWindows.svelte'
   import Board from './lib/Board.svelte'
   import { follow, mirror, type Actions } from './lib/board'
   import Overview from './lib/Overview.svelte'
+  import Usage from './lib/Usage.svelte'
   import ProjectsPanel from './lib/ProjectsPanel.svelte'
   import WhatsNew from './lib/WhatsNew.svelte'
   import StatusBar from './lib/StatusBar.svelte'
@@ -84,6 +85,10 @@ import './lib/extensionWindows.svelte'
   const followed = $derived(boot.settings && boot.projects ? followKey() : '')
   $effect(() => {
     if (followed) untrack(syncFollows)
+  })
+
+  $effect(() => {
+    if (!settings.usage) projects.usage = false
   })
 
   $effect(() => {
@@ -181,7 +186,9 @@ import './lib/extensionWindows.svelte'
 
 <div class="app">
   <Header onadd={() => (ui.adding = '')} />
-  {#if projects.overview}
+  {#if projects.usage}
+    <Usage />
+  {:else if projects.overview}
     <Overview />
   {:else if projects.list.length === 0}
     <EmptyProjects onadd={() => (ui.adding = '')} />

@@ -182,6 +182,8 @@ export default {
   thinking: 'Réflexion',
   archiveIdle: 'Archiver les agents inactifs',
   archiveIdleHint: 'Terminés, interrompus ou arrêtés sur une erreur depuis ce délai. Les agents au travail ou qui vous attendent restent.',
+  usage: 'Page Usage',
+  usageHint: 'Un bouton Usage dans l’en-tête et sur les limites du forfait montre ce qui a consommé vos tokens, tous projets confondus. Lit vos transcripts Claude Code à l’ouverture.',
   artifactsExpire: 'Nettoyer les artifacts',
   artifactsExpireHint: 'Sans changement depuis ce délai : supprimé avec ses partages. Une extension ou le menu ⋯ de l’artifact peut le garder plus longtemps.',
   archiveYear: 'Après un an',

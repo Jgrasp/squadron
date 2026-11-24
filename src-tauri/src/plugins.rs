@@ -100,6 +100,7 @@ pub struct Component {
 #[derive(Debug, Default, PartialEq, Serialize)]
 pub struct Details {
     pub always: u32,
+    pub hooks: u32,
     pub components: Vec<Component>,
 }
 
@@ -124,6 +125,13 @@ pub fn parse_details(text: &str) -> Details {
         if let Some(rest) = trimmed.strip_prefix("Always-on:") {
             details.always = tokens(rest.split_whitespace().next().unwrap_or(""));
             continue;
+        }
+        if let Some(rest) = trimmed.strip_prefix("Hooks (") {
+            details.hooks = rest
+                .split(')')
+                .next()
+                .and_then(|n| n.parse().ok())
+                .unwrap_or(0);
         }
         for (label, kind) in [
             ("Skills (", "skill"),
@@ -228,6 +236,7 @@ Per-component (rounded)
     fn parses_details() {
         let d = parse_details(DETAILS);
         assert_eq!(d.always, 439);
+        assert_eq!(d.hooks, 3);
         assert_eq!(d.components.len(), 3);
         assert_eq!(
             d.components[0],

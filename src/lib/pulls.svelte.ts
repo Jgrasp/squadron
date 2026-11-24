@@ -97,7 +97,7 @@ $effect.root(() => {
   })
 })
 export function openReview(project: string, number: number) {
-  projects.overview = false
+  projects.overview = projects.usage = false
   projects.board = false
   projects.pulls = true
   projects.current = project

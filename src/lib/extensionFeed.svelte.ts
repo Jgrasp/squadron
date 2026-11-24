@@ -75,7 +75,7 @@ function clicked(extension: string) {
 
 function onScreen(extension: string) {
   const kind = layout.panels[projects.current]
-  return !projects.overview && !projects.board && !projects.pulls && !!shownAgent() && !!kind?.startsWith(`extension:${extension}.`)
+  return !projects.overview && !projects.usage && !projects.board && !projects.pulls && !!shownAgent() && !!kind?.startsWith(`extension:${extension}.`)
 }
 
 const fromWindow = (extension: string) =>
@@ -92,7 +92,7 @@ async function showAgent(extension: string, id: string) {
   const old = (await shelved()).find((a) => a.id === id)
   if (!old || !projects.list.some((p) => p.path === old.project && p.exists)) throw new Error(`No agent has the id ${id}.`)
   if (windowed) await raiseMain()
-  projects.overview = projects.board = projects.pulls = false
+  projects.overview = projects.usage = projects.board = projects.pulls = false
   projects.current = old.project
   Object.assign(archiveShown, { project: old.project, agent: old.id })
   setTimeout(() => {
@@ -117,7 +117,7 @@ async function openFromHost(extension: string, id: string) {
   await openPanel(target.panel, target.project)
 }
 
-const onScreenAgent = () => (projects.overview || projects.board || projects.pulls ? undefined : find(shownAgent() ?? ''))
+const onScreenAgent = () => (projects.overview || projects.usage || projects.board || projects.pulls ? undefined : find(shownAgent() ?? ''))
 
 const CALLS: Record<string, (extension: string, args: Record<string, unknown>) => Promise<unknown> | unknown> = {
   projects: () => projectList(),

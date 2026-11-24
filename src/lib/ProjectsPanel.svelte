@@ -76,7 +76,7 @@
   }
 
   function open(path: string) {
-    projects.overview = projects.board = projects.pulls = false
+    projects.overview = projects.usage = projects.board = projects.pulls = false
     projects.current = path
     ui.projects = false
   }
@@ -344,7 +344,7 @@
     {/if}
   {:else}
     {@const at = visible.indexOf(row)}
-    {@const current = !projects.overview && row.project.path === projects.current}
+    {@const current = !projects.overview && !projects.usage && row.project.path === projects.current}
     <button
       class="row p {glow(row.project.path)}"
       class:on={current && !searching}

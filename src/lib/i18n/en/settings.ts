@@ -180,6 +180,8 @@ export default {
   thinking: 'Thinking',
   archiveIdle: 'Archive idle agents',
   archiveIdleHint: 'Done, interrupted or stopped on an error for that long. Working and waiting agents stay.',
+  usage: 'Usage page',
+  usageHint: 'A Usage button in the header and on the plan limits shows what used your tokens, across every project. Reads your Claude Code transcripts when you open it.',
   artifactsExpire: 'Clean up artifacts',
   artifactsExpireHint: 'Unchanged for that long: deleted with its shares. An extension or the artifact’s ⋯ menu can keep it longer.',
   archiveYear: 'After a year',

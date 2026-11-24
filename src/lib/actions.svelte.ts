@@ -39,7 +39,7 @@ export function run(action: Action, { project, agent }: Context) {
     case 'quit':
       return getCurrentWindow().close()
     case 'jump':
-      if (!jumpToWaiting()) projects.overview = true
+      if (!jumpToWaiting()) (projects.usage = false), (projects.overview = true)
       return
     case 'kanban':
       return toggleBoard()
@@ -85,7 +85,7 @@ export async function perform({ verb, project, agent }: Row) {
     return
   }
   if (project && verb.scope === 'project') {
-    projects.overview = projects.board = projects.pulls = false
+    projects.overview = projects.usage = projects.board = projects.pulls = false
     projects.current = project.path
   }
   switch (verb.id) {
@@ -116,12 +116,13 @@ export async function perform({ verb, project, agent }: Row) {
     case 'unpin':
       return agent && pin(agent.id, verb.id === 'pin')
     case 'overview':
+      projects.usage = false
       projects.overview = true
       return
     case 'jump':
       return run('jump', {})
     case 'layout':
-      projects.overview = projects.board = projects.pulls = false
+      projects.overview = projects.usage = projects.board = projects.pulls = false
       ui.customizing = true
       return
     case 'updates':

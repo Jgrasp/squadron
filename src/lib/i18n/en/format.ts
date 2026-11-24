@@ -6,6 +6,7 @@ export default {
   minutes: '{m} min {s} s',
   thousands: '{n}k',
   millions: '{n} M',
+  billions: '{n} B',
   modeDefault: 'ask for everything',
   modeAcceptEdits: 'accept edits',
   modePlan: 'plan',

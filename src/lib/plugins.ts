@@ -17,7 +17,7 @@ export type Flags = { user: Record<string, boolean>; projects: Record<string, Re
 
 export type Component = { kind: 'skill' | 'agent' | 'mcp'; name: string; always: number; invoke: number }
 
-export type Details = { always: number; components: Component[] }
+export type Details = { always: number; hooks: number; components: Component[] }
 
 export type Step = { args: string[]; dir?: string }
 

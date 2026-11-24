@@ -35,7 +35,7 @@ type Tree = { groups: Group[]; projects: Project[] }
 
 export type Inspection = Project & { taken_by: string | null; near: string | null }
 
-export const projects = $state({ list: [] as Project[], groups: [] as Group[], current: localStorage.getItem('squadron.project') ?? '', overview: false, board: false, pulls: false })
+export const projects = $state({ list: [] as Project[], groups: [] as Group[], current: localStorage.getItem('squadron.project') ?? '', overview: false, usage: false, board: false, pulls: false })
 
 $effect.root(() => {
   $effect(() => {
@@ -95,7 +95,7 @@ export async function add(path: string, name: string, color = '') {
 export async function scratch(name: string) {
   const [path, all] = await invoke<[string, Project[]]>('scratch_project', { name })
   set(all)
-  projects.overview = false
+  projects.overview = projects.usage = false
   projects.board = false
   projects.pulls = false
   projects.current = path
@@ -159,7 +159,7 @@ export async function setCards(path: string, cards: Card[]) {
 export async function toggleBoard() {
   const popped = await WebviewWindow.getByLabel('board')
   if (popped) return popped.setFocus()
-  projects.overview = false
+  projects.overview = projects.usage = false
   if (projects.board) return void (projects.board = false)
   projects.pulls = false
   projects.board = true
@@ -170,15 +170,20 @@ export async function toggleBoard() {
 export async function showBoard() {
   const popped = await WebviewWindow.getByLabel('board')
   if (popped) return popped.setFocus()
-  projects.overview = false
+  projects.overview = projects.usage = false
   projects.pulls = false
   projects.board = true
   setPanel(projects.current, null)
   requestPanel('kanban')
 }
 
+export function toggleUsage() {
+  projects.usage = !projects.usage
+  if (projects.usage) projects.overview = projects.board = projects.pulls = false
+}
+
 export function togglePulls() {
-  projects.overview = false
+  projects.overview = projects.usage = false
   if (projects.pulls) return void (projects.pulls = false)
   projects.board = false
   projects.pulls = true

@@ -11,7 +11,13 @@ export const cost = (usd: number) => {
 const tenth = (n: number) => number(n, { maximumFractionDigits: 1 })
 
 export const tokens = (n: number) =>
-  n < 1000 ? number(n) : n < 1e6 ? t('format.thousands', { n: tenth(n / 1000) }) : t('format.millions', { n: tenth(n / 1e6) })
+  n < 1000
+    ? number(n)
+    : n < 1e6
+      ? t('format.thousands', { n: tenth(n / 1000) })
+      : n < 1e9
+        ? t('format.millions', { n: tenth(n / 1e6) })
+        : t('format.billions', { n: number(n / 1e9, { maximumFractionDigits: 2 }) })
 
 export function duration(ms: number) {
   const s = Math.round(ms / 1000)
