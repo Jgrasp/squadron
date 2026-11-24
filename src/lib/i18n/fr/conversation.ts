@@ -94,6 +94,8 @@ export default {
   messageActions: 'Actions sur le message',
   forkFromHere: 'Dupliquer à partir d’ici',
   download: 'Télécharger…',
+  copyImage: 'Copier l’image',
+  saveImage: 'Enregistrer l’image…',
 
   openInDiff: 'Ouvrir dans le panneau Diff',
   diffLink: 'Diff →',

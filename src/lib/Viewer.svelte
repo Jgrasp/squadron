@@ -2,7 +2,8 @@
   import { invoke } from '@tauri-apps/api/core'
   import { preview } from './Attachment.svelte'
   import { t } from './i18n/index.svelte'
-  import { viewer } from './captures.svelte'
+  import { copyImage } from './clipboard'
+  import { saveCopy, viewer } from './captures.svelte'
 
   let dialog = $state<HTMLDialogElement>()
   let src = $state('')
@@ -56,6 +57,8 @@
     <div class="bar">
       <span class="name" title={path}>{name}</span>
       {#if count > 1}<span class="count">{viewer.index + 1} / {count}</span>{/if}
+      <button type="button" class="btn btn-secondary" disabled={!src} onclick={() => copyImage(path, src)}>{t('conversation.copyImage')}</button>
+      <button type="button" class="btn btn-secondary" onclick={() => saveCopy(path)}>{t('conversation.saveImage')}</button>
       <button type="button" class="btn btn-secondary" onclick={() => invoke('open_attachment', { path })}>{t('conversation.openCaptureOutside')}</button>
       <!-- svelte-ignore a11y_autofocus -->
       <button type="button" class="close" autofocus aria-label={t('conversation.closeCapture')} onclick={close}>×</button>
