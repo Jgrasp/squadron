@@ -68,11 +68,14 @@
     display: inline-flex;
     align-items: center;
     gap: 6px;
+    max-width: 50%;
     margin-left: 8px;
   }
 
   .slot {
+    min-width: 0;
     display: inline-grid;
+    grid-template-columns: minmax(0, max-content);
     overflow: hidden;
   }
 
@@ -84,6 +87,7 @@
   .chip {
     grid-area: 1 / 1;
     justify-self: end;
+    max-width: 100%;
     display: inline-flex;
     align-items: center;
     gap: 5px;
@@ -143,6 +147,7 @@
   }
 
   .more {
+    flex: none;
     height: 16px;
     padding: 0 5px;
     display: inline-grid;

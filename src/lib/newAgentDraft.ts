@@ -40,7 +40,7 @@ export function parseLink(link: unknown): DraftLink | null {
   if (!isObject(link) || typeof link.key !== 'string' || !link.key.trim() || typeof link.title !== 'string') return null
   return {
     key: link.key.trim().slice(0, 40),
-    title: link.title,
+    title: link.title.slice(0, 200),
     ...(typeof link.url === 'string' && /^https:\/\/\S+$/.test(link.url) ? { url: link.url } : {}),
     ...(TONES.includes(link.tone as string) ? { tone: link.tone as Tone } : {}),
     ...(link.logo === false ? { logo: false as const } : {}),

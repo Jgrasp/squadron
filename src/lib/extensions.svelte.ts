@@ -328,7 +328,9 @@ function setChips(extension: string, id: string, json: string) {
   const chips = parseChips(extension, json)
   if (typeof chips === 'string') return console.warn(`${extension}: set-agent-chips: ${chips}`)
   if (!agent) return console.warn(`${extension}: set-agent-chips: no open agent has the id ${id}`)
-  agent.chips = withChips(agent.chips ?? [], extension, chips)
+  const next = withChips(agent.chips ?? [], extension, chips)
+  if (JSON.stringify(next) === JSON.stringify(agent.chips ?? [])) return
+  agent.chips = next
   persist(agent)
 }
 

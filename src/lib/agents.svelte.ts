@@ -381,10 +381,7 @@ async function adoptSaved() {
   const known = new Set(projects.list.map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
-      const data = JSON.parse(text) as Agent & { link?: Chip }
-      if (data.link) data.chips ??= [data.link]
-      delete data.link
-      return [data as Agent]
+      return [JSON.parse(text) as Agent]
     } catch {
       return []
     }
@@ -460,7 +457,8 @@ function tidy(entries: Entry[]) {
   })
 }
 
-async function adopt(data: Agent) {
+async function adopt({ link, ...data }: Agent & { link?: Chip }) {
+  if (link) data.chips ??= [link]
   const wanted = data.remote
   if (!data.entries) onDisk.add(data.id)
   const agent: Agent = {
