@@ -24,6 +24,7 @@ export default {
   minimize: 'Minimize',
   maximize: 'Maximize',
   actionsOf: '{name} actions',
+  chipsAll: 'All {count} chips',
   projectSettings: 'Project settings…',
 
   deleteAgentAsk: 'Delete “{name}”? Its conversation leaves Squadron for good; it cannot be restored like an archived agent. Its artifacts are deleted too, and their shares stopped.',

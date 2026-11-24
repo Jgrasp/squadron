@@ -2,7 +2,13 @@ import type { Text } from './extensions'
 
 export type Label = string | Text
 
-export type DraftLink = { key: string; title: string; url?: string }
+export type Tone = 'ok' | 'err' | 'info'
+
+export type DraftLink = { key: string; title: string; url?: string; tone?: Tone; logo?: false }
+
+export type Chip = DraftLink & { extension: string }
+
+export const CHIPS_MAX = 8
 
 export type DraftChoice = { id: string; label: Label; on: boolean }
 
@@ -28,6 +34,34 @@ const isLabel = (v: unknown): v is Label => typeof v === 'string' || (isObject(v
 
 const STATES = ['running', 'done', 'error']
 
+const TONES = ['ok', 'err', 'info']
+
+export function parseLink(link: unknown): DraftLink | null {
+  if (!isObject(link) || typeof link.key !== 'string' || !link.key.trim() || typeof link.title !== 'string') return null
+  return {
+    key: link.key.trim().slice(0, 40),
+    title: link.title.slice(0, 200),
+    ...(typeof link.url === 'string' && /^https:\/\/\S+$/.test(link.url) ? { url: link.url } : {}),
+    ...(TONES.includes(link.tone as string) ? { tone: link.tone as Tone } : {}),
+    ...(link.logo === false ? { logo: false as const } : {}),
+  }
+}
+
+export function parseChips(extension: string, json: string): Chip[] | string {
+  let raw: unknown
+  try {
+    raw = JSON.parse(json)
+  } catch {
+    return 'chips is not JSON.'
+  }
+  if (!Array.isArray(raw)) return 'chips is not a list.'
+  if (raw.length > CHIPS_MAX) return `${CHIPS_MAX} chips at most.`
+  const chips = raw.map(parseLink)
+  const bad = chips.findIndex((c) => !c)
+  if (bad >= 0) return `Chip ${bad + 1} needs a "key" and a "title".`
+  return chips.map((c) => ({ ...c!, extension }))
+}
+
 export function parseDraft(json: string): Draft {
   let raw: unknown
   try {
@@ -38,10 +72,11 @@ export function parseDraft(json: string): Draft {
   if (!isObject(raw)) return {}
   const draft: Draft = {}
   for (const key of [...FORM, 'context'] as const) if (typeof raw[key] === 'string') draft[key] = raw[key] as string
-  const link = raw.link
-  if (link === null) draft.link = null
-  else if (isObject(link) && typeof link.key === 'string' && typeof link.title === 'string')
-    draft.link = { key: link.key, title: link.title, ...(typeof link.url === 'string' && /^https:\/\/\S+$/.test(link.url) ? { url: link.url } : {}) }
+  if (raw.link === null) draft.link = null
+  else {
+    const link = parseLink(raw.link)
+    if (link) draft.link = link
+  }
   const choices = raw.choices
   if (choices === null) draft.choices = null
   else if (isObject(choices) && isLabel(choices.label) && Array.isArray(choices.items)) {
@@ -63,4 +98,11 @@ export function fill(form: Form, applied: Form, update: Draft): { form: Form; ap
     next.form[key] = next.applied[key] = value
   }
   return next
+}
+
+export function withChips(list: Chip[], extension: string, next: Chip[]): Chip[] {
+  const at = list.findIndex((c) => c.extension === extension)
+  const rest = list.filter((c) => c.extension !== extension)
+  rest.splice(at < 0 ? rest.length : list.slice(0, at).filter((c) => c.extension !== extension).length, 0, ...next)
+  return rest
 }

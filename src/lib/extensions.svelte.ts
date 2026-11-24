@@ -3,10 +3,10 @@ import { invoke } from '@tauri-apps/api/core'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { run, ui, type Context } from './actions.svelte'
-import { agents, archivable, archive, find, shownAgent } from './agents.svelte'
+import { agents, archivable, archive, find, persist, shownAgent } from './agents.svelte'
 import { pointed } from './artifacts.svelte'
 import { draftClosed, drafts } from './drafts.svelte'
-import { parseDraft } from './newAgentDraft'
+import { parseChips, parseDraft, withChips } from './newAgentDraft'
 import { projects } from './projects.svelte'
 import { ask, message } from './asking.svelte'
 import { notify } from './notify.svelte'
@@ -319,8 +319,20 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
   if (p.call === 'insert-prompt' && find(String(p.agent)) && String(p.agent) === shownAgent()) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
   if (p.call === 'open-new-agent' && getCurrentWindow().label === 'main') openDraft(p.extension, String(p.draft), String(p.agent), String(p.fields))
   if (p.call === 'update-new-agent' && drafts.open?.id === p.draft) drafts.open?.updates.push(parseDraft(String(p.fields)))
+  if (p.call === 'set-agent-chips' && getCurrentWindow().label === 'main') setChips(p.extension, String(p.agent), String(p.chips))
   if (p.call === 'notify') await notify('extensions', String(p.title), String(p.body), { settings: `ext:${p.extension}` })
 })
+
+function setChips(extension: string, id: string, json: string) {
+  const agent = find(id)
+  const chips = parseChips(extension, json)
+  if (typeof chips === 'string') return console.warn(`${extension}: set-agent-chips: ${chips}`)
+  if (!agent) return console.warn(`${extension}: set-agent-chips: no open agent has the id ${id}`)
+  const next = withChips(agent.chips ?? [], extension, chips)
+  if (JSON.stringify(next) === JSON.stringify(agent.chips ?? [])) return
+  agent.chips = next
+  persist(agent)
+}
 
 function openDraft(extension: string, id: string, from: string, fields: string) {
   const agent = find(from)

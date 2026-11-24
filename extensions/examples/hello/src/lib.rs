@@ -72,7 +72,10 @@ impl Extension for Hello {
             ("settings.message", _) => host::settings_post(&format!(r#"{{"count":{}}}"#, count())),
             ("agent.done", Some(agent)) => host::notify("Hello", &format!("{} finished its turn.", agent.name)),
             ("new-agent.regenerate", _) => brief(&draft_of(&data), data.contains(r#""short""#)),
-            ("new-agent.started", Some(agent)) => host::notify("Hello", &format!("{} started from the Hello draft.", agent.name)),
+            ("new-agent.started", Some(agent)) => {
+                host::set_agent_chips(&agent.id, r#"[{"key":"Hello","title":"Started from the Hello draft","tone":"ok","logo":false}]"#);
+                host::notify("Hello", &format!("{} started from the Hello draft.", agent.name))
+            }
             _ => {}
         }
     }

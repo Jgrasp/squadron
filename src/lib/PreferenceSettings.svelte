@@ -2,7 +2,9 @@
   import { chime } from './chime'
   import { ALWAYS } from './groups'
   import { errorText, LANGUAGES, systemLocale, t, type Key } from './i18n/index.svelte'
-  import { saveSettings, settings, type Config, type ProjectsEffect, type TabEffect, type TabOrder, type TabRing } from './settings.svelte'
+  import { saveSettings, settings, type ChipsMotion, type Config, type ProjectsEffect, type TabEffect, type TabOrder, type TabRing } from './settings.svelte'
+  import AgentChips from './AgentChips.svelte'
+  import type { Chip } from './newAgentDraft'
 
   const EFFECTS: [TabEffect, Key, Key, number][] = [
     ['snake', 'settings.effectSnake', 'settings.effectSnakeHint', 2.4],
@@ -23,6 +25,24 @@
     ['snake', 'settings.effectSnake', 'settings.projectsSnakeHint', 2.4],
     ['bar', 'settings.effectBar', 'settings.projectsBarHint', 1.6],
     ['pulse', 'settings.effectPulse', 'settings.projectsPulseHint', 2],
+  ]
+  const MOTIONS: [ChipsMotion, Key, Key][] = [
+    ['off', 'settings.chipsOff', 'settings.chipsOffHint'],
+    ['fade', 'settings.chipsFade', 'settings.chipsFadeHint'],
+    ['down', 'settings.chipsDown', 'settings.chipsDownHint'],
+    ['up', 'settings.chipsUp', 'settings.chipsUpHint'],
+  ]
+  const EVERY = [2, 3, 5] as const
+  const SCOPES: [Config['chips_scope'], Key, Key][] = [
+    ['all', 'settings.chipsScopeAll', 'settings.chipsScopeAllHint'],
+    ['selected', 'settings.chipsScopeSelected', 'settings.chipsScopeSelectedHint'],
+  ]
+  const SAMPLE: Chip[] = [
+    { extension: 'jira', key: 'LR-295', title: 'Suspension flow' },
+    { extension: 'deploy', key: 'Preprod', title: 'Deployed to preprod', tone: 'ok', logo: false },
+    { extension: 'gitlab', key: '#1284', title: 'Suspend button stays disabled' },
+    { extension: 'linear', key: 'LIN-77', title: 'Design review' },
+    { extension: 'deploy', key: 'Staging', title: 'Deploying to staging', tone: 'info', logo: false },
   ]
   const WIDTHS: [number, Key][] = [
     [640, 'settings.widthNarrow'],
@@ -57,6 +77,8 @@
   const order = $derived(ORDERS.find(([id]) => id === settings.tab_order))
   const projects = $derived(PROJECT_EFFECTS.find(([id]) => id === settings.projects_effect))
   const steps = $derived(STEPS.find(([id]) => id === settings.steps))
+  const motion = $derived(MOTIONS.find(([id]) => id === settings.chips_motion))
+  const scope = $derived(SCOPES.find(([id]) => id === settings.chips_scope))
 
   async function change(patch: Partial<Config>) {
     error = ''
@@ -116,6 +138,37 @@
       {/each}
     </div>
   </div>
+</div>
+
+<h3>{t('settings.agentList')}</h3>
+<div class="options">
+  <div class="option">
+    <span class="label"><strong>{t('settings.chipsMotion')}</strong><small>{motion && t(motion[2])}</small></span>
+    <span class="sample card chips"><AgentChips chips={SAMPLE} turns onmore={() => {}} /></span>
+    <div class="segments" role="group" aria-label={t('settings.chipsMotion')}>
+      {#each MOTIONS as [id, title] (id)}
+        <button aria-pressed={settings.chips_motion === id} onclick={() => change({ chips_motion: id })}>{t(title)}</button>
+      {/each}
+    </div>
+  </div>
+  {#if settings.chips_motion !== 'off'}
+    <div class="option sub">
+      <span class="label"><strong>{t('settings.chipsEvery')}</strong></span>
+      <div class="segments" role="group" aria-label={t('settings.chipsEvery')}>
+        {#each EVERY as seconds (seconds)}
+          <button aria-pressed={settings.chips_every === seconds} onclick={() => change({ chips_every: seconds })}>{t('settings.chipsSeconds', { seconds })}</button>
+        {/each}
+      </div>
+    </div>
+    <div class="option sub">
+      <span class="label"><strong>{t('settings.chipsScope')}</strong><small>{scope && t(scope[2])}</small></span>
+      <div class="segments" role="group" aria-label={t('settings.chipsScope')}>
+        {#each SCOPES as [id, title] (id)}
+          <button aria-pressed={settings.chips_scope === id} onclick={() => change({ chips_scope: id })}>{t(title)}</button>
+        {/each}
+      </div>
+    </div>
+  {/if}
 </div>
 
 <h3>{t('settings.conversation')}</h3>
@@ -283,6 +336,12 @@
 
   .sample.card::after {
     border-radius: inherit;
+  }
+
+  .sample.chips {
+    justify-content: flex-end;
+    padding-right: 12px;
+    background-color: var(--bg-sidebar);
   }
 
   .sample .dot {

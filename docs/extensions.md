@@ -591,6 +591,13 @@ fn forge(call: String, input: String) -> Result<String, String> {
 - **Time**: a request waiting for its turn when the call's 150 s run out fails with "The call ran out of time before this request was sent.", and one already sent stops by then. The answers together go into the instance's 64 MB: split a batch whose bodies could pass that.
 - An extension that imports `fetch-many` does not load in a Squadron older than API 1.12.
 
+### Chips on an agent's row (API 1.15)
+
+- **`host::set-agent-chips(agent, chips)`**: puts the extension's chips on the row of an agent, in place of those it put before, `[]` removing them. In Rust, `host::set_agent_chips(&agent.id, json)`. `chips` is a JSON list of 8 at most, each `{ "key": "…", "title": "…" }` with optional `url` (`https://…` only, opened on click), `tone` (`ok`, `err` or `info`: a dot in `--ok`, `--err` or `--remote-dot` before the key) and `logo` (`false` leaves the extension's logo out, the extension deciding for each chip). The key is trimmed and cut at 40 characters.
+- **On the row**: one chip at a time on the state line, then `+N`, which lists them all with their titles. The chips of every extension take turns on a shared clock, the draft `link` first; a chip with `tone` `err` stops the turn on itself. Settings › Preferences › Agent list sets the transition (Off, Fade, Roll down, Roll up), the interval and whether every row turns or only the selected one; reduced motion shows the first chip.
+- **Rules**: no permission needed, an extension only touching its own chips. The chips stay with the agent across restarts. A call with bad JSON, more than 8 chips, a chip without `key` or `title`, or an unknown agent is dropped, with a warning in the main window's console. The draft `link` of `open-new-agent` takes `tone` and `logo` too and becomes the agent's first chip.
+- An extension that imports `set-agent-chips` does not load in a Squadron older than API 1.15.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.
