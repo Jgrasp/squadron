@@ -1,5 +1,42 @@
 # Nouveautés
 
+## 0.59.0 · 2026-11-24
+
+### Réglages
+
+- Les Réglages sont réorganisés écran par écran : les options s’enregistrent dès que vous les changez, et le menu rouvre le dernier onglet visité.
+- Projets › Tous les projets réunit les valeurs par défaut, les règles de permission de chaque projet, la CI et les consignes de revue ; les réglages des agents passent dans Projets › Agents.
+- Interface › Disposition réunit les panneaux, le Diff et Ouvrir dans, chaque emplacement en ligne à glisser et à activer ; Ouvrir dans liste les applications trouvées sur votre machine.
+- Toutes les extensions, sous Squadron, liste chaque extension avec son état et ouvre sa page.
+- À propos affiche l’état des mises à jour et l’historique des versions, une ligne repliée par version, à la place de l’onglet Nouveautés.
+- Claude Code affiche la valeur actuelle de chaque réglage, Serveurs MCP montre une seule liste où chaque serveur tourne dans chaque session ou à la demande, et Raccourcis liste les raccourcis fixes.
+- Ouverture rapide devient un raccourci réassignable, et Spotlight trouve les règles de permission d’un projet.
+
+### Agents
+
+- Les agents peuvent reprendre seuls une session arrêtée sur une erreur, après 30 secondes et jusqu’à 3 fois de suite (Projets › Agents).
+- Les lignes d’agent montrent les puces de chaque extension à tour de rôle ; Préférences › Liste des agents règle leur rotation.
+
+### Kanban
+
+- Sélectionnez des cartes par Ctrl ou Maj clic ou en traçant un cadre, et archivez-les ensemble. Archiver un agent retire sa carte du tableau.
+
+### Pull requests
+
+- La liste ne montre que les pull requests qui vous concernent ; un interrupteur dans Réglages › Pull requests ramène les autres du dépôt.
+- La revue liste les nouvelles remarques en tête des Fils, chaque carte mène à son fil, la colonne se redimensionne, Fusionner revient et Demander des changements n’exige plus de commentaire.
+
+### Navigateur
+
+- Les agents règlent la largeur de la page pour tester le responsive, affichée en puce que vous pouvez réinitialiser, lisent les erreurs de console et les requêtes en échec, et capturent la page entière.
+- Les onglets et leur historique reviennent après un redémarrage, et un nouvel onglet s’affiche une fois sa première page chargée.
+- Entrée ajoute une note au message et continue l’annotation, la colonne des notes s’élargit, et Ajouter au message ramène à la conversation.
+
+### Correctifs
+
+- Le style de réponse choisi dans Réglages › Claude Code atteint désormais les agents.
+- Les pages servies sur le port 5173 s’ouvrent dans le navigateur de l’app installée.
+
 ## 0.58.0 · 2026-11-21
 
 ### Projets

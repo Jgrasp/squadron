@@ -1,5 +1,42 @@
 # Changelog
 
+## 0.59.0 · 2026-11-24
+
+### Settings
+
+- Settings are reorganized screen by screen: options save as soon as you change them, and the menu reopens the last tab you visited.
+- Projects › All projects gathers the defaults, the permission rules of every project, the CI and the review instructions; agent settings move to Projects › Agents.
+- Interface › Layout holds the panels, Diff and Open in, each slot as a row you drag and switch on or off; Open in lists the apps found on your machine.
+- All extensions, under Squadron, lists every extension with its status and opens its page.
+- About shows the update status and the release history, one folded row per version, in place of the What's new tab.
+- Claude Code shows the current value of each setting, MCP servers shows one list where each server runs in every session or on demand, and Shortcuts lists the fixed shortcuts.
+- Quick open becomes a shortcut you can reassign, and Spotlight finds a project's permission rules.
+
+### Agents
+
+- Agents can continue a session that stopped on an error by themselves, after 30 seconds and up to 3 times in a row (Projects › Agents).
+- Agent rows show the chips of every extension one at a time; Preferences › Agent list sets how they turn.
+
+### Kanban
+
+- Select cards with Ctrl or Shift click or by drawing a box, and archive them together. Archiving an agent takes its card off the board.
+
+### Pull requests
+
+- The list only shows the pull requests that involve you; a switch in Settings › Pull requests brings back the repository's other ones.
+- Review lists new remarks at the top of Threads, every thread card leads to its thread, the column can be resized, Merge is back and Request changes no longer needs a comment.
+
+### Browser
+
+- Agents set the page width to test responsive layouts, shown as a chip you can reset, read console errors and failed requests, and capture the whole page.
+- Tabs and their history come back after a restart, and a new tab shows once its first page has loaded.
+- Enter adds a note to the message and keeps annotating, the notes column can be widened, and Add to the message goes back to the conversation.
+
+### Fixes
+
+- The output style picked in Settings › Claude Code now reaches the agents.
+- Pages served on port 5173 open in the browser of the installed app.
+
 ## 0.58.0 · 2026-11-21
 
 ### Projects
