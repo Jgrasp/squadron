@@ -35,6 +35,10 @@
     <circle cx="12" cy="12" r="9" /><path d="M8 12.5l2.7 2.7L16 9.8" />
   {:else if name === 'alert'}
     <circle cx="12" cy="12" r="9" /><path d="M12 7.5v5.5M12 16.5v.01" />
+  {:else if name === 'expand'}
+    <path d="M14 4h6v6M10 20H4v-6M20 4l-7 7M4 20l7-7" />
+  {:else if name === 'collapse'}
+    <path d="M20 10h-6V4M4 14h6v6M14 10l7-7M10 14l-7 7" />
   {:else if name === 'retry'}
     <path d="M20 11a8 8 0 1 0-2.3 5.7M20 4v7h-7" />
   {:else if name === 'sound'}

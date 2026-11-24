@@ -6,11 +6,12 @@
     title,
     width = 0,
     full = false,
+    tall = false,
     onclose,
     badge,
     icon,
     children,
-  }: { title: string; width?: number; full?: boolean; onclose: () => void; badge?: Snippet; icon?: Snippet; children: Snippet } =
+  }: { title: string; width?: number; full?: boolean; tall?: boolean; onclose: () => void; badge?: Snippet; icon?: Snippet; children: Snippet } =
     $props()
 
   let dialog: HTMLDialogElement
@@ -30,6 +31,7 @@
 <dialog
   bind:this={dialog}
   class:full
+  class:tall
   style:width={full ? null : `${width}px`}
   aria-labelledby="dialog-title"
   oncancel={(e) => {
@@ -64,6 +66,10 @@
 
   dialog.full[open] {
     width: calc(100vw - 48px);
+  }
+
+  dialog.full[open],
+  dialog.tall[open] {
     height: calc(100vh - 48px);
     max-height: none;
     display: flex;

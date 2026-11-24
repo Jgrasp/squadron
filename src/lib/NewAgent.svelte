@@ -115,6 +115,46 @@
     if (!linked && !started) kept.set(project.path, draft)
   })
 
+  const EXPANDED = 'squadron.new-agent-expanded'
+  let expanded = $state(localStorage.getItem(EXPANDED) === '1')
+  let armed = $state(false)
+  let confirming = $state(false)
+  const lines = $derived(text ? text.split('\n').length : 0)
+
+  function expand(on: boolean) {
+    expanded = on
+    armed = false
+    localStorage.setItem(EXPANDED, on ? '1' : '0')
+    message.focus()
+  }
+
+  function escape(event: KeyboardEvent) {
+    if (event.key !== 'Escape') {
+      armed = false
+      return
+    }
+    if (event.defaultPrevented) return
+    if (expanded) expand(false)
+    else if (!armed) armed = true
+    else return
+    event.preventDefault()
+  }
+
+  $effect(() => {
+    const el = form
+    el.addEventListener('keydown', escape)
+    return () => el.removeEventListener('keydown', escape)
+  })
+
+  function clear() {
+    if (!confirming) {
+      confirming = true
+      return
+    }
+    confirming = false
+    reset()
+  }
+
   function reset() {
     name = text = goal = ''
     applied = { name, text, goal }
@@ -275,11 +315,11 @@
   }
 </script>
 
-<Dialog title={t('common.newAgent')} onclose={close} width={620}>
+<Dialog title={t('common.newAgent')} onclose={close} width={expanded ? 1000 : 620} tall={expanded}>
   {#snippet badge()}
     <span class="in" style:--project={project.color}><span class="dot" aria-hidden="true"></span>{t('board.inProject', { project: project.name })}</span>
   {/snippet}
-  <form bind:this={form} onsubmit={submit}>
+  <form bind:this={form} class:expanded onsubmit={submit}>
     <div class="fields">
       {#if tied && link && linked}
         <div class="linked">
@@ -346,8 +386,14 @@
                 ><path d="M21 11.5l-8.6 8.6a5.5 5.5 0 0 1-7.8-7.8l8.6-8.6a3.7 3.7 0 0 1 5.2 5.2l-8.6 8.6a1.8 1.8 0 0 1-2.6-2.6l7.9-7.9" /></svg
               >
             </button>
+            <span class="count">{lines ? t('board.promptLines', { count: lines }) : ''}</span>
+            <button type="button" class="clear" onclick={() => expand(!expanded)}
+              ><Icon name={expanded ? 'collapse' : 'expand'} size={13} />{t(expanded ? 'board.collapsePrompt' : 'board.expandPrompt')}</button
+            >
             {#if !tied && (text || name || goal || files.length)}
-              <button type="button" class="clear" onclick={reset}><Icon name="retry" size={13} />{t('board.clearDraft')}</button>
+              <button type="button" class="clear" class:confirming onclick={clear} onmouseleave={() => (confirming = false)}
+                ><Icon name="retry" size={13} />{t(confirming ? 'board.clearConfirm' : 'board.clearDraft')}</button
+              >
             {/if}
           </div>
         </div>
@@ -416,7 +462,8 @@
     </div>
 
     <footer>
-      <button type="button" class="btn btn-secondary" onclick={close}>{t('common.cancel')}<span class="keys"><kbd>{t('agent.keyEsc')}</kbd></span></button>
+      {#if armed}<span class="hint"><Trans k="board.escAgain">{#snippet key()}<kbd>{t('agent.keyEsc')}</kbd>{/snippet}</Trans></span>{/if}
+      <button type="button" class="btn btn-secondary" class:armed onclick={close}>{t('common.cancel')}<span class="keys"><kbd>{t('agent.keyEsc')}</kbd></span></button>
       <button class="btn btn-primary" disabled={!ready}>{t('board.startAgent')}<span class="keys"><kbd>Ctrl</kbd><kbd>↵</kbd></span></button>
     </footer>
   </form>
@@ -783,12 +830,81 @@
   }
 
   .box :global(.cm-editor) {
-    height: 7.5em;
+    min-height: 7.5em;
+    max-height: 55vh;
+  }
+
+  .box :global(.cm-scroller) {
+    overflow: auto;
+  }
+
+  form.expanded {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .expanded .fields,
+  .expanded .write,
+  .expanded .box,
+  .expanded .message {
+    flex: 1;
+    min-height: 0;
+  }
+
+  .expanded .write,
+  .expanded .message {
+    display: flex;
+    flex-direction: column;
+  }
+
+  .expanded .message :global(.composer-field) {
+    flex: 1;
+    min-height: 0;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .expanded .box :global(.cm-editor) {
+    flex: 1;
+    max-height: none;
+  }
+
+  .count {
+    margin-left: auto;
+    padding: 0 6px;
+    font: 11.5px var(--mono);
+    color: var(--text-faint);
+  }
+
+  .clear.confirming,
+  .clear.confirming:hover {
+    background: var(--err-bg);
+    box-shadow: inset 0 0 0 1px var(--err-border);
+    color: var(--err-text);
+  }
+
+  .hint {
+    margin-right: auto;
+    font-size: 12.5px;
+    color: var(--text-dim);
+  }
+
+  .hint kbd {
+    color: var(--text-2);
+  }
+
+  footer .btn.armed {
+    background: var(--surface-4);
+    box-shadow: inset 0 0 0 1px var(--text-faint);
+    color: var(--text-strong);
   }
 
   .boxbar {
     display: flex;
     align-items: center;
+    gap: 4px;
     padding: 0 8px 8px;
   }
 
@@ -797,7 +913,6 @@
     align-items: center;
     gap: 6px;
     height: 28px;
-    margin-left: auto;
     padding: 0 10px;
     border-radius: 4px;
     font-size: 12px;
