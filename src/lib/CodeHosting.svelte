@@ -91,7 +91,7 @@
         <strong>{t('settings.forgeOther')}</strong>
         <small>{t('settings.forgeOtherHint')}</small>
       </span>
-      <button class="btn btn-ghost" onclick={() => (ui.settings = 'discover')}>{t('settings.forgeDiscover')}</button>
+      <button class="btn btn-ghost" onclick={() => (ui.settings = 'discover')}>{t('extensions.allExtensions')}</button>
     </div>
   </div>
 
