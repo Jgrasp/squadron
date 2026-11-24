@@ -4,7 +4,7 @@
 
 ### Artifacts
 
-- Les agents peuvent publier des artifacts claude.ai : présentations Slides, Docs, Sheets et les autres types de votre compte.
+- Les agents peuvent publier des artifacts claude.ai : présentations Slides, Docs, Sheets et les autres types de votre compte.
 - Publier sur claude.ai, dans le menu Partager d’un artifact, accepte aussi les artifacts html et svg, en page claude.ai.
 - Publier en présentation, nouvelle entrée du menu Partager, fait de tout artifact une présentation Slides sur claude.ai.
 - Le panneau Artifacts liste ce que les agents publient sur claude.ai.
