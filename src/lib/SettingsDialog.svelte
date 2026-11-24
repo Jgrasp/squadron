@@ -158,7 +158,7 @@
     {#if error}<p class="bad" role="alert">{error}</p>{/if}
   </div>
 
-  {#if !['layout', 'discover', 'projects', 'agents', 'preferences', 'about', 'hosting', 'notifications', 'shortcuts'].includes(tab) && !tab.startsWith('ext:')}
+  {#if tab === 'claude'}
     <footer>
       {#if saved}<span class="good">{t('common.saved')}</span>{/if}
       <button class="btn btn-secondary" onclick={onclose}>{t('common.close')}</button>

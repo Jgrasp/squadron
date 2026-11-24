@@ -1,4 +1,6 @@
 <script lang="ts">
+  import { onMount, tick } from 'svelte'
+  import { ui } from './actions.svelte'
   import Icon from './Icon.svelte'
   import { t } from './i18n/index.svelte'
   import { removeRule, type Project } from './projects.svelte'
@@ -7,6 +9,7 @@
   let { project, act }: { project: Project; act: (work: () => Promise<unknown>) => Promise<void> } = $props()
 
   let open = $state(false)
+  let section = $state<HTMLElement>()
   let whole = $state<string | null>(null)
 
   const toolOf = (rule: string) => (rule.startsWith('Bash(') ? 'Bash' : rule.split('(')[0])
@@ -16,9 +19,16 @@
       .map(([tool, count]) => `${tool} ${count}`)
       .join(' · '),
   )
+  onMount(async () => {
+    if (ui.settingsAnchor !== 'rules') return
+    ui.settingsAnchor = ''
+    open = true
+    await tick()
+    section?.scrollIntoView({ block: 'start' })
+  })
 </script>
 
-<section>
+<section bind:this={section}>
   <h4>{t('settings.projectRules')}</h4>
   <p class="intro">{t('settings.rulesIntro', { name: project.name })}</p>
   <div class="options">

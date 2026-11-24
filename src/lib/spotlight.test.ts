@@ -63,6 +63,10 @@ describe('spotlight actions', () => {
     expect(ids('set')).toHaveLength(6)
   })
 
+  it('finds the permission rules of a project', () => {
+    expect(match('permission uh', world()).map((r) => r.key)).toEqual(['rules:/p/uh'])
+  })
+
   it('does not take a plain search for an action', () => {
     expect(ids('')).toEqual([])
     expect(ids('p')).toEqual([])
@@ -90,7 +94,7 @@ describe('spotlight chips', () => {
   it('lists the actions of a project, the named one first', () => {
     expect(keys(verbsOf(uh, 'pr'))).toEqual(['pulls:/p/uh'])
     expect(keys(verbsOf(uh, 'kan'))).toEqual(['board:/p/uh'])
-    expect(keys(verbsOf(gone, ''))).toEqual(['open:/p/gone', 'pulls:/p/gone', 'board:/p/gone', 'removeProject:/p/gone'])
+    expect(keys(verbsOf(gone, ''))).toEqual(['open:/p/gone', 'pulls:/p/gone', 'board:/p/gone', 'removeProject:/p/gone', 'rules:/p/gone'])
   })
 
   it('lists the projects of an action, the current one first, then by priority', () => {

@@ -71,6 +71,13 @@ export async function perform({ verb, project, agent }: Row) {
     ui.settings = verb.id.slice('settings:'.length) as SettingsTab
     return
   }
+  if (verb.id === 'rules') {
+    if (!project) return
+    ui.settingsProject = project.path
+    ui.settingsAnchor = 'rules'
+    ui.settings = 'projects'
+    return
+  }
   if (project && verb.scope === 'project') {
     projects.overview = projects.board = projects.pulls = false
     projects.current = project.path

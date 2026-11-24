@@ -142,3 +142,5 @@ export async function saveSettings(config: Config) {
   setLanguage(settings.language)
   emitTo('board', 'settings-changed').catch(() => {})
 }
+
+export const patchSettings = (patch: Partial<Config>) => saveSettings({ ...$state.snapshot(settings), ...patch })

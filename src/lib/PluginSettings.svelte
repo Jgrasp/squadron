@@ -8,7 +8,7 @@
   import { ALL, OFFICIAL, SHOWS, followed, marketplaceOf, nameOf, pluginColor, type Entry, type Installed } from './plugins'
   import { addMarketplace, choose, detailsOf, fetchDetails, followOf, install, loadCatalog, members, loadPlugins, plugins, remembered, removeMarketplace, toggle, uninstall, update, where } from './plugins.svelte'
   import { projects } from './projects.svelte'
-  import { saveSettings, settings, type Config } from './settings.svelte'
+  import { patchSettings, settings, type Config } from './settings.svelte'
   import { tokens } from './format'
 
   type From = 'official' | 'imported' | 'local'
@@ -94,8 +94,8 @@
 
   const isOn = (c: Card) => where(c.id).on.length > 0
 
-  const setShow = (plugin_lines: Config['plugin_lines']) => saveSettings({ ...$state.snapshot(settings), plugin_lines })
-  const setCard = (plugin_card: Config['plugin_card']) => saveSettings({ ...$state.snapshot(settings), plugin_card })
+  const setShow = (plugin_lines: Config['plugin_lines']) => patchSettings({ plugin_lines })
+  const setCard = (plugin_card: Config['plugin_card']) => patchSettings({ plugin_card })
 
   function save(paths: string[], groups: string[]) {
     const target = picking

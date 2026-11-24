@@ -50,6 +50,7 @@ export const VERBS: Verb[] = [
   { id: 'interrupt', words: ['stop', 'interrupt'], title: () => t('spotlight.interrupt'), icon: 'stop', scope: 'agent', action: 'interrupt', forAgent: running },
   { id: 'pin', words: ['pin'], title: () => t('spotlight.pin'), icon: 'pin', scope: 'agent', forAgent: (a) => !a.pinned },
   { id: 'unpin', words: ['unpin', 'pin'], title: () => t('spotlight.unpin'), icon: 'pin', scope: 'agent', forAgent: (a) => !!a.pinned },
+  { id: 'rules', words: ['rules', 'permission', 'permissions'], title: () => t('spotlight.rules'), icon: 'options', scope: 'project' },
   { id: 'overview', words: ['overview'], title: () => t('spotlight.overview'), icon: 'grid', scope: 'none' },
   { id: 'jump', words: ['jump', 'waiting'], title: () => t('spotlight.jump'), icon: 'jump', scope: 'none', action: 'jump' },
   { id: 'layout', words: ['layout', 'customize'], title: () => t('spotlight.layout'), icon: 'options', scope: 'none' },
