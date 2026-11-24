@@ -851,10 +851,10 @@ mod native {
     use std::time::Instant;
     use tokio::sync::oneshot;
     use webkit2gtk::{
-        BackForwardListExt, FileChooserRequestExt, LoadEvent, ScriptDialog, ScriptDialogType,
-        URIRequestExt, URIResponseExt, UserContentInjectedFrames, UserContentManagerExt,
-        UserScript, UserScriptInjectionTime, WebResourceExt, WebView, WebViewExt,
-        WebViewSessionState,
+        BackForwardListExt, FileChooserRequestExt, HardwareAccelerationPolicy, LoadEvent,
+        ScriptDialog, ScriptDialogType, SettingsExt, URIRequestExt, URIResponseExt,
+        UserContentInjectedFrames, UserContentManagerExt, UserScript, UserScriptInjectionTime,
+        WebResourceExt, WebView, WebViewExt, WebViewSessionState,
     };
 
     thread_local! {
@@ -925,6 +925,10 @@ mod native {
                     .insert(tab.clone(), (AWAY as i32, 0, SIZE.0 as i32, SIZE.1 as i32))
             });
             adopt(&w);
+            // A tab parked at AWAY is never drawn: with GPU compositing its frames are never acknowledged and requestAnimationFrame stops.
+            if let Some(settings) = WebViewExt::settings(&v) {
+                settings.set_hardware_acceleration_policy(HardwareAccelerationPolicy::Never);
+            }
             if let Some(content) = v.user_content_manager() {
                 content.add_script(&UserScript::for_world(
                     PAGE,
