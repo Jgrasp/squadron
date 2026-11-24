@@ -454,6 +454,7 @@ struct Config {
     merge_method: String,
     merge_review: String,
     pulls_others: bool,
+    auto_continue: bool,
 }
 
 impl Default for Config {
@@ -509,6 +510,7 @@ impl Default for Config {
             merge_method: "repo".into(),
             merge_review: "banner".into(),
             pulls_others: false,
+            auto_continue: false,
         }
     }
 }
