@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.62.0 · 2026-11-24
+
+### Usage
+- A Usage page shows how many tokens every Claude Code session on this machine used each day, over 7, 30 or 90 days, and what used them: tool output, replies, your setup, hooks, MCP servers, plugins, the advisor.
+- It points out what weighs the most, each with something to do: compact earlier, see the longest conversations and the large outputs re-read turn after turn, disable plugins that are loaded but never called.
+- Open it from the Usage button in the header or by clicking the Session and Week limits in the status bar. Settings › Preferences › Usage page turns it off.
+
+### Agents
+- The New agent prompt grows with its text and expands to a full-height dialog. Clear asks a second click, and Esc closes in steps while keeping your draft.
+
 ## 0.61.0 · 2026-11-24
 
 ### Artifacts
