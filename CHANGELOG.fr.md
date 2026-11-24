@@ -1,5 +1,15 @@
 # Nouveautés
 
+## 0.61.0 · 2026-11-24
+
+### Artifacts
+
+- Les agents peuvent publier des artifacts claude.ai : présentations Slides, Docs, Sheets et les autres types de votre compte.
+- Publier sur claude.ai, dans le menu Partager d’un artifact, accepte aussi les artifacts html et svg, en page claude.ai.
+- Publier en présentation, nouvelle entrée du menu Partager, fait de tout artifact une présentation Slides sur claude.ai.
+- Le panneau Artifacts liste ce que les agents publient sur claude.ai.
+- Les artifacts html ont leur propre style et gardent le même rendu une fois publiés sur claude.ai.
+
 ## 0.60.0 · 2026-11-24
 
 ### Conversation

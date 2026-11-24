@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.61.0 · 2026-11-24
+
+### Artifacts
+
+- Agents can publish claude.ai artifacts: Slides presentations, Docs, Sheets and the other types of your account.
+- Publish on claude.ai, in an artifact's Share menu, now takes html and svg artifacts too, as a claude.ai page.
+- Publish as a presentation, a new Share menu entry, makes any artifact into a Slides presentation on claude.ai.
+- The Artifacts panel lists what agents publish on claude.ai.
+- Html artifacts carry their own style, so they look the same once published on claude.ai.
+
 ## 0.60.0 · 2026-11-24
 
 ### Conversation
