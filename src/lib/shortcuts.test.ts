@@ -18,6 +18,11 @@ describe('shortcuts', () => {
     expect(combo(key('Control', { ctrlKey: true }))).toBe('')
   })
 
+  it('finds the quick open action and its override', () => {
+    expect(pressed(key('f', { ctrlKey: true, shiftKey: true }), {})).toBe('quickOpen')
+    expect(pressed(key('f', { ctrlKey: true, shiftKey: true }), { quickOpen: 'Ctrl+P' })).toBeUndefined()
+  })
+
   it('finds the action, with overrides first', () => {
     expect(pressed(key('d', { ctrlKey: true }), {})).toBe('diff')
     expect(pressed(key('d', { ctrlKey: true }), { diff: 'Alt+D' })).toBeUndefined()

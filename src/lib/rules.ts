@@ -44,6 +44,14 @@ export function matches(rule: string, tool: string, input: Record<string, any>):
   return false
 }
 
+export const ruleTool = (rule: string) => (rule.startsWith('Bash(') ? 'Bash' : rule.split('(')[0])
+
+export const ruleTools = (rules: string[]) =>
+  [...rules.reduce((m, r) => m.set(ruleTool(r), (m.get(ruleTool(r)) ?? 0) + 1), new Map<string, number>())]
+    .sort((a, b) => b[1] - a[1])
+    .map(([tool, count]) => `${tool} ${count}`)
+    .join(' · ')
+
 export function ruleLabel(rule: string) {
   return /^Bash\((.*)\)$/s.exec(rule)?.[1] ?? rule
 }

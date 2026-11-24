@@ -24,6 +24,12 @@ export type SettingsTab =
   | `ext:${string}`
   | 'about'
 
+const TABS = ['projects', 'agents', 'claude', 'plugins', 'mcp', 'hosting', 'preferences', 'notifications', 'shortcuts', 'layout', 'discover', 'about']
+
+export const rememberSettingsTab = (tab: SettingsTab) => TABS.includes(tab) && localStorage.setItem('squadron.settings-tab', tab)
+
+export const lastSettingsTab = () => (TABS.find((tab) => tab === localStorage.getItem('squadron.settings-tab')) ?? 'projects') as SettingsTab
+
 export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', settingsAnchor: '', adding: null as string | null, drops: 0, finding: 0, drawer: false, updates: false })
 
 export type Context = { project?: Project; agent?: Agent }

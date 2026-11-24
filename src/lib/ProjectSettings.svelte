@@ -7,6 +7,7 @@
   import ProjectGeneral from './ProjectGeneral.svelte'
   import ProjectReview from './ProjectReview.svelte'
   import ProjectRules from './ProjectRules.svelte'
+  import ProjectsRules from './ProjectsRules.svelte'
   import ProjectRuns from './ProjectRuns.svelte'
   import { home, ordered, orderProjects, projects } from './projects.svelte'
   import { saveSettings, settings } from './settings.svelte'
@@ -124,6 +125,7 @@
       <div class="page">
         {#if error}<p class="bad" role="alert">{error}</p>{/if}
         <ProjectAgents {act} {pick} />
+        {#if list.length}<ProjectsRules {act} />{/if}
         <ProjectRuns {act} />
         <ProjectReview {act} />
         {#if !list.length}<p class="empty">{t('settings.projectsNone')}</p>{/if}

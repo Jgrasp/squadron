@@ -4,7 +4,7 @@
   import AboutSquadron from './AboutSquadron.svelte'
   import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
-  import { ui, type SettingsTab } from './actions.svelte'
+  import { rememberSettingsTab, ui, type SettingsTab } from './actions.svelte'
   import ProjectSettings from './ProjectSettings.svelte'
   import LayoutSettings from './LayoutSettings.svelte'
   import NotificationSettings from './NotificationSettings.svelte'
@@ -28,6 +28,9 @@
   let { onclose }: { onclose: () => void } = $props()
 
   const tab = $derived(ui.settings ?? 'projects')
+  $effect(() => {
+    rememberSettingsTab(tab)
+  })
 
   const groups: [Key, [Tab, Key][]][] = [
     [

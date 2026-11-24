@@ -5,7 +5,7 @@
 
   const SECTIONS: [Key, Action[]][] = [
     ['settings.agents', ['newAgent', 'jump', 'interrupt', 'find']],
-    ['settings.tabPanels', ['kanban', 'editor', 'terminal', 'diff', 'sidebar']],
+    ['settings.tabPanels', ['kanban', 'editor', 'terminal', 'diff', 'quickOpen', 'sidebar']],
     ['settings.shortcutsNavigation', ['search', 'projects', 'back', 'forward']],
     ['settings.groupSquadron', ['quit']],
   ]
@@ -32,7 +32,6 @@
       'settings.fixedEditor',
       [
         ['settings.fixedSave', null, ['Ctrl+S']],
-        ['settings.fixedQuickOpen', null, ['Ctrl+Shift+F']],
         ['settings.fixedSpot', 'settings.fixedSpotHint', ['N', 'Shift+N']],
         ['settings.fixedComment', 'settings.fixedCommentHint', ['Ctrl+Enter']],
       ],

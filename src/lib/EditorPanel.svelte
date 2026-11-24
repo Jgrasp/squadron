@@ -9,6 +9,7 @@
   import FileTree, { type Change } from './FileTree.svelte'
   import Markdown from './Markdown.svelte'
   import { projects } from './projects.svelte'
+  import { hint, shortcut } from './settings.svelte'
   import OpenWith from './OpenWith.svelte'
   import QuickOpen from './QuickOpen.svelte'
   import SidePanel from './SidePanel.svelte'
@@ -79,7 +80,7 @@
   }
 
   function keys(event: KeyboardEvent) {
-    if (!event.ctrlKey || !event.shiftKey || event.altKey || event.key.toLowerCase() !== 'f' || document.querySelector('dialog[open]')) return
+    if (shortcut(event) !== 'quickOpen' || document.querySelector('dialog[open]')) return
     event.preventDefault()
     quick = !quick
   }
@@ -158,7 +159,7 @@
     {changes ? t('shell.filesUncommitted') : t('shell.filesChangedByAgents')}
   {/snippet}
   {#snippet actions()}
-    <button class="btn btn-secondary flip" title="Ctrl Shift F" onclick={() => (quick = true)}>⌕ {t('shell.quickOpen')}</button>
+    <button class="btn btn-secondary flip" title={hint('quickOpen')} onclick={() => (quick = true)}>⌕ {t('shell.quickOpen')}</button>
     {#if format}
       <button class="btn btn-secondary flip" aria-pressed={previewing} title={previewing ? undefined : t('shell.previewOf', { name: active!.path.split('/').pop()! })} onclick={flip}>
         {previewing ? t('shell.code') : t('shell.preview')}
