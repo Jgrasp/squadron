@@ -6,7 +6,7 @@
   import { date, errorText, number, t, type Key } from './i18n/index.svelte'
   import { detailsOf, fetchDetails, loadPlugins, plugins, toggle } from './plugins.svelte'
   import { patchSettings, settings } from './settings.svelte'
-  import { daily, dayOf, GROUPS, groupTotal, lastDays, ranked, sum, unusedPlugins, type Group, type Item, type Usage } from './stats'
+  import { daily, dayOf, GROUPS, groupTotal, lastDays, ranked, sum, uncalledPlugins, unusedPlugins, type Group, type Item, type Usage } from './stats'
 
   const PERIODS = [7, 30, 90]
   const VIEWS = ['source', 'project', 'model', 'context', 'hour'] as const
@@ -58,10 +58,9 @@
 
   const sessions = $derived(data ? data.sessions.filter((s) => within(s.end) || within(s.start)).slice(0, 6) : [])
   const bigs = $derived(data ? data.bigs.filter((b) => within(b.at)) : [])
+  const uncalled = $derived(totals ? uncalledPlugins(totals, plugins.installed ?? []) : [])
   const unused = $derived(totals ? unusedPlugins(totals, plugins.installed ?? [], (id) => detailsOf(id)?.hooks) : [])
-  $effect(() => {
-    if (totals && plugins.installed) fetchDetails(plugins.installed.filter((p) => p.enabled).map((p) => p.id))
-  })
+  $effect(() => fetchDetails(uncalled.map((x) => x.plugin.id)))
 
   const findings = $derived.by(() => {
     if (!totals) return []
@@ -289,10 +288,10 @@
                         </div>
                       {/each}
                     {:else if f.id === 'plugins'}
-                      {#each unused as u ((u.plugin?.id ?? '') + ('name' in u.item ? u.item.name : ''))}
+                      {#each unused as u (u.plugin.id)}
                         <div class="plug">
                           <span class="dot g-plugins"></span><span class="grow">{itemLabel(u.item)}</span><span class="num">{tokens(u.tokens)}</span>
-                          <button class="btn btn-ghost" disabled={!!plugins.busy} onclick={() => u.plugin && toggle(u.plugin.id, false)}>{plugins.busy === u.plugin?.id ? t('stats.disabling') : t('stats.disable')}</button>
+                          <button class="btn btn-ghost" disabled={!!plugins.busy} onclick={() => toggle(u.plugin.id, false)}>{plugins.busy === u.plugin.id ? t('stats.disabling') : t('stats.disable')}</button>
                         </div>
                       {/each}
                       {#if plugins.error}<p class="bad" role="alert">{plugins.error}</p>{/if}

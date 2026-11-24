@@ -53,6 +53,6 @@ describe('stats', () => {
       { id: 'hooked@m', name: 'hooked', enabled: true },
     ]
     const hooks = (id: string) => (id === 'hooked@m' ? 2 : 0)
-    expect(unusedPlugins(t, installed, hooks).map((x) => x.plugin?.id)).toEqual(['idle@m'])
+    expect(unusedPlugins(t, installed, hooks).map((x) => x.plugin.id)).toEqual(['idle@m'])
   })
 })

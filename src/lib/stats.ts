@@ -132,8 +132,11 @@ type Plugin = { id: string; name: string | null; enabled: boolean }
 
 const nameOf = (p: Plugin) => p.name ?? p.id.split('@')[0]
 
-export function unusedPlugins(t: Totals, installed: Plugin[], hooks: (id: string) => number | undefined) {
-  return ranked(t, 'plugins')
-    .map((x) => ({ ...x, plugin: installed.find((p) => p.enabled && 'name' in x.item && nameOf(p) === x.item.name) }))
-    .filter((x) => x.plugin && !t.calls[`Plugin · ${nameOf(x.plugin)}`] && hooks(x.plugin.id) === 0)
-}
+export const uncalledPlugins = (t: Totals, installed: Plugin[]) =>
+  ranked(t, 'plugins').flatMap((x) => {
+    const plugin = installed.find((p) => p.enabled && 'name' in x.item && nameOf(p) === x.item.name)
+    return plugin && !t.calls[`Plugin · ${nameOf(plugin)}`] ? [{ ...x, plugin }] : []
+  })
+
+export const unusedPlugins = (t: Totals, installed: Plugin[], hooks: (id: string) => number | undefined) =>
+  uncalledPlugins(t, installed).filter((x) => hooks(x.plugin.id) === 0)

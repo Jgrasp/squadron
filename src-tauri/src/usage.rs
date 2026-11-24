@@ -12,7 +12,8 @@ use std::time::UNIX_EPOCH;
 const IMAGE: f64 = 1850.0;
 const DENSITY: f64 = 1.77;
 const BIG: f64 = 4000.0;
-const KEPT_BIGS: usize = 1000;
+const KEPT_DAYS: i64 = 92;
+const CACHE_VERSION: u32 = 1;
 
 #[derive(Debug, Default, Clone, Serialize, Deserialize, PartialEq)]
 pub struct Hour {
@@ -58,6 +59,12 @@ pub struct FileStats {
     pub hours: BTreeMap<i64, Hour>,
     pub sessions: Vec<Session>,
     pub bigs: Vec<Big>,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+struct Cache {
+    version: u32,
+    files: HashMap<String, FileStats>,
 }
 
 #[derive(Debug, Default, Serialize)]
@@ -353,6 +360,19 @@ impl Scan {
     }
 }
 
+fn slash_plugin(text: &str) -> Option<&str> {
+    let name = text.split("<command-name>/").nth(1)?.split('<').next()?;
+    Some(name.split_once(':')?.0).filter(|p| !p.is_empty())
+}
+
+fn invoked(text: &str, at: i64, chain: &mut Chain, scan: &mut Scan) {
+    if let Some(plugin) = slash_plugin(text) {
+        let source = format!("Plugin · {plugin}");
+        *scan.hour(at).0.calls.entry(source.clone()).or_default() += 1;
+        chain.last_skill = Some(source);
+    }
+}
+
 fn bucket(context: u64) -> usize {
     match context {
         c if c < 50_000 => 0,
@@ -480,8 +500,10 @@ pub fn scan<R: BufRead>(reader: R, sidechain_file: bool) -> FileStats {
                     (Some(skill), true) => skill.clone(),
                     _ => "Your messages".into(),
                 };
+                let at = d.timestamp.and_then(epoch).unwrap_or(0);
                 match content(m.content) {
                     Content::Text(s) => {
+                        invoked(&s, at, chain, &mut scan);
                         let source = if d.meta && chain.last_skill.is_none() {
                             "Reminders · meta".into()
                         } else {
@@ -528,6 +550,7 @@ pub fn scan<R: BufRead>(reader: R, sidechain_file: bool) -> FileStats {
                                     label: None,
                                 }),
                                 "text" => {
+                                    invoked(b.text.as_deref().unwrap_or(""), at, chain, &mut scan);
                                     let source = meta_source(chain);
                                     chain.pending.push(Pending {
                                         source,
@@ -801,7 +824,7 @@ fn add_hour(into: &mut Hour, from: &Hour) {
     }
 }
 
-pub fn merge(files: &HashMap<String, FileStats>) -> Usage {
+pub fn merge(files: &HashMap<String, FileStats>, since: i64) -> Usage {
     let mut hours: BTreeMap<i64, Hour> = BTreeMap::new();
     let mut sessions: HashMap<String, Session> = HashMap::new();
     let mut bigs: Vec<Big> = Vec::new();
@@ -826,10 +849,9 @@ pub fn merge(files: &HashMap<String, FileStats>) -> Usage {
                 }
             }
         }
-        bigs.extend(f.bigs.iter().cloned());
+        bigs.extend(f.bigs.iter().filter(|b| b.at >= since).cloned());
     }
     bigs.sort_by_key(|b| std::cmp::Reverse(b.tokens * b.rereads));
-    bigs.truncate(KEPT_BIGS);
     let mut sessions: Vec<Session> = sessions.into_values().filter(|s| s.turns > 0).collect();
     sessions.sort_by_key(|s| std::cmp::Reverse(s.tokens));
     Usage {
@@ -840,9 +862,11 @@ pub fn merge(files: &HashMap<String, FileStats>) -> Usage {
 }
 
 pub fn collect(root: &Path, cache: &Path) -> Usage {
-    let mut known: HashMap<String, FileStats> = fs::read(cache)
+    let mut known = fs::read(cache)
         .ok()
-        .and_then(|b| serde_json::from_slice(&b).ok())
+        .and_then(|b| serde_json::from_slice::<Cache>(&b).ok())
+        .filter(|c| c.version == CACHE_VERSION)
+        .map(|c| c.files)
         .unwrap_or_default();
     let mut paths = Vec::new();
     transcripts(root, &mut paths);
@@ -886,14 +910,22 @@ pub fn collect(root: &Path, cache: &Path) -> Usage {
             }
         });
         known.extend(done.into_inner().unwrap_or_else(|e| e.into_inner()));
-        if let Ok(bytes) = serde_json::to_vec(&known) {
+        let saved = Cache {
+            version: CACHE_VERSION,
+            files: known,
+        };
+        if let Ok(bytes) = serde_json::to_vec(&saved) {
             let tmp = cache.with_extension("tmp");
             if fs::write(&tmp, bytes).is_ok() {
                 let _ = fs::rename(&tmp, cache);
             }
         }
+        known = saved.files;
     }
-    merge(&known)
+    let now = std::time::SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map_or(0, |d| d.as_secs() as i64);
+    merge(&known, now - KEPT_DAYS * 86_400)
 }
 
 #[cfg(test)]
@@ -982,6 +1014,22 @@ mod tests {
         let h = stats.hours.values().next().unwrap();
         assert!(!h.sources.contains_key("Not attributed"));
         assert!(h.sources.get("Compaction summary").copied().unwrap_or(0) > 7_000);
+    }
+
+    #[test]
+    fn counts_plugins_invoked_by_slash_command() {
+        let first = turn("m1", "2026-11-24T10:00:00Z", 0, 10_000, 10, "[]");
+        let command = r#"{"type":"user","timestamp":"2026-11-24T10:00:30Z","message":{"content":"<command-message>humanizer</command-message>\n<command-name>/humanizer:humanizer</command-name>"}}"#;
+        let body = format!(
+            r#"{{"type":"user","isMeta":true,"timestamp":"2026-11-24T10:00:31Z","message":{{"content":[{{"type":"text","text":"{}"}}]}}}}"#,
+            "y".repeat(8000)
+        );
+        let second = turn("m2", "2026-11-24T10:01:00Z", 10_000, 3_600, 10, "[]");
+        let stats = run(&[&first, command, &body, &second]);
+        let h = stats.hours.values().next().unwrap();
+        assert_eq!(h.calls.get("Plugin · humanizer"), Some(&1));
+        assert!(h.sources.get("Plugin · humanizer").copied().unwrap_or(0) > 3_000);
+        assert_eq!(slash_plugin("<command-name>/run</command-name>"), None);
     }
 
     #[test]
