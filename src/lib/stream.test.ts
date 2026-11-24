@@ -18,7 +18,7 @@ import worktreeEnter from '../../src-tauri/tests/fixtures/worktree_enter.jsonl?r
 import worktreeFlag from '../../src-tauri/tests/fixtures/worktree_flag.jsonl?raw'
 import advisorPlain from '../../src-tauri/tests/fixtures/advisor_plain.jsonl?raw'
 import advisorRedacted from '../../src-tauri/tests/fixtures/advisor_redacted.jsonl?raw'
-import { apply, calls, exited, holding, fail, flaggedWorktree, newAgent, prompt, replayLog, starting, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
+import { apply, calls, continuable, exited, holding, fail, flaggedWorktree, newAgent, prompt, replayLog, starting, subagentOf, userMessage, peerMessage, type Agent, type Entry } from './stream'
 
 function replay(agent: Agent, stream: string) {
   for (const line of stream.trim().split('\n')) apply(agent, JSON.parse(line))
@@ -220,6 +220,20 @@ describe('stream', () => {
     fail(expired, 'Failed to authenticate: OAuth session expired and could not be refreshed.')
     const last = expired.entries.at(-1)
     expect(last?.kind === 'error' && last.login).toBe(true)
+  })
+
+  it('continues a stopped session three times, never a logged-out one', () => {
+    const agent = fresh()
+    starting(agent)
+    exited(agent, 'Connection reset')
+    expect(continuable(agent)).toBe(agent.entries.at(-1))
+    agent.resumes = 3
+    expect(continuable(agent)).toBeUndefined()
+    const out = fresh()
+    replay(out, nologin)
+    expect(continuable(out)).toBeUndefined()
+    const done = fresh()
+    expect(continuable(done)).toBeUndefined()
   })
 
   it('stops calling the user once a failed session goes on by itself', () => {

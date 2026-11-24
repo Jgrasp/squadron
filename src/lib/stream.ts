@@ -870,6 +870,12 @@ function result(agent: Agent, d: Json) {
   }
 }
 
+export function continuable(agent: Agent) {
+  const entry = agent.entries.at(-1)
+  if (agent.status !== 'error' || entry?.kind !== 'error' || entry.login || entry.missing || (agent.resumes ?? 0) >= 3) return undefined
+  return entry
+}
+
 export function fail(agent: Agent, message: string) {
   agent.asks = []
   agent.status = 'error'

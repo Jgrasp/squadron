@@ -179,6 +179,8 @@ export default {
   pilotHint: 'Projects, agents, cards and layout. They never answer or approve in your place.',
   pilotAll: 'On every project',
   pilotAllHint: 'Otherwise only in their own project',
+  autoContinue: 'Continue after an error',
+  autoContinueHint: 'When a session stops on an error, Squadron asks the agent to continue after 30 seconds, up to 3 times in a row. Not for login errors.',
   browser: 'Agents can use the built-in browser',
   browserHint: 'Each agent in its own tabs, shown in the Browser panel. Linux only for now.',
   alpha: 'alpha',

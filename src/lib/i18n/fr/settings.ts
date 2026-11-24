@@ -181,6 +181,8 @@ export default {
   pilotHint: 'Projets, agents, cartes et disposition. Ils ne répondent et n’approuvent jamais à votre place.',
   pilotAll: 'Sur tous les projets',
   pilotAllHint: 'Sinon, seulement dans leur propre projet',
+  autoContinue: 'Reprendre après une erreur',
+  autoContinueHint: 'Quand une session s’arrête sur une erreur, Squadron demande à l’agent de continuer au bout de 30 secondes, jusqu’à 3 fois de suite. Sauf erreur de connexion.',
   browser: 'Les agents peuvent utiliser le navigateur intégré',
   browserHint: 'Chaque agent dans ses propres onglets, visibles dans le panneau Navigateur. Sous Linux pour l’instant.',
   alpha: 'alpha',

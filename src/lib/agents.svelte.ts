@@ -24,6 +24,7 @@ import {
   commandEcho,
   peerMessage,
   commandOutput,
+  continuable,
   subagentOf,
   INTERNAL,
   READ_ONLY,
@@ -199,6 +200,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   const previous = agent.worktree
   const was = agent.status
   apply(agent, d)
+  if (was !== 'error') autoContinue(agent)
   if (was !== 'done' && agent.status === 'done' && !onScreen(agent)) markUnread(agent.id, true)
   const next = agent.worktree
   if (next?.path !== previous?.path) {
@@ -399,6 +401,20 @@ async function adoptSaved() {
   for (const agent of cut) if (agent.status === 'interrupted') resume(agent)
 }
 
+const CONTINUE =
+  'Your session stopped on an error and Squadron relaunched it. Please continue from where you left off. If your last tool call reads as interrupted or failed, check whether it already took effect before running it again.'
+
+function autoContinue(agent: Agent) {
+  const entry = settings.auto_continue && continuable(agent)
+  if (!entry) return
+  setTimeout(() => {
+    const now = find(agent.id)
+    if (!now || !settings.auto_continue || continuable(now) !== entry) return
+    now.resumes = (now.resumes ?? 0) + 1
+    send(now.id, 'Continue', [], [], '', CONTINUE)
+  }, 30_000)
+}
+
 const RESUME =
   'Squadron was closed while you were working, which cut your last turn short. Please continue from where you left off. If your last tool call reads as interrupted or refused, the restart did that, not the user: check whether it already took effect before running it again.'
 
@@ -555,7 +571,9 @@ export function forget(id: string) {
 listen<{ id: string; stderr: string }>('agent-exit', ({ payload }) => {
   const agent = find(payload.id)
   if (!agent) return
+  const was = agent.status
   exited(agent, payload.stderr)
+  if (was !== 'error') autoContinue(agent)
   invoke('cancel_permissions', { agent: agent.id })
   unask(agent.id)
   persist(agent)

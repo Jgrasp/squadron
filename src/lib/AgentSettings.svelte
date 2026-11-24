@@ -38,6 +38,10 @@
     </select>
   </label>
   <label class="option">
+    <span class="label"><strong>{t('settings.autoContinue')}</strong><small>{t('settings.autoContinueHint')}</small></span>
+    <input class="switch" type="checkbox" role="switch" checked={settings.auto_continue} onchange={(e) => change({ auto_continue: e.currentTarget.checked })} />
+  </label>
+  <label class="option">
     <span class="label"><strong>{t('settings.pilot')}</strong><small>{t('settings.pilotHint')}</small></span>
     <input class="switch" type="checkbox" role="switch" checked={settings.pilot} onchange={(e) => change({ pilot: e.currentTarget.checked })} />
   </label>
