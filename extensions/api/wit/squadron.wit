@@ -1,4 +1,4 @@
-package squadron:api@1.12.0;
+package squadron:api@1.15.0;
 
 interface types {
   /// The agent a call is about.
@@ -190,10 +190,12 @@ interface host {
   options: func() -> string;
   /// Sends a JSON message to the extension's settings page while it is open, which receives it in `squadron.on`. Since 1.4.0.
   settings-post: func(message: string);
-  /// Opens the New agent window in the project of `agent`, the agent on screen since 1.7.0, filled from `draft`, and returns the id of the draft. `draft` is a JSON object, each key optional: `name`, `text` (the first message), `goal` (Done when), `context` (added after the first message when the agent starts, never shown in the window), `link` (`{ "key": "…", "title": "…", "url": "https://…" }`, shown at the top, with ✕ to unlink), `choices` (`{ "label": "…", "items": [{ "id": "…", "label": "…", "on": true }] }`, checkboxes), `status` (`{ "state": "running", "done" or "error", "text": "…" }`). Labels and texts are strings or `{ "en": "…", "fr": "…" }`. Since 1.5.0.
+  /// Opens the New agent window in the project of `agent`, the agent on screen since 1.7.0, filled from `draft`, and returns the id of the draft. `draft` is a JSON object, each key optional: `name`, `text` (the first message), `goal` (Done when), `context` (added after the first message when the agent starts, never shown in the window), `link` (`{ "key": "…", "title": "…", "url": "https://…" }`, shown at the top, with ✕ to unlink, then the first chip of the agent; since 1.15.0 it also takes `tone` and `logo` as `set-agent-chips` does), `choices` (`{ "label": "…", "items": [{ "id": "…", "label": "…", "on": true }] }`, checkboxes), `status` (`{ "state": "running", "done" or "error", "text": "…" }`). Labels and texts are strings or `{ "en": "…", "fr": "…" }`. Since 1.5.0.
   open-new-agent: func(agent: string, draft: string) -> string;
   /// Fills the open draft `id` with the keys of `draft`. `name`, `text` and `goal` stay as the user left them once they edited them. Since 1.5.0.
   update-new-agent: func(id: string, draft: string);
+  /// Puts the extension's chips on the row of `agent` in the agent list, in place of those it put before; `[]` removes them. `chips` is a JSON list of 8 at most, each `{ "key": "…", "title": "…" }` with optional `url` (`https://…`, opened on click), `tone` (`ok`, `err` or `info`, a coloured dot before the key) and `logo` (`false` to leave the extension's logo out). The row shows one chip at a time, turning through those of every extension, and stops on a chip with `tone` `err`. Since 1.15.0.
+  set-agent-chips: func(agent: string, chips: string);
   /// The projects of Squadron, archived ones included. Needs `projects: ["read"]` in `permissions`. Since 1.7.0.
   projects: func() -> result<list<project>, string>;
   /// The groups of projects. Needs `projects: ["read"]` in `permissions`. Since 1.7.0.

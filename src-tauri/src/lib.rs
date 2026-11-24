@@ -455,6 +455,9 @@ struct Config {
     merge_review: String,
     pulls_others: bool,
     auto_continue: bool,
+    chips_motion: String,
+    chips_every: u32,
+    chips_scope: String,
 }
 
 impl Default for Config {
@@ -511,6 +514,9 @@ impl Default for Config {
             merge_review: "banner".into(),
             pulls_others: false,
             auto_continue: false,
+            chips_motion: "down".into(),
+            chips_every: 3,
+            chips_scope: "all".into(),
         }
     }
 }
@@ -560,6 +566,15 @@ impl Settings {
                 "Unknown projects effect: {}",
                 config.projects_effect
             ));
+        }
+        if !["off", "fade", "down", "up"].contains(&config.chips_motion.as_str()) {
+            return Err(format!("Unknown chip transition: {}", config.chips_motion));
+        }
+        if ![2, 3, 5].contains(&config.chips_every) {
+            return Err(format!("Unknown chip interval: {}", config.chips_every));
+        }
+        if !["all", "selected"].contains(&config.chips_scope.as_str()) {
+            return Err(format!("Unknown chip rotation: {}", config.chips_scope));
         }
         if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));

@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { fill, parseDraft } from './newAgentDraft'
+import { CHIPS_MAX, fill, parseChips, parseDraft, withChips } from './newAgentDraft'
 
 describe('new agent drafts', () => {
   it('reads what an extension sends and drops the rest', () => {
@@ -33,6 +33,30 @@ describe('new agent drafts', () => {
     })
     expect(parseDraft('{"link":{"key":"A-1","title":"T","url":"https://a.b/A-1"},"status":{"state":"late"}}')).toEqual({ link: { key: 'A-1', title: 'T', url: 'https://a.b/A-1' } })
     expect(parseDraft('{"link":null,"choices":null,"status":null}')).toEqual({ link: null, choices: null, status: null })
+    expect(parseDraft('{"link":{"key":"A-1","title":"T","tone":"ok","logo":false}}')).toEqual({ link: { key: 'A-1', title: 'T', tone: 'ok', logo: false } })
+    expect(parseDraft('{"link":{"key":"A-1","title":"T","tone":"red","logo":true}}')).toEqual({ link: { key: 'A-1', title: 'T' } })
+  })
+
+  it('reads the chips an extension puts on an agent', () => {
+    expect(parseChips('deploy', '[{"key":" Preprod ","title":"Deployed","url":"https://d.acme.dev","tone":"ok","logo":false},{"key":"#12","title":"Issue","url":"http://x"}]')).toEqual([
+      { extension: 'deploy', key: 'Preprod', title: 'Deployed', url: 'https://d.acme.dev', tone: 'ok', logo: false },
+      { extension: 'deploy', key: '#12', title: 'Issue' },
+    ])
+    expect(parseChips('deploy', '[]')).toEqual([])
+    expect(parseChips('deploy', 'nope')).toBe('chips is not JSON.')
+    expect(parseChips('deploy', '{"key":"A"}')).toBe('chips is not a list.')
+    expect(parseChips('deploy', '[{"key":"A","title":"T"},{"key":"","title":"T"}]')).toBe('Chip 2 needs a "key" and a "title".')
+    expect(parseChips('deploy', JSON.stringify(Array(CHIPS_MAX + 1).fill({ key: 'A', title: 'T' })))).toBe(`${CHIPS_MAX} chips at most.`)
+  })
+
+  it('puts an extension\'s chips where its old ones were', () => {
+    const jira = { extension: 'jira', key: 'LR-1', title: 'T' }
+    const deploy = { extension: 'deploy', key: 'Preprod', title: 'T' }
+    const sentry = { extension: 'sentry', key: 'S-1', title: 'T' }
+    const staging = { extension: 'deploy', key: 'Staging', title: 'T' }
+    expect(withChips([jira, deploy, sentry], 'deploy', [staging, deploy])).toEqual([jira, staging, deploy, sentry])
+    expect(withChips([jira, deploy, sentry], 'deploy', [])).toEqual([jira, sentry])
+    expect(withChips([jira], 'deploy', [deploy])).toEqual([jira, deploy])
   })
 
   it('never writes over what the user typed', () => {

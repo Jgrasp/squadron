@@ -657,6 +657,10 @@ impl squadron::api::host::Host for Host {
         self.tell("update-new-agent", json!({"draft": id, "fields": draft}));
     }
 
+    fn set_agent_chips(&mut self, agent: String, chips: String) {
+        self.tell("set-agent-chips", json!({"agent": agent, "chips": chips}));
+    }
+
     fn projects(&mut self) -> Result<Vec<Project>, String> {
         self.may(READ_PROJECTS)?;
         Ok(self
@@ -2866,6 +2870,7 @@ mod tests {
                 "open-new-agent",
                 "update-new-agent",
                 "update-new-agent",
+                "set-agent-chips",
                 "notify"
             ]
         );
@@ -2885,7 +2890,12 @@ mod tests {
         assert_eq!(fields(1)["status"]["state"], "done");
         assert_eq!(told[2]["draft"], draft.as_str());
         assert_eq!(fields(2)["text"], "Say hello.");
-        assert_eq!(told[3]["body"], "Ada started from the Hello draft.");
+        assert_eq!(told[3]["agent"], "a1");
+        assert_eq!(
+            serde_json::from_str::<Value>(told[3]["chips"].as_str().unwrap()).unwrap()[0]["key"],
+            "Hello"
+        );
+        assert_eq!(told[4]["body"], "Ada started from the Hello draft.");
     }
 
     #[test]

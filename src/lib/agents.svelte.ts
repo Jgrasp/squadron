@@ -6,6 +6,7 @@ import { apiSignal, noted, type ClaudeApi } from './activity'
 import { remember } from './catalogs.svelte'
 import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
+import type { Chip } from './newAgentDraft'
 import { migrate, shelf } from './artifacts.svelte'
 import { releaseAgent } from './cleanup.svelte'
 import { addRule, defaultsFor, projects, remove as drop, setCards, type Project } from './projects.svelte'
@@ -380,7 +381,10 @@ async function adoptSaved() {
   const known = new Set(projects.list.map((p) => p.path))
   const saved = (await invoke<string[]>('load_agents')).flatMap((text) => {
     try {
-      return [JSON.parse(text) as Agent]
+      const data = JSON.parse(text) as Agent & { link?: Chip }
+      if (data.link) data.chips ??= [data.link]
+      delete data.link
+      return [data as Agent]
     } catch {
       return []
     }
@@ -825,7 +829,7 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-type Launch = { from?: { by: string; id?: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[]; link?: Agent['link'] }
+type Launch = { from?: { by: string; id?: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[]; link?: Chip }
 
 export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [], link }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
@@ -833,7 +837,7 @@ export async function create(project: string, name: string, options: Options, te
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
-  if (link) agent.link = link
+  if (link) agent.chips = [link]
   if (worktree) flaggedWorktree.add(agent.id)
   if (!name) {
     agent.autoName = true

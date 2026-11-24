@@ -13,6 +13,8 @@ export type TabEffect = 'pulse' | 'snake'
 
 export type ProjectsEffect = 'snake' | 'bar' | 'pulse'
 
+export type ChipsMotion = 'off' | 'fade' | 'down' | 'up'
+
 export type TabRing = 'off' | 'shake' | 'sound'
 
 export type TabOrder = 'manual' | 'name' | 'activity'
@@ -69,6 +71,9 @@ export type Config = {
   merge_method: 'repo' | MergeMethod
   pulls_others: boolean
   auto_continue: boolean
+  chips_motion: ChipsMotion
+  chips_every: 2 | 3 | 5
+  chips_scope: 'all' | 'selected'
 }
 
 export type MergeMethod = 'merge' | 'squash' | 'rebase'
@@ -117,6 +122,9 @@ export const settings = $state<Config>({
   merge_method: 'repo',
   pulls_others: false,
   auto_continue: false,
+  chips_motion: 'down',
+  chips_every: 3,
+  chips_scope: 'all',
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)

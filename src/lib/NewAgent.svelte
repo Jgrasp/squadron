@@ -10,7 +10,7 @@
   import { draftClosed, draftRegenerate, draftStarted, kept, type OpenDraft } from './drafts.svelte'
   import { brand, named } from './extension-pages.svelte'
   import ExtensionLogo from './ExtensionLogo.svelte'
-  import { fill, type Draft, type DraftStatus, type Label } from './newAgentDraft'
+  import { fill, type Chip, type Draft, type DraftStatus, type Label } from './newAgentDraft'
   import { agentTypes, catalogs, models, type Definition } from './catalogs.svelte'
   import { families, find as findCommand, options as argumentsOf } from './commands'
   import Trans from './Trans.svelte'
@@ -23,7 +23,7 @@
   import { Mention } from './mention.svelte'
   import { imagePaste } from './paste'
   import Composer from './Composer.svelte'
-  import type { Agent, Options } from './stream'
+  import type { Options } from './stream'
 
   let {
     project,
@@ -35,7 +35,7 @@
     project: Project
     draft?: { name: string; text: string }
     linked?: OpenDraft
-    start: (name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[], link?: Agent['link']) => unknown
+    start: (name: string, options: Options, text: string, goal: string, worktree: string | null, files: string[], link?: Chip) => unknown
     onclose: () => void
   } = $props()
 

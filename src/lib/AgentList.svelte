@@ -8,8 +8,8 @@
   import { projects, togglePulls, type Project } from './projects.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
   import ArchivePanel from './ArchivePanel.svelte'
-  import { brand } from './extension-pages.svelte'
-  import ExtensionLogo from './ExtensionLogo.svelte'
+  import AgentChips from './AgentChips.svelte'
+  import ChipKey from './ChipKey.svelte'
   import ImportPanel from './ImportPanel.svelte'
   import PersonaChip from './PersonaChip.svelte'
   import PullTag from './PullTag.svelte'
@@ -44,6 +44,12 @@
   }
 
   let menu = $state<{ agent: Agent; x: number; y: number } | null>(null)
+  let chipMenu = $state<{ agent: Agent; x: number; y: number } | null>(null)
+
+  function openChips(agent: Agent, anchor: HTMLElement) {
+    const box = anchor.getBoundingClientRect()
+    chipMenu = chipMenu?.agent === agent ? null : { agent, x: Math.max(8, box.right - 260), y: box.bottom + 4 }
+  }
 
   function open(agent: Agent, event: MouseEvent) {
     event.preventDefault()
@@ -287,14 +293,7 @@
     {/if}
   </span>
   <span class="state"
-    >{#if agent.link}{@const { extension, key, title, url } = agent.link}<span
-        class="link"
-        class:open={url}
-        role={url ? 'link' : undefined}
-        {title}
-        onclick={(e) => url && (e.stopPropagation(), invoke('open_link', { url }))}
-        ><ExtensionLogo {...brand(extension)} size={11} />{key}</span
-      >{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
+    >{#if agent.chips?.length}<AgentChips chips={agent.chips} turns={settings.chips_scope === 'all' || agent.id === current?.id} onmore={(anchor) => openChips(agent, anchor)} />{/if}{#if agent.options.agent}<span class="persona"><PersonaChip name={agent.options.agent} small /></span>{/if}{#if look(agent) === 'background'}<BackgroundTip {agent} label={label(agent)} />{:else}{label(agent)}{/if}</span>
   {#if !agent.review}<PullTag {agent} gutter />{/if}
   {#if agent.status === 'error' && agent.action}
     <span class="detail">{agent.action}</span>
@@ -344,8 +343,8 @@
 {/snippet}
 
 <svelte:window
-  onclick={(e) => !(e.target as HTMLElement).closest('[data-menu]') && ((menu = null), (sorting = false))}
-  onkeydown={(e) => e.key === 'Escape' && ((menu = null), (sorting = false))}
+  onclick={(e) => !(e.target as HTMLElement).closest('[data-menu]') && ((menu = null), (chipMenu = null), (sorting = false))}
+  onkeydown={(e) => e.key === 'Escape' && ((menu = null), (chipMenu = null), (sorting = false))}
 />
 
 {#if menu}
@@ -356,6 +355,16 @@
     <button role="menuitem" disabled={!agent.sessionId} onclick={() => act(fork)}>{t('shell.fork')}</button>
     <button role="menuitem" onclick={() => act(archive)}>{t('shell.archiveConversation')}</button>
     <button role="menuitem" class="danger" onclick={() => erase(agent)}>{t('common.deleteEllipsis')}</button>
+  </div>
+{/if}
+
+{#if chipMenu}
+  {@const { agent, x, y } = chipMenu}
+  <div class="menu chip-menu" role="menu" aria-label={t('shell.chipsAll', { count: agent.chips?.length ?? 0 })} data-menu style:left="{x}px" style:top="{y}px">
+    {#each agent.chips ?? [] as chip, i (i)}
+      {@const url = chip.url}
+      <button role="menuitem" disabled={!url} title={chip.title} onclick={() => url && (invoke('open_link', { url }), (chipMenu = null))}><ChipKey {chip} logo /><span class="title">{chip.title}</span></button>
+    {/each}
   </div>
 {/if}
 
@@ -552,6 +561,29 @@
 
   .menu button:disabled {
     color: var(--text-faint);
+  }
+
+  .chip-menu {
+    width: 260px;
+  }
+
+  .chip-menu button,
+  .chip-menu button:disabled {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font: 500 11.5px var(--mono);
+    color: var(--remote-text);
+  }
+
+  .chip-menu .title {
+    flex: 1;
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    font: 12.5px var(--sans);
+    color: var(--text-2);
   }
 
   .anchor {
@@ -970,20 +1002,6 @@
   .persona {
     float: right;
     margin-left: 8px;
-  }
-
-  .link {
-    float: right;
-    display: inline-flex;
-    align-items: center;
-    gap: 5px;
-    margin-left: 8px;
-    font: 500 11px var(--mono);
-    color: var(--remote-text);
-  }
-
-  .link.open:hover {
-    text-decoration: underline;
   }
 
   .done .state,
