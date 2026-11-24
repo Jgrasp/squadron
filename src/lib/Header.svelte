@@ -7,7 +7,7 @@
     import { getVersion } from '@tauri-apps/api/app'
   import { checkNow } from './update.svelte'
   import { chime } from './chime'
-  import { ui, type SettingsTab } from './actions.svelte'
+  import { lastSettingsTab, ui, type SettingsTab } from './actions.svelte'
   import { detailOf, labelOf, shown, sortable } from './layout-slots.svelte'
   import { badgeOf, extensionItem, runItem } from './extensions.svelte'
   import { hint, saveSettings, settings } from './settings.svelte'
@@ -194,7 +194,7 @@
             <button
               role="menuitem"
               class="item"
-              onclick={() => ((menuOpen = false), extensionItem('menu.squadron', id) ? runItem(extensionItem('menu.squadron', id)!, { project: projects.list.find((p) => p.path === projects.current) }) : id === 'updates' ? checkNow() : (ui.settings = id === 'settings' ? 'projects' : id === 'extensions' ? 'discover' : (id as SettingsTab)))}
+              onclick={() => ((menuOpen = false), extensionItem('menu.squadron', id) ? runItem(extensionItem('menu.squadron', id)!, { project: projects.list.find((p) => p.path === projects.current) }) : id === 'updates' ? checkNow() : (ui.settings = id === 'settings' ? lastSettingsTab() : id === 'extensions' ? 'discover' : (id as SettingsTab)))}
             >
               <span><strong>{labelOf('menu.squadron', id)}{#if badgeOf(id)}&nbsp;· {badgeOf(id)}{/if}</strong><small>{detailOf('menu.squadron', id)}</small></span>
             </button>
