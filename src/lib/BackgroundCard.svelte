@@ -1,6 +1,6 @@
 <script lang="ts">
   import { invoke } from '@tauri-apps/api/core'
-  import { clock } from './agents.svelte'
+  import { clock, stopWait } from './agents.svelte'
   import { duration } from './format'
   import { t } from './i18n/index.svelte'
   import Icon from './Icon.svelte'
@@ -11,7 +11,8 @@
 
   const wait = $derived(pullWait(agent))
   const merge = $derived(wait?.merge ? wait.pull : null)
-  const started = $derived(Math.min(...agent.background.map((b) => b.started)))
+  const own = $derived(agent.pullWait)
+  const started = $derived(own?.since ?? Math.min(...agent.background.map((b) => b.started)))
   const callOf = (id: string) => calls(agent).find((c) => c.id === id)
   const outputOf = (id: string) =>
     /^\s*sleep\s+\S+\s*$/.test(String(callOf(id)?.input?.command ?? ''))
@@ -28,7 +29,19 @@
         <small>{t('conversation.pullMergeResumes')}</small>
       </span>
       <span class="mono">{duration(clock.now - started)}</span>
-      <button class="btn open" onclick={() => invoke('open_link', { url: merge.url })}>{t('conversation.openPullPage')}</button>
+      {#if merge.url}<button class="btn open" onclick={() => invoke('open_link', { url: merge.url })}>{t('conversation.openPullPage')}</button>{/if}
+      {#if own}<button class="btn btn-secondary" onclick={() => stopWait(agent)}>{t('conversation.stopWait')}</button>{/if}
+    {:else if own}
+      <span class="icon" aria-hidden="true">
+        <svg class="slow" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="4 5" /></svg>
+      </span>
+      <span class="what">
+        <strong>{t('conversation.pullChecksWait', { number: String(own.number) })}</strong>
+        <small>{t('conversation.pullChecksResumes')}</small>
+      </span>
+      <span class="mono">{duration(clock.now - started)}</span>
+      {#if own.url}<button class="btn btn-secondary" onclick={() => invoke('open_link', { url: own.url })}>{t('conversation.openPullPage')}</button>{/if}
+      <button class="btn btn-secondary" onclick={() => stopWait(agent)}>{t('conversation.stopWait')}</button>
     {:else}
       <span class="icon" aria-hidden="true">
         <svg class="slow" width="16" height="16" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" stroke-dasharray="4 5" /></svg>

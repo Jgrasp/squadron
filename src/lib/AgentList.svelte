@@ -246,7 +246,8 @@
   const rows = $derived(tab === 'reviews' ? groups.flatMap(([, group]) => group) : shown)
 
   const blocked = (agent: Agent) => !!agent.attention && agent.status !== 'working' && agent.status !== 'error' && !agent.asks.length
-  const look = (agent: Agent) => (blocked(agent) || pullWait(agent)?.merge ? 'waiting' : agent.status === 'working' && agent.held ? 'background' : agent.status)
+  const look = (agent: Agent) =>
+    blocked(agent) || pullWait(agent)?.merge ? 'waiting' : (agent.status === 'working' && agent.held) || agent.pullWait ? 'background' : agent.status
 
   function label(agent: Agent) {
     if (blocked(agent)) return t('shell.waitingForYou')

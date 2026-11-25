@@ -35,6 +35,7 @@
 
 <div class="mcp">
   <p class="intro">{t('mcp.intro')}</p>
+  {#if servers.some((s) => s.command === 'claude.ai')}<p class="intro">{t('mcp.connectors')}</p>{/if}
   {#if mcp.loaded && !servers.length}
     <p class="intro">{t('mcp.none')}</p>
   {:else if servers.length}

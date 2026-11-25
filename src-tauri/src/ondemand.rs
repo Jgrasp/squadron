@@ -1,6 +1,6 @@
 use serde::{Deserialize, Serialize};
 use serde_json::{Map, Value};
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, BTreeSet};
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use tauri::State;
@@ -15,6 +15,66 @@ struct Server {
 pub struct OnDemand {
     file: PathBuf,
     servers: Mutex<BTreeMap<String, Server>>,
+    connectors: Mutex<Connectors>,
+}
+
+#[derive(Default, Serialize, Deserialize)]
+struct Connectors {
+    #[serde(default)]
+    on_demand: BTreeMap<String, String>,
+    #[serde(default)]
+    off: BTreeMap<String, BTreeSet<String>>,
+}
+
+pub fn is_connector(name: &str) -> bool {
+    name.starts_with("claude.ai ")
+}
+
+impl Connectors {
+    fn plan(
+        &mut self,
+        key: &str,
+        wanted: &[String],
+        added: &[String],
+        disabled: &BTreeSet<String>,
+    ) -> Result<Vec<(String, bool)>, String> {
+        if let Some(theirs) = added.iter().find(|c| {
+            self.on_demand.contains_key(*c)
+                && disabled.contains(*c)
+                && !self.off.get(key).is_some_and(|ours| ours.contains(*c))
+        }) {
+            return Err(format!(
+                "{theirs} is turned off in this folder by the user, outside Squadron: they can turn it back on with /mcp."
+            ));
+        }
+        let ours = self.off.entry(key.to_string()).or_default();
+        ours.retain(|c| disabled.contains(c));
+        let mut toggles = Vec::new();
+        ours.retain(|c| {
+            let keep = self.on_demand.contains_key(c);
+            if !keep {
+                toggles.push((c.clone(), true));
+            }
+            keep
+        });
+        for c in self.on_demand.keys() {
+            match (wanted.contains(c), disabled.contains(c), ours.contains(c)) {
+                (false, false, _) => {
+                    toggles.push((c.clone(), false));
+                    ours.insert(c.clone());
+                }
+                (true, true, true) => {
+                    toggles.push((c.clone(), true));
+                    ours.remove(c);
+                }
+                _ => {}
+            }
+        }
+        if ours.is_empty() {
+            self.off.remove(key);
+        }
+        Ok(toggles)
+    }
 }
 
 #[derive(Serialize)]
@@ -36,9 +96,14 @@ impl OnDemand {
             .ok()
             .and_then(|text| serde_json::from_str(&text).ok())
             .unwrap_or_default();
+        let connectors = std::fs::read_to_string(connectors_file(&file))
+            .ok()
+            .and_then(|text| serde_json::from_str(&text).ok())
+            .unwrap_or_default();
         let found = Self {
             file,
             servers: Mutex::new(servers),
+            connectors: Mutex::new(connectors),
         };
         found.announce();
         found
@@ -51,9 +116,35 @@ impl OnDemand {
         std::fs::rename(&tmp, &self.file).map_err(|e| e.to_string())
     }
 
+    fn save_connectors(&self, connectors: &Connectors) -> Result<(), String> {
+        let text = serde_json::to_string_pretty(connectors).map_err(|e| e.to_string())?;
+        let file = connectors_file(&self.file);
+        let tmp = file.with_extension("json.tmp");
+        write_private(&tmp, &text)?;
+        std::fs::rename(&tmp, &file).map_err(|e| e.to_string())
+    }
+
     fn announce(&self) {
         let servers = self.servers.lock().unwrap();
-        *crate::claude::ON_DEMAND.lock().unwrap() = prompt(&servers);
+        let connectors = self.connectors.lock().unwrap();
+        *crate::claude::ON_DEMAND.lock().unwrap() = prompt(&servers, &connectors.on_demand);
+    }
+
+    /// Which claude.ai connectors to switch off or back on with Claude Code's own `mcp_toggle` in `dir`, leaving alone the ones the user turned off there.
+    pub fn connector_toggles(
+        &self,
+        dir: &Path,
+        wanted: &[String],
+        added: &[String],
+    ) -> Result<Vec<(String, bool)>, String> {
+        let mut connectors = self.connectors.lock().unwrap();
+        if connectors.on_demand.is_empty() && connectors.off.is_empty() {
+            return Ok(Vec::new());
+        }
+        let key = project_key(dir);
+        let toggles = connectors.plan(&key, wanted, added, &disabled_in(&key))?;
+        self.save_connectors(&connectors)?;
+        Ok(toggles)
     }
 
     pub fn configs(&self, names: &[String]) -> Map<String, Value> {
@@ -65,13 +156,59 @@ impl OnDemand {
     }
 }
 
-fn prompt(servers: &BTreeMap<String, Server>) -> String {
-    if servers.is_empty() {
+fn connectors_file(file: &Path) -> PathBuf {
+    file.with_file_name("mcp-connectors.json")
+}
+
+fn project_key(dir: &Path) -> String {
+    let root = crate::process::command("git")
+        .current_dir(dir)
+        .args(["rev-parse", "--path-format=absolute", "--git-common-dir"])
+        .output()
+        .ok()
+        .filter(|out| out.status.success())
+        .and_then(|out| {
+            Path::new(String::from_utf8_lossy(&out.stdout).trim())
+                .parent()
+                .map(Path::to_path_buf)
+        })
+        .unwrap_or_else(|| dir.to_path_buf());
+    root.canonicalize()
+        .unwrap_or(root)
+        .to_string_lossy()
+        .into_owned()
+}
+
+fn claude_json() -> Value {
+    std::env::home_dir()
+        .and_then(|home| std::fs::read_to_string(home.join(".claude.json")).ok())
+        .and_then(|text| serde_json::from_str(&text).ok())
+        .unwrap_or_default()
+}
+
+fn names_in(value: &Value) -> BTreeSet<String> {
+    value
+        .as_array()
+        .into_iter()
+        .flatten()
+        .filter_map(Value::as_str)
+        .map(String::from)
+        .collect()
+}
+
+fn disabled_in(key: &str) -> BTreeSet<String> {
+    names_in(&claude_json()["projects"][key]["disabledMcpServers"])
+}
+
+fn prompt(servers: &BTreeMap<String, Server>, connectors: &BTreeMap<String, String>) -> String {
+    if servers.is_empty() && connectors.is_empty() {
         return String::new();
     }
     let list = servers
         .iter()
-        .map(|(name, s)| match s.description.trim() {
+        .map(|(name, s)| (name, s.description.as_str()))
+        .chain(connectors.iter().map(|(name, d)| (name, d.as_str())))
+        .map(|(name, d)| match d.trim() {
             "" => name.clone(),
             d => format!("{name} ({d})"),
         })
@@ -131,10 +268,9 @@ fn command_of(config: &Value) -> String {
 }
 
 fn user_servers() -> Map<String, Value> {
-    std::env::home_dir()
-        .and_then(|home| std::fs::read_to_string(home.join(".claude.json")).ok())
-        .and_then(|text| serde_json::from_str::<Value>(&text).ok())
-        .and_then(|config| config["mcpServers"].as_object().cloned())
+    claude_json()["mcpServers"]
+        .as_object()
+        .cloned()
         .unwrap_or_default()
 }
 
@@ -171,13 +307,22 @@ async fn claude_mcp(program: String, args: Vec<String>) -> Result<(), String> {
 #[tauri::command]
 pub fn mcp_servers(state: State<OnDemand>) -> Servers {
     let servers = state.servers.lock().unwrap();
-    let on_demand = servers
+    let on_demand: Vec<Listed> = servers
         .iter()
         .map(|(name, s)| Listed {
             name: name.clone(),
             description: s.description.clone(),
             command: command_of(&s.config),
         })
+        .collect();
+    let connectors = state.connectors.lock().unwrap();
+    let on_demand = on_demand
+        .into_iter()
+        .chain(connectors.on_demand.iter().map(|(name, d)| Listed {
+            name: name.clone(),
+            description: d.clone(),
+            command: "claude.ai".into(),
+        }))
         .collect();
     let everywhere = user_servers()
         .iter()
@@ -187,6 +332,16 @@ pub fn mcp_servers(state: State<OnDemand>) -> Servers {
             description: String::new(),
             command: command_of(config),
         })
+        .chain(
+            names_in(&claude_json()["claudeAiMcpEverConnected"])
+                .into_iter()
+                .filter(|name| is_connector(name) && !connectors.on_demand.contains_key(name))
+                .map(|name| Listed {
+                    name,
+                    description: String::new(),
+                    command: "claude.ai".into(),
+                }),
+        )
         .collect();
     Servers {
         on_demand,
@@ -200,6 +355,14 @@ pub(crate) async fn mcp_on_demand(
     settings: State<'_, crate::Settings>,
     name: String,
 ) -> Result<(), String> {
+    if is_connector(&name) {
+        let mut connectors = state.connectors.lock().unwrap();
+        connectors.on_demand.entry(name).or_default();
+        state.save_connectors(&connectors)?;
+        drop(connectors);
+        state.announce();
+        return Ok(());
+    }
     valid(&name)?;
     let config = user_servers()
         .remove(&name)
@@ -235,6 +398,14 @@ pub(crate) async fn mcp_everywhere(
     settings: State<'_, crate::Settings>,
     name: String,
 ) -> Result<(), String> {
+    if is_connector(&name) {
+        let mut connectors = state.connectors.lock().unwrap();
+        connectors.on_demand.remove(&name);
+        state.save_connectors(&connectors)?;
+        drop(connectors);
+        state.announce();
+        return Ok(());
+    }
     valid(&name)?;
     let config = state
         .servers
@@ -268,11 +439,19 @@ pub fn mcp_describe(
     name: String,
     description: String,
 ) -> Result<(), String> {
-    let mut servers = state.servers.lock().unwrap();
-    servers.get_mut(&name).ok_or("Unknown server.")?.description =
-        description.split_whitespace().collect::<Vec<_>>().join(" ");
-    state.save(&servers)?;
-    drop(servers);
+    let description = description.split_whitespace().collect::<Vec<_>>().join(" ");
+    if is_connector(&name) {
+        let mut connectors = state.connectors.lock().unwrap();
+        *connectors
+            .on_demand
+            .get_mut(&name)
+            .ok_or("Unknown server.")? = description;
+        state.save_connectors(&connectors)?;
+    } else {
+        let mut servers = state.servers.lock().unwrap();
+        servers.get_mut(&name).ok_or("Unknown server.")?.description = description;
+        state.save(&servers)?;
+    }
     state.announce();
     Ok(())
 }
@@ -305,7 +484,8 @@ mod tests {
     #[test]
     fn tells_claude_which_servers_it_can_start() {
         let mut servers = BTreeMap::new();
-        assert_eq!(prompt(&servers), "");
+        let mut connectors = BTreeMap::new();
+        assert_eq!(prompt(&servers, &connectors), "");
         servers.insert(
             "bitbucket".into(),
             Server {
@@ -320,7 +500,11 @@ mod tests {
                 description: "production errors".into(),
             },
         );
-        assert!(prompt(&servers).contains("bitbucket, sentry (production errors)."));
+        connectors.insert("claude.ai Gmail".to_string(), "mail".to_string());
+        assert!(
+            prompt(&servers, &connectors)
+                .contains("bitbucket, sentry (production errors), claude.ai Gmail (mail).")
+        );
     }
 
     #[test]
@@ -353,5 +537,75 @@ mod tests {
             1
         );
         let _ = std::fs::remove_dir_all(dir);
+    }
+
+    fn set(names: &[&str]) -> BTreeSet<String> {
+        names.iter().map(|n| n.to_string()).collect()
+    }
+
+    #[test]
+    fn never_touches_the_connectors_the_user_turned_off() {
+        let mut c = Connectors::default();
+        for name in ["claude.ai Gmail", "claude.ai Notion", "claude.ai Meetings"] {
+            c.on_demand.insert(name.into(), String::new());
+        }
+        let key = "/home/q/shop";
+        let theirs = set(&["claude.ai Gmail", "claude.ai Asana"]);
+        let toggles = c.plan(key, &[], &[], &theirs).unwrap();
+        assert_eq!(
+            toggles,
+            vec![
+                ("claude.ai Meetings".to_string(), false),
+                ("claude.ai Notion".to_string(), false)
+            ]
+        );
+        assert_eq!(c.off[key], set(&["claude.ai Meetings", "claude.ai Notion"]));
+
+        let file = set(&[
+            "claude.ai Gmail",
+            "claude.ai Asana",
+            "claude.ai Meetings",
+            "claude.ai Notion",
+        ]);
+        assert!(c.plan(key, &[], &[], &file).unwrap().is_empty());
+
+        let gmail = vec!["claude.ai Gmail".to_string()];
+        assert!(
+            c.plan(key, &gmail, &gmail, &file)
+                .unwrap_err()
+                .contains("claude.ai Gmail")
+        );
+        assert_eq!(c.off[key], set(&["claude.ai Meetings", "claude.ai Notion"]));
+
+        let notion = vec!["claude.ai Notion".to_string()];
+        assert_eq!(
+            c.plan(key, &notion, &notion, &file).unwrap(),
+            vec![("claude.ai Notion".to_string(), true)]
+        );
+        assert_eq!(c.off[key], set(&["claude.ai Meetings"]));
+    }
+
+    #[test]
+    fn gives_back_a_connector_set_to_everywhere_and_forgets_one_the_user_turned_on() {
+        let mut c = Connectors::default();
+        c.on_demand.insert("claude.ai Notion".into(), String::new());
+        c.off.insert(
+            "/k".into(),
+            set(&["claude.ai Meetings", "claude.ai Notion"]),
+        );
+        let toggles = c
+            .plan("/k", &[], &[], &set(&["claude.ai Meetings"]))
+            .unwrap();
+        assert_eq!(
+            toggles,
+            vec![
+                ("claude.ai Meetings".to_string(), true),
+                ("claude.ai Notion".to_string(), false)
+            ]
+        );
+        assert_eq!(c.off["/k"], set(&["claude.ai Notion"]));
+        c.on_demand.clear();
+        c.plan("/k", &[], &[], &set(&["claude.ai Notion"])).unwrap();
+        assert!(c.off.is_empty());
     }
 }

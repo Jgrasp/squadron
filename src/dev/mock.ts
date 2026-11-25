@@ -822,6 +822,7 @@ mockIPC(
         return null
       }
       case 'set_agent_servers':
+      case 'set_agent_tools':
         return null
       case 'archived_entries':
         return JSON.stringify(JSON.parse(localStorage.getItem(`archived:${a.id}`) ?? '{}').entries ?? [])
