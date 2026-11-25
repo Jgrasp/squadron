@@ -10,6 +10,7 @@
 - Les secrets peuvent être échappés pour JSON : un mot de passe avec guillemets, barres obliques inverses ou retours à la ligne ne casse plus le JSON qu’une extension passe à un programme.
 - Une extension peut effacer un jeton qu’elle a gardé, pour vous faire vous reconnecter quand le service l’a révoqué, et savoir si un secret d’un compte est renseigné sans le lire.
 - Les outils d’extension qui lancent une commande ne reçoivent plus de secrets dans leur environnement.
+- Une extension peut vous connecter à un service dans votre navigateur (OAuth) : Squadron reçoit la réponse et garde le code dans le trousseau du système, hors de portée de l’extension.
 
 ## 0.63.0 · 2026-11-25
 

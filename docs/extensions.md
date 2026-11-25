@@ -614,6 +614,14 @@ fn forge(call: String, input: String) -> Result<String, String> {
 - **`host::account-secrets(account) -> list<string>`**: the ids of the `secret` and `captured` fields that are set, never their values. Inside `check-account` it answers for the account under test, saved or not. The `account` record is unchanged, so extensions built against older versions still load.
 - **Tools with `command`** no longer receive `SQUADRON_<SECRET>` environment variables.
 
+### OAuth in the browser (API 1.18)
+
+`host::authorize(account, url, field) -> result<string, string>` runs an OAuth authorization with a loopback redirect. Squadron binds a free port of `127.0.0.1`, replaces `{{redirect}}` in `url` by `http://127.0.0.1:<port>/`, URL-encoded, and `{{state}}` by a value it generates, checks that `url` is https to the account's host or a host of `permissions.network`, opens it in the browser and returns the redirect address at once. `field` is of kind `captured`.
+
+When the browser comes back on `/` with the right `state`, Squadron keeps `code` in `field` through the keyring, answers a page that says the tab can be closed, and sends `account.authorized` with `{ "account", "field" }`. A refusal from the service (`error`), 5 minutes without answer, or a new `authorize` of the same extension end it with `{ "account", "field", "error" }`. A wrong `state` or another path gets an error page and the wait goes on.
+
+The extension then exchanges the code with `fetch-capture`, `code={{<account>.<field>}}` and `redirect_uri` set to the returned address in a form body, captures the tokens into other `captured` fields, and drops the code with `forget`. PKCE stays in the extension: it puts `code_challenge` in `url` and keeps the verifier in its state. A service that needs an exact registered redirect, port included, cannot use it.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

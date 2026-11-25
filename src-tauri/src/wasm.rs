@@ -47,6 +47,7 @@ const QUEUED_PAGE_EVENTS: usize = 50;
 const QUEUED_PAGE_BYTES: usize = 8 << 20;
 const POSTED: usize = 4 << 20;
 const POOL: usize = 4;
+const AUTHORIZE: Duration = Duration::from_secs(300);
 const POLLED: [&str; 3] = ["lists", "runs", "pull"];
 
 pub type Emit = Arc<dyn Fn(Value) + Send + Sync>;
@@ -294,6 +295,7 @@ struct Kept {
     posts: HashMap<String, Posted>,
     recent: HashMap<&'static str, (Instant, Value)>,
     stray: bool,
+    authorizing: usize,
 }
 
 struct Posted {
@@ -566,6 +568,58 @@ impl Host {
         Err(format!(
             "{field} is not a field of kind captured in contributes.accounts."
         ))
+    }
+
+    fn authorization(&self, account: String, url: String, field: String) -> Result<String, String> {
+        self.captured(&field)?;
+        let found = (self.hooks.accounts)(&self.id)
+            .into_iter()
+            .find(|a| a.id == account)
+            .ok_or_else(|| format!("The account {account} no longer exists."))?;
+        let listener = std::net::TcpListener::bind("127.0.0.1:0").map_err(|e| e.to_string())?;
+        let port = listener.local_addr().map_err(|e| e.to_string())?.port();
+        let redirect = format!("http://127.0.0.1:{port}/");
+        let state = uuid::Uuid::new_v4().simple().to_string();
+        let encoded: String = form_urlencoded::byte_serialize(redirect.as_bytes()).collect();
+        let url = url
+            .replace("{{redirect}}", &encoded)
+            .replace("{{state}}", &state);
+        let hosts: Vec<String> = self
+            .allowed
+            .iter()
+            .cloned()
+            .chain(found.host.map(|h| format!("net:{h}")))
+            .collect();
+        let url = checked(&url, &hosts)?;
+        listener.set_nonblocking(true).map_err(|e| e.to_string())?;
+        let turn = {
+            let mut kept = self.kept.lock().unwrap();
+            kept.authorizing += 1;
+            kept.authorizing
+        };
+        let (id, kept, emit, keep) = (
+            self.id.clone(),
+            self.kept.clone(),
+            self.emit.clone(),
+            self.hooks.keep.clone(),
+        );
+        std::thread::spawn(move || {
+            let current = || kept.lock().unwrap().authorizing == turn;
+            let outcome = listen(
+                &listener,
+                &state,
+                Instant::now() + AUTHORIZE,
+                current,
+                |code| keep(&id, &account, &[(field.clone(), Some(code))]),
+            );
+            let mut data = json!({"account": account, "field": field});
+            if let Err(e) = outcome {
+                data["error"] = json!(e);
+            }
+            emit(json!({"extension": id, "call": "authorized", "data": data.to_string()}));
+        });
+        self.tell("open-link", json!({"url": url.as_str()}));
+        Ok(redirect)
     }
 
     fn account_form(&self, account: Option<String>, values: String) -> Result<String, String> {
@@ -881,9 +935,95 @@ impl squadron::api::host::Host for Host {
             .ok_or_else(|| format!("The account {account} no longer exists."))
     }
 
+    fn authorize(&mut self, account: String, url: String, field: String) -> Result<String, String> {
+        self.authorization(account, url, field)
+    }
+
     fn set_timer(&mut self, seconds: u32) {
         self.timer = Some(Instant::now() + Duration::from_secs(seconds.max(MIN_TIMER).into()));
     }
+}
+
+fn listen(
+    listener: &std::net::TcpListener,
+    state: &str,
+    until: Instant,
+    current: impl Fn() -> bool,
+    finish: impl FnOnce(String) -> Result<(), String>,
+) -> Result<(), String> {
+    loop {
+        if !current() {
+            return Err("Another authorization of this extension replaced it.".into());
+        }
+        if Instant::now() >= until {
+            return Err("The browser did not come back within 5 minutes.".into());
+        }
+        let mut stream = match listener.accept() {
+            Ok((stream, _)) => stream,
+            Err(e) if e.kind() == std::io::ErrorKind::WouldBlock => {
+                std::thread::sleep(Duration::from_millis(200));
+                continue;
+            }
+            Err(e) => return Err(e.to_string()),
+        };
+        let Some(query) = requested(&mut stream) else {
+            answer_browser(&mut stream, "404 Not Found", None);
+            continue;
+        };
+        if query.get("state").map(String::as_str) != Some(state) {
+            answer_browser(&mut stream, "400 Bad Request", Some(false));
+            continue;
+        }
+        let outcome = match query.get("code") {
+            Some(code) => finish(code.clone()),
+            None => Err(format!(
+                "The service refused the authorization: {}",
+                query
+                    .get("error_description")
+                    .or(query.get("error"))
+                    .map_or("no code", String::as_str)
+            )),
+        };
+        answer_browser(&mut stream, "200 OK", Some(outcome.is_ok()));
+        return outcome;
+    }
+}
+
+fn requested(stream: &mut std::net::TcpStream) -> Option<HashMap<String, String>> {
+    use std::io::{BufRead, Read};
+    stream.set_nonblocking(false).ok()?;
+    stream.set_read_timeout(Some(Duration::from_secs(5))).ok()?;
+    let mut reader = std::io::BufReader::new(stream.take(16 << 10));
+    let mut line = String::new();
+    reader.read_line(&mut line).ok()?;
+    let mut header = String::new();
+    while reader.read_line(&mut header).ok()? > 2 {
+        header.clear();
+    }
+    let target = line.strip_prefix("GET ")?.split(' ').next()?;
+    let url = reqwest::Url::parse(&format!("http://127.0.0.1{target}")).ok()?;
+    (url.path() == "/").then(|| url.query_pairs().into_owned().collect())
+}
+
+fn answer_browser(stream: &mut std::net::TcpStream, status: &str, done: Option<bool>) {
+    use std::io::Write;
+    let text = match done {
+        Some(true) => {
+            "<p>Squadron has the authorization. You can close this tab.</p><p lang=\"fr\">Squadron a reçu l’autorisation. Vous pouvez fermer cet onglet.</p>"
+        }
+        Some(false) => {
+            "<p>The authorization failed. Go back to Squadron.</p><p lang=\"fr\">L’autorisation a échoué. Revenez dans Squadron.</p>"
+        }
+        None => "",
+    };
+    let body = format!(
+        "<!doctype html><meta charset=\"utf-8\"><title>Squadron</title><body style=\"font-family:system-ui;margin:3rem\">{text}</body>"
+    );
+    let _ = write!(
+        stream,
+        "HTTP/1.1 {status}\r\nContent-Type: text/html; charset=utf-8\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}",
+        body.len()
+    );
 }
 
 fn wait(rx: &mpsc::Receiver<Job>, timer: Option<Instant>) -> Option<Job> {
@@ -3294,6 +3434,131 @@ mod tests {
             secrets: BTreeMap::new(),
         });
         assert!(host.account_secrets("trial-1".into()).unwrap().is_empty());
+    }
+
+    #[test]
+    fn authorizes_in_the_browser_and_keeps_the_code_out_of_the_extension() {
+        use squadron::api::host::Host as _;
+        use std::io::{Read, Write};
+        let (mut host, told) = self::host(&["net:auth.example.com"], |_, _| Ok(Value::Null));
+        host.hooks.kinds = Arc::new(|_| {
+            vec![
+                ("token".into(), Kind::Secret),
+                ("code".into(), Kind::Captured),
+            ]
+        });
+        host.hooks.accounts = Arc::new(|_| vec![account("a1", None)]);
+        let kept = Arc::new(Mutex::new(Vec::new()));
+        let record = kept.clone();
+        host.hooks.keep = Arc::new(move |_, account, values| {
+            record
+                .lock()
+                .unwrap()
+                .push((account.to_string(), values.to_vec()));
+            Ok(())
+        });
+        let url = "https://auth.example.com/authorize?redirect_uri={{redirect}}&state={{state}}";
+        let refused = |host: &mut Host, account: &str, url: &str, field: &str| {
+            host.authorize(account.into(), url.into(), field.into())
+                .unwrap_err()
+        };
+        assert!(refused(&mut host, "a1", url, "token").contains("kind captured"));
+        assert!(refused(&mut host, "zz", url, "code").contains("no longer exists"));
+        assert!(
+            refused(
+                &mut host,
+                "a1",
+                "https://evil.example.com/{{state}}",
+                "code"
+            )
+            .contains("not allowed")
+        );
+        let browse = |redirect: &str, query: &str| {
+            let address = redirect.trim_start_matches("http://").trim_end_matches('/');
+            let mut stream = std::net::TcpStream::connect(address).unwrap();
+            write!(stream, "GET /?{query} HTTP/1.1\r\nHost: {address}\r\n\r\n").unwrap();
+            let mut reply = String::new();
+            stream.read_to_string(&mut reply).unwrap();
+            reply
+        };
+        let ended = |n: usize| {
+            for _ in 0..100 {
+                let done: Vec<Value> = told
+                    .lock()
+                    .unwrap()
+                    .iter()
+                    .filter(|v| v["call"] == "authorized")
+                    .map(|v| serde_json::from_str(v["data"].as_str().unwrap()).unwrap())
+                    .collect();
+                if done.len() >= n {
+                    return done;
+                }
+                std::thread::sleep(Duration::from_millis(50));
+            }
+            panic!("no account.authorized");
+        };
+        let link = || {
+            told.lock()
+                .unwrap()
+                .iter()
+                .rfind(|v| v["call"] == "open-link")
+                .unwrap()["url"]
+                .as_str()
+                .unwrap()
+                .to_string()
+        };
+        let first = host
+            .authorize("a1".into(), url.into(), "code".into())
+            .unwrap();
+        let redirect = host
+            .authorize("a1".into(), url.into(), "code".into())
+            .unwrap();
+        assert_ne!(first, redirect);
+        assert_eq!(
+            ended(1)[0]["error"],
+            "Another authorization of this extension replaced it."
+        );
+        let opened = link();
+        let encoded: String = form_urlencoded::byte_serialize(redirect.as_bytes()).collect();
+        let state = opened
+            .strip_prefix(&format!(
+                "https://auth.example.com/authorize?redirect_uri={encoded}&state="
+            ))
+            .unwrap()
+            .to_string();
+        assert!(browse(&redirect, "code=c0de&state=forged").starts_with("HTTP/1.1 400"));
+        assert!(kept.lock().unwrap().is_empty());
+        let page = browse(&redirect, &format!("code=c0de&state={state}"));
+        assert!(page.starts_with("HTTP/1.1 200") && page.contains("close this tab"));
+        let done = ended(2);
+        assert_eq!(done[1], json!({"account": "a1", "field": "code"}));
+        assert!(
+            !told
+                .lock()
+                .unwrap()
+                .iter()
+                .any(|v| v.to_string().contains("c0de"))
+        );
+        assert_eq!(
+            *kept.lock().unwrap(),
+            [(
+                "a1".to_string(),
+                vec![("code".to_string(), Some("c0de".to_string()))]
+            )]
+        );
+        let redirect = host
+            .authorize("a1".into(), url.into(), "code".into())
+            .unwrap();
+        let opened = link();
+        let state = opened.rsplit("state=").next().unwrap().to_string();
+        let page = browse(&redirect, &format!("error=access_denied&state={state}"));
+        assert!(page.contains("authorization failed"));
+        assert!(
+            ended(3)[2]["error"]
+                .as_str()
+                .unwrap()
+                .contains("access_denied")
+        );
     }
 
     #[test]

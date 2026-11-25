@@ -341,6 +341,8 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
   if (p.call === 'insert-prompt' && String(p.agent) !== shownAgent()) console.warn(`${p.extension}: insert-prompt only reaches the agent on screen`)
   if (p.call === 'insert-prompt' && find(String(p.agent)) && String(p.agent) === shownAgent()) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
   if (p.call === 'open-account' && getCurrentWindow().label === 'main') openAccountForm(p.extension, String(p.form), (p.account as string | null) ?? null, (p.values as Record<string, string>) ?? {})
+  if (p.call === 'open-link' && getCurrentWindow().label === 'main') invoke('open_link', { url: String(p.url) }).catch(() => {})
+  if (p.call === 'authorized' && getCurrentWindow().label === 'main') invoke('extensions_wasm_event', { id: p.extension, name: 'account.authorized', agent: null, data: String(p.data) }).catch(() => {})
   if (p.call === 'open-new-agent' && getCurrentWindow().label === 'main') openDraft(p.extension, String(p.draft), String(p.agent), String(p.fields))
   if (p.call === 'update-new-agent' && drafts.open?.id === p.draft) drafts.open?.updates.push(parseDraft(String(p.fields)))
   if (p.call === 'set-agent-chips' && getCurrentWindow().label === 'main') setChips(p.extension, String(p.agent), String(p.chips))
