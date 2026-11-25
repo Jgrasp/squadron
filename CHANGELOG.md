@@ -2,6 +2,17 @@
 
 ## 0.64.0 · 2026-11-25
 
+### Settings
+- Settings can be searched: matching rows from every page appear in one view, grouped by page, and an index in the sidebar jumps to each page.
+
+### Agents
+- Model and effort can be set to Auto: Haiku picks them from the first message, and you can edit its instructions in Settings.
+- Agents saved before Haiku answered load with concrete options.
+- Agents start without six rarely used built-in tools and the claude.ai connectors, which load on demand, and an agent can wait for the checks or the merge of a pull request.
+
+### Getting started
+- Each stop of the guided tour opens what it talks about.
+
 ### Extensions
 - An extension can hand a program it runs its account secrets on the standard input, never in its arguments or environment, once you allow it: the approval says which program receives secrets. Fields of an account tied to a site never go to a program.
 - An extension can keep the tokens a service sends back, such as a Google refresh token, in the system keyring as a field of one of its accounts: it never sees them again, and the account form shows them as received or not yet.

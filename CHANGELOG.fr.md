@@ -2,6 +2,17 @@
 
 ## 0.64.0 · 2026-11-25
 
+### Réglages
+- Les réglages se recherchent : les lignes correspondantes de toutes les pages s’affichent dans une seule vue, groupées par page, et un index dans la barre latérale mène à chaque page.
+
+### Agents
+- Le modèle et l’effort peuvent être réglés sur Auto : Haiku les choisit d’après le premier message, et vous modifiez ses instructions dans les réglages.
+- Les agents sauvegardés avant que Haiku réponde se chargent avec des options concrètes.
+- Les agents démarrent sans six outils intégrés rarement utilisés ni les connecteurs claude.ai, chargés à la demande, et un agent peut attendre les checks ou la fusion d’une pull request.
+
+### Prise en main
+- Chaque étape de la visite guidée ouvre ce dont elle parle.
+
 ### Extensions
 - Une extension peut passer les secrets de ses comptes à un programme qu’elle lance, sur son entrée standard, jamais dans ses arguments ni son environnement, une fois que vous l’avez autorisée : la demande d’autorisation indique quel programme reçoit des secrets. Les champs d’un compte lié à un site ne vont jamais à un programme.
 - Une extension peut garder les jetons qu’un service lui renvoie, comme un jeton de renouvellement Google, dans le trousseau du système comme champ d’un de ses comptes : elle ne les revoit plus, et le formulaire du compte les indique reçus ou pas encore.
