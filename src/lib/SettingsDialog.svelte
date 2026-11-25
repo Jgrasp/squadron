@@ -2,6 +2,7 @@
   import { invoke } from '@tauri-apps/api/core'
   import Dialog from './Dialog.svelte'
   import AboutSquadron from './AboutSquadron.svelte'
+  import QuickStart from './QuickStart.svelte'
   import ClaudeSettings from './ClaudeSettings.svelte'
   import CodeHosting from './CodeHosting.svelte'
   import { rememberSettingsTab, ui, type SettingsTab } from './actions.svelte'
@@ -62,6 +63,7 @@
       'settings.groupSquadron',
       [
         ['about', 'settings.tabAbout'],
+        ['quickstart', 'settings.tabQuickStart'],
       ],
     ],
   ]
@@ -135,6 +137,8 @@
       <ProjectSettings />
     {:else if tab === 'about'}
       <AboutSquadron />
+    {:else if tab === 'quickstart'}
+      <QuickStart onstart={onclose} />
     {:else if tab === 'hosting'}
       <CodeHosting />
     {:else if tab === 'layout'}

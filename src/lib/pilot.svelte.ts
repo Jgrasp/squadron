@@ -1,4 +1,5 @@
 import { agentTypes, definition, models } from './catalogs.svelte'
+import { isDemo, touchesDemo } from './demoId'
 import { families } from './commands'
 import { invoke } from '@tauri-apps/api/core'
 import { homeDir, join } from '@tauri-apps/api/path'
@@ -37,7 +38,7 @@ function pick<T extends string>(value: unknown, allowed: string[], fallback: T, 
 function projectFor(caller: Agent, wanted: unknown): Project {
   const own = projects.list.find((p) => p.path === caller.project)!
   if (!wanted) return own
-  const found = projects.list.find((p) => p.path === wanted || p.name.toLowerCase() === String(wanted).toLowerCase())
+  const found = projects.list.find((p) => !isDemo(p.path) && (p.path === wanted || p.name.toLowerCase() === String(wanted).toLowerCase()))
   if (!found) throw new Error(`No project “${wanted}”. Projects: ${projects.list.map((p) => p.name).join(', ')}.`)
   if (found !== own && !settings.pilot_all)
     throw new Error(`You can only act on your own project (${own.name}). The user can allow every project in Settings › Preferences.`)
@@ -61,7 +62,7 @@ const waitingOf = (a: Agent) => (a.asks[0] ? waitingFor(a.asks[0], english) : a.
 const goalOf = (a: Agent) =>
   a.goal ? { done_when: a.goal.condition, state: a.goal.state, relaunches: a.goal.relaunches || undefined, last_reason: a.goal.reason || undefined } : undefined
 
-const visible = (caller: Agent) => projects.list.filter((p) => settings.pilot_all || p.path === caller.project)
+const visible = (caller: Agent) => projects.list.filter((p) => !isDemo(p.path) && (settings.pilot_all || p.path === caller.project))
 
 const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknown> = {
   overview: (caller) =>
@@ -547,6 +548,7 @@ listen<Call>('pilot-request', async ({ payload: call }) => {
     const caller = find(call.agent)
     if (!caller) throw new Error('Only agents started by Squadron can drive it.')
     if (!tools[call.tool]) throw new Error(`Unknown tool ${call.tool}.`)
+    if (touchesDemo(call.args)) throw new Error('No such agent or project.')
     result = await tools[call.tool](caller, call.args ?? {})
   } catch (e) {
     result = `Error: ${e instanceof Error ? e.message : e}`

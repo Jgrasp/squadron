@@ -18,6 +18,7 @@
   import { home, projects, toggleBoard, togglePulls } from './projects.svelte'
   import { ui } from './actions.svelte'
   import { composing } from './drafts.svelte'
+  import { scripted } from './demo.svelte'
   import { all, detailOf, hidden, labelOf, place, shown, sortable, toggle as toggleItem } from './layout-slots.svelte'
   import Icon from './Icon.svelte'
   import ItemIcon from './ItemIcon.svelte'
@@ -67,6 +68,9 @@
 
   const saved = untrack(() => drafts[agent.id])
   let text = $state(saved?.text ?? '')
+  $effect(() => {
+    if (scripted.agent === agent.id) text = scripted.text
+  })
   let menuOpen = $state(false)
   let remoteOpen = $state(false)
   let scroller: HTMLElement

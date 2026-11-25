@@ -1,4 +1,5 @@
 import { getCurrentWindow } from '@tauri-apps/api/window'
+import { isDemo } from './demoId'
 import { isPermissionGranted, onAction, requestPermission, sendNotification } from '@tauri-apps/plugin-notification'
 import { untrack } from 'svelte'
 import { ui, type SettingsTab } from './actions.svelte'
@@ -143,7 +144,7 @@ function pullsOf(project: string) {
 }
 
 function comparePulls() {
-  for (const project of projects.list) {
+  for (const project of projects.list.filter((p) => !isDemo(p.path))) {
     const now = pullsOf(project.path)
     if (!now) continue
     const before = waiting.get(project.path)
@@ -160,7 +161,7 @@ export function watchNotifications() {
   onAction((event) => open((event.notification?.extra ?? {}) as Target)).catch(() => {})
   $effect.root(() => {
     $effect(() => {
-      const now = agents.list.map((a) => [a, a.status, a.asks[0]?.id, a.goal?.state, asked.list.length] as const)
+      const now = agents.list.filter((a) => !isDemo(a.id)).map((a) => [a, a.status, a.asks[0]?.id, a.goal?.state, asked.list.length] as const)
       untrack(() => {
         const alive = new Set<string>()
         for (const [agent] of now) {

@@ -18,5 +18,6 @@ import usage from './usage'
 import stats from './stats'
 import mcp from './mcp'
 import notify from './notify'
+import tour from './tour'
 
-export default { common, format, settings, board, browser, review, runs, agent, conversation, persona, shell, spotlight, claudeKeys, extensions, plugins, usage, stats, mcp, notify } satisfies Catalog
+export default { common, format, settings, board, browser, review, runs, agent, conversation, persona, shell, spotlight, claudeKeys, extensions, plugins, usage, stats, mcp, notify, tour } satisfies Catalog

@@ -4,6 +4,7 @@ import { getCurrentWindow } from '@tauri-apps/api/window'
 import { SvelteSet } from 'svelte/reactivity'
 import { apiSignal, noted, type ClaudeApi } from './activity'
 import { remember } from './catalogs.svelte'
+import { isDemo } from './demoId'
 import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
 import type { Chip } from './newAgentDraft'
@@ -253,6 +254,7 @@ const writes = new Map<string, Promise<unknown>>()
 function save(agent: Agent, extra: Record<string, unknown> = {}) {
   clearTimeout(timers.get(agent.id))
   timers.delete(agent.id)
+  if (isDemo(agent.id)) return Promise.resolve()
   const write = (writes.get(agent.id) ?? Promise.resolve())
     .catch(() => {})
     .then(async () => {

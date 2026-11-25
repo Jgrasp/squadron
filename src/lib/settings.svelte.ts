@@ -75,6 +75,7 @@ export type Config = {
   chips_every: 2 | 3 | 5
   chips_scope: 'all' | 'selected'
   usage: boolean
+  tour_offered: boolean
 }
 
 export type MergeMethod = 'merge' | 'squash' | 'rebase'
@@ -127,6 +128,7 @@ export const settings = $state<Config>({
   chips_every: 3,
   chips_scope: 'all',
   usage: true,
+  tour_offered: false,
 })
 
 export const shortcut = (event: KeyboardEvent) => pressed(event, settings.keys)
