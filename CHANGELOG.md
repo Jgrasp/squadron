@@ -7,6 +7,9 @@
 - An extension can keep the tokens a service sends back, such as a Google refresh token, in the system keyring as a field of one of its accounts: it never sees them again, and the account form shows them as received or not yet.
 - Secrets also fill form-encoded request bodies, and are hidden from the answer.
 - An extension can open its account form over Squadron, prefilled, to add or change an account.
+- Secrets can be escaped for JSON, so a password with quotes, backslashes or line breaks no longer breaks the JSON an extension hands a program.
+- An extension can drop a token it kept, to have you sign in again once the service revoked it, and can tell whether a secret of an account is set without reading it.
+- Extension tools that run a command no longer receive secrets in their environment.
 
 ## 0.63.0 · 2026-11-25
 

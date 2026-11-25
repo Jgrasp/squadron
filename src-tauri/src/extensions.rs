@@ -404,7 +404,7 @@ impl Extensions {
         &self,
         id: &str,
         account: &str,
-        values: &[(String, String)],
+        values: &[(String, Option<String>)],
         keyring: Keyring,
     ) -> Result<(), String> {
         let _lock = CHOICES.lock().unwrap_or_else(|e| e.into_inner());
@@ -415,8 +415,9 @@ impl Extensions {
             .and_then(|list| list.iter_mut().find(|a| a.id == account))
             .ok_or_else(|| format!("The account {account} no longer exists."))?;
         for (field, value) in values {
-            keyring(account, field, Some(value))?;
-            if !found.secrets.contains(field) {
+            keyring(account, field, value.as_deref())?;
+            found.secrets.retain(|s| s != field);
+            if value.is_some() {
                 found.secrets.push(field.clone());
             }
         }
@@ -1501,7 +1502,7 @@ mod tests {
         m.keep_captured(
             "time",
             &a,
-            &[("refresh-token".into(), "r3fresh".into())],
+            &[("refresh-token".into(), Some("r3fresh".into()))],
             &keyring,
         )
         .unwrap();
@@ -1520,6 +1521,10 @@ mod tests {
             "r3fresh"
         );
         assert!(m.keep_captured("time", "gone", &[], &keyring).is_err());
+        m.keep_captured("time", &a, &[("refresh-token".into(), None)], &keyring)
+            .unwrap();
+        assert!(m.accounts("time")[0].secrets.is_empty());
+        assert!(ring.lock().unwrap().is_empty());
         m.remove_account("time", &a, &keyring).unwrap();
         assert!(ring.lock().unwrap().is_empty());
     }

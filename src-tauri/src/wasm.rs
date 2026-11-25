@@ -57,7 +57,8 @@ type OptionsOf = Arc<dyn Fn(&str) -> Value + Send + Sync>;
 
 type KindsOf = Arc<dyn Fn(&str) -> Vec<(String, Kind)> + Send + Sync>;
 
-type Keep = Arc<dyn Fn(&str, &str, &[(String, String)]) -> Result<(), String> + Send + Sync>;
+type Keep =
+    Arc<dyn Fn(&str, &str, &[(String, Option<String>)]) -> Result<(), String> + Send + Sync>;
 
 #[derive(Clone)]
 pub struct Hooks {
@@ -528,16 +529,8 @@ impl Host {
         account: &str,
         fields: Vec<(String, String)>,
     ) -> Result<Response, String> {
-        let kinds = (self.hooks.kinds)(&self.id);
         for (_, field) in &fields {
-            if !kinds
-                .iter()
-                .any(|(id, k)| id == field && *k == Kind::Captured)
-            {
-                return Err(format!(
-                    "{field} is not a field of kind captured in contributes.accounts."
-                ));
-            }
+            self.captured(field)?;
         }
         let stored = (self.hooks.accounts)(&self.id);
         let found = stored
@@ -553,11 +546,26 @@ impl Host {
             }
         }
         let mut sent = self.send(request, MAX_BODY, FETCH)?;
-        let kept = take(&mut sent, fields);
+        let kept: Vec<_> = take(&mut sent, fields)
+            .into_iter()
+            .map(|(field, value)| (field, Some(value)))
+            .collect();
         if !kept.is_empty() {
             (self.hooks.keep)(&self.id, account, &kept)?;
         }
         Ok(response(sent))
+    }
+
+    fn captured(&self, field: &str) -> Result<(), String> {
+        if (self.hooks.kinds)(&self.id)
+            .iter()
+            .any(|(id, k)| id == field && *k == Kind::Captured)
+        {
+            return Ok(());
+        }
+        Err(format!(
+            "{field} is not a field of kind captured in contributes.accounts."
+        ))
     }
 
     fn account_form(&self, account: Option<String>, values: String) -> Result<String, String> {
@@ -860,6 +868,19 @@ impl squadron::api::host::Host for Host {
         self.account_form(account, values)
     }
 
+    fn forget(&mut self, account: String, field: String) -> Result<(), String> {
+        self.captured(&field)?;
+        (self.hooks.keep)(&self.id, &account, &[(field, None)])
+    }
+
+    fn account_secrets(&mut self, account: String) -> Result<Vec<String>, String> {
+        with_trial((self.hooks.accounts)(&self.id), self.trial.as_ref())
+            .into_iter()
+            .find(|a| a.id == account)
+            .map(|a| a.secrets)
+            .ok_or_else(|| format!("The account {account} no longer exists."))
+    }
+
     fn set_timer(&mut self, seconds: u32) {
         self.timer = Some(Instant::now() + Duration::from_secs(seconds.max(MIN_TIMER).into()));
     }
@@ -1012,7 +1033,17 @@ fn fill_with(
                 );
                 (encoded, secret)
             }
-            None => resolve(name)?,
+            None => match name.strip_prefix("json:") {
+                Some(name) => {
+                    let (value, hidden) = resolve(name)?;
+                    let quoted = serde_json::to_string(&value).map_err(|e| e.to_string())?;
+                    if hidden {
+                        used.push(value);
+                    }
+                    (quoted[1..quoted.len() - 1].to_string(), hidden)
+                }
+                None => resolve(name)?,
+            },
         };
         out.push_str(&rest[..start]);
         let shown = encode(&found);
@@ -1030,13 +1061,20 @@ fn fill_with(
 }
 
 fn scrub(text: String, used: &[String]) -> String {
-    used.iter()
-        .filter(|u| !u.is_empty())
+    let mut used: Vec<&String> = used.iter().filter(|u| !u.is_empty()).collect();
+    used.sort_by_key(|u| std::cmp::Reverse(u.len()));
+    used.into_iter()
         .fold(text, |text, u| text.replace(u.as_str(), "[secret]"))
 }
 
 fn scrub_bytes(mut body: Vec<u8>, used: &[String]) -> Vec<u8> {
-    for needle in used.iter().map(|u| u.as_bytes()).filter(|u| !u.is_empty()) {
+    let mut used: Vec<&[u8]> = used
+        .iter()
+        .map(|u| u.as_bytes())
+        .filter(|u| !u.is_empty())
+        .collect();
+    used.sort_by_key(|u| std::cmp::Reverse(u.len()));
+    for needle in used {
         if !body.windows(needle.len()).any(|w| w == needle) {
             continue;
         }
@@ -3159,6 +3197,27 @@ mod tests {
     }
 
     #[test]
+    fn escapes_values_for_json() {
+        let keys = |key: &str| Ok((key == "a1.token").then(|| "p\"a\\s\ns".to_string()));
+        let accounts = [account("a1", None)];
+        let resolve = |name: &str| lookup(name, "", &accounts, &keys);
+        let mut used = vec![];
+        let filled = fill(
+            r#"{"user":"{{json:a1.email}}","password":"{{json:a1.token}}"}"#,
+            &resolve,
+            &mut used,
+        )
+        .unwrap();
+        let parsed: Value = serde_json::from_str(&filled).unwrap();
+        assert_eq!(parsed["password"], "p\"a\\s\ns");
+        assert_eq!(parsed["user"], "me@acme.com");
+        assert_eq!(
+            scrub(format!("got {filled} and p\"a\\s\ns"), &used),
+            r#"got {"user":"me@acme.com","password":"[secret]"} and [secret]"#
+        );
+    }
+
+    #[test]
     fn checks_a_capture_before_sending_it() {
         use squadron::api::host::Host as _;
         let (mut host, _) = self::host(&["net:oauth2.googleapis.com"], |_, _| Ok(Value::Null));
@@ -3186,6 +3245,55 @@ mod tests {
         assert!(
             capture(&mut host, "b2", "refresh-token").contains("only captures from jira.acme.com")
         );
+    }
+
+    #[test]
+    fn forgets_captured_fields_and_tells_which_secrets_are_set() {
+        use squadron::api::host::Host as _;
+        let (mut host, _) = self::host(&[], |_, _| Ok(Value::Null));
+        host.hooks.kinds = Arc::new(|_| {
+            vec![
+                ("token".into(), Kind::Secret),
+                ("refresh-token".into(), Kind::Captured),
+            ]
+        });
+        let saved = || {
+            let mut a = account("a1", None);
+            a.secrets.push("refresh-token".into());
+            a
+        };
+        host.hooks.accounts = Arc::new(move |_| vec![saved()]);
+        let forgotten = Arc::new(Mutex::new(Vec::new()));
+        let record = forgotten.clone();
+        host.hooks.keep = Arc::new(move |_, account, values| {
+            record
+                .lock()
+                .unwrap()
+                .push((account.to_string(), values.to_vec()));
+            Ok(())
+        });
+        assert!(
+            host.forget("a1".into(), "token".into())
+                .unwrap_err()
+                .contains("kind captured")
+        );
+        host.forget("a1".into(), "refresh-token".into()).unwrap();
+        assert_eq!(
+            *forgotten.lock().unwrap(),
+            [("a1".to_string(), vec![("refresh-token".to_string(), None)])]
+        );
+        assert_eq!(
+            host.account_secrets("a1".into()).unwrap(),
+            ["token", "refresh-token"]
+        );
+        assert!(host.account_secrets("zz".into()).is_err());
+        let mut fresh = account("trial-1", None);
+        fresh.secrets.clear();
+        host.trial = Some(Trial {
+            account: fresh,
+            secrets: BTreeMap::new(),
+        });
+        assert!(host.account_secrets("trial-1".into()).unwrap().is_empty());
     }
 
     #[test]
