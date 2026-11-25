@@ -93,10 +93,30 @@
     untrack(() => card?.querySelector<HTMLElement>('.btn-primary')?.focus({ preventScroll: true }))
   })
 
+  let end = $state<HTMLElement>()
+
+  function focusables() {
+    const box = tour.end ? end : card
+    const own = [...(box?.querySelectorAll<HTMLElement>('button:not(:disabled)') ?? [])]
+    const allow = stop?.you && stop.el && !tour.allowed ? [...document.querySelectorAll<HTMLElement>(`${stop.el} button:not(:disabled)`)] : []
+    return [...allow, ...own]
+  }
+
   function keys(event: KeyboardEvent) {
     if (!tour.on && !tour.end) return
-    if ((event.target as HTMLElement).closest?.('.tour-card, .tour-end') && (event.key === 'Enter' || event.key === ' ' || event.key === 'Tab')) return
+    const target = event.target as HTMLElement
+    const list = focusables()
+    if (event.key === 'Tab') {
+      event.preventDefault()
+      event.stopPropagation()
+      if (!list.length) return
+      const at = list.indexOf(target)
+      list[(at + (event.shiftKey ? -1 : 1) + list.length) % list.length].focus()
+      return
+    }
+    if (list.includes(target) && (event.key === 'Enter' || event.key === ' ')) return
     event.stopPropagation()
+    if (event.key === 'Enter' || event.key === ' ') event.preventDefault()
     if (tour.end) {
       if (event.key === 'Escape') closeEnd()
       return
@@ -175,7 +195,7 @@
         <h3>{titleOf(stop)}</h3>
         <p>{bodyOf(stop)}</p>
         {#if stop.you}
-          <p class="try">{#if tour.allowed}{@html check} {t('tour.permDone')}{:else}{t('tour.permTry')}{/if}</p>
+          <p class="try">{#if tour.denied}{t('tour.permDenied')}{:else if tour.allowed}{@html check} {t('tour.permDone')}{:else}{t('tour.permTry')}{/if}</p>
         {/if}
         {#if stop.key}
           <div class="keys">
@@ -210,7 +230,7 @@
   {@const seen = STOPS.filter((s) => tour.seen.includes(s.id)).length}
   <div class="tour">
     <div class="scrim"></div>
-    <section class="tour-end" aria-label={t('tour.endTitle')}>
+    <section class="tour-end" bind:this={end} aria-label={t('tour.endTitle')}>
       <div class="seal">{@html check.replace('width="14" height="14"', 'width="30" height="30"')}</div>
       <h3>{t('tour.endTitle')}</h3>
       <p>{t(hasOwnProjects() ? 'tour.endBack' : 'tour.endFresh', { seen, total: STOPS.length })}</p>

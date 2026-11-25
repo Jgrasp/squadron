@@ -102,6 +102,12 @@ export function stopDemo() {
   demo.on = false
 }
 
+function clean(value: unknown): unknown {
+  if (Array.isArray(value)) return value.filter((v) => !isDemo(v) && !isDemo((v as { id?: unknown })?.id)).map(clean)
+  if (!value || typeof value !== 'object') return value
+  return Object.fromEntries(Object.entries(value).filter(([k, v]) => !isDemo(k) && !isDemo(v)).map(([k, v]) => [k, clean(v)]))
+}
+
 function sweepStorage() {
   const keys = Array.from({ length: localStorage.length }, (_, i) => localStorage.key(i) ?? '')
   for (const key of keys) {
@@ -111,11 +117,7 @@ function sweepStorage() {
         localStorage.removeItem(key)
         continue
       }
-      if (!value.includes(`"${DEMO}`)) continue
-      const parsed = JSON.parse(value)
-      if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) continue
-      for (const k of Object.keys(parsed)) if (isDemo(k)) delete parsed[k]
-      localStorage.setItem(key, JSON.stringify(parsed))
+      if (value.includes(DEMO)) localStorage.setItem(key, JSON.stringify(clean(JSON.parse(value))))
     } catch {}
   }
 }

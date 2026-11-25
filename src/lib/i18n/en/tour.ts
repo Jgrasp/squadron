@@ -35,6 +35,7 @@ export default {
   permBody: 'Allow once, Always to add a rule for the whole project, or Deny with an instruction typed below.',
   permTry: 'Try it: click Allow.',
   permDone: 'Allowed. The agent goes back to work and its copper goes away.',
+  permDenied: 'Denied. A real agent would read your instruction and take another way; the demo goes on.',
   questionTitle: 'Questions and plans',
   questionBody: 'When an agent hesitates, it asks: pick one of its options, or approve its plan before it changes anything.',
   secretsTitle: 'Passwords stay with you',

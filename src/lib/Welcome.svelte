@@ -38,9 +38,15 @@
     return () => (cancelAnimationFrame(raf), cancelAnimationFrame(frame))
   })
 
+  let primary = $state<HTMLButtonElement>()
+
+  $effect(() => {
+    if (tour.welcome) primary?.focus({ preventScroll: true })
+  })
+
   function keys(event: KeyboardEvent) {
     if (!tour.welcome) return
-    if (event.key === 'Enter') (event.preventDefault(), event.stopPropagation(), startTour(0))
+    if (event.key === 'Enter' && !(event.target as HTMLElement).closest?.('.welcome button')) (event.preventDefault(), event.stopPropagation(), startTour(0))
     else if (event.key === 'Escape') (event.preventDefault(), event.stopPropagation(), offered())
   }
 </script>
@@ -61,7 +67,7 @@
         </svg>
         <h2 id="welcome-title">{t('tour.welcomeTitle')}</h2>
         <p>{t('tour.welcomeLead')}</p>
-        <button class="btn btn-primary" onclick={() => startTour(0)}>{t('tour.takeTour')} <kbd>↵</kbd></button>
+        <button class="btn btn-primary" bind:this={primary} onclick={() => startTour(0)}>{t('tour.takeTour')} <kbd>↵</kbd></button>
         <button class="btn btn-secondary" onclick={offered}>{t('tour.skipStart')}</button>
       </div>
       <div class="right">

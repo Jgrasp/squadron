@@ -85,6 +85,7 @@ export const tour = $state({
   confirm: false,
   end: false,
   allowed: false,
+  denied: false,
   welcome: false,
   toast: '',
   seen: readSeen(),
@@ -248,7 +249,7 @@ function restAt(i: number) {
 function enter(i: number) {
   tour.i = Math.max(0, Math.min(STOPS.length - 1, i))
   tour.confirm = false
-  tour.allowed = false
+  tour.allowed = tour.denied = false
   const stop = STOPS[tour.i]
   remember(stop.id)
   const seg = pointOf(tour.i)
@@ -261,6 +262,7 @@ function enter(i: number) {
 function onCommand(cmd: string, args: Record<string, unknown>) {
   if (cmd === 'answer_permission' && args.id === 'demo:ask-stripe' && tour.on && current().id === 'perm' && !tour.allowed) {
     tour.allowed = true
+    tour.denied = (args.decision as { behavior?: string } | undefined)?.behavior === 'deny'
     const [, to] = SEGMENTS.perm
     play(GATE, to, true)
     timers.push(setTimeout(() => tour.on && current().id === 'perm' && !tour.confirm && next(), 4600))

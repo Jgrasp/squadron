@@ -35,6 +35,7 @@ export default {
   permBody: 'Allow pour une fois, Always pour ajouter une règle à tout le projet, ou Deny avec une consigne tapée en dessous.',
   permTry: 'Essayez : cliquez sur Allow.',
   permDone: "Autorisé. L'agent reprend le travail et son cuivre disparaît.",
+  permDenied: 'Refusé. Un vrai agent lirait votre consigne et prendrait un autre chemin ; la démo continue.',
   questionTitle: 'Questions et plans',
   questionBody: "Quand un agent hésite, il demande : choisissez une de ses options, ou validez son plan avant qu'il ne touche à quoi que ce soit.",
   secretsTitle: 'Vos mots de passe restent à vous',

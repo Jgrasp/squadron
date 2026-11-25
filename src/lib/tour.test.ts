@@ -72,6 +72,12 @@ describe('guided tour sandbox', () => {
     expect(backend.calls.map((c) => c.cmd)).toEqual(['list_projects'])
   })
 
+  it('lets a real call through even when its text mentions the demo', async () => {
+    await invoke('save_agent', { id: 'real-agent', data: JSON.stringify({ entries: [{ text: 'see "demo:a2" in tour.test.ts' }] }) })
+    await invoke('extensions_wasm_event', { id: 'jira', name: 'x', agent: { id: 'demo:a1' }, data: '{}' }).catch(() => {})
+    expect(backend.calls.map((c) => c.cmd)).toEqual(['save_agent'])
+  })
+
   it('waits for Allow, then lets the agent go on', async () => {
     go(STOPS.findIndex((s) => s.id === 'perm'))
     await vi.advanceTimersByTimeAsync(3000)
@@ -107,5 +113,20 @@ describe('guided tour sandbox', () => {
     expect(tour.end).toBe(false)
     expect(projects.list.map((p) => p.path)).toEqual(['/home/me/webshop'])
     expect(tour.toast).not.toBe('')
+  })
+
+  it('ends on an empty app for a fresh install and cleans nested storage', async () => {
+    projects.list = []
+    projects.current = ''
+    store.localStorage.clear()
+    startTour(0)
+    store.localStorage.setItem('squadron.panels', JSON.stringify({ [DEMO_PATH]: { panel: 'diff' }, keep: { list: ['demo:a1', 'x'] } }))
+    store.localStorage.setItem('squadron.project', DEMO_PATH)
+    finish()
+    closeEnd()
+    expect(projects.list).toEqual([])
+    expect(projects.current).toBe('')
+    expect([...store.data.entries()].filter(([k, v]) => k.includes('demo:') || v.includes('demo:'))).toEqual([])
+    expect(JSON.parse(store.localStorage.getItem('squadron.panels') ?? '{}')).toEqual({ keep: { list: ['x'] } })
   })
 })
