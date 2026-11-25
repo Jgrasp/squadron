@@ -1690,8 +1690,12 @@ fn set_agent_servers(
     id: String,
     names: Vec<String>,
 ) -> Result<(), String> {
-    let configs = on_demand.configs(&names);
-    agents.set_servers(&id, names, configs)
+    agents.set_servers(&id, names, &on_demand)
+}
+
+#[tauri::command]
+fn set_agent_tools(agents: State<Agents>, id: String, tools: Vec<String>) -> Result<(), String> {
+    agents.set_tools(&id, tools)
 }
 
 #[tauri::command]
@@ -3071,6 +3075,7 @@ pub fn run() {
             ondemand::mcp_everywhere,
             ondemand::mcp_describe,
             set_agent_servers,
+            set_agent_tools,
             archived_entries,
             add_rule,
             answer_permission,

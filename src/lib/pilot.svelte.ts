@@ -5,14 +5,15 @@ import { invoke } from '@tauri-apps/api/core'
 import { homeDir, join } from '@tauri-apps/api/path'
 import { listen } from '@tauri-apps/api/event'
 import { askStart } from './asking.svelte'
-import { askSecret, askValues, branchOf, create, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
+import { askSecret, askValues, branchOf, create, enableTools, ensureLoaded, find, importSession, knownSessions, ofProject, persist, pin, rename, send, useServer, waitingFor, SSH_KEY, SUDO, type Elsewhere } from './agents.svelte'
 import { loadServers } from './ondemand.svelte'
+import { missing, OPTIONAL_TOOLS } from './lean'
 import { moveCard, type Card, type Column } from './board'
 import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, inspect, projects, set, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { inRound, judge, lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, threadRoots, type Remark } from './pulls.svelte'
+import { inRound, judge, lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, threadRoots, type Pull, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -226,6 +227,25 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     return args.on
       ? `${name} is starting for you. Load its tools with ToolSearch (query "${name}"); they stay available after a restart until you stop it.`
       : `${name} is stopped for you.`
+  },
+
+  enable_tools: async (caller, args) => {
+    const asked: string[] = Array.isArray(args.tools) ? args.tools.map(String) : []
+    if (!asked.length || asked.some((t) => !OPTIONAL_TOOLS.includes(t))) throw new Error(`Only these tools can be turned on: ${OPTIONAL_TOOLS.join(', ')}.`)
+    const names = missing(caller.enabledTools, asked)
+    if (!names.length) return `${asked.join(', ')} ${asked.length > 1 ? 'are' : 'is'} already on for you: load it with ToolSearch if you do not see it.`
+    await enableTools(caller, names, true)
+    return `${names.join(', ')} ${names.length > 1 ? 'arrive' : 'arrives'} once your turn ends. End your turn now: Squadron restarts your session with ${names.length > 1 ? 'them' : 'it'} and sends you a message to go on.`
+  },
+
+  wait_pull: async (caller, args) => {
+    const number = Number(args.number)
+    if (!Number.isInteger(number) || number < 1) throw new Error('number must be the number of a pull request.')
+    if (args.until !== 'checks' && args.until !== 'merged') throw new Error('until must be checks or merged.')
+    const pull = await invoke<Pull>('numbered_pull', { dir: workdir(caller), number })
+    caller.pullWait = { number, until: args.until, since: Date.now(), url: pull.url }
+    persist(caller)
+    return `Squadron follows PR #${number} for you and sends you one message once ${args.until === 'checks' ? 'its checks have finished' : 'it is merged or closed'}. End your turn now, without polling it yourself.`
   },
 
   set_title: (caller, args) => {

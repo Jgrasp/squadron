@@ -559,7 +559,7 @@ import { fences } from './codepaste'
   {/if}
 {/each}
 
-{#if agent.background.length}
+{#if agent.background.length || agent.pullWait}
   <BackgroundCard {agent} {onterminal} />
 {/if}
 

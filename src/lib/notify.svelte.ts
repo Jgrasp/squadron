@@ -127,7 +127,7 @@ function compare(agent: Agent, before: Seen, now: Seen) {
   if (now.password && !before.password) tell(agent, 'password', asked.list.findLast((q) => q.agent === agent.id)?.prompt ?? '')
   if (now.goal === 'met' && before.goal !== 'met') return tell(agent, 'goal', agent.goal?.condition ?? '')
   if (now.status === 'error' && before.status !== 'error') return tell(agent, 'error', agent.attention)
-  if (now.status === 'done' && busy(before.status) && Date.now() - before.started >= settings.notify_turn_secs * 1000) tell(agent, 'turn', lastWords(agent))
+  if (now.status === 'done' && busy(before.status) && agent.pullWait?.until !== 'checks' && Date.now() - before.started >= settings.notify_turn_secs * 1000) tell(agent, 'turn', lastWords(agent))
 }
 
 type PullKey = string

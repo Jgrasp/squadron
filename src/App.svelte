@@ -14,7 +14,7 @@
   import AskpassDialog from './lib/AskpassDialog.svelte'
   import StartAgentDialog from './lib/StartAgentDialog.svelte'
   import { loadSettings, settings, shortcut } from './lib/settings.svelte'
-  import { agents, archive, archiveIdle, closeAll, create, find, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
+  import { agents, archive, archiveIdle, closeAll, create, find, followWaits, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
@@ -133,7 +133,7 @@ import './lib/extensionWindows.svelte'
       const lookUpPulls = () => (lookUpAll(), Promise.allSettled(projects.list.map((p) => lookUpLists(p.path))))
       lookUpPulls().then(() => (boot.pulls = true))
       setInterval(lookUpPulls, 3 * 60_000)
-      setInterval(followPullWaits, 20_000)
+      setInterval(() => (followPullWaits(), followWaits()), 20_000)
       watchRuns()
       watchNotifications()
     })

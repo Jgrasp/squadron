@@ -78,7 +78,7 @@ export type BackgroundTask = { id: string; toolUseId: string; name: string; star
 
 export const INTERNAL = ['TaskCreate', 'TaskUpdate', 'TaskList', 'TaskGet', 'ToolSearch']
 
-export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'judge_review_thread', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments', 'use_mcp', 'run_sudo', 'add_ssh_key'].map((tool) => `mcp__squadron-pilot__${tool}`).concat(['look', 'shot'].map((tool) => `mcp__squadron-browser__${tool}`))
+export const READ_ONLY = ['overview', 'read_agent', 'get_layout', 'set_worktree', 'add_review_comment', 'judge_review_thread', 'set_progress', 'set_pinned', 'set_title', 'set_info_panel', 'publish_artifact', 'ask_values', 'get_review_prompt', 'read_pull_comments', 'use_mcp', 'enable_tools', 'wait_pull', 'run_sudo', 'add_ssh_key'].map((tool) => `mcp__squadron-pilot__${tool}`).concat(['look', 'shot'].map((tool) => `mcp__squadron-browser__${tool}`))
 
 export type PageNote = { url: string; title: string; tab: string; n: number; what: string; selector: string; ref: string; html: string; shot?: string }
 
@@ -197,10 +197,15 @@ export type Agent = {
   guess?: string
   stored?: { count: number; created: number | null; users?: number }
   onDemand?: string[]
+  enabledTools?: string[]
+  toolsPending?: string[]
+  pullWait?: PullWait
   startedBy?: string
   chips?: Chip[]
   mcpFailed?: boolean
 }
+
+export type PullWait = { number: number; until: 'checks' | 'merged'; since: number; url?: string; polled?: number }
 
 export type LegacyArtifact = { id: string; title: string; kind: 'html' | 'svg' | 'markdown'; content: string; version: number; at: number; link?: string }
 

@@ -16,8 +16,11 @@ import { editable, matches, ruleFor, ruleLabel } from './rules'
 import { settings } from './settings.svelte'
 import { entriesOf } from './transcript'
 import { deliver, take } from './shells.svelte'
+import { missing, toolsFor } from './lean'
 import { forget as unask } from './askpass.svelte'
-import { lookUpAgent, pullWait } from './pulls.svelte'
+import { lookUpAgent, pullWait, type Pull } from './pulls.svelte'
+import type { Run } from './pipelines.svelte'
+import { pullOutcome } from './pullwait'
 import { errorText, t, type Key } from './i18n/index.svelte'
 import {
   apply,
@@ -240,6 +243,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
   if (d.type === 'control_response' && d.response?.request_id?.startsWith('mcp:')) mcpAnswered(agent.id, d.response)
   if (d.type === 'result' && agent.status === 'done') deliver(agent)
+  if (d.type === 'result' && agent.toolsPending) toolsArrived(agent)
 })
 
 const timers = new Map<string, number>()
@@ -338,7 +342,7 @@ export function shelveHidden() {
 export const shownAgent = () => (projects.overview || projects.usage ? undefined : agents.current[projects.current])
 
 export const archivable = (agent: Agent) =>
-  ['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && !agent.pinned && agent.id !== shownAgent()
+  ['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && !agent.pinned && !agent.pullWait && agent.id !== shownAgent()
 
 export function archiveIdle() {
   const days = settings.archive_after_days
@@ -494,6 +498,7 @@ async function adopt({ link, ...data }: Agent & { link?: Chip }) {
     dir: agent.worktree?.path ?? null,
   }).catch((e) => fail(find(agent.id)!, String(e)))
   if (agent.onDemand?.length) await invoke('set_agent_servers', { id: agent.id, names: agent.onDemand }).catch(() => {})
+  if (agent.enabledTools?.length) await invoke('set_agent_tools', { id: agent.id, tools: agent.enabledTools }).catch(() => {})
   if (wanted) ensureLoaded(moved).finally(() => remote(agent.id, true))
 }
 
@@ -891,11 +896,59 @@ export async function send(id: string, text: string, comments: Comment[] = [], f
     .filter(Boolean)
     .join('\n\n')
   try {
+    if (!from && !hint) await enableTools(agent, missing(agent.enabledTools, toolsFor(text)), busy)
     const uuid = await invoke<string>('send_message', { id, text: said, files })
     if (busy) queue(entry, uuid)
   } catch (e) {
     fail(agent, String(e))
   }
+}
+
+const POLL = 45_000
+const polling = new Set<string>()
+
+export async function followWaits() {
+  for (const agent of agents.list) {
+    const wait = agent.pullWait
+    if (!wait || polling.has(agent.id) || (agent.status === 'working' && !agent.held) || agent.asks.length || Date.now() - (wait.polled ?? 0) < POLL) continue
+    polling.add(agent.id)
+    wait.polled = Date.now()
+    try {
+      const dir = workdir(agent)
+      const pull = await invoke<Pull>('numbered_pull', { dir, number: wait.number })
+      const runs = wait.until === 'checks' && pull.checks === 'failing' ? await invoke<Run[]>('pipeline_runs', { dir, repository: '' }).catch(() => []) : []
+      const text = pullOutcome(wait, pull, Date.now(), runs)
+      if (text && agent.pullWait === wait) {
+        agent.pullWait = undefined
+        persist(agent)
+        send(agent.id, text, [], [], '', 'Squadron followed this pull request for you.')
+      }
+    } catch {
+    } finally {
+      polling.delete(agent.id)
+    }
+  }
+}
+
+export function stopWait(agent: Agent) {
+  agent.pullWait = undefined
+  persist(agent)
+}
+
+export async function enableTools(agent: Agent, names: string[], later: boolean) {
+  if (!names.length) return
+  agent.enabledTools = [...new Set([...(agent.enabledTools ?? []), ...names])]
+  if (later) agent.toolsPending = [...new Set([...(agent.toolsPending ?? []), ...names])]
+  persist(agent)
+  await invoke('set_agent_tools', { id: agent.id, tools: agent.enabledTools })
+}
+
+function toolsArrived(agent: Agent) {
+  const names = agent.toolsPending ?? []
+  agent.toolsPending = undefined
+  persist(agent)
+  if (agent.status === 'done' && names.length)
+    send(agent.id, `${names.join(', ')} ${names.length > 1 ? 'are' : 'is'} available now, continue.`, [], [], '', 'Squadron restarted your session to load them.')
 }
 
 export async function readNow(id: string) {
@@ -990,9 +1043,9 @@ export function mcpAct(id: string, server: Server) {
 
 export async function useServer(agent: Agent, name: string, on: boolean) {
   const names = [...new Set([...(agent.onDemand ?? []).filter((n) => n !== name), ...(on ? [name] : [])])]
+  await invoke('set_agent_servers', { id: agent.id, names })
   agent.onDemand = names.length ? names : undefined
   persist(agent)
-  await invoke('set_agent_servers', { id: agent.id, names })
 }
 
 export function mcpToggle(id: string, server: string, enabled: boolean) {
@@ -1107,6 +1160,7 @@ export async function fork(id: string, upTo?: number) {
     else await invoke('restore_agent', { id: agent.id, project: agent.project, options: agent.options, sessionId: null, fork: false, at: null, dir: null })
     if (agent.worktree) await invoke('set_workdir', { id: agent.id, dir: agent.worktree.path })
     if (agent.onDemand?.length) await invoke('set_agent_servers', { id: agent.id, names: agent.onDemand })
+    if (agent.enabledTools?.length) await invoke('set_agent_tools', { id: agent.id, tools: agent.enabledTools })
   } catch (e) {
     fail(agent, String(e))
   }
