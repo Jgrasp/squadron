@@ -8,7 +8,7 @@
   import Icon from './Icon.svelte'
   import { ui } from './actions.svelte'
   import { locale, t } from './i18n/index.svelte'
-  import { OFFICIAL, shownOf, type CatalogEntry, type Extension, type Source } from './extensions'
+  import { OFFICIAL, ownerOf, shownOf, type CatalogEntry, type Extension, type Source } from './extensions'
   import { addSource, asks, brokenAccounts, catalog, extensions, install, loadCatalog, removeSource } from './extensions.svelte'
   import { attempt, brand, fromOf, named, nameOf, originOf, pendingOf, problemOf, rankOf, updateOf, work } from './extension-pages.svelte'
 
@@ -16,7 +16,7 @@
 
   let query = $state('')
   let filter = $state('')
-  let dialog = $state<'sources' | 'local' | null>(null)
+  let dialog = $state<'sources' | 'local' | 'repo' | null>(null)
   let chosen = $state<CatalogEntry | null>(null)
   let source = $state('')
 
@@ -39,6 +39,15 @@
   async function addFrom(event: SubmitEvent) {
     event.preventDefault()
     if (await attempt(() => addSource(source.trim()), 'source')) source = ''
+  }
+
+  async function addRepo(event: SubmitEvent) {
+    event.preventDefault()
+    let added = ''
+    if (!(await attempt(async () => (added = await addSource(source.trim())), 'source'))) return
+    source = ''
+    dialog = null
+    filter = added
   }
 
   async function link() {
@@ -66,6 +75,7 @@
       <input placeholder={t('extensions.searchCatalog')} aria-label={t('extensions.searchLabel')} spellcheck="false" autocomplete="off" bind:value={query} />
     </label>
     <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'local'))}><Icon name="folder" />{t('extensions.localExtension')}</button>
+    <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'repo'))}><Icon name="branch" />{t('extensions.fromRepo')}</button>
     <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'sources'))}><Icon name="plus" />{t('extensions.marketplaces')}</button>
   </div>
   <div class="chips" role="group" aria-label={t('extensions.filters')}>
@@ -93,7 +103,7 @@
           <span class="l1">
             <strong>{item.name}</strong>
             <span class="version">{e.manifest?.version ?? ''}{#if update}{' → '}<b>{update.version}</b>{/if}</span>
-            <span class="pill {fromOf(e)}">{fromOf(e) === 'official' ? `✓ ${t('extensions.official')}` : fromOf(e) === 'imported' ? `⇄ ${t('extensions.imported', { owner: (item.source ?? '').split('/')[0] })}` : `▣ ${t('extensions.local')}`}</span>
+            <span class="pill {fromOf(e)}">{fromOf(e) === 'official' ? `✓ ${t('extensions.official')}` : fromOf(e) === 'imported' ? `⇄ ${t('extensions.imported', { owner: ownerOf(item.source ?? '') })}` : `▣ ${t('extensions.local')}`}</span>
             {#if pendingOf(e).length}<span class="pill pending">{t('extensions.toAllow')}</span>{:else if problem}<span class="pill error" title={problem}>⚠ {t('extensions.error')}</span>{:else if brokenAccounts(e)}<span class="pill error" title={t('extensions.accountBroken')}>{t('extensions.accountProblem')}</span>{/if}
           </span>
           <small>{named(e.manifest?.description)}</small>
@@ -120,7 +130,7 @@
             <strong>{item.name}</strong>
             <span class="version">{c.version}</span>
             <span class="pill" class:official={c.official} class:imported={!c.official} title={c.official ? null : t('extensions.importedTitle', { source: c.source })}>
-              {c.official ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: c.source.split('/')[0] })}`}
+              {c.official ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: ownerOf(c.source) })}`}
             </span>
           </span>
           <small>{named(c.description)}</small>
@@ -165,6 +175,23 @@
     </div>
     <footer>
       <button class="btn btn-secondary" onclick={close}>{t('common.close')}</button>
+    </footer>
+  </Dialog>
+{/if}
+
+{#if dialog === 'repo'}
+  <Dialog title={t('extensions.addRepo')} width={520} onclose={close}>
+    <div class="box">
+      <p class="sub">{t('extensions.addRepoSub')}</p>
+      <form class="add" onsubmit={addRepo}>
+        <input class="field mono" placeholder={t('extensions.sourcePlaceholder')} aria-label={t('extensions.sourcePlaceholder')} spellcheck="false" autocomplete="off" bind:value={source} />
+        <button class="btn btn-primary" disabled={!source.trim() || !!work.busy}>{work.busy === 'source' ? t('common.checking') : t('common.add')}</button>
+      </form>
+      <p class="hint">{t('extensions.addRepoHelp')}</p>
+      {#if work.error}<p class="bad" role="alert">{work.error}</p>{/if}
+    </div>
+    <footer>
+      <button class="btn btn-secondary" onclick={close}>{t('common.cancel')}</button>
     </footer>
   </Dialog>
 {/if}

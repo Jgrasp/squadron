@@ -244,7 +244,12 @@ export const brokenAccounts = (e: Extension) =>
 
 export const removeAccount = (extension: string, account: string) => invoke('extensions_account_remove', { id: extension, account }).then(loadExtensions)
 
-export const addSource = (source: string) => invoke('extensions_source_add', { source }).then(loadExtensions).then(loadCatalog)
+export const addSource = async (source: string) => {
+  const added = await invoke<string>('extensions_source_add', { source })
+  await loadExtensions()
+  await loadCatalog()
+  return added
+}
 
 export const removeSource = (source: string) => invoke('extensions_source_remove', { source }).then(loadExtensions).then(loadCatalog)
 

@@ -2003,11 +2003,10 @@ async fn extensions_catalog(app: AppHandle) -> Result<Vec<serde_json::Value>, St
 }
 
 #[tauri::command]
-async fn extensions_source_add(app: AppHandle, source: String) -> Result<(), String> {
+async fn extensions_source_add(app: AppHandle, source: String) -> Result<String, String> {
+    let source = extensions::canonical(&source);
     if !extensions::valid_source(&source) {
-        return Err(format!(
-            "{source} is not a GitHub repository like owner/repo."
-        ));
+        return Err(extensions::not_a_source(&source));
     }
     extensions::fetch_index(&source)
         .await
@@ -2034,7 +2033,7 @@ async fn extensions_install(
     if !app.state::<extensions::Extensions>().known_source(&source) {
         return Err(format!("{source} is not one of your extension sources."));
     }
-    let bytes = extensions::fetch_archive(&source, &archive).await?;
+    let bytes = extensions::fetch_archive(&source, &id, &archive).await?;
     tauri::async_runtime::spawn_blocking(move || {
         app.state::<extensions::Extensions>()
             .install(&source, &id, &bytes, &sha256)
