@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.64.0 · 2026-11-25
+
+### Extensions
+- An extension can hand a program it runs its account secrets on the standard input, never in its arguments or environment, once you allow it: the approval says which program receives secrets. Fields of an account tied to a site never go to a program.
+- An extension can keep the tokens a service sends back, such as a Google refresh token, in the system keyring as a field of one of its accounts: it never sees them again, and the account form shows them as received or not yet.
+- Secrets also fill form-encoded request bodies, and are hidden from the answer.
+- An extension can open its account form over Squadron, prefilled, to add or change an account.
+
 ## 0.63.0 · 2026-11-25
 
 ### Getting started

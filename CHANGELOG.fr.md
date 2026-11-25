@@ -1,5 +1,13 @@
 # Nouveautés
 
+## 0.64.0 · 2026-11-25
+
+### Extensions
+- Une extension peut passer les secrets de ses comptes à un programme qu’elle lance, sur son entrée standard, jamais dans ses arguments ni son environnement, une fois que vous l’avez autorisée : la demande d’autorisation indique quel programme reçoit des secrets. Les champs d’un compte lié à un site ne vont jamais à un programme.
+- Une extension peut garder les jetons qu’un service lui renvoie, comme un jeton de renouvellement Google, dans le trousseau du système comme champ d’un de ses comptes : elle ne les revoit plus, et le formulaire du compte les indique reçus ou pas encore.
+- Les secrets remplissent aussi les corps de requête encodés comme un formulaire, et sont masqués dans la réponse.
+- Une extension peut ouvrir son formulaire de compte par-dessus Squadron, prérempli, pour ajouter ou modifier un compte.
+
 ## 0.63.0 · 2026-11-25
 
 ### Prise en main
