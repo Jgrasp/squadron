@@ -150,6 +150,12 @@ describe('extensions', () => {
     expect(grantsOf(waiting)).toEqual([])
     expect(toolsOf([waiting]).map((t) => [t.name, t.tool])).toEqual([['hello_changed_files', 'changed_files']])
     expect(grantsOf(load(found, [], { hello: ['exec:git'] })[0])).toEqual(['exec:git'])
+    const db = { ...hello, permissions: { exec: ['git', { program: 'java', secrets: true }, { program: 'psql' }] } }
+    expect(keys(db)).toEqual([])
+    for (const exec of [[{ program: '/bin/java', secrets: true }], [{ secrets: true }], [{ program: 'java', secrets: 'yes' }]]) expect(keys({ ...hello, permissions: { exec } })).toEqual(['extensions.badExec'])
+    const asking = load([{ dir: '/m/hello', linked: false, manifest: db, error: null }], [], { hello: ['exec:git', 'exec:java'] })[0]
+    expect(asking.pending).toEqual(['exec-secrets:java', 'exec:psql'])
+    expect(grantsOf(load([{ dir: '/m/hello', linked: false, manifest: db, error: null }], [], { hello: ['exec:git', 'exec:java', 'exec-secrets:java', 'exec:psql'] })[0])).toEqual(['exec:git', 'exec:java', 'exec-secrets:java', 'exec:psql'])
   })
 
   it('passes the Claude Code options the user allowed', () => {
@@ -296,6 +302,7 @@ describe('extensions', () => {
     expect(keys({ ...base, wasm: 'jira.wasm', contributes: { accounts: { label: { en: 'Sites' }, check: true, fields: [field('site', 'host')] } } })).toEqual([])
     expect(with_({ label: { en: 'Sites' }, check: true, fields: [field('site', 'host')] })).toEqual(['extensions.checkNeedsWasm'])
     expect(with_({ label: { en: 'Sites' }, check: false, fields: [field('site', 'host')] })).toEqual([])
+    expect(with_({ label: { en: 'Calendars' }, fields: [field('email'), field('refresh-token', 'captured')] })).toEqual([])
     for (const bad of [
       { fields: [field('site', 'host')] },
       { label: { en: 'Sites' }, fields: [] },

@@ -23,6 +23,7 @@ struct Agent {
     dir: Option<PathBuf>,
     stale: bool,
     servers: Vec<String>,
+    tools: Vec<String>,
 }
 
 pub static REVIEWS: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
@@ -135,6 +136,7 @@ impl Agents {
                 dir: None,
                 stale: false,
                 servers: Vec::new(),
+                tools: Vec::new(),
             });
         Ok(())
     }
@@ -172,10 +174,27 @@ impl Agents {
         &self,
         id: &str,
         names: Vec<String>,
-        configs: serde_json::Map<String, serde_json::Value>,
+        on_demand: &crate::ondemand::OnDemand,
     ) -> Result<(), String> {
+        let configs = on_demand.configs(&names);
         let mut list = self.list.lock().unwrap();
         let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        let dir = agent
+            .dir
+            .clone()
+            .filter(|d| d.is_dir())
+            .unwrap_or_else(|| agent.project.clone());
+        let added: Vec<String> = names
+            .iter()
+            .filter(|n| !agent.servers.contains(n))
+            .cloned()
+            .collect();
+        let alive = agent.session.as_ref().is_some_and(Session::alive);
+        let toggles = if alive && !reviews_branch(&dir) {
+            on_demand.connector_toggles(&dir, &names, &added)?
+        } else {
+            Vec::new()
+        };
         agent.servers = names;
         if let Some(session) = agent.session.as_mut().filter(|s| s.alive()) {
             session
@@ -184,6 +203,32 @@ impl Agents {
                     serde_json::json!({"subtype": "mcp_set_servers", "servers": configs}),
                 )
                 .map_err(|e| e.to_string())?;
+            for (name, on) in toggles {
+                session
+                    .control(
+                        serde_json::json!({"subtype": "mcp_toggle", "serverName": name, "enabled": on}),
+                    )
+                    .map_err(|e| e.to_string())?;
+            }
+        }
+        Ok(())
+    }
+
+    /// Keeps the built-in tools an agent turned on; a running session takes them at its next message, through a restart with `--resume`.
+    pub fn set_tools(&self, id: &str, mut tools: Vec<String>) -> Result<(), String> {
+        if let Some(bad) = tools
+            .iter()
+            .find(|t| !claude::OPTIONAL_TOOLS.contains(&t.as_str()))
+        {
+            return Err(format!("Unknown tool: {bad}"));
+        }
+        tools.sort();
+        tools.dedup();
+        let mut list = self.list.lock().unwrap();
+        let agent = list.get_mut(id).ok_or("Unknown agent.")?;
+        if agent.tools != tools {
+            agent.stale |= agent.session.as_ref().is_some_and(Session::alive);
+            agent.tools = tools;
         }
         Ok(())
     }
@@ -500,8 +545,19 @@ fn spawn(
         agent.at.as_deref(),
         agents.mcp(id).as_deref(),
     );
+    let workdir = dir.to_path_buf();
     if reviews_branch(dir) {
         cmd.args(["--setting-sources", "user", "--strict-mcp-config"]);
+    }
+    let off: Vec<&str> = claude::OPTIONAL_TOOLS
+        .into_iter()
+        .filter(|t| !agent.tools.iter().any(|on| on == t))
+        .collect();
+    if !off.contains(&"Artifact") {
+        cmd.env("CLAUDE_CODE_ARTIFACT", "1");
+    }
+    if !off.is_empty() {
+        cmd.arg("--disallowedTools").arg(off.join(","));
     }
     crate::askpass::env(&mut cmd, id);
     if let Some(dir) = crate::artifacts::ROOT
@@ -582,6 +638,17 @@ fn spawn(
     })?;
     let mut session = session;
     let _ = session.control(serde_json::json!({"subtype": "initialize"}));
+    if !reviews_branch(&workdir) {
+        let toggles = app
+            .state::<crate::ondemand::OnDemand>()
+            .connector_toggles(&workdir, &agent.servers, &[])
+            .unwrap_or_default();
+        for (name, on) in toggles {
+            let _ = session.control(
+                serde_json::json!({"subtype": "mcp_toggle", "serverName": name, "enabled": on}),
+            );
+        }
+    }
     if !agent.servers.is_empty() {
         let configs = app
             .state::<crate::ondemand::OnDemand>()
@@ -617,6 +684,32 @@ mod tests {
             );
         }
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn keeps_only_the_optional_tools_an_agent_turned_on() {
+        let agents = Agents::default();
+        let options = Options {
+            model: "haiku".into(),
+            effort: "low".into(),
+            mode: "default".into(),
+            agent: None,
+            advisor: None,
+        };
+        agents
+            .register("a1", PathBuf::from("/tmp"), options, None, false)
+            .unwrap();
+        assert!(agents.set_tools("a1", vec!["Bash".into()]).is_err());
+        assert!(agents.set_tools("nobody", vec![]).is_err());
+        agents
+            .set_tools(
+                "a1",
+                vec!["Workflow".into(), "Artifact".into(), "Workflow".into()],
+            )
+            .unwrap();
+        let list = agents.list.lock().unwrap();
+        assert_eq!(list["a1"].tools, ["Artifact", "Workflow"]);
+        assert!(!list["a1"].stale);
     }
 
     #[test]

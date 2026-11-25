@@ -3,6 +3,8 @@ import type { Catalog } from '../index.svelte'
 export default {
   tab: 'Serveurs MCP',
   intro: "Serveurs de la configuration utilisateur de Claude Code. À la demande, un serveur ne démarre dans aucune session : un agent le démarre pour lui seul avec /mcp, ou de lui-même quand sa tâche en a besoin.",
+  connectors:
+    "Les connecteurs claude.ai à la demande sont éteints avec l’interrupteur de Claude Code lui-même, dans chaque dossier où un agent démarre : ils y restent éteints dans un terminal aussi, /mcp les rallume. Squadron ne touche jamais à un connecteur que vous avez éteint vous-même et rallume ceux qu’il a éteints quand vous les repassez sur Chaque session, au prochain démarrage d’un agent dans ce dossier.",
   onDemand: 'À la demande',
   everywhere: 'Chaque session',
   description: 'À quoi il sert, pour que les agents sachent quand le démarrer',

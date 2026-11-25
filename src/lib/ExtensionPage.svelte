@@ -12,7 +12,7 @@
   import { keepLabel } from './cleanup.svelte'
   import { errorText, t } from './i18n/index.svelte'
   import type { Account, Extension, ExtensionOption, OptionValue, Text } from './extensions'
-  import { approve, checkAccount, checkAccounts, checks, checksAccounts, commandLine, extensions, install, keepCheck, removeAccount, saveAccount, setOption, testAccount, uninstall, type AccountCheck } from './extensions.svelte'
+  import { accountForms, answerAccountForm, approve, checkAccount, checkAccounts, checks, checksAccounts, commandLine, extensions, install, keepCheck, removeAccount, saveAccount, setOption, testAccount, uninstall, type AccountCheck } from './extensions.svelte'
   import { ago } from './format'
   import { attempt, fromOf, named, nameOf, originOf, pendingOf, problemOf, updateOf, work } from './extension-pages.svelte'
   import { home } from './projects.svelte'
@@ -35,7 +35,7 @@
   let about = $state(false)
   let saved = $state<string[]>([])
   let typed = $state<Record<string, string>>({})
-  let draft = $state<{ account: string | null; values: Record<string, string>; result: AccountCheck | null; testing: boolean; round: number } | null>(null)
+  let draft = $state<{ account: string | null; values: Record<string, string>; result: AccountCheck | null; testing: boolean; round: number; form?: string } | null>(null)
   let now = $state(Date.now())
   let copied = $state('')
 
@@ -57,6 +57,16 @@
     untrack(() => {
       if (e) checkAccounts(e)
     })
+  })
+
+  $effect(() => {
+    const asked = accountForms[id]
+    if (asked && untrack(() => draft?.form) !== asked.form) untrack(() => openDraft(asked.account, { ...(asked.account ? extensions.accounts[id]?.find((a) => a.id === asked.account)?.values : {}), ...asked.values }, asked.form))
+  })
+
+  $effect(() => {
+    const [form, mine] = [draft?.form, id]
+    return () => form && answerAccountForm(mine, form, { error: 'The form was closed without saving.' })
   })
 
   $effect(() => {
@@ -85,15 +95,15 @@
   }
 
   const fields = $derived(contributes?.accounts?.fields ?? [])
-  const shownValues = (a: Account) => fields.filter((f) => f.kind !== 'secret').map((f) => a.values[f.id]).filter(Boolean)
+  const shownValues = (a: Account) => fields.filter((f) => f.kind !== 'secret' && f.kind !== 'captured').map((f) => a.values[f.id]).filter(Boolean)
   const kept = $derived(draft?.account ? (extensions.accounts[id]?.find((a) => a.id === draft!.account)?.secrets ?? []) : [])
-  const complete = $derived(!!draft && fields.every((f) => draft!.values[f.id]?.trim() || kept.includes(f.id)))
+  const complete = $derived(!!draft && fields.every((f) => f.kind === 'captured' || draft!.values[f.id]?.trim() || kept.includes(f.id)))
   const tests = $derived(!!e && checksAccounts(e))
   const hostField = $derived(fields.find((f) => f.kind === 'host'))
   const said = (value: AccountCheck['title']) => (typeof value === 'string' ? value : named(value ?? undefined))
   const titleOf = (check: AccountCheck) => said(check.title) || t(check.ok ? 'extensions.accountOk' : 'extensions.accountFailed')
 
-  const openDraft = (account: string | null, values: Record<string, string>) => (draft = { account, values, result: null, testing: false, round: 0 })
+  const openDraft = (account: string | null, values: Record<string, string>, form?: string) => (draft = { account, values, result: null, testing: false, round: 0, form })
 
   function edited() {
     if (!draft) return
@@ -118,10 +128,11 @@
     event.preventDefault()
     if (!draft) return
     if (tests && !draft.result?.ok) return test()
-    const { account, values, result } = $state.snapshot(draft)
+    const { account, values, result, form } = $state.snapshot(draft)
     let saved = ''
     if (!(await attempt(async () => (saved = await saveAccount(id, account, values))))) return
     if (result?.ok && saved) keepCheck(id, saved, result)
+    if (form && saved) answerAccountForm(id, form, { account: saved })
     draft = null
   }
 
@@ -240,6 +251,13 @@
         <form class="edit" onsubmit={keepAccount}>
           {#each fields as f (f.id)}
             {@const label = named(f.label)}
+            {#if f.kind === 'captured'}
+              <div class="cell full captured">
+                <span>{label}</span>
+                <span class="status" class:ok={kept.includes(f.id)}>{#if kept.includes(f.id)}<Icon name="ok" size={14} />{t('extensions.accountCaptured')}{:else}{t('extensions.accountNotCaptured')}{/if}</span>
+                {#if f.hint}<small>{named(f.hint)}</small>{/if}
+              </div>
+            {:else}
             <div class="cell" class:full={f.kind === 'secret'}>
               <label>
                 {label}
@@ -258,6 +276,7 @@
               </label>
               {#if f.url}{@render steps(f.id, f.hint, f.copy)}{:else if f.copy}{@render copies(f.id, f.copy)}{/if}
             </div>
+            {/if}
           {/each}
           {#if draft?.testing}
             {@const host = hostField ? draft.values[hostField.id]?.trim().replace(/^https?:\/\//i, '').split('/')[0] : ''}
@@ -894,6 +913,25 @@
   .copy:hover {
     background: var(--surface-5);
     color: var(--text-strong);
+  }
+
+  .captured {
+    gap: 4px;
+    color: var(--text-dim);
+    font-size: 12px;
+  }
+
+  .captured .status {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    min-height: 32px;
+    color: var(--text-faint);
+    font-size: 12.5px;
+  }
+
+  .captured .status.ok {
+    color: var(--ok-text);
   }
 
   .edit .field {

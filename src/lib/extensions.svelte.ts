@@ -12,7 +12,7 @@ import { ask, message } from './asking.svelte'
 import { notify } from './notify.svelte'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { active, AGENTS, argsOf, PROJECTS, USAGE, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
+import { active, AGENTS, EXEC_SECRETS, execOf, argsOf, PROJECTS, USAGE, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { waitingKind } from './activity'
@@ -42,7 +42,9 @@ const stateOf = (agent: Agent) => ({
 })
 
 export const commandLine = (key: string) =>
-  key.startsWith(EXEC)
+  key.startsWith(EXEC_SECRETS)
+    ? t('extensions.execSecrets', { program: key.slice(EXEC_SECRETS.length) })
+    : key.startsWith(EXEC)
     ? t('extensions.anyArgs', { program: key.slice(EXEC.length) })
     : key.startsWith(NET)
       ? t('extensions.network', { host: key.slice(NET.length) })
@@ -260,7 +262,7 @@ export async function uninstall(extension: Extension) {
 }
 
 export const asks = (entry: CatalogEntry) => [
-  ...(entry.permissions?.exec ?? []).map((p) => commandLine(EXEC + p)),
+  ...execOf(entry.permissions?.exec).map(commandLine),
   ...(entry.permissions?.network ?? []).map((h) => commandLine(NET + h)),
   ...(entry.permissions?.agents ?? []).map((a) => commandLine(AGENTS + a)),
   ...(entry.permissions?.projects ?? []).map((a) => commandLine(PROJECTS + a)),
@@ -311,6 +313,23 @@ export async function allowed(id: string) {
 
 export const approve = (extension: Extension) => invoke('extensions_approve', { id: extension.id, commands: extension.commands }).then(loadExtensions)
 
+export const accountForms = $state<Record<string, { form: string; account: string | null; values: Record<string, string> }>>({})
+const waitingForms: Record<string, string> = {}
+
+export function answerAccountForm(id: string, form: string, reply: { account: string } | { error: string }) {
+  if (waitingForms[id] !== form) return
+  delete waitingForms[id]
+  delete accountForms[id]
+  invoke('extensions_wasm_event', { id, name: 'account.form', agent: null, data: JSON.stringify({ form, ...reply }) }).catch(() => {})
+}
+
+function openAccountForm(id: string, form: string, account: string | null, values: Record<string, string>) {
+  if (waitingForms[id]) answerAccountForm(id, waitingForms[id], { error: 'Another form of this extension replaced it.' })
+  waitingForms[id] = form
+  accountForms[id] = { form, account, values }
+  ui.settings = `ext:${id}`
+}
+
 listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-host', async ({ payload: p }) => {
   if (p.call === 'error') extensions.errors[p.extension] = String(p.error)
   if (p.call === 'panel-post') for (const post of posts) post({ extension: p.extension, panel: String(p.panel), message: String(p.message) })
@@ -322,6 +341,7 @@ listen<{ extension: string; call: string; [key: string]: unknown }>('extensions-
   if ((p.call === 'agents' || p.call === 'archive-agent') && getCurrentWindow().label === 'main') answerHost(String(p.reply), p.call, String(p.agent))
   if (p.call === 'insert-prompt' && String(p.agent) !== shownAgent()) console.warn(`${p.extension}: insert-prompt only reaches the agent on screen`)
   if (p.call === 'insert-prompt' && find(String(p.agent)) && String(p.agent) === shownAgent()) pointed[String(p.agent)] = [...(pointed[String(p.agent)] ?? []), String(p.text)]
+  if (p.call === 'open-account' && getCurrentWindow().label === 'main') openAccountForm(p.extension, String(p.form), (p.account as string | null) ?? null, (p.values as Record<string, string>) ?? {})
   if (p.call === 'open-new-agent' && getCurrentWindow().label === 'main') openDraft(p.extension, String(p.draft), String(p.agent), String(p.fields))
   if (p.call === 'update-new-agent' && drafts.open?.id === p.draft) drafts.open?.updates.push(parseDraft(String(p.fields)))
   if (p.call === 'set-agent-chips' && getCurrentWindow().label === 'main') setChips(p.extension, String(p.agent), String(p.chips))

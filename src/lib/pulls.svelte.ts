@@ -356,6 +356,7 @@ async function lookUpOwned(agent: Agent, force = false) {
 export const pullOf = (agent: Agent) => owned[agent.id] ?? pulls[workdir(agent)] ?? null
 
 export function pullWait(agent: Agent) {
+  if (agent.pullWait) return { pull: { number: agent.pullWait.number, url: agent.pullWait.url ?? '' }, merge: agent.pullWait.until === 'merged' }
   const pull = pullOf(agent)
   if (!agent.held || pull?.state !== 'open' || !agent.background.length || agent.subagents.some((s) => s.status === 'running')) return null
   const commands = agent.background.map((b) => String(calls(agent).find((c) => c.id === b.toolUseId)?.input?.command ?? ''))
@@ -388,7 +389,7 @@ export const lookUpAll = (force = false) => {
 let following = new Set<string>()
 
 export function followPullWaits() {
-  const waiting = new Set(agents.list.filter((agent) => pullWait(agent)).map((agent) => agent.id))
+  const waiting = new Set(agents.list.filter((agent) => !agent.pullWait && pullWait(agent)).map((agent) => agent.id))
   agents.list.filter((agent) => waiting.has(agent.id) || following.has(agent.id)).forEach((agent) => lookUpAgent(agent, true))
   following = waiting
 }

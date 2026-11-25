@@ -16,6 +16,7 @@ use wasmtime_wasi::{WasiCtx, WasiCtxView, WasiView};
 wasmtime::component::bindgen!({ path: "../extensions/api/wit", world: "squadron-core" });
 
 use crate::extensions::Account as Stored;
+use crate::extensions::Kind;
 use squadron::api::types::{
     Account, AgentActivity, AgentState, BytesResponse, ClaudeUsage, Group, Output, Project,
     Request, Response, SavedFile, UsageWindow,
@@ -54,11 +55,17 @@ type AccountsOf = Arc<dyn Fn(&str) -> Vec<Stored> + Send + Sync>;
 
 type OptionsOf = Arc<dyn Fn(&str) -> Value + Send + Sync>;
 
+type KindsOf = Arc<dyn Fn(&str) -> Vec<(String, Kind)> + Send + Sync>;
+
+type Keep = Arc<dyn Fn(&str, &str, &[(String, String)]) -> Result<(), String> + Send + Sync>;
+
 #[derive(Clone)]
 pub struct Hooks {
     pub claude: Arc<dyn Fn() -> String + Send + Sync>,
     pub accounts: AccountsOf,
     pub options: OptionsOf,
+    pub kinds: KindsOf,
+    pub keep: Keep,
 }
 
 impl Default for Hooks {
@@ -67,6 +74,8 @@ impl Default for Hooks {
             claude: Arc::new(|| "claude".into()),
             accounts: Arc::new(|_| Vec::new()),
             options: Arc::new(|_| json!({})),
+            kinds: Arc::new(|_| Vec::new()),
+            keep: Arc::new(|_, _, _| Err("No keyring.".into())),
         }
     }
 }
@@ -429,6 +438,11 @@ impl Host {
                 "{program} is not allowed. List it in permissions.exec; the user then allows it."
             ));
         }
+        let mut used = Vec::new();
+        let input = match input {
+            Some(input) if input.contains("{{") => Some(self.piped(&program, input, &mut used)?),
+            input => input,
+        };
         let program = if program == "claude" {
             (self.hooks.claude)()
         } else {
@@ -445,9 +459,43 @@ impl Host {
         let out = extension_tools::capture_input(cmd, input.map(String::into_bytes), MAX_BODY)?;
         Ok(Output {
             code: out.status.and_then(|s| s.code()).unwrap_or(-1),
-            stdout: out.stdout,
-            stderr: out.stderr,
+            stdout: scrub(out.stdout, &used),
+            stderr: scrub(out.stderr, &used),
         })
+    }
+
+    fn piped(
+        &self,
+        program: &str,
+        input: String,
+        used: &mut Vec<String>,
+    ) -> Result<String, String> {
+        let accounts = with_trial((self.hooks.accounts)(&self.id), self.trial.as_ref());
+        let secret = self.secret();
+        let resolve = |name: &str| {
+            if let Some((account, _)) = name.split_once('.')
+                && let Some(bound) = accounts
+                    .iter()
+                    .find(|a| a.id == account)
+                    .and_then(|a| a.host.as_deref())
+            {
+                return Err(format!(
+                    "The fields of the account {account} only go to {bound}, never to a program."
+                ));
+            }
+            lookup(name, "", &accounts, &secret)
+        };
+        if self.allowed.contains(&format!("exec-secrets:{program}")) {
+            return fill(&input, &resolve, used);
+        }
+        let refuse = |name: &str| match resolve(name) {
+            Ok(_) => Err(format!(
+                "{program} does not receive secrets. List it as {{ \"program\": \"{program}\", \"secrets\": true }} in permissions.exec; the user then allows it."
+            )),
+            Err(_) => Ok((String::new(), false)),
+        };
+        fill(&input, &refuse, &mut Vec::new())?;
+        Ok(input)
     }
 
     fn send(&self, request: Request, max: usize, timeout: Duration) -> Result<Sent, String> {
@@ -455,20 +503,93 @@ impl Host {
     }
 
     fn sender(&self) -> impl Fn(Request, usize, Duration) -> Result<Sent, String> + Sync + '_ {
-        let (id, allowed, trial) = (&self.id, &self.allowed, self.trial.as_ref());
-        let accounts = with_trial((self.hooks.accounts)(id), trial);
-        move |request, max, timeout| {
-            send(allowed, &accounts, request, max, timeout, |key| {
-                if let Some(value) = trial.and_then(|t| t.secret(key)) {
-                    return Ok(Some(value));
-                }
-                let key = match key.split_once('.') {
-                    Some((account, field)) => account_key(id, account, field)?,
-                    None => secret_key(id, key)?,
-                };
-                crate::forge::read_secret(&key)
-            })
+        let accounts = with_trial((self.hooks.accounts)(&self.id), self.trial.as_ref());
+        let (allowed, secret) = (&self.allowed, self.secret());
+        move |request, max, timeout| send(allowed, &accounts, request, max, timeout, &secret)
+    }
+
+    fn secret(&self) -> impl Fn(&str) -> Result<Option<String>, String> + Sync + '_ {
+        let (id, trial) = (&self.id, self.trial.as_ref());
+        move |key: &str| {
+            if let Some(value) = trial.and_then(|t| t.secret(key)) {
+                return Ok(Some(value));
+            }
+            let key = match key.split_once('.') {
+                Some((account, field)) => account_key(id, account, field)?,
+                None => secret_key(id, key)?,
+            };
+            crate::forge::read_secret(&key)
         }
+    }
+
+    fn capture(
+        &self,
+        request: Request,
+        account: &str,
+        fields: Vec<(String, String)>,
+    ) -> Result<Response, String> {
+        let kinds = (self.hooks.kinds)(&self.id);
+        for (_, field) in &fields {
+            if !kinds
+                .iter()
+                .any(|(id, k)| id == field && *k == Kind::Captured)
+            {
+                return Err(format!(
+                    "{field} is not a field of kind captured in contributes.accounts."
+                ));
+            }
+        }
+        let stored = (self.hooks.accounts)(&self.id);
+        let found = stored
+            .iter()
+            .find(|a| a.id == account)
+            .ok_or_else(|| format!("The account {account} no longer exists."))?;
+        if let Some(bound) = found.host.as_deref() {
+            let host = reqwest::Url::parse(&request.url)
+                .ok()
+                .and_then(|u| u.host_str().map(str::to_string));
+            if host.as_deref() != Some(bound) {
+                return Err(format!("The account {account} only captures from {bound}."));
+            }
+        }
+        let mut sent = self.send(request, MAX_BODY, FETCH)?;
+        let kept = take(&mut sent, fields);
+        if !kept.is_empty() {
+            (self.hooks.keep)(&self.id, account, &kept)?;
+        }
+        Ok(response(sent))
+    }
+
+    fn account_form(&self, account: Option<String>, values: String) -> Result<String, String> {
+        let kinds = (self.hooks.kinds)(&self.id);
+        if kinds.is_empty() {
+            return Err("This extension has no accounts.".into());
+        }
+        if let Some(account) = &account
+            && !(self.hooks.accounts)(&self.id)
+                .iter()
+                .any(|a| &a.id == account)
+        {
+            return Err(format!("The account {account} no longer exists."));
+        }
+        let values: BTreeMap<String, String> = serde_json::from_str(&values)
+            .map_err(|_| "values is not a JSON object of strings.".to_string())?;
+        for field in values.keys() {
+            if !kinds
+                .iter()
+                .any(|(id, k)| id == field && matches!(k, Kind::Text | Kind::Host))
+            {
+                return Err(format!(
+                    "{field} is not a text or host field of the accounts."
+                ));
+            }
+        }
+        let form = uuid::Uuid::new_v4().to_string();
+        self.tell(
+            "open-account",
+            json!({"form": form, "account": account, "values": values}),
+        );
+        Ok(form)
     }
 }
 
@@ -726,6 +847,19 @@ impl squadron::api::host::Host for Host {
         self.ask("show-agent", json!({"agent": agent})).map(|_| ())
     }
 
+    fn fetch_capture(
+        &mut self,
+        request: Request,
+        account: String,
+        fields: Vec<(String, String)>,
+    ) -> Result<Response, String> {
+        self.capture(request, &account, fields)
+    }
+
+    fn open_account(&mut self, account: Option<String>, values: String) -> Result<String, String> {
+        self.account_form(account, values)
+    }
+
     fn set_timer(&mut self, seconds: u32) {
         self.timer = Some(Instant::now() + Duration::from_secs(seconds.max(MIN_TIMER).into()));
     }
@@ -845,6 +979,15 @@ fn fill(
     resolve: &impl Fn(&str) -> Result<(String, bool), String>,
     used: &mut Vec<String>,
 ) -> Result<String, String> {
+    fill_with(value, resolve, used, str::to_string)
+}
+
+fn fill_with(
+    value: &str,
+    resolve: &impl Fn(&str) -> Result<(String, bool), String>,
+    used: &mut Vec<String>,
+    encode: impl Fn(&str) -> String,
+) -> Result<String, String> {
     let (mut out, mut rest) = (String::new(), value);
     while let Some(start) = rest.find("{{") {
         let Some(len) = rest[start + 2..].find("}}") else {
@@ -872,8 +1015,12 @@ fn fill(
             None => resolve(name)?,
         };
         out.push_str(&rest[..start]);
-        out.push_str(&found);
+        let shown = encode(&found);
+        out.push_str(&shown);
         if secret {
+            if shown != found {
+                used.push(shown);
+            }
             used.push(found);
         }
         rest = &rest[start + 4 + len..];
@@ -917,6 +1064,53 @@ fn why(e: reqwest::Error) -> String {
         source = cause.source();
     }
     text
+}
+
+fn take(sent: &mut Sent, fields: Vec<(String, String)>) -> Vec<(String, String)> {
+    if !(200..300).contains(&sent.status) {
+        return Vec::new();
+    }
+    let Ok(Value::Object(mut body)) = serde_json::from_slice::<Value>(&sent.body) else {
+        return Vec::new();
+    };
+    let mut kept = Vec::new();
+    for (key, field) in fields {
+        if let Some(Value::String(value)) = body.get_mut(&key)
+            && !value.is_empty()
+        {
+            let value = std::mem::replace(value, "[secret]".into());
+            sent.used.push(value.clone());
+            kept.push((field, value));
+        }
+    }
+    if !kept.is_empty() {
+        sent.body = serde_json::to_vec(&body).unwrap_or_default();
+        for (_, value) in &mut sent.headers {
+            *value = scrub(std::mem::take(value), &sent.used);
+        }
+    }
+    kept
+}
+
+fn form_body(
+    request: &Request,
+    resolve: &impl Fn(&str) -> Result<(String, bool), String>,
+    used: &mut Vec<String>,
+) -> Result<Option<String>, String> {
+    let form = request.headers.iter().any(|(name, value)| {
+        name.eq_ignore_ascii_case("content-type")
+            && value.split(';').next().is_some_and(|t| {
+                t.trim()
+                    .eq_ignore_ascii_case("application/x-www-form-urlencoded")
+            })
+    });
+    match &request.body {
+        Some(body) if form => fill_with(body, resolve, used, |v| {
+            form_urlencoded::byte_serialize(v.as_bytes()).collect()
+        })
+        .map(Some),
+        body => Ok(body.clone()),
+    }
 }
 
 fn response(sent: Sent) -> Response {
@@ -980,7 +1174,7 @@ fn send(
     request: Request,
     max: usize,
     timeout: Duration,
-    secret: impl Fn(&str) -> Result<Option<String>, String>,
+    secret: &impl Fn(&str) -> Result<Option<String>, String>,
 ) -> Result<Sent, String> {
     let hosts: Vec<String> = allowed
         .iter()
@@ -995,7 +1189,7 @@ fn send(
     let host = url.host_str().unwrap_or_default().to_string();
     let method = reqwest::Method::from_bytes(request.method.to_uppercase().as_bytes())
         .map_err(|_| format!("{} is not an HTTP method.", request.method))?;
-    let resolve = |name: &str| lookup(name, &host, accounts, &secret);
+    let resolve = |name: &str| lookup(name, &host, accounts, secret);
     let mut used = Vec::new();
     let mut headers = reqwest::header::HeaderMap::new();
     for (name, value) in &request.headers {
@@ -1020,8 +1214,9 @@ fn send(
         }))
         .build()
         .map_err(why)?;
+    let body = form_body(&request, &resolve, &mut used)?;
     let mut send = client.request(method, url).headers(headers);
-    if let Some(body) = request.body {
+    if let Some(body) = body {
         send = send.body(body);
     }
     tauri::async_runtime::block_on(async {
@@ -2477,7 +2672,7 @@ mod tests {
                 request("https://evil.com/"),
                 MAX_BODY,
                 FETCH,
-                none
+                &none
             )
             .err()
             .unwrap()
@@ -2491,7 +2686,7 @@ mod tests {
                 request("https://jira.acme.com.evil.com/"),
                 MAX_BODY,
                 FETCH,
-                none
+                &none
             )
             .err()
             .unwrap()
@@ -2808,6 +3003,263 @@ mod tests {
     }
 
     #[test]
+    fn hands_secrets_on_the_standard_input_only_to_a_declared_program() {
+        use squadron::api::host::Host as _;
+        let (mut host, _) = self::host(
+            &[
+                "exec:wc",
+                "exec-secrets:wc",
+                "exec:tee",
+                "exec-secrets:tee",
+                "exec:cat",
+            ],
+            |_, _| Ok(Value::Null),
+        );
+        host.trial = Some(Trial {
+            account: account("a1", None),
+            secrets: BTreeMap::from([("token".to_string(), "t0k-s3cr3t".to_string())]),
+        });
+        host.hooks.accounts = Arc::new(|_| vec![account("b2", Some("jira.acme.com"))]);
+        let run = |host: &mut Host, program: &str, args: &[&str], input: &str| {
+            host.exec_input(
+                program.into(),
+                args.iter().map(|a| a.to_string()).collect(),
+                None,
+                input.into(),
+            )
+        };
+
+        let out = run(&mut host, "wc", &["-c"], "{{a1.token}}").unwrap();
+        assert_eq!(out.stdout.trim(), "10");
+        let out = run(
+            &mut host,
+            "tee",
+            &["/dev/stderr"],
+            "{{a1.email}}:{{a1.token}}",
+        )
+        .unwrap();
+        assert_eq!(out.stdout, "me@acme.com:[secret]");
+        assert_eq!(out.stderr, "me@acme.com:[secret]");
+
+        for bound in ["{{b2.token}}", "{{b2.email}}"] {
+            assert!(
+                run(&mut host, "tee", &[], bound)
+                    .unwrap_err()
+                    .contains("never to a program")
+            );
+        }
+        for named in [
+            "{{a1.token}}",
+            "{{a1.email}}",
+            "{{base64:a1.email:a1.token}}",
+        ] {
+            assert!(
+                run(&mut host, "cat", &[], named)
+                    .unwrap_err()
+                    .contains("does not receive secrets")
+            );
+        }
+        let out = run(
+            &mut host,
+            "cat",
+            &[],
+            "{{Not A Name}} {{zz.token}} {{b2.token}}",
+        )
+        .unwrap();
+        assert_eq!(out.stdout, "{{Not A Name}} {{zz.token}} {{b2.token}}");
+    }
+
+    #[test]
+    fn fills_a_form_body_percent_encoded_and_leaves_other_bodies_alone() {
+        let keys = |key: &str| Ok((key == "a1.token").then(|| "a b&c=".to_string()));
+        let accounts = [account("a1", None)];
+        let resolve = |name: &str| lookup(name, "oauth2.googleapis.com", &accounts, &keys);
+        let request = |kind: &str| Request {
+            method: "POST".into(),
+            url: "https://oauth2.googleapis.com/token".into(),
+            headers: vec![("content-TYPE".into(), kind.into())],
+            body: Some("user={{a1.email}}&code={{a1.token}}".into()),
+        };
+        let mut used = vec![];
+        assert_eq!(
+            form_body(
+                &request("Application/x-www-form-urlencoded; charset=UTF-8"),
+                &resolve,
+                &mut used
+            )
+            .unwrap()
+            .unwrap(),
+            "user=me%40acme.com&code=a+b%26c%3D"
+        );
+        assert_eq!(used, ["a+b%26c%3D", "a b&c="]);
+        assert_eq!(
+            scrub("got a+b%26c%3D and a b&c=".into(), &used),
+            "got [secret] and [secret]"
+        );
+        let mut none = vec![];
+        assert_eq!(
+            form_body(&request("application/json"), &resolve, &mut none)
+                .unwrap()
+                .unwrap(),
+            "user={{a1.email}}&code={{a1.token}}"
+        );
+        assert!(none.is_empty());
+        let bound = [account("a1", Some("jira.acme.com"))];
+        let elsewhere = |name: &str| lookup(name, "oauth2.googleapis.com", &bound, &keys);
+        assert!(
+            form_body(
+                &request("application/x-www-form-urlencoded"),
+                &elsewhere,
+                &mut vec![]
+            )
+            .unwrap_err()
+            .contains("only go to jira.acme.com")
+        );
+    }
+
+    #[test]
+    fn captures_json_fields_of_a_success_and_hides_them() {
+        let sent = |status: u16, body: &str| Sent {
+            status,
+            headers: vec![("x-echo".into(), "r1".into())],
+            body: body.as_bytes().to_vec(),
+            used: vec![],
+        };
+        let fields = || {
+            vec![
+                ("refresh_token".to_string(), "refresh-token".to_string()),
+                ("access_token".to_string(), "access-token".to_string()),
+                ("missing".to_string(), "other".to_string()),
+            ]
+        };
+        let mut ok = sent(
+            200,
+            r#"{"access_token":"a1","refresh_token":"r1","expires_in":3599,"note":"r1 again"}"#,
+        );
+        assert_eq!(
+            take(&mut ok, fields()),
+            [
+                ("refresh-token".to_string(), "r1".to_string()),
+                ("access-token".to_string(), "a1".to_string())
+            ]
+        );
+        let answer = response(ok);
+        let body: Value = serde_json::from_str(&answer.body).unwrap();
+        assert_eq!(body["access_token"], "[secret]");
+        assert_eq!(body["refresh_token"], "[secret]");
+        assert_eq!(body["expires_in"], 3599);
+        assert_eq!(body["note"], "[secret] again");
+        assert_eq!(answer.headers[0].1, "[secret]");
+
+        let mut failed = sent(400, r#"{"refresh_token":"r1"}"#);
+        assert!(take(&mut failed, fields()).is_empty());
+        let mut text = sent(200, "refresh_token=r1");
+        assert!(take(&mut text, fields()).is_empty());
+        assert_eq!(response(text).body, "refresh_token=r1");
+    }
+
+    #[test]
+    fn checks_a_capture_before_sending_it() {
+        use squadron::api::host::Host as _;
+        let (mut host, _) = self::host(&["net:oauth2.googleapis.com"], |_, _| Ok(Value::Null));
+        host.hooks.kinds = Arc::new(|_| {
+            vec![
+                ("email".into(), Kind::Text),
+                ("site".into(), Kind::Host),
+                ("token".into(), Kind::Secret),
+                ("refresh-token".into(), Kind::Captured),
+            ]
+        });
+        host.hooks.accounts =
+            Arc::new(|_| vec![account("a1", None), account("b2", Some("jira.acme.com"))]);
+        let request = || get("https://oauth2.googleapis.com/token");
+        let capture = |host: &mut Host, account: &str, field: &str| {
+            host.fetch_capture(
+                request(),
+                account.into(),
+                vec![("refresh_token".into(), field.into())],
+            )
+            .unwrap_err()
+        };
+        assert!(capture(&mut host, "a1", "token").contains("kind captured"));
+        assert!(capture(&mut host, "zz", "refresh-token").contains("no longer exists"));
+        assert!(
+            capture(&mut host, "b2", "refresh-token").contains("only captures from jira.acme.com")
+        );
+    }
+
+    #[test]
+    fn opens_the_account_form_with_text_values_only() {
+        use squadron::api::host::Host as _;
+        let (mut host, told) = self::host(&[], |_, _| Ok(Value::Null));
+        assert!(
+            host.open_account(None, "{}".into())
+                .unwrap_err()
+                .contains("no accounts")
+        );
+        host.hooks.kinds = Arc::new(|_| {
+            vec![
+                ("email".into(), Kind::Text),
+                ("site".into(), Kind::Host),
+                ("token".into(), Kind::Secret),
+                ("refresh-token".into(), Kind::Captured),
+            ]
+        });
+        host.hooks.accounts = Arc::new(|_| vec![account("a1", None)]);
+        let form = host
+            .open_account(
+                Some("a1".into()),
+                r#"{"email":"ada@acme.com","site":"acme.com"}"#.into(),
+            )
+            .unwrap();
+        let told = told.lock().unwrap();
+        assert_eq!(told[0]["call"], "open-account");
+        assert_eq!(told[0]["form"], form.as_str());
+        assert_eq!(told[0]["account"], "a1");
+        assert_eq!(told[0]["values"]["email"], "ada@acme.com");
+        drop(told);
+        for values in [
+            r#"{"token":"x"}"#,
+            r#"{"refresh-token":"x"}"#,
+            r#"{"email":1}"#,
+            "[]",
+        ] {
+            assert!(host.open_account(None, values.into()).is_err(), "{values}");
+        }
+        assert!(host.open_account(Some("zz".into()), "{}".into()).is_err());
+    }
+
+    #[test]
+    #[ignore = "needs the network"]
+    fn sends_a_real_form_with_its_secrets_and_scrubs_the_echo() {
+        let answer = send(
+            &["net:postman-echo.com".into()],
+            &[account("a1", None)],
+            Request {
+                method: "POST".into(),
+                url: "https://postman-echo.com/post".into(),
+                headers: vec![
+                    (
+                        "Content-Type".into(),
+                        "application/x-www-form-urlencoded".into(),
+                    ),
+                    ("User-Agent".into(), "squadron-test".into()),
+                ],
+                body: Some("user={{a1.email}}&code={{a1.token}}".into()),
+            },
+            MAX_BODY,
+            FETCH,
+            &|k: &str| Ok((k == "a1.token").then(|| "a b&c=".to_string())),
+        )
+        .map(response)
+        .unwrap();
+        let body: Value = serde_json::from_str(&answer.body).unwrap();
+        assert_eq!(body["form"]["user"], "me@acme.com", "{body}");
+        assert_eq!(body["form"]["code"], "[secret]", "{body}");
+        assert!(!answer.body.contains("w&rd") && !answer.body.contains("w%26rd"));
+    }
+
+    #[test]
     #[ignore = "builds the example extension, needs the wasm32-wasip2 target"]
     fn opens_and_fills_a_new_agent_draft() {
         let dir = hello().expect("the example extension builds");
@@ -2912,7 +3364,7 @@ mod tests {
             },
             MAX_BODY,
             FETCH,
-            |_| Ok(None),
+            &|_: &str| Ok(None),
         )
         .unwrap();
         assert_eq!(answer.status, 200);
@@ -2938,9 +3390,14 @@ mod tests {
             request("https://postman-echo.com/headers?n=2"),
         ];
         let answers = many(requests, MANY, Instant::now() + ANSWER, |request, left| {
-            send(&allowed, &[], request, MAX_BODY, FETCH.min(left), |k| {
-                Ok((k == "token").then(|| "s3cr3t".to_string()))
-            })
+            send(
+                &allowed,
+                &[],
+                request,
+                MAX_BODY,
+                FETCH.min(left),
+                &|k: &str| Ok((k == "token").then(|| "s3cr3t".to_string())),
+            )
             .map(response)
         });
         for i in [0, 2] {
@@ -2975,7 +3432,7 @@ mod tests {
             },
             MAX_BODY,
             FETCH,
-            |k| Ok((k == "token").then(|| "s3cr3t".to_string())),
+            &|k: &str| Ok((k == "token").then(|| "s3cr3t".to_string())),
         )
         .unwrap();
         let body = String::from_utf8_lossy(&answer.body);

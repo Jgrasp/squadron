@@ -423,4 +423,12 @@ export default {
   allProjectsIntro: 'Ce que reçoit chaque nouvel agent : la fenêtre Nouvel agent, une tâche du Kanban, le pilote, une conversation importée, une revue de pull request.',
   allProjectsOwn: 'Projets qui ont leurs propres valeurs',
   allProjectsNone: 'Aucun projet n’a ses propres valeurs.',
+  searchPlaceholder: 'Rechercher un réglage',
+  searchClear: 'Effacer la recherche',
+  searchResults: 'Résultats',
+  searchCount: { one: '{count} réglage', other: '{count} réglages' },
+  searchPages: { one: 'dans {count} page', other: 'dans {count} pages' },
+  searchNone: 'Aucun réglage ne correspond à « {query} »',
+  searchNoneHint: 'Essayez un autre mot.',
+  searchOpen: 'Ouvrir {page}',
 } satisfies Catalog['settings']

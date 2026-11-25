@@ -117,6 +117,22 @@ struct UseMcp {
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
 #[serde(deny_unknown_fields)]
+struct EnableTools {
+    /// Built-in tools to turn on, among Artifact, Workflow, ScheduleWakeup, ReportFindings, ShareOnboardingGuide and ListAgents.
+    tools: Vec<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct WaitPull {
+    /// The number of the pull request, in your project's repository.
+    number: u64,
+    /// checks: until every check has finished. merged: until it is merged or closed without merge.
+    until: String,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
 struct SetTitle {
     /// The new name of the agent, short, as shown in the agent list and the conversation header.
     title: String,
@@ -451,6 +467,26 @@ impl Pilot {
         Parameters(args): Parameters<UseMcp>,
     ) -> String {
         self.forward(&parts, "use_mcp", json!(args)).await
+    }
+
+    /// Turns on, for you, built-in Claude Code tools that Squadron keeps off to save context. They arrive once your turn ends: end it right after this call, Squadron restarts your session with them and sends you a message to go on. They stay on for you after that.
+    #[tool]
+    async fn enable_tools(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<EnableTools>,
+    ) -> String {
+        self.forward(&parts, "enable_tools", json!(args)).await
+    }
+
+    /// Waits for a pull request in your place: Squadron follows it through the forge, with no call from you while it waits, and sends you one message when the state is reached. until=checks: once every check has finished (all green, a failed check with its link, or no checks). until=merged: once it is merged or closed without merge. End your turn right after this call and never poll the pull request yourself (no gh pr checks --watch, no loop on gh pr view).
+    #[tool]
+    async fn wait_pull(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<WaitPull>,
+    ) -> String {
+        self.forward(&parts, "wait_pull", json!(args)).await
     }
 
     /// Renames an agent, yourself by default, as the user does by hand: the new name shows in the agent list and the conversation header. Use it when the task turns out to be something else than the current name says.

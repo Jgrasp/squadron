@@ -1,4 +1,4 @@
-package squadron:api@1.15.0;
+package squadron:api@1.16.0;
 
 interface types {
   /// The agent a call is about.
@@ -39,6 +39,7 @@ interface types {
     url: string,
     /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads, `{{<account>.<field>}}` by a field of one of its accounts, and `{{base64:<a>:<b>}}` by the base64 of the values of `a` and `b` joined by `:`, as HTTP Basic auth wants.
     headers: list<tuple<string, string>>,
+    /// Since 1.16.0, with the header `Content-Type: application/x-www-form-urlencoded`, `{{…}}` in the body is replaced as in `headers`, percent-encoded.
     body: option<string>,
   }
 
@@ -184,7 +185,7 @@ interface host {
   download: func(request: request, name: string) -> result<saved-file, string>;
   /// Opens a document or an image of the extension's data folder in the user's app for it. Programs are refused. Since 1.3.0.
   open-file: func(path: string) -> result<_, string>;
-  /// Like `exec`, writing `input` to the program's standard input. Since 1.3.0.
+  /// Like `exec`, writing `input` to the program's standard input. Since 1.3.0. Since 1.16.0, for a program listed as `{ "program": "…", "secrets": true }` in `permissions.exec`, `{{…}}` in `input` is replaced as in the headers of `fetch`, never by a field of an account with a `host` field, and the values are replaced by `[secret]` in `stdout` and `stderr`; for another program, a `{{…}}` that names a secret or an account field is refused.
   exec-input: func(program: string, args: list<string>, dir: option<string>, input: string) -> result<output, string>;
   /// The values of the options of `contributes.settings`, as a JSON object by option id, the manifest's default for those the user left alone. Since 1.4.0.
   options: func() -> string;
@@ -208,6 +209,10 @@ interface host {
   usage: func() -> result<claude-usage, string>;
   /// Brings an agent to the front in Squadron, an archived one in the archive of its project, read only. Only within 2 s of a message from one of the extension's panels, while that panel is on screen, holds the focus and has the pointer over it, once a second at most. It never acts on the agent. Needs `agents: ["show"]` in `permissions`. Since 1.7.0.
   show-agent: func(agent: string) -> result<_, string>;
+  /// Like `fetch`, and on a 2xx response whose body is a JSON object, keeps the string at each top-level key of `fields` as the field of the `account` it names, a field of kind `captured` in `contributes.accounts`, in the system keyring. `fields` is a list of (key, field id), for example `[("refresh_token", "refresh-token")]`. The extension gets `[secret]` in place of those strings, and uses them later as `{{<account>.<field>}}`. A key missing from the response leaves the field as it was. An account with a `host` field captures only from that host. Since 1.16.0.
+  fetch-capture: func(request: request, account: string, fields: list<tuple<string, string>>) -> result<response, string>;
+  /// Opens the account form of the extension over Squadron, to add an account or, with `account`, to change that one, and returns the id of the form at once. `values` is a JSON object of text and host fields to fill in, `{}` for none. The event `account.form` then gives `{ "form": "…", "account": "<id>" }` once the user saved it, or `{ "form": "…", "error": "…" }` once they closed it. Opening another form closes the one open. Since 1.16.0.
+  open-account: func(account: option<string>, values: string) -> result<string, string>;
 }
 
 /// The exports every version of the API has. Squadron binds to it, so that an extension built before 1.6.0 still loads.
@@ -215,7 +220,7 @@ world squadron-core {
   use types.{agent};
   import host;
 
-  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`, `new-agent.regenerate` when the user clicked Regenerate or changed the choices of a draft, with `{ "draft": "…", "choices": ["…"] }`, `new-agent.started` with `{ "draft": "…" }` and the agent that started, `new-agent.closed` with `{ "draft": "…" }` when the window closed without starting one, `panel.closed` with `{ "panel": "…" }` when one of its panels closed. Without `agents: ["read"]` or `exec`, every event gives an agent whose `dir` is empty and whose `project` is the opaque id, and `agent.waiting` gives `{ "kind": "permission" or "question" }`. With `agents: ["activity"]`: `agent.status` with the `agent-activity` of an agent that changed, `agent.started` with it and `by`, `agent.archived` with it, `agent.message` with `{ "from": "…", "to": "…", "count": 1 }` when an agent sent messages to another. With `projects: ["read"]`: `project.added`, `project.changed` and `project.archived` with the `project`, `groups.changed` with `{ "groups": [ … ] }`. With `usage: ["read"]`: `usage` with the `claude-usage`. These come at most once a second, the latest state of each agent or project only. `data` is JSON.
+  /// Something happened: `started` once the extension is loaded, `agent.done` when an agent finished its turn, `agent.waiting` when it waits for the user, `panel.message` when one of its panels called `squadron.send`, with `{ "panel": "…", "message": … }`, `timer` when the delay of `set-timer` is over, `accounts.changed` when the user added, changed or removed one of its accounts, `options.changed` with the values of `options` when the user changed one, `settings.message` when its settings page called `squadron.send`, with `{ "message": … }`, `new-agent.regenerate` when the user clicked Regenerate or changed the choices of a draft, with `{ "draft": "…", "choices": ["…"] }`, `new-agent.started` with `{ "draft": "…" }` and the agent that started, `new-agent.closed` with `{ "draft": "…" }` when the window closed without starting one, `panel.closed` with `{ "panel": "…" }` when one of its panels closed, `account.form` when a form of `open-account` closed. Without `agents: ["read"]` or `exec`, every event gives an agent whose `dir` is empty and whose `project` is the opaque id, and `agent.waiting` gives `{ "kind": "permission" or "question" }`. With `agents: ["activity"]`: `agent.status` with the `agent-activity` of an agent that changed, `agent.started` with it and `by`, `agent.archived` with it, `agent.message` with `{ "from": "…", "to": "…", "count": 1 }` when an agent sent messages to another. With `projects: ["read"]`: `project.added`, `project.changed` and `project.archived` with the `project`, `groups.changed` with `{ "groups": [ … ] }`. With `usage: ["read"]`: `usage` with the `claude-usage`. These come at most once a second, the latest state of each agent or project only. `data` is JSON.
   export on-event: func(name: string, agent: option<agent>, data: string);
   /// One of the extension's items with the action `{ "run": "<action>" }` was clicked.
   export run: func(action: string, agent: option<agent>) -> result<_, string>;

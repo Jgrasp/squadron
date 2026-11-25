@@ -1780,8 +1780,12 @@ fn set_agent_servers(
     id: String,
     names: Vec<String>,
 ) -> Result<(), String> {
-    let configs = on_demand.configs(&names);
-    agents.set_servers(&id, names, configs)
+    agents.set_servers(&id, names, &on_demand)
+}
+
+#[tauri::command]
+fn set_agent_tools(agents: State<Agents>, id: String, tools: Vec<String>) -> Result<(), String> {
+    agents.set_tools(&id, tools)
 }
 
 #[tauri::command]
@@ -3161,6 +3165,7 @@ pub fn run() {
             ondemand::mcp_everywhere,
             ondemand::mcp_describe,
             set_agent_servers,
+            set_agent_tools,
             archived_entries,
             add_rule,
             answer_permission,
@@ -3432,6 +3437,7 @@ pub fn run() {
             app.manage(extensions::Extensions { dir: extensions_dir, file: config.join("extensions.json") });
             let handle = app.handle().clone();
             let (claude, accounts, options) = (app.handle().clone(), app.handle().clone(), app.handle().clone());
+            let (kinds, keep) = (app.handle().clone(), app.handle().clone());
             app.manage(
                 wasm::Runtime::new(config.join("extensions-state"), move |message| {
                     let _ = handle.emit_to("main", "extensions-host", message);
@@ -3440,6 +3446,10 @@ pub fn run() {
                     claude: std::sync::Arc::new(move || claude.state::<Settings>().claude()),
                     accounts: std::sync::Arc::new(move |id| accounts.state::<extensions::Extensions>().accounts(id)),
                     options: std::sync::Arc::new(move |id| Value::Object(options.state::<extensions::Extensions>().options(id))),
+                    kinds: std::sync::Arc::new(move |id| kinds.state::<extensions::Extensions>().account_kinds(id)),
+                    keep: std::sync::Arc::new(move |id, account, values| {
+                        keep.state::<extensions::Extensions>().keep_captured(id, account, values, &account_keyring(id))
+                    }),
                 }),
             );
             let handle = app.handle().clone();

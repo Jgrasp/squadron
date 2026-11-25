@@ -11,8 +11,9 @@
     onclose,
     badge,
     icon,
+    actions,
     children,
-  }: { title: string; width?: number; full?: boolean; tall?: boolean; onclose: () => void; badge?: Snippet; icon?: Snippet; children: Snippet } =
+  }: { title: string; width?: number; full?: boolean; tall?: boolean; onclose: () => void; badge?: Snippet; icon?: Snippet; actions?: Snippet; children: Snippet } =
     $props()
 
   let dialog: HTMLDialogElement
@@ -47,6 +48,7 @@
       <h1 id="dialog-title" {title}>{title}</h1>
       {@render badge?.()}
     </div>
+    {@render actions?.()}
     <button class="close" aria-label={t('settings.closeDialog')} onclick={close}>×</button>
   </div>
   {@render children()}
