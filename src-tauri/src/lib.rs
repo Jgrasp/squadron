@@ -2034,7 +2034,7 @@ async fn extensions_install(
     if !app.state::<extensions::Extensions>().known_source(&source) {
         return Err(format!("{source} is not one of your extension sources."));
     }
-    let bytes = extensions::fetch_archive(&source, &archive).await?;
+    let bytes = extensions::fetch_archive(&source, &id, &archive).await?;
     tauri::async_runtime::spawn_blocking(move || {
         app.state::<extensions::Extensions>()
             .install(&source, &id, &bytes, &sha256)

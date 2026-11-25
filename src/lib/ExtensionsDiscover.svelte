@@ -16,7 +16,7 @@
 
   let query = $state('')
   let filter = $state('')
-  let dialog = $state<'sources' | 'local' | null>(null)
+  let dialog = $state<'sources' | 'local' | 'github' | null>(null)
   let chosen = $state<CatalogEntry | null>(null)
   let source = $state('')
 
@@ -39,6 +39,15 @@
   async function addFrom(event: SubmitEvent) {
     event.preventDefault()
     if (await attempt(() => addSource(source.trim()), 'source')) source = ''
+  }
+
+  async function addRepo(event: SubmitEvent) {
+    event.preventDefault()
+    const repo = source.trim()
+    if (!(await attempt(() => addSource(repo), 'source'))) return
+    source = ''
+    dialog = null
+    filter = repo
   }
 
   async function link() {
@@ -66,6 +75,7 @@
       <input placeholder={t('extensions.searchCatalog')} aria-label={t('extensions.searchLabel')} spellcheck="false" autocomplete="off" bind:value={query} />
     </label>
     <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'local'))}><Icon name="folder" />{t('extensions.localExtension')}</button>
+    <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'github'))}><Icon name="branch" />{t('extensions.fromGithub')}</button>
     <button class="btn btn-ghost" onclick={() => ((work.error = ''), (dialog = 'sources'))}><Icon name="plus" />{t('extensions.marketplaces')}</button>
   </div>
   <div class="chips" role="group" aria-label={t('extensions.filters')}>
@@ -165,6 +175,23 @@
     </div>
     <footer>
       <button class="btn btn-secondary" onclick={close}>{t('common.close')}</button>
+    </footer>
+  </Dialog>
+{/if}
+
+{#if dialog === 'github'}
+  <Dialog title={t('extensions.addGithub')} width={520} onclose={close}>
+    <div class="box">
+      <p class="sub">{t('extensions.addGithubSub')}</p>
+      <form class="add" onsubmit={addRepo}>
+        <input class="field mono" placeholder={t('extensions.sourcePlaceholder')} aria-label={t('extensions.sourcePlaceholder')} spellcheck="false" autocomplete="off" bind:value={source} />
+        <button class="btn btn-primary" disabled={!source.trim() || !!work.busy}>{work.busy === 'source' ? t('common.checking') : t('common.add')}</button>
+      </form>
+      <p class="hint">{t('extensions.addGithubHelp')}</p>
+      {#if work.error}<p class="bad" role="alert">{work.error}</p>{/if}
+    </div>
+    <footer>
+      <button class="btn btn-secondary" onclick={close}>{t('common.cancel')}</button>
     </footer>
   </Dialog>
 {/if}

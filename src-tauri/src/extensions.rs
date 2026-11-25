@@ -616,13 +616,92 @@ pub fn valid_source(source: &str) -> bool {
     matches!(source.split_once('/'), Some((owner, repo)) if fine(owner) && fine(repo))
 }
 
-fn index_url(source: &str) -> String {
-    format!("https://raw.githubusercontent.com/{source}/main/index.json")
+async fn fetch_json(url: &str, name: &str) -> Result<serde_json::Value, String> {
+    let body = download(url, 2 << 20).await?;
+    serde_json::from_slice(&body).map_err(|e| format!("{name} is not valid JSON: {e}"))
+}
+
+async fn fetch_file(source: &str, file: &str) -> Result<serde_json::Value, String> {
+    fetch_json(
+        &format!("https://raw.githubusercontent.com/{source}/main/{file}"),
+        file,
+    )
+    .await
+}
+
+async fn fetch_release(repo: &str, id: Option<&str>) -> Result<serde_json::Value, String> {
+    let entry = fetch_json(
+        &format!("https://github.com/{repo}/releases/latest/download/catalog.json"),
+        "catalog.json",
+    )
+    .await?;
+    match entry["id"].as_str() {
+        Some(found) if valid_id(found) && id.is_none_or(|id| id == found) => Ok(entry),
+        _ => Err(format!(
+            "The catalog.json of {repo} is not the expected extension."
+        )),
+    }
+}
+
+pub fn repo_of(url: &str) -> Option<String> {
+    let repo = url
+        .strip_prefix("https://github.com/")?
+        .trim_end_matches('/')
+        .trim_end_matches(".git");
+    valid_source(repo).then(|| repo.to_string())
+}
+
+pub fn registry_repos(registry: &serde_json::Value) -> Vec<(String, String)> {
+    registry
+        .as_object()
+        .into_iter()
+        .flatten()
+        .filter(|(id, entry)| valid_id(id) && entry.get("path").is_none())
+        .filter_map(|(id, entry)| Some((id.clone(), repo_of(entry["repository"].as_str()?)?)))
+        .collect()
+}
+
+pub async fn registry_repo(source: &str, id: &str) -> Option<String> {
+    let registry = fetch_file(source, "registry.json").await.ok()?;
+    registry_repos(&registry)
+        .into_iter()
+        .find_map(|(found, repo)| (found == id).then_some(repo))
 }
 
 pub async fn fetch_index(source: &str) -> Result<serde_json::Value, String> {
-    let body = download(&index_url(source), 2 << 20).await?;
-    serde_json::from_slice(&body).map_err(|e| format!("index.json is not valid JSON: {e}"))
+    let (registry, legacy) = tokio::join!(
+        fetch_file(source, "registry.json"),
+        fetch_file(source, "index.json")
+    );
+    let Ok(registry) = registry else {
+        return match legacy {
+            Ok(index) => Ok(index),
+            Err(error) => fetch_release(source, None)
+                .await
+                .map(|entry| serde_json::json!({ "api": 1, "extensions": [entry] }))
+                .map_err(|_| error),
+        };
+    };
+    let mut set = tokio::task::JoinSet::new();
+    for (id, repo) in registry_repos(&registry) {
+        set.spawn(async move { fetch_release(&repo, Some(&id)).await });
+    }
+    let mut fresh = Vec::new();
+    while let Some(done) = set.join_next().await {
+        if let Ok(Ok(entry)) = done {
+            fresh.push(entry);
+        }
+    }
+    let old = legacy
+        .ok()
+        .and_then(|index| index["extensions"].as_array().cloned())
+        .unwrap_or_default();
+    let mut extensions: Vec<_> = old
+        .into_iter()
+        .filter(|e| !fresh.iter().any(|f| f["id"] == e["id"]))
+        .collect();
+    extensions.extend(fresh);
+    Ok(serde_json::json!({ "api": 1, "extensions": extensions }))
 }
 
 pub async fn catalog(sources: Vec<String>) -> Vec<serde_json::Value> {
@@ -641,10 +720,18 @@ pub async fn catalog(sources: Vec<String>) -> Vec<serde_json::Value> {
     all
 }
 
-pub async fn fetch_archive(source: &str, archive: &str) -> Result<Vec<u8>, String> {
-    if !archive.starts_with(&format!("https://github.com/{source}/releases/download/")) {
+pub fn archive_allowed(source: &str, repo: Option<&str>, archive: &str) -> bool {
+    !archive.contains("..")
+        && std::iter::once(source)
+            .chain(repo)
+            .any(|r| archive.starts_with(&format!("https://github.com/{r}/releases/download/")))
+}
+
+pub async fn fetch_archive(source: &str, id: &str, archive: &str) -> Result<Vec<u8>, String> {
+    let repo = registry_repo(source, id).await;
+    if !archive_allowed(source, repo.as_deref(), archive) {
         return Err(format!(
-            "The archive does not come from the releases of {source}."
+            "The archive does not come from the releases of {source} or of the repository it lists for {id}."
         ));
     }
     download(archive, MAX_ARCHIVE).await
@@ -1301,6 +1388,50 @@ mod tests {
         ] {
             assert_eq!(host_of(bad), None, "{bad}");
         }
+    }
+
+    #[test]
+    fn reads_the_repositories_of_a_registry() {
+        let registry = serde_json::json!({
+            "hello": { "repository": "https://github.com/Jgrasp/squadron-extensions", "path": "examples/hello" },
+            "jira": { "repository": "https://github.com/Jgrasp/squadron-jira" },
+            "git": { "repository": "https://github.com/me/ext.git/" },
+            "Bad": { "repository": "https://github.com/me/x" },
+            "far": { "repository": "https://gitlab.com/me/x" },
+            "up": { "repository": "https://github.com/me/../x" },
+        });
+        let mut repos = registry_repos(&registry);
+        repos.sort();
+        assert_eq!(
+            repos,
+            [
+                ("git".into(), "me/ext".into()),
+                ("jira".into(), "Jgrasp/squadron-jira".into())
+            ]
+        );
+    }
+
+    #[test]
+    fn takes_archives_only_from_the_source_or_the_listed_repository() {
+        let ok =
+            "https://github.com/Jgrasp/squadron-jira/releases/download/v0.5.0/jira-0.5.0.tar.gz";
+        assert!(archive_allowed(OFFICIAL, Some("Jgrasp/squadron-jira"), ok));
+        assert!(!archive_allowed(OFFICIAL, None, ok));
+        assert!(archive_allowed(
+            OFFICIAL,
+            None,
+            "https://github.com/Jgrasp/squadron-extensions/releases/download/jira-0.5.0/jira-0.5.0.tar.gz"
+        ));
+        assert!(!archive_allowed(
+            OFFICIAL,
+            Some("Jgrasp/squadron-jira"),
+            "https://github.com/Jgrasp/squadron-jira/releases/download/../../../../evil/x/releases/download/a.tar.gz"
+        ));
+        assert!(!archive_allowed(
+            "me/ext",
+            None,
+            "https://github.com/me/ext-evil/releases/download/v1/a.tar.gz"
+        ));
     }
 
     #[test]
