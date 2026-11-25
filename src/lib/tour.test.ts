@@ -33,12 +33,15 @@ vi.mock('./agents.svelte', () => {
   return { agents, find: (id: string) => agents.list.find((a) => a.id === id) }
 })
 vi.mock('./projects.svelte', () => ({ projects: { list: [], current: '', overview: false, usage: false, board: false, pulls: false }, sandbox: { project: null } }))
+vi.mock('./actions.svelte', () => ({ ui: { projects: false, searching: false, settings: null } }))
 vi.mock('./settings.svelte', () => ({ settings: { tour_offered: false }, patchSettings: vi.fn(async () => {}) }))
 
 const { agents } = await import('./agents.svelte')
 const { projects } = await import('./projects.svelte')
 const { STOPS, back, closeEnd, finish, go, leave, next, startTour, tour } = await import('./tour.svelte')
 const { DEMO_PATH } = await import('./demo.svelte')
+const { ui } = await import('./actions.svelte')
+const { layout } = await import('./layout.svelte')
 
 const { invoke } = await import('@tauri-apps/api/core')
 
@@ -120,13 +123,29 @@ describe('guided tour sandbox', () => {
     projects.current = ''
     store.localStorage.clear()
     startTour(0)
-    store.localStorage.setItem('squadron.panels', JSON.stringify({ [DEMO_PATH]: { panel: 'diff' }, keep: { list: ['demo:a1', 'x'] } }))
+    store.localStorage.setItem('squadron.nested', JSON.stringify({ [DEMO_PATH]: { panel: 'diff' }, keep: { list: ['demo:a1', 'x'] } }))
     store.localStorage.setItem('squadron.project', DEMO_PATH)
     finish()
     closeEnd()
     expect(projects.list).toEqual([])
     expect(projects.current).toBe('')
     expect([...store.data.entries()].filter(([k, v]) => k.includes('demo:') || v.includes('demo:'))).toEqual([])
-    expect(JSON.parse(store.localStorage.getItem('squadron.panels') ?? '{}')).toEqual({ keep: { list: ['x'] } })
+    expect(JSON.parse(store.localStorage.getItem('squadron.nested') ?? '{}')).toEqual({ keep: { list: ['x'] } })
+  })
+
+  it('opens the panel of each stop, keeps it on Back and closes everything when leaving', async () => {
+    const at = (id: string) => STOPS.findIndex((s) => s.id === id)
+    startTour(at('diff'))
+    expect(layout.panels[DEMO_PATH]).toBe('diff')
+    next()
+    expect(layout.panels[DEMO_PATH]).toBe('editor')
+    back()
+    expect(layout.panels[DEMO_PATH]).toBe('diff')
+    go(at('board'))
+    expect([projects.board, layout.panels[DEMO_PATH]]).toEqual([true, undefined])
+    go(at('sclaude'))
+    expect([ui.settings, projects.board]).toEqual(['claude', false])
+    leave()
+    expect([ui.settings, ui.projects, ui.searching, projects.board, projects.pulls]).toEqual([null, false, false, false, false])
   })
 })

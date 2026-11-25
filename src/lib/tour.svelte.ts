@@ -1,7 +1,10 @@
+import { ui, type SettingsTab } from './actions.svelte'
 import { agents, find } from './agents.svelte'
 import { DEMO_PATH, clearDemoAgents, demo, scripted, startDemo, stopDemo } from './demo.svelte'
 import { isDemo } from './demoId'
+import { composing } from './drafts.svelte'
 import { t, type Key } from './i18n/index.svelte'
+import { layout, setAgentTab, setPanel, type PanelKind } from './layout.svelte'
 import { projects } from './projects.svelte'
 import { patchSettings, settings } from './settings.svelte'
 import type { Action } from './shortcuts'
@@ -61,6 +64,48 @@ export const STOPS: Stop[] = [
   { id: 'discover', ch: 'extensions', seconds: 10 },
   { id: 'inapp', ch: 'extensions', el: 'aside .list[role="tabpanel"]', seconds: 10 },
 ]
+
+const panel = (kind: PanelKind) => () => setPanel(DEMO_PATH, kind)
+const settingsAt = (tab: SettingsTab) => () => (ui.settings = tab)
+const board = () => (projects.board = true)
+const pulls = () => (projects.pulls = true)
+
+const OPEN: Record<string, () => void> = {
+  panel: () => (ui.projects = true),
+  overview: () => (projects.overview = true),
+  new: () => (composing[DEMO_PATH] = true),
+  reviews: () => setAgentTab(DEMO_PATH, 'reviews'),
+  diff: panel('diff'),
+  editor: panel('editor'),
+  terminal: panel('terminal'),
+  browser: panel('browser'),
+  board,
+  card: board,
+  prpage: pulls,
+  review: pulls,
+  merge: pulls,
+  spotlight: () => (ui.searching = true),
+  keys: settingsAt('shortcuts'),
+  usage: () => (projects.usage = true),
+  sprojects: settingsAt('projects'),
+  sagents: settingsAt('agents'),
+  sclaude: settingsAt('claude'),
+  splugins: settingsAt('plugins'),
+  shosting: settingsAt('hosting'),
+  snotify: settingsAt('notifications'),
+  slayout: settingsAt('layout'),
+  sagain: settingsAt('quickstart'),
+  discover: settingsAt('discover'),
+}
+
+function closeAll() {
+  setPanel(DEMO_PATH, null)
+  if (layout.agentTabs[DEMO_PATH]) setAgentTab(DEMO_PATH, 'agents')
+  composing[DEMO_PATH] = false
+  projects.overview = projects.board = projects.pulls = projects.usage = false
+  ui.projects = ui.searching = false
+  ui.settings = null
+}
 
 export const titleOf = (stop: Stop) => t(`tour.${stop.id}Title` as Key)
 export const bodyOf = (stop: Stop) => t(`tour.${stop.id}Body` as Key)
@@ -257,6 +302,8 @@ function enter(i: number) {
     rebuild(seg[0], seg[0] > GATE)
     play(seg[0], seg[1], false)
   } else rebuild(Math.max(2700, restAt(tour.i)), true)
+  closeAll()
+  OPEN[stop.id]?.()
 }
 
 function onCommand(cmd: string, args: Record<string, unknown>) {
@@ -302,6 +349,7 @@ export function skipChapter() {
 export function finish() {
   live = false
   clearTimers()
+  closeAll()
   rebuild(END, true)
   tour.on = false
   tour.confirm = false
@@ -313,6 +361,7 @@ export const hasOwnProjects = () => projects.list.some((p) => !isDemo(p.path))
 function teardown(toast: string) {
   live = false
   clearTimers()
+  closeAll()
   stopDemo()
   tour.on = false
   tour.end = false
