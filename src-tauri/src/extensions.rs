@@ -650,9 +650,11 @@ impl Place {
         }
         let repo = path.trim_end_matches(".git");
         let base = format!("https://{}{repo}", url.authority().to_ascii_lowercase());
-        match host.as_str() {
+        match host.trim_start_matches("www.") {
             "github.com" if parts.len() == 2 => Some(Place::GitHub(repo[1..].into())),
-            "bitbucket.org" if parts.len() == 2 => Some(Place::Bitbucket(base)),
+            "bitbucket.org" if parts.len() == 2 => {
+                Some(Place::Bitbucket(format!("https://bitbucket.org{repo}")))
+            }
             "github.com" | "bitbucket.org" => None,
             _ if parts.len() >= 2 => Some(Place::GitLab(base)),
             _ => None,
@@ -705,11 +707,11 @@ pub fn valid_source(source: &str) -> bool {
 
 pub fn canonical(source: &str) -> String {
     let source = source.trim().trim_end_matches('/');
-    source
-        .strip_suffix(".git")
-        .filter(|_| !source.ends_with(".json"))
-        .unwrap_or(source)
-        .into()
+    let source = source.strip_suffix(".git").unwrap_or(source);
+    match Place::parse(source) {
+        Some(Place::GitHub(repo)) => repo,
+        _ => source.into(),
+    }
 }
 
 async fn fetch_json(url: &str, name: &str) -> Result<serde_json::Value, String> {
@@ -919,21 +921,25 @@ impl Extensions {
         source == OFFICIAL || self.choices().sources.iter().any(|s| s == source)
     }
 
-    pub fn add_source(&self, source: &str) -> Result<(), String> {
-        let source = &canonical(source);
-        if !valid_source(source) {
-            return Err(not_a_source(source));
+    pub fn add_source(&self, source: &str) -> Result<String, String> {
+        let source = canonical(source);
+        if !valid_source(&source) {
+            return Err(not_a_source(&source));
+        }
+        if source.eq_ignore_ascii_case(OFFICIAL) {
+            return Ok(OFFICIAL.into());
         }
         let mut choices = self.choices();
-        if !source.eq_ignore_ascii_case(OFFICIAL)
-            && !choices
-                .sources
-                .iter()
-                .any(|s| s.eq_ignore_ascii_case(source))
+        if let Some(found) = choices
+            .sources
+            .iter()
+            .find(|s| s.eq_ignore_ascii_case(&source))
         {
-            choices.sources.push(source.into());
+            return Ok(found.clone());
         }
-        self.save(&choices)
+        choices.sources.push(source.clone());
+        self.save(&choices)?;
+        Ok(source)
     }
 
     pub fn remove_source(&self, source: &str) -> Result<(), String> {
@@ -1549,6 +1555,10 @@ mod tests {
             Some(Place::Bitbucket("https://bitbucket.org/team/ext".into()))
         );
         assert_eq!(
+            Place::parse("https://www.bitbucket.org/team/ext"),
+            Some(Place::Bitbucket("https://bitbucket.org/team/ext".into()))
+        );
+        assert_eq!(
             Place::parse("https://acme.com/squadron/index.json"),
             Some(Place::File("https://acme.com/squadron/index.json".into()))
         );
@@ -1678,6 +1688,15 @@ mod tests {
         m.add_source("jgrasp/Squadron-Extensions").unwrap();
         m.add_source("ME/EXT").unwrap();
         m.add_source("https://gitlab.com/me/ext.git").unwrap();
+        assert_eq!(
+            m.add_source("https://www.github.com/Me/Ext/").unwrap(),
+            "me/ext"
+        );
+        assert_eq!(
+            m.add_source("https://github.com/Jgrasp/squadron-extensions.git")
+                .unwrap(),
+            OFFICIAL
+        );
         assert_eq!(m.list().sources, ["me/ext", "https://gitlab.com/me/ext"]);
         assert!(m.known_source("me/ext"));
         for bad in [

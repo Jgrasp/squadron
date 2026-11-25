@@ -43,11 +43,11 @@
 
   async function addRepo(event: SubmitEvent) {
     event.preventDefault()
-    const repo = source.trim()
-    if (!(await attempt(() => addSource(repo), 'source'))) return
+    let added = ''
+    if (!(await attempt(async () => (added = await addSource(source.trim())), 'source'))) return
     source = ''
     dialog = null
-    filter = repo
+    filter = added
   }
 
   async function link() {

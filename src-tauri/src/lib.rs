@@ -2003,7 +2003,7 @@ async fn extensions_catalog(app: AppHandle) -> Result<Vec<serde_json::Value>, St
 }
 
 #[tauri::command]
-async fn extensions_source_add(app: AppHandle, source: String) -> Result<(), String> {
+async fn extensions_source_add(app: AppHandle, source: String) -> Result<String, String> {
     let source = extensions::canonical(&source);
     if !extensions::valid_source(&source) {
         return Err(extensions::not_a_source(&source));
