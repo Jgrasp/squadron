@@ -189,7 +189,8 @@ impl Agents {
             .filter(|n| !agent.servers.contains(n))
             .cloned()
             .collect();
-        let toggles = if !reviews_branch(&dir) {
+        let alive = agent.session.as_ref().is_some_and(Session::alive);
+        let toggles = if alive && !reviews_branch(&dir) {
             on_demand.connector_toggles(&dir, &names, &added)?
         } else {
             Vec::new()

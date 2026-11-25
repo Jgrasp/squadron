@@ -916,7 +916,7 @@ export async function followWaits() {
     try {
       const dir = workdir(agent)
       const pull = await invoke<Pull>('numbered_pull', { dir, number: wait.number })
-      const runs = wait.until === 'checks' && pull.checks === 'failing' ? await invoke<Run[]>('pipeline_runs', { dir, repository: '' }).catch(() => []) : []
+      const runs = wait.until === 'checks' && pull.checks === 'failing' ? await invoke<Run[]>('pipeline_runs', { dir, repository: projects.list.find((p) => p.path === agent.project)?.repository ?? '' }).catch(() => []) : []
       const text = pullOutcome(wait, pull, Date.now(), runs)
       if (text && agent.pullWait === wait) {
         agent.pullWait = undefined
