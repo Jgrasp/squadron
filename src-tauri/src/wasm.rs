@@ -3071,14 +3071,14 @@ mod tests {
 
     #[test]
     fn fills_a_form_body_percent_encoded_and_leaves_other_bodies_alone() {
-        let keys = |key: &str| Ok((key == "a1.token").then(|| "p@ss w&rd=".to_string()));
+        let keys = |key: &str| Ok((key == "a1.token").then(|| "a b&c=".to_string()));
         let accounts = [account("a1", None)];
         let resolve = |name: &str| lookup(name, "oauth2.googleapis.com", &accounts, &keys);
         let request = |kind: &str| Request {
             method: "POST".into(),
             url: "https://oauth2.googleapis.com/token".into(),
             headers: vec![("content-TYPE".into(), kind.into())],
-            body: Some("user={{a1.email}}&secret={{a1.token}}".into()),
+            body: Some("user={{a1.email}}&code={{a1.token}}".into()),
         };
         let mut used = vec![];
         assert_eq!(
@@ -3089,11 +3089,11 @@ mod tests {
             )
             .unwrap()
             .unwrap(),
-            "user=me%40acme.com&secret=p%40ss+w%26rd%3D"
+            "user=me%40acme.com&code=a+b%26c%3D"
         );
-        assert_eq!(used, ["p%40ss+w%26rd%3D", "p@ss w&rd="]);
+        assert_eq!(used, ["a+b%26c%3D", "a b&c="]);
         assert_eq!(
-            scrub("got p%40ss+w%26rd%3D and p@ss w&rd=".into(), &used),
+            scrub("got a+b%26c%3D and a b&c=".into(), &used),
             "got [secret] and [secret]"
         );
         let mut none = vec![];
@@ -3101,7 +3101,7 @@ mod tests {
             form_body(&request("application/json"), &resolve, &mut none)
                 .unwrap()
                 .unwrap(),
-            "user={{a1.email}}&secret={{a1.token}}"
+            "user={{a1.email}}&code={{a1.token}}"
         );
         assert!(none.is_empty());
         let bound = [account("a1", Some("jira.acme.com"))];
@@ -3245,17 +3245,17 @@ mod tests {
                     ),
                     ("User-Agent".into(), "squadron-test".into()),
                 ],
-                body: Some("user={{a1.email}}&secret={{a1.token}}".into()),
+                body: Some("user={{a1.email}}&code={{a1.token}}".into()),
             },
             MAX_BODY,
             FETCH,
-            &|k: &str| Ok((k == "a1.token").then(|| "p@ss w&rd=".to_string())),
+            &|k: &str| Ok((k == "a1.token").then(|| "a b&c=".to_string())),
         )
         .map(response)
         .unwrap();
         let body: Value = serde_json::from_str(&answer.body).unwrap();
         assert_eq!(body["form"]["user"], "me@acme.com", "{body}");
-        assert_eq!(body["form"]["secret"], "[secret]", "{body}");
+        assert_eq!(body["form"]["code"], "[secret]", "{body}");
         assert!(!answer.body.contains("w&rd") && !answer.body.contains("w%26rd"));
     }
 
