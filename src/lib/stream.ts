@@ -4,7 +4,7 @@ import type { Chip } from './newAgentDraft'
 
 export type Options = {
   model: string
-  effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max'
+  effort: 'low' | 'medium' | 'high' | 'xhigh' | 'max' | 'auto'
   mode: 'default' | 'acceptEdits' | 'plan' | 'auto'
   agent?: string
   advisor?: string

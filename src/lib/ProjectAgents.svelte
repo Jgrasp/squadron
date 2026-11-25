@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { AUTO, AUTO_PROMPT } from './autoLaunch'
   import { models } from './catalogs.svelte'
   import { families, modelName, versionsOf } from './commands'
   import { advisorChoices } from './format'
@@ -11,6 +12,7 @@
   let { project, act, pick }: { project?: Project; act: (work: () => Promise<unknown>) => Promise<void>; pick: (path: string) => void } = $props()
 
   const EFFORTS: [Options['effort'], Key][] = [
+    ['auto', 'settings.auto'],
     ['low', 'settings.effortLow'],
     ['medium', 'settings.effortMedium'],
     ['high', 'settings.effortHigh'],
@@ -31,13 +33,13 @@
   const overridden = $derived(Object.keys(own).length)
 
   const capital = (word: string) => word[0].toUpperCase() + word.slice(1)
-  const modelLabel = (value: string) => (families(catalog).includes(value) ? capital(value) : modelName(value, catalog))
+  const modelLabel = (value: string) => (value === AUTO ? t('settings.auto') : families(catalog).includes(value) ? capital(value) : modelName(value, catalog))
   const effortLabel = (value: string) => t(EFFORTS.find(([id]) => id === value)?.[1] ?? 'settings.effortHigh')
   const modeLabel = (value: string) => t(MODES.find(([id]) => id === value)?.[1] ?? 'settings.modeDefault')
   const inherit = (value: string): Option[] => (project ? [{ value: '', label: t('settings.inheritGlobal', { value }) }] : [])
 
   const modelOptions = $derived.by(() => {
-    const list: Option[] = inherit(modelLabel(base.model))
+    const list: Option[] = [...inherit(modelLabel(base.model)), { value: AUTO, label: t('settings.auto'), detail: t('settings.autoHint') }]
     for (const family of families(catalog)) {
       const versions = versionsOf(family, catalog)
       const latest = versions[0] ? modelName(versions[0].value, catalog) : ''
@@ -51,7 +53,7 @@
   const levels = $derived(catalog.find((m) => m.value === effective.model)?.supportedEffortLevels)
   const effortOptions = $derived<Option[]>([
     ...inherit(effortLabel(base.effort)),
-    ...EFFORTS.map(([id, name]) => ({ value: id, label: t(name), disabled: !!levels && !levels.includes(id) && own.effort !== id })),
+    ...EFFORTS.map(([id, name]) => ({ value: id, label: t(name), detail: id === AUTO ? t('settings.autoHint') : undefined, disabled: id !== AUTO && !!levels && !levels.includes(id) && own.effort !== id })),
   ])
   const modeOptions = $derived<Option[]>([...inherit(modeLabel(base.mode)), ...MODES.map(([id, name, hint]) => ({ value: id, label: t(name), detail: t(hint) }))])
   const advisorOptions = $derived<Option[]>(advisorChoices(base.model).map((choice) => ({ value: choice.value, label: choice.label, detail: choice.detail, disabled: 'off' in choice && choice.off && base.advisor !== choice.value })))
@@ -74,6 +76,8 @@
     else delete next[field]
     act(() => (project ? editProject(project.path, { defaults: next as Defaults }) : saveSettings({ ...$state.snapshot(settings), defaults: next as Options })))
   }
+
+  const changePrompt = (auto_prompt: string) => act(() => saveSettings({ ...$state.snapshot(settings), auto_prompt }))
 </script>
 
 <section>
@@ -113,6 +117,22 @@
         </span>
       </div>
     {:else}
+      <div class="option column">
+        <span class="label">
+          <strong>{t('settings.autoPrompt')}</strong>
+          <small>{t('settings.autoPromptIntro')}</small>
+        </span>
+        <textarea
+          class="field prompt"
+          rows="5"
+          aria-label={t('settings.autoPrompt')}
+          value={settings.auto_prompt || AUTO_PROMPT}
+          onchange={(e) => changePrompt(e.currentTarget.value.trim() === AUTO_PROMPT ? '' : e.currentTarget.value.trim())}
+        ></textarea>
+        {#if settings.auto_prompt}
+          <span><button class="btn btn-ghost" onclick={() => changePrompt('')}>{t('settings.autoPromptReset')}</button></span>
+        {/if}
+      </div>
       <div class="option column result">
         <p>{custom.length ? t('settings.allProjectsOwn') : t('settings.allProjectsNone')}</p>
         {#if custom.length}

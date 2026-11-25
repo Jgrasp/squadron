@@ -34,7 +34,7 @@ export function ago(at: number, now: number) {
 
 export const time = (at: number) => date(at, { hour: '2-digit', minute: '2-digit' })
 
-export const modelLabel = (model: string) => modelName(model, models())
+export const modelLabel = (model: string) => (model === 'auto' ? t('settings.auto') : modelName(model, models()))
 
 const MODES: Record<Options['mode'], Key> = {
   default: 'format.modeDefault',
@@ -68,6 +68,7 @@ const EFFORTS: Record<string, Key> = {
   high: 'settings.effortHigh',
   xhigh: 'settings.effortXhigh',
   max: 'settings.effortMax',
+  auto: 'settings.auto',
 }
 
 export const effortLabel = (effort: string) => (EFFORTS[effort] ? t(EFFORTS[effort]) : effort)

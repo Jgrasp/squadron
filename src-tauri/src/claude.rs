@@ -69,7 +69,8 @@ pub fn squadron_prompt_size() -> usize {
     PROMPT.len() + ON_DEMAND.lock().unwrap().len()
 }
 
-const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
+pub const EFFORTS: [&str; 5] = ["low", "medium", "high", "xhigh", "max"];
+pub const AUTO: &str = "auto";
 const MODES: [&str; 4] = ["default", "acceptEdits", "plan", "auto"];
 pub const NO_ADVISOR: &str = "none";
 
@@ -129,7 +130,8 @@ pub struct Options {
 impl Options {
     pub fn check(&self) -> Result<(), String> {
         let model_id = |c: char| c.is_ascii_alphanumeric() || "-.[]".contains(c);
-        if !self.model.starts_with(|c: char| c.is_ascii_alphanumeric())
+        if self.model == AUTO
+            || !self.model.starts_with(|c: char| c.is_ascii_alphanumeric())
             || !self.model.chars().all(model_id)
         {
             return Err(format!("Unknown model: {}", self.model));
@@ -154,6 +156,17 @@ impl Options {
             return Err(format!("Unknown advisor: {advisor}"));
         }
         Ok(())
+    }
+
+    pub fn check_defaults(&self) -> Result<(), String> {
+        let mut known = self.clone();
+        if known.model == AUTO {
+            known.model = "opus".into();
+        }
+        if known.effort == AUTO {
+            known.effort = "high".into();
+        }
+        known.check()
     }
 }
 
@@ -788,9 +801,22 @@ mod tests {
         assert!(sneaky.check().is_err());
         let spaced = Options {
             model: "opus --verbose".into(),
-            ..ok
+            ..ok.clone()
         };
         assert!(spaced.check().is_err());
+        let auto = Options {
+            model: AUTO.into(),
+            effort: AUTO.into(),
+            ..ok
+        };
+        assert!(auto.check().is_err());
+        assert!(auto.check_defaults().is_ok());
+        let half = Options {
+            effort: "high".into(),
+            ..auto.clone()
+        };
+        assert!(half.check().is_err());
+        assert!(half.check_defaults().is_ok());
     }
 
     fn real_turn(dir: &Path, resume: Option<&str>, fork: bool, prompt: &str) -> (String, String) {

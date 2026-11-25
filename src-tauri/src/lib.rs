@@ -364,7 +364,7 @@ fn edit_project(
                 agent: None,
                 advisor: defaults.advisor.clone(),
             }
-            .check()?;
+            .check_defaults()?;
             project.defaults = defaults;
         }
         Ok(())
@@ -438,6 +438,7 @@ struct Config {
     runs_linger: u32,
     runs_hidden: Vec<String>,
     review_prompt: String,
+    auto_prompt: String,
     conversation_width: u32,
     sidebar: String,
     plugin_lines: String,
@@ -497,6 +498,7 @@ impl Default for Config {
             runs_linger: 10,
             runs_hidden: Vec::new(),
             review_prompt: String::new(),
+            auto_prompt: String::new(),
             conversation_width: 740,
             sidebar: "pinned".into(),
             plugin_lines: "tag".into(),
@@ -562,7 +564,7 @@ impl Settings {
     }
 
     fn save(&self, mut config: Config) -> Result<(), String> {
-        config.defaults.check()?;
+        config.defaults.check_defaults()?;
         if !["pulse", "snake"].contains(&config.tab_effect.as_str()) {
             return Err(format!("Unknown tab effect: {}", config.tab_effect));
         }
@@ -917,6 +919,94 @@ async fn suggest_title(
         return Err("No title suggested.".into());
     }
     Ok(title)
+}
+
+#[derive(Serialize, serde::Deserialize, Debug, PartialEq)]
+struct Launch {
+    model: String,
+    effort: String,
+}
+
+const LAUNCH_FORMAT: &str = "Reply with JSON only, no code fences: {\"model\": \"haiku\" | \"sonnet\" | \"opus\", \"effort\": \"low\" | \"medium\" | \"high\" | \"xhigh\" | \"max\"}.";
+
+fn launch_from(stdout: &[u8]) -> Result<Launch, String> {
+    let reply: serde_json::Value = serde_json::from_slice(stdout).map_err(|e| e.to_string())?;
+    if reply["is_error"].as_bool().unwrap_or(true) {
+        return Err("No launch suggested.".into());
+    }
+    let text = reply["result"].as_str().unwrap_or_default().trim();
+    let json = text
+        .find('{')
+        .zip(text.rfind('}'))
+        .map(|(a, b)| &text[a..=b])
+        .unwrap_or(text);
+    let launch: Launch = serde_json::from_str(json).map_err(|e| e.to_string())?;
+    if !["haiku", "sonnet", "opus"].contains(&launch.model.as_str())
+        || !claude::EFFORTS.contains(&launch.effort.as_str())
+    {
+        return Err(format!(
+            "Unknown launch: {} · {}",
+            launch.model, launch.effort
+        ));
+    }
+    Ok(launch)
+}
+
+#[tauri::command]
+async fn suggest_launch(
+    app: AppHandle,
+    settings: State<'_, Settings>,
+    text: String,
+    instruction: String,
+) -> Result<Launch, String> {
+    let program = settings.claude();
+    let task: String = text.chars().take(6000).collect();
+    let system = format!("{}\n\n{LAUNCH_FORMAT}", instruction.trim());
+    let dir = scratch(&app)?;
+    let stdout = tauri::async_runtime::spawn_blocking(move || -> Result<Vec<u8>, String> {
+        let mut child = process::command(program)
+            .current_dir(dir)
+            .args([
+                "-p",
+                "--model",
+                "haiku",
+                "--effort",
+                "low",
+                "--output-format",
+                "json",
+                "--tools",
+                "",
+                "--strict-mcp-config",
+                "--setting-sources",
+                "project",
+                "--no-session-persistence",
+                "--system-prompt",
+                &system,
+                "--",
+                &task,
+            ])
+            .stdin(std::process::Stdio::null())
+            .stdout(std::process::Stdio::piped())
+            .stderr(std::process::Stdio::null())
+            .spawn()
+            .map_err(|e| e.to_string())?;
+        let deadline = std::time::Instant::now() + std::time::Duration::from_secs(20);
+        while child.try_wait().map_err(|e| e.to_string())?.is_none() {
+            if std::time::Instant::now() > deadline {
+                let _ = child.kill();
+                let _ = child.wait();
+                return Err("Haiku took too long to pick a model.".into());
+            }
+            std::thread::sleep(std::time::Duration::from_millis(50));
+        }
+        let mut out = Vec::new();
+        std::io::Read::read_to_end(&mut child.stdout.take().expect("stdout is piped"), &mut out)
+            .map_err(|e| e.to_string())?;
+        Ok(out)
+    })
+    .await
+    .map_err(|e| e.to_string())??;
+    launch_from(&stdout)
 }
 
 #[tauri::command]
@@ -3150,6 +3240,7 @@ pub fn run() {
             claude_version,
             tested_claude_version,
             suggest_title,
+            suggest_launch,
             remove_rule,
             set_cards,
             create_agent,
@@ -3438,6 +3529,36 @@ pub fn run() {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn launch_reads_haiku_reply() {
+        let reply = |result: &str| {
+            serde_json::json!({"is_error": false, "result": result})
+                .to_string()
+                .into_bytes()
+        };
+        assert_eq!(
+            launch_from(&reply(
+                r#"```json
+{"model": "sonnet", "effort": "medium"}
+```"#
+            )),
+            Ok(Launch {
+                model: "sonnet".into(),
+                effort: "medium".into()
+            })
+        );
+        assert!(launch_from(&reply(r#"{"model": "auto", "effort": "high"}"#)).is_err());
+        assert!(launch_from(&reply(r#"{"model": "opus --verbose", "effort": "high"}"#)).is_err());
+        assert!(launch_from(&reply(r#"{"model": "opus", "effort": "auto"}"#)).is_err());
+        assert!(launch_from(&reply("Sonnet, medium.")).is_err());
+        assert!(
+            launch_from(
+                br#"{"is_error": true, "result": "{\"model\":\"opus\",\"effort\":\"high\"}"}"#
+            )
+            .is_err()
+        );
+    }
 
     #[test]
     fn pipeline_notifications_carry_over_from_runs_notify() {
