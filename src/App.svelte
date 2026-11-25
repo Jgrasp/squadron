@@ -44,8 +44,12 @@ import './lib/extensionWindows.svelte'
   import { ask } from './lib/asking.svelte'
   import PanelButtons from './lib/PanelButtons.svelte'
   import Splash from './lib/Splash.svelte'
+  import TourOverlay from './lib/TourOverlay.svelte'
+  import Welcome from './lib/Welcome.svelte'
+  import { tour } from './lib/tour.svelte'
   import { boot, finished } from './lib/boot.svelte'
   import { current, inspect, load, popOut, projects, setCards } from './lib/projects.svelte'
+  import { isDemo } from './lib/demoId'
 
   const project = $derived(current())
 
@@ -76,7 +80,7 @@ import './lib/extensionWindows.svelte'
     archive: (ids) => Promise.all(ids.filter(find).map((id) => archive(id))),
   }
 
-  const boardState = () => ({ projects: $state.snapshot(projects.list), current: projects.current, agents: mirrored })
+  const boardState = () => ({ projects: $state.snapshot(projects.list).filter((p) => !isDemo(p.path)), current: projects.current, agents: mirrored.filter((a) => !isDemo(a.id)) })
 
   $effect(() => {
     emitTo('board', 'board-state', boardState())
@@ -121,6 +125,9 @@ import './lib/extensionWindows.svelte'
       archiveIdle()
       setInterval(() => (rescan(), archiveIdle(), sleepIdle(), shelveHidden()), 15_000)
       finished.then(showChangelogOnce)
+      finished.then(() => {
+        if (!settings.tour_offered && projects.list.length === 0) tour.welcome = true
+      })
       lookForUpdate()
       setInterval(lookForUpdate, 10 * 60_000)
       const lookUpPulls = () => (lookUpAll(), Promise.allSettled(projects.list.map((p) => lookUpLists(p.path))))
@@ -242,6 +249,8 @@ import './lib/extensionWindows.svelte'
 <Viewer />
 <AskpassDialog />
 <StartAgentDialog />
+<TourOverlay />
+<Welcome />
 <Splash />
 
 <style>

@@ -54,8 +54,10 @@ export function current(): Project | undefined {
   return projects.list.find((p) => p.path === projects.current)
 }
 
+export const sandbox: { project: Project | null } = { project: null }
+
 export function set(list: Project[]) {
-  projects.list = list
+  projects.list = sandbox.project ? [...list.filter((p) => p.path !== sandbox.project!.path), sandbox.project] : list
   if (!list.some((p) => p.path === projects.current)) projects.current = list[0]?.path ?? ''
 }
 

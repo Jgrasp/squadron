@@ -1,4 +1,5 @@
 import { invoke } from '@tauri-apps/api/core'
+import { isDemo } from './demoId'
 import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { activityOf, agentChanges, groupOf, projectChanges, projectOf, usageOf, type AgentActivity, type Fed } from './activity'
@@ -30,7 +31,7 @@ function shelved(fresh = false) {
   return shelf.loading
 }
 
-const live = () => agents.list.map((a) => activityOf(a))
+const live = () => agents.list.filter((a) => !isDemo(a.id)).map((a) => activityOf(a))
 
 async function everyone(fresh = false): Promise<AgentActivity[]> {
   const ids = new Set(agents.list.map((a) => a.id))
@@ -40,7 +41,7 @@ async function everyone(fresh = false): Promise<AgentActivity[]> {
 
 async function projectList() {
   const all = await everyone()
-  return projects.list.map((p) => projectOf(p, all))
+  return projects.list.filter((p) => !isDemo(p.path)).map((p) => projectOf(p, all))
 }
 
 const usage = () => usageOf(limits, claudeApi)

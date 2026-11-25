@@ -23,6 +23,7 @@ export default {
   newsOpen: 'Voir ce qui change',
   newsDismiss: 'Fermer',
   tabAbout: 'À propos',
+  tabQuickStart: 'Démarrage rapide',
   effectSnake: 'Serpent',
   effectSnakeHint: 'Une traînée lumineuse fait le tour de l’onglet, un tour toutes les {seconds} s',
   effectPulse: 'Pulsation',

@@ -460,6 +460,8 @@ struct Config {
     chips_every: u32,
     chips_scope: String,
     usage: bool,
+    tour_offered: bool,
+    tips: bool,
 }
 
 impl Default for Config {
@@ -520,6 +522,8 @@ impl Default for Config {
             chips_every: 3,
             chips_scope: "all".into(),
             usage: true,
+            tour_offered: false,
+            tips: true,
         }
     }
 }

@@ -21,6 +21,7 @@ export default {
   newsOpen: 'See what changed',
   newsDismiss: 'Dismiss',
   tabAbout: 'About',
+  tabQuickStart: 'Quick start',
   effectSnake: 'Snake',
   effectSnakeHint: 'A light trail runs around the tab, one lap every {seconds} s',
   effectPulse: 'Pulse',
