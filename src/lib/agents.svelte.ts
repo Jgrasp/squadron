@@ -468,6 +468,7 @@ async function adopt({ link, ...data }: Agent & { link?: Chip }) {
     ...newAgent(data.id, data.project, data.name, data.options),
     ...data,
     entries: tidy(data.entries ?? []),
+    options: settleAuto(data.options, null, []),
     asks: [],
     background: [],
     alive: false,
