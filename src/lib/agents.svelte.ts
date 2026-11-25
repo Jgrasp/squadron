@@ -3,7 +3,8 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { SvelteSet } from 'svelte/reactivity'
 import { apiSignal, noted, type ClaudeApi } from './activity'
-import { remember } from './catalogs.svelte'
+import { models, remember } from './catalogs.svelte'
+import { resolveAuto, settle as settleAuto } from './autoLaunch'
 import { isDemo } from './demoId'
 import { EDITS } from './diff'
 import { insideArtifacts } from './artifacts'
@@ -471,6 +472,7 @@ async function adopt({ link, ...data }: Agent & { link?: Chip }) {
     ...newAgent(data.id, data.project, data.name, data.options),
     ...data,
     entries: tidy(data.entries ?? []),
+    options: settleAuto(data.options, null, []),
     asks: [],
     background: [],
     alive: false,
@@ -525,10 +527,11 @@ export async function importSession(project: string, found: Elsewhere, name = ''
   const transcript = await invoke<string>('read_session', { project, id: found.id })
   const from = found.app ? t('shell.theClaudeApp') : 'Claude Code'
   const pick = <T extends string>(value: string | null, allowed: readonly T[], fallback: T) => (allowed.includes(value as T) ? (value as T) : fallback)
+  const base = settleAuto(defaultsFor(project), null, models())
   const options: Options = {
-    model: found.model && /^[a-z0-9][a-z0-9.\-[\]]*$/i.test(found.model) ? found.model : defaultsFor(project).model,
-    effort: pick(found.effort, ['low', 'medium', 'high', 'xhigh', 'max'] as const, defaultsFor(project).effort),
-    mode: pick(found.mode, ['default', 'plan', 'acceptEdits', 'auto'] as const, defaultsFor(project).mode),
+    model: found.model && /^[a-z0-9][a-z0-9.\-[\]]*$/i.test(found.model) ? found.model : base.model,
+    effort: pick(found.effort, ['low', 'medium', 'high', 'xhigh', 'max'] as const, base.effort),
+    mode: pick(found.mode, ['default', 'plan', 'acceptEdits', 'auto'] as const, base.mode),
   }
   const entries = entriesOf(transcript)
   const data: Agent = {
@@ -844,10 +847,6 @@ export async function create(project: string, name: string, options: Options, te
   if (dir) agent.worktree = { path: dir, branch: '' }
   if (link) agent.chips = [link]
   if (worktree) flaggedWorktree.add(agent.id)
-  if (!name) {
-    agent.autoName = true
-    if (text.trim()) entitle(agent, text)
-  }
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })
   if (from?.id) agent.startedBy = from.id
   else agents.current[project] = agent.id
@@ -856,9 +855,14 @@ export async function create(project: string, name: string, options: Options, te
     agent.status = 'done'
     agent.since = Date.now()
   }
+  agent.options = await resolveAuto(options, text)
+  if (!name) {
+    agent.autoName = true
+    if (text.trim()) entitle(agent, text)
+  }
   persist(agent)
   try {
-    await invoke('create_agent', { id: agent.id, project, options, text, worktree: worktree || null, dir: dir ?? null, files })
+    await invoke('create_agent', { id: agent.id, project, options: $state.snapshot(agent.options), text, worktree: worktree || null, dir: dir ?? null, files })
     if (dir) branchOf(agent)
     if (options.mode !== 'plan') await arm(agent)
     if (settings.remote_new_agents) await invoke('remote_control', { id: agent.id, enabled: true }).catch(() => {})

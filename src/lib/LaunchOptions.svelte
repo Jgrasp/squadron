@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
+  import { AUTO } from './autoLaunch'
   import { models } from './catalogs.svelte'
   import { advisorChoices, advisorIdle, advisorLabel, advising, effortLabel, modelLabel } from './format'
   import { t, type Key } from './i18n/index.svelte'
@@ -8,7 +9,7 @@
 
   let { options = $bindable(), before, picker }: { options: Options; before?: Snippet; picker?: Snippet } = $props()
 
-  const EFFORTS: Options['effort'][] = ['low', 'medium', 'high', 'xhigh', 'max']
+  const EFFORTS: Options['effort'][] = ['auto', 'low', 'medium', 'high', 'xhigh', 'max']
   const MODES: Options['mode'][] = ['default', 'acceptEdits', 'plan', 'auto']
   const TITLES: Record<Options['mode'], Key> = {
     default: 'settings.modeDefault',
@@ -24,11 +25,14 @@
   }
 
   const catalog = $derived(models().filter((m) => m.value !== 'default'))
-  const modelChoices = $derived(
-    catalog.length ? catalog.map((m) => ({ value: m.value, label: modelLabel(m.value), detail: m.description })) : ['opus', 'sonnet', 'haiku'].map((value) => ({ value, label: modelLabel(value) })),
-  )
+  const modelChoices = $derived([
+    { value: AUTO, label: modelLabel(AUTO), detail: t('settings.autoHint') },
+    ...(catalog.length ? catalog.map((m) => ({ value: m.value, label: modelLabel(m.value), detail: m.description })) : ['opus', 'sonnet', 'haiku'].map((value) => ({ value, label: modelLabel(value) }))),
+  ])
   const levels = $derived(catalog.find((m) => m.value === options.model)?.supportedEffortLevels)
-  const effortChoices = $derived(EFFORTS.map((value) => ({ value, label: effortLabel(value), off: !!levels && !levels.includes(value) })))
+  const effortChoices = $derived(
+    EFFORTS.map((value) => (value === AUTO ? { value, label: effortLabel(value), detail: t('settings.autoHint') } : { value, label: effortLabel(value), off: !!levels && !levels.includes(value) })),
+  )
   const noEffort = $derived(levels?.length === 0)
   let openKey = $state<'model' | 'effort' | null>(null)
   let expanded = $state(false)
@@ -36,7 +40,7 @@
   function pickModel(value: string) {
     options.model = value
     const supported = catalog.find((m) => m.value === value)?.supportedEffortLevels
-    if (supported?.length && !supported.includes(options.effort)) options.effort = supported[supported.length - 1] as Options['effort']
+    if (supported?.length && options.effort !== AUTO && !supported.includes(options.effort)) options.effort = supported[supported.length - 1] as Options['effort']
   }
 
   const modeChoices = $derived(MODES.map((value) => ({ value, label: t(TITLES[value]), detail: t(HINTS[value]), tone: `tone-${value}` })))
@@ -46,7 +50,7 @@
   <div class="pick" class:open={openKey === key}>
     <button type="button" class="field-trigger" aria-haspopup="listbox" aria-expanded={openKey === key} onclick={() => (openKey = openKey === key ? null : key)}>
       <dt>{label}</dt>
-      <dd>{value}<svg class="chev" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></dd>
+      <dd>{#if selected === AUTO}<span class="spark" aria-hidden="true">✦</span>{/if}{value}<svg class="chev" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></dd>
     </button>
     {#if openKey === key}
       <div class="option-menu" role="listbox" aria-label={label}>
@@ -139,6 +143,10 @@
     display: flex;
     align-items: center;
     gap: 4px;
+  }
+
+  .spark {
+    color: var(--background);
   }
 
   .chev {

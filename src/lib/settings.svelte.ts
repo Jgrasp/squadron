@@ -53,6 +53,7 @@ export type Config = {
   runs_linger: number
   runs_hidden: string[]
   review_prompt: string
+  auto_prompt: string
   conversation_width: number
   sidebar: 'pinned' | 'peek'
   plugin_lines: 'off' | 'tag' | 'card' | 'gutter'
@@ -106,6 +107,7 @@ export const settings = $state<Config>({
   runs_linger: 10,
   runs_hidden: [],
   review_prompt: '',
+  auto_prompt: '',
   conversation_width: 740,
   sidebar: 'pinned',
   plugin_lines: 'tag',
