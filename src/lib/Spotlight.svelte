@@ -1,5 +1,6 @@
 <script lang="ts">
   import { perform, ui } from './actions.svelte'
+  import { tour } from './tour.svelte'
   import { message } from './asking.svelte'
   import { invoke } from '@tauri-apps/api/core'
   import { agents, find, ofProject, onDisk, selected, show, unarchive } from './agents.svelte'
@@ -246,7 +247,7 @@
   })
 
   $effect(() => {
-    dialog.showModal()
+    tour.on ? dialog.show() : dialog.showModal()
     field.focus()
   })
 
@@ -585,6 +586,12 @@
     box-shadow:
       0 0 0 1px var(--border-strong),
       0 30px 80px rgba(0, 0, 0, 0.6);
+  }
+
+  .spotlight:not(:modal) {
+    position: fixed;
+    inset: 0;
+    z-index: 800;
   }
 
   .spotlight::backdrop {

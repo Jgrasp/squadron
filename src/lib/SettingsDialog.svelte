@@ -22,6 +22,7 @@
   import McpServers from './McpServers.svelte'
   import { saveSettings, settings } from './settings.svelte'
   import { untrack } from 'svelte'
+  import { tour } from './tour.svelte'
   import { errorText, t, type Key } from './i18n/index.svelte'
 
   type Tab = SettingsTab
@@ -30,7 +31,7 @@
 
   const tab = $derived(ui.settings ?? 'projects')
   $effect(() => {
-    rememberSettingsTab(tab)
+    if (!tour.on) rememberSettingsTab(tab)
   })
 
   const groups: [Key, [Tab, Key][]][] = [

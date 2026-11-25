@@ -24,6 +24,8 @@ const ANSWERED = new Set([
   'context_usage',
 ])
 
+const EMPTY: Record<string, unknown> = { list_dir: [], pull_lists: { review: [], mine: [], others: [] } }
+
 const LISTS = new Set(['set_cards', 'add_rule', 'remove_rule', 'edit_project'])
 
 let handler: Handler = () => null
@@ -32,6 +34,7 @@ let saved: { current: string; overview: boolean; usage: boolean; board: boolean;
 function gate() {
   ipc.route = (cmd, args) => {
     if (!touchesDemo(args)) return undefined
+    if (cmd in EMPTY) return Promise.resolve(EMPTY[cmd])
     if (LISTS.has(cmd)) return Promise.resolve(projects.list.filter((p) => !isDemo(p.path)))
     if (!ANSWERED.has(cmd)) return Promise.reject(new Error('demo'))
     return Promise.resolve(handler(cmd, args))

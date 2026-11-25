@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { Snippet } from 'svelte'
   import { t } from './i18n/index.svelte'
+  import { tour } from './tour.svelte'
 
   let {
     title,
@@ -24,7 +25,7 @@
   }
 
   $effect(() => {
-    if (!dialog.open) dialog.showModal()
+    if (!dialog.open) tour.on ? dialog.show() : dialog.showModal()
   })
 </script>
 
@@ -62,6 +63,13 @@
     box-shadow:
       0 0 0 1px var(--border-strong),
       0 30px 80px rgba(0, 0, 0, 0.6);
+  }
+
+  dialog:not(:modal) {
+    position: fixed;
+    inset: 0;
+    margin: auto;
+    z-index: 800;
   }
 
   dialog.full[open] {
