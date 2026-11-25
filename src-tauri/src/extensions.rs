@@ -41,12 +41,15 @@ pub struct Account {
     pub secrets: Vec<String>,
 }
 
-#[derive(PartialEq)]
-enum Kind {
+#[derive(PartialEq, Clone, Copy, Debug)]
+pub enum Kind {
     Text,
     Host,
     Secret,
+    Captured,
 }
+
+static CHOICES: std::sync::Mutex<()> = std::sync::Mutex::new(());
 
 fn account_fields(manifest: &serde_json::Value) -> Vec<(String, Kind)> {
     manifest["contributes"]["accounts"]["fields"]
@@ -59,6 +62,7 @@ fn account_fields(manifest: &serde_json::Value) -> Vec<(String, Kind)> {
                 serde_json::Value::Null => Kind::Text,
                 k if k == "text" => Kind::Text,
                 k if k == "host" => Kind::Host,
+                k if k == "captured" => Kind::Captured,
                 _ => Kind::Secret,
             };
             Some((id.to_string(), kind))
@@ -187,6 +191,11 @@ fn filled(
     for (field, kind) in fields {
         let value = input.get(field).map(|v| v.trim()).unwrap_or_default();
         match kind {
+            Kind::Captured => {
+                if old.is_some_and(|o| o.secrets.contains(field)) {
+                    next.secrets.push(field.clone());
+                }
+            }
             Kind::Secret if value.is_empty() => {
                 if !old.is_some_and(|o| o.secrets.contains(field)) {
                     return Err(unfit(format!("Fill in the field {field}."), field));
@@ -385,6 +394,35 @@ impl Extensions {
             .is_some_and(|m| m["contributes"]["accounts"]["check"] == true)
     }
 
+    pub fn account_kinds(&self, id: &str) -> Vec<(String, Kind)> {
+        self.manifest(id)
+            .map(|m| account_fields(&m))
+            .unwrap_or_default()
+    }
+
+    pub fn keep_captured(
+        &self,
+        id: &str,
+        account: &str,
+        values: &[(String, String)],
+        keyring: Keyring,
+    ) -> Result<(), String> {
+        let _lock = CHOICES.lock().unwrap_or_else(|e| e.into_inner());
+        let mut choices = self.choices();
+        let found = choices
+            .accounts
+            .get_mut(id)
+            .and_then(|list| list.iter_mut().find(|a| a.id == account))
+            .ok_or_else(|| format!("The account {account} no longer exists."))?;
+        for (field, value) in values {
+            keyring(account, field, Some(value))?;
+            if !found.secrets.contains(field) {
+                found.secrets.push(field.clone());
+            }
+        }
+        self.save(&choices)
+    }
+
     pub fn account_field_ids(&self, id: &str) -> Vec<String> {
         self.manifest(id)
             .map(|m| account_fields(&m).into_iter().map(|(f, _)| f).collect())
@@ -413,6 +451,7 @@ impl Extensions {
         keyring: Keyring,
     ) -> Result<String, String> {
         let fields = self.account_spec(id)?;
+        let _lock = CHOICES.lock().unwrap_or_else(|e| e.into_inner());
         let mut choices = self.choices();
         let list = choices.accounts.entry(id.to_string()).or_default();
         let old = existing(list, account)?;
@@ -436,6 +475,7 @@ impl Extensions {
     }
 
     pub fn remove_account(&self, id: &str, account: &str, keyring: Keyring) -> Result<(), String> {
+        let _lock = CHOICES.lock().unwrap_or_else(|e| e.into_inner());
         let mut choices = self.choices();
         let list = choices.accounts.entry(id.to_string()).or_default();
         let Some(at) = list.iter().position(|a| a.id == account) else {
@@ -1424,6 +1464,64 @@ mod tests {
         .unwrap();
         assert!(ring.lock().unwrap().is_empty());
         assert!(m.list().accounts.is_empty());
+    }
+
+    #[test]
+    fn keeps_captured_fields_across_form_saves_and_drops_them_with_the_account() {
+        use std::sync::Mutex;
+        let m = extensions();
+        std::fs::create_dir_all(m.dir.join("time")).unwrap();
+        std::fs::write(
+            m.dir.join("time/extension.json"),
+            r#"{"id":"time","contributes":{"accounts":{"fields":[
+                {"id":"email"},{"id":"refresh-token","kind":"captured"}]}}}"#,
+        )
+        .unwrap();
+        let ring = Mutex::new(BTreeMap::<String, String>::new());
+        let keyring = |account: &str, field: &str, value: Option<&str>| {
+            let mut ring = ring.lock().unwrap();
+            match value {
+                Some(v) => ring.insert(format!("{account}.{field}"), v.to_string()),
+                None => ring.remove(&format!("{account}.{field}")),
+            };
+            Ok(())
+        };
+        let email = |e: &str| BTreeMap::from([("email".to_string(), e.to_string())]);
+        assert_eq!(
+            m.account_kinds("time"),
+            [
+                ("email".to_string(), Kind::Text),
+                ("refresh-token".to_string(), Kind::Captured)
+            ]
+        );
+        let a = m
+            .save_account("time", None, &email("a@x.com"), &keyring)
+            .unwrap();
+        assert!(m.accounts("time")[0].secrets.is_empty());
+        m.keep_captured(
+            "time",
+            &a,
+            &[("refresh-token".into(), "r3fresh".into())],
+            &keyring,
+        )
+        .unwrap();
+        assert_eq!(m.accounts("time")[0].secrets, ["refresh-token"]);
+        assert!(
+            !std::fs::read_to_string(&m.file)
+                .unwrap()
+                .contains("r3fresh")
+        );
+        let mut typed = email("b@x.com");
+        typed.insert("refresh-token".into(), "typed".into());
+        m.save_account("time", Some(&a), &typed, &keyring).unwrap();
+        assert_eq!(m.accounts("time")[0].secrets, ["refresh-token"]);
+        assert_eq!(
+            ring.lock().unwrap()[&format!("{a}.refresh-token")],
+            "r3fresh"
+        );
+        assert!(m.keep_captured("time", "gone", &[], &keyring).is_err());
+        m.remove_account("time", &a, &keyring).unwrap();
+        assert!(ring.lock().unwrap().is_empty());
     }
 
     #[test]

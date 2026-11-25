@@ -33,7 +33,7 @@ export type Verdict = (typeof VERDICTS)[number]
 
 export type Forge = { remotes: string[]; links: string[]; calls: string[]; verdicts?: Verdict[] }
 
-export const FIELD_KINDS = ['text', 'host', 'secret'] as const
+export const FIELD_KINDS = ['text', 'host', 'secret', 'captured'] as const
 
 export type AccountField = { id: string; label: Text; hint?: Text; url?: string; kind?: (typeof FIELD_KINDS)[number]; copy?: string[] }
 
@@ -61,7 +61,9 @@ export const AGENT_ACCESS = ['read', 'archive', 'activity', 'show'] as const
 
 export const READ_ACCESS = ['read'] as const
 
-export type Permissions = { exec?: string[]; network?: string[]; agents?: (typeof AGENT_ACCESS)[number][]; projects?: (typeof READ_ACCESS)[number][]; usage?: (typeof READ_ACCESS)[number][] }
+export type Exec = string | { program: string; secrets?: boolean }
+
+export type Permissions = { exec?: Exec[]; network?: string[]; agents?: (typeof AGENT_ACCESS)[number][]; projects?: (typeof READ_ACCESS)[number][]; usage?: (typeof READ_ACCESS)[number][] }
 
 export type Manifest = {
   id: string
@@ -215,6 +217,11 @@ function accountsOk(value: unknown) {
   return new Set(fields.map((f) => f.id)).size === fields.length && fields.filter((f) => f.kind === 'host').length <= 1
 }
 
+const PROGRAM = /^[\w.+-]+$/
+
+const execOk = (p: unknown) =>
+  typeof p === 'string' ? PROGRAM.test(p) : isObject(p) && typeof p.program === 'string' && PROGRAM.test(p.program) && (p.secrets === undefined || typeof p.secrets === 'boolean')
+
 export function validate(raw: unknown, taken: string[] = []): { manifest?: Manifest; problems: Problem[] } {
   if (!isObject(raw)) return { problems: [['extensions.notObject']] }
   const problems: Problem[] = []
@@ -229,7 +236,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
   if (wasm && !inside(raw.wasm, '.wasm')) problems.push(['extensions.badWasm'])
   if (raw.logo !== undefined && !(inside(raw.logo, '.svg') && !(raw.logo as string).split(/[\\/]/).some((p) => p.startsWith('.')))) problems.push(['extensions.badLogo'])
   const exec = isObject(raw.permissions) ? raw.permissions.exec : undefined
-  if ((raw.permissions !== undefined && !isObject(raw.permissions)) || (exec !== undefined && (!Array.isArray(exec) || !exec.every((p) => typeof p === 'string' && /^[\w.+-]+$/.test(p)))))
+  if ((raw.permissions !== undefined && !isObject(raw.permissions)) || (exec !== undefined && (!Array.isArray(exec) || !exec.every(execOk))))
     problems.push(['extensions.badExec'])
   const network = isObject(raw.permissions) ? raw.permissions.network : undefined
   if (network !== undefined && (!Array.isArray(network) || !network.every((h) => typeof h === 'string' && /^[a-z0-9-]+(\.[a-z0-9-]+)+$/.test(h)))) problems.push(['extensions.badNetwork'])
@@ -307,6 +314,10 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
 
 export const EXEC = 'exec:'
 
+export const EXEC_SECRETS = 'exec-secrets:'
+
+export const execOf = (exec: Exec[] = []) => exec.flatMap((e) => (typeof e === 'string' ? [EXEC + e] : e.secrets ? [EXEC + e.program, EXEC_SECRETS + e.program] : [EXEC + e.program]))
+
 export const NET = 'net:'
 
 export const ARGS = 'args:'
@@ -323,7 +334,7 @@ export const commandsOf = (manifest: Manifest) => [
   ...new Set([
     ...(manifest.contributes?.items ?? []).flatMap((i) => ('terminal.run' in i.action ? [i.action['terminal.run']] : [])),
     ...(manifest.contributes?.tools ?? []).flatMap((t) => (t.command ? [t.command] : [])),
-    ...(manifest.permissions?.exec ?? []).map((p) => EXEC + p),
+    ...execOf(manifest.permissions?.exec),
     ...(manifest.permissions?.network ?? []).map((h) => NET + h),
     ...(manifest.permissions?.agents ?? []).map((a) => AGENTS + a),
     ...(manifest.permissions?.projects ?? []).map((a) => PROJECTS + a),
@@ -333,7 +344,7 @@ export const commandsOf = (manifest: Manifest) => [
   ]),
 ]
 
-export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, NET, AGENTS, PROJECTS, USAGE].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
+export const grantsOf = (extension: Extension) => extension.commands.filter((c) => [EXEC, EXEC_SECRETS, NET, AGENTS, PROJECTS, USAGE].some((p) => c.startsWith(p)) && !extension.pending.includes(c))
 
 export function load(found: Found[], disabled: string[], approved: Record<string, string[]> = {}, app = ''): Extension[] {
   const taken: string[] = []

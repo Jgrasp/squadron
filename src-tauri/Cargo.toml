@@ -13,6 +13,7 @@ tauri-build = { version = "2.7.3", features = [] }
 
 [dependencies]
 base64 = "0.22"
+form_urlencoded = "1"
 axum = { version = "0.8", default-features = false, features = ["http1", "tokio"] }
 http = "1"
 libc = "0.2"
