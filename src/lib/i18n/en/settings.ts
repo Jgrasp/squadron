@@ -416,4 +416,12 @@ export default {
   allProjectsIntro: 'What every new agent starts with: the New agent dialog, a Kanban task, the pilot, an imported conversation, a pull request review.',
   allProjectsOwn: 'Projects with their own values',
   allProjectsNone: 'No project sets its own values.',
+  searchPlaceholder: 'Search settings',
+  searchClear: 'Clear the search',
+  searchResults: 'Results',
+  searchCount: { one: '{count} setting', other: '{count} settings' },
+  searchPages: { one: 'in {count} page', other: 'in {count} pages' },
+  searchNone: 'No setting matches “{query}”',
+  searchNoneHint: 'Try another word.',
+  searchOpen: 'Open {page}',
 }

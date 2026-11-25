@@ -5,6 +5,7 @@
   import Icon from './Icon.svelte'
   import ProjectAgents from './ProjectAgents.svelte'
   import ProjectGeneral from './ProjectGeneral.svelte'
+  import ProjectPage from './ProjectPage.svelte'
   import ProjectReview from './ProjectReview.svelte'
   import ProjectRules from './ProjectRules.svelte'
   import ProjectsRules from './ProjectsRules.svelte'
@@ -97,23 +98,25 @@
       </header>
       {#key project.path}
         <div class="page">
-          {#if error}<p class="bad" role="alert">{error}</p>{/if}
-          <ProjectGeneral {project} {act} />
-          <ProjectAgents {project} {act} {pick} />
-          <ProjectRules {project} {act} />
-          <ProjectRuns {project} {act} />
-          {#if project.git}<ProjectReview {project} {act} />{/if}
-          <section>
-            <div class="options">
-              <div class="option">
-                <span class="label">
-                  <strong>{t('settings.removeProject')}</strong>
-                  <small>{t('settings.removeProjectHint')}</small>
-                </span>
-                <button class="btn btn-ghost" onclick={() => act(() => retire(project))}>{t('settings.removeEllipsis')}</button>
+          <ProjectPage>
+            {#if error}<p class="bad" role="alert">{error}</p>{/if}
+            <ProjectGeneral {project} {act} />
+            <ProjectAgents {project} {act} {pick} />
+            <ProjectRules {project} {act} />
+            <ProjectRuns {project} {act} />
+            {#if project.git}<ProjectReview {project} {act} />{/if}
+            <section>
+              <div class="options">
+                <div class="option">
+                  <span class="label">
+                    <strong>{t('settings.removeProject')}</strong>
+                    <small>{t('settings.removeProjectHint')}</small>
+                  </span>
+                  <button class="btn btn-ghost" onclick={() => act(() => retire(project))}>{t('settings.removeEllipsis')}</button>
+                </div>
               </div>
-            </div>
-          </section>
+            </section>
+          </ProjectPage>
         </div>
       {/key}
     {:else}
@@ -123,12 +126,14 @@
         <span class="sub">{t('settings.allProjectsSub')}</span>
       </header>
       <div class="page">
-        {#if error}<p class="bad" role="alert">{error}</p>{/if}
-        <ProjectAgents {act} {pick} />
-        {#if list.length}<ProjectsRules {act} />{/if}
-        <ProjectRuns {act} />
-        <ProjectReview {act} />
-        {#if !list.length}<p class="empty">{t('settings.projectsNone')}</p>{/if}
+        <ProjectPage>
+          {#if error}<p class="bad" role="alert">{error}</p>{/if}
+          <ProjectAgents {act} {pick} />
+          {#if list.length}<ProjectsRules {act} />{/if}
+          <ProjectRuns {act} />
+          <ProjectReview {act} />
+          {#if !list.length}<p class="empty">{t('settings.projectsNone')}</p>{/if}
+        </ProjectPage>
       </div>
     {/if}
   </div>
@@ -355,158 +360,6 @@
 
   .page > :global(*) {
     max-width: 720px;
-  }
-
-  .page :global(section) {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-  }
-
-  .page :global(h4) {
-    margin: 0;
-    font-size: 11px;
-    font-weight: 700;
-    letter-spacing: 0.08em;
-    text-transform: uppercase;
-    color: var(--text-dim);
-  }
-
-  .page :global(.intro) {
-    margin: 0;
-    font-size: 12px;
-    color: var(--text-dim);
-  }
-
-  .page :global(.options) {
-    border-radius: 6px;
-    background: var(--surface-1);
-    box-shadow: inset 0 0 0 1px var(--border);
-  }
-
-  .page :global(.option) {
-    display: flex;
-    align-items: center;
-    gap: 14px;
-    min-height: 52px;
-    padding: 8px 14px;
-  }
-
-  .page :global(.option + .option) {
-    border-top: 1px solid var(--border);
-  }
-
-  .page :global(.option.sub) {
-    min-height: 44px;
-    padding-left: 40px;
-  }
-
-  .page :global(.option.column) {
-    flex-direction: column;
-    align-items: stretch;
-    gap: 10px;
-    padding: 12px 14px 14px;
-  }
-
-  .page :global(.option.column.sub) {
-    padding-left: 40px;
-  }
-
-  .page :global(.option .label) {
-    flex: 1;
-    min-width: 0;
-    display: flex;
-    flex-direction: column;
-    gap: 1px;
-  }
-
-  .page :global(.option strong) {
-    font-size: 13px;
-    font-weight: 600;
-  }
-
-  .page :global(.option small) {
-    color: var(--text-dim);
-    font-size: 12px;
-  }
-
-  .page :global(.option .field),
-  .page :global(.option .select) {
-    flex: none;
-    width: 260px;
-  }
-
-  .page :global(.option .field) {
-    height: 32px;
-    padding: 0 10px;
-    font-size: 12.5px;
-  }
-
-  .page :global(.option .prompt) {
-    width: auto;
-    height: auto;
-    padding: 10px 12px;
-    resize: vertical;
-    line-height: 1.5;
-  }
-
-  .page :global(.option .add) {
-    display: flex;
-    gap: 8px;
-  }
-
-  .page :global(.option .add .field) {
-    flex: 1;
-    width: auto;
-  }
-
-  .page :global(.option .btn) {
-    flex: none;
-    height: 32px;
-  }
-
-  .page :global(.switch) {
-    appearance: none;
-    flex: none;
-    position: relative;
-    width: 32px;
-    height: 18px;
-    margin: 0;
-    border-radius: 999px;
-    background: var(--surface-5);
-    cursor: pointer;
-    transition: background 0.15s;
-  }
-
-  .page :global(.switch::before) {
-    content: '';
-    position: absolute;
-    top: 3px;
-    left: 3px;
-    width: 12px;
-    height: 12px;
-    border-radius: 50%;
-    background: var(--text-dim);
-    transition: transform 0.15s;
-  }
-
-  .page :global(.switch:checked) {
-    background: var(--accent);
-  }
-
-  .page :global(.switch:checked::before) {
-    transform: translateX(14px);
-    background: var(--ink);
-  }
-
-  .page :global(.switch:disabled) {
-    cursor: default;
-    opacity: 0.5;
-  }
-
-  .page :global(.switch:focus-visible) {
-    outline: 2px solid var(--accent-soft);
-    outline-offset: 2px;
   }
 
   .empty {
