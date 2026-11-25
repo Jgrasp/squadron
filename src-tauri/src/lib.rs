@@ -2004,10 +2004,9 @@ async fn extensions_catalog(app: AppHandle) -> Result<Vec<serde_json::Value>, St
 
 #[tauri::command]
 async fn extensions_source_add(app: AppHandle, source: String) -> Result<(), String> {
+    let source = extensions::canonical(&source);
     if !extensions::valid_source(&source) {
-        return Err(format!(
-            "{source} is not a GitHub repository like owner/repo."
-        ));
+        return Err(extensions::not_a_source(&source));
     }
     extensions::fetch_index(&source)
         .await

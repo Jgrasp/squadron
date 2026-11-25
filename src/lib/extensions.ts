@@ -460,6 +460,11 @@ export function catalogOf(raw: unknown, app = ''): { entries: CatalogEntry[]; so
 
 export const originOf = (origins: Record<string, string>, id: string) => origins[id] ?? OFFICIAL
 
+export const ownerOf = (source: string) => {
+  const [host, owner] = source.replace(/^https:\/\//i, '').split('/')
+  return !source.includes('://') ? host : host.toLowerCase() === 'github.com' ? owner : `${host}/${owner}`
+}
+
 export const shownOf = (entries: CatalogEntry[], origins: Record<string, string>) =>
   [...new Set(entries.map((e) => e.id))].map((id) => entries.find((e) => e.id === id && e.source === origins[id]) ?? entries.find((e) => e.id === id)!)
 

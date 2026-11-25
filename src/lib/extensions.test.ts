@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, ownerOf, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -19,6 +19,13 @@ const lando = {
 const keys = (raw: unknown, taken?: string[]) => validate(raw, taken).problems.map(([key]) => key)
 
 describe('extensions', () => {
+  it('names the owner of a source on any forge', () => {
+    expect(ownerOf('Jgrasp/squadron-jira')).toBe('Jgrasp')
+    expect(ownerOf('https://github.com/me/ext')).toBe('me')
+    expect(ownerOf('https://gitlab.com/team/ext')).toBe('gitlab.com/team')
+    expect(ownerOf('https://acme.com/squadron/index.json')).toBe('acme.com/squadron')
+  })
+
   it('accepts a complete manifest', () => {
     expect(validate(lando)).toEqual({ manifest: lando, problems: [] })
   })

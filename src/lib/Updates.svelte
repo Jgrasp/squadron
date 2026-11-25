@@ -7,7 +7,7 @@
   import Markdown from './Markdown.svelte'
   import { ui } from './actions.svelte'
   import { errorText, list, locale, number, t } from './i18n/index.svelte'
-  import { releasesOf, updatesOf, type CatalogEntry, type Extension } from './extensions'
+  import { ownerOf, releasesOf, updatesOf, type CatalogEntry, type Extension } from './extensions'
   import { asks, catalog, commandLine, extensions, install } from './extensions.svelte'
   import { fromOf, nameOf } from './extension-pages.svelte'
   import { install as installSquadron, update } from './update.svelte'
@@ -151,7 +151,7 @@
             <span class="l1">
               <strong>{nameOf(row.e)}</strong>
               <span class="version">{row.from}{' → '}<b>{row.entry.version}</b></span>
-              <span class="pill {fromOf(row.e)}">{fromOf(row.e) === 'official' ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: row.entry.source.split('/')[0] })}`}</span>
+              <span class="pill {fromOf(row.e)}">{fromOf(row.e) === 'official' ? `✓ ${t('extensions.official')}` : `⇄ ${t('extensions.imported', { owner: ownerOf(row.entry.source) })}`}</span>
             </span>
             {#if step?.status === 'error'}
               <small class="bad">{step.error}</small>

@@ -2,7 +2,7 @@
   import Dialog from './Dialog.svelte'
   import { ui } from './actions.svelte'
   import { t } from './i18n/index.svelte'
-  import type { CatalogEntry } from './extensions'
+  import { ownerOf, type CatalogEntry } from './extensions'
   import { asks, install } from './extensions.svelte'
   import { attempt, named, work } from './extension-pages.svelte'
 
@@ -27,7 +27,7 @@
   <div class="box">
     <p class="sub"><span class="mono">{entry.version}</span> · {entry.official ? t('extensions.fromOfficial', { source: entry.source }) : t('extensions.fromImported', { source: entry.source })}</p>
     {#if entry.description}<p class="text">{named(entry.description)}</p>{/if}
-    {#if !entry.official}<p class="warn">{t('extensions.notReviewed', { owner: entry.source.split('/')[0] })}</p>{/if}
+    {#if !entry.official}<p class="warn">{t('extensions.notReviewed', { owner: ownerOf(entry.source) })}</p>{/if}
     <section>
       <h4>{t('extensions.permissions')}</h4>
       {#each lines as line (line)}<p class="line">{line}</p>{:else}<p class="line muted">{t('extensions.asksNothing')}</p>{/each}
