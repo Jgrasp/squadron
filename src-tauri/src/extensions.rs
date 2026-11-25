@@ -643,6 +643,16 @@ async fn fetch_release(repo: &str, id: Option<&str>) -> Result<serde_json::Value
     }
 }
 
+fn semver_newer(a: Option<&str>, b: Option<&str>) -> bool {
+    let parts = |v: Option<&str>| -> Vec<u64> {
+        v.unwrap_or("")
+            .split('.')
+            .map(|n| n.parse().unwrap_or(0))
+            .collect()
+    };
+    parts(a) > parts(b)
+}
+
 pub fn repo_of(url: &str) -> Option<String> {
     let repo = url
         .strip_prefix("https://github.com/")?
@@ -696,11 +706,19 @@ pub async fn fetch_index(source: &str) -> Result<serde_json::Value, String> {
         .ok()
         .and_then(|index| index["extensions"].as_array().cloned())
         .unwrap_or_default();
+    let older = |a: &serde_json::Value, b: &serde_json::Value| {
+        a["id"] == b["id"] && semver_newer(b["version"].as_str(), a["version"].as_str())
+    };
+    let kept: Vec<_> = fresh
+        .iter()
+        .filter(|f| !old.iter().any(|e| older(f, e)))
+        .cloned()
+        .collect();
     let mut extensions: Vec<_> = old
         .into_iter()
-        .filter(|e| !fresh.iter().any(|f| f["id"] == e["id"]))
+        .filter(|e| !kept.iter().any(|f| f["id"] == e["id"]))
         .collect();
-    extensions.extend(fresh);
+    extensions.extend(kept);
     Ok(serde_json::json!({ "api": 1, "extensions": extensions }))
 }
 
@@ -721,10 +739,15 @@ pub async fn catalog(sources: Vec<String>) -> Vec<serde_json::Value> {
 }
 
 pub fn archive_allowed(source: &str, repo: Option<&str>, archive: &str) -> bool {
+    let archive = archive.to_ascii_lowercase();
     !archive.contains("..")
-        && std::iter::once(source)
-            .chain(repo)
-            .any(|r| archive.starts_with(&format!("https://github.com/{r}/releases/download/")))
+        && !archive.contains('%')
+        && std::iter::once(source).chain(repo).any(|r| {
+            archive.starts_with(&format!(
+                "https://github.com/{}/releases/download/",
+                r.to_ascii_lowercase()
+            ))
+        })
 }
 
 pub async fn fetch_archive(source: &str, id: &str, archive: &str) -> Result<Vec<u8>, String> {
@@ -1427,6 +1450,18 @@ mod tests {
             Some("Jgrasp/squadron-jira"),
             "https://github.com/Jgrasp/squadron-jira/releases/download/../../../../evil/x/releases/download/a.tar.gz"
         ));
+        assert!(archive_allowed(
+            "jgrasp/squadron-extensions",
+            Some("jgrasp/squadron-jira"),
+            ok
+        ));
+        assert!(!archive_allowed(
+            OFFICIAL,
+            Some("Jgrasp/squadron-jira"),
+            "https://github.com/Jgrasp/squadron-jira/releases/download/%2e%2e/x.tar.gz"
+        ));
+        assert!(semver_newer(Some("0.10.0"), Some("0.9.1")));
+        assert!(!semver_newer(Some("0.5.0"), Some("0.5.0")));
         assert!(!archive_allowed(
             "me/ext",
             None,

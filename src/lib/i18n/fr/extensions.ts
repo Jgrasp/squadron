@@ -169,7 +169,7 @@ export default {
   fromGithub: 'Depuis GitHub',
   addGithub: 'Ajouter une extension depuis GitHub',
   addGithubSub: 'Un dépôt dont les releases publient l’extension',
-  addGithubHelp: 'Squadron installe sa dernière release et propose chaque nouvelle en mise à jour. Non relue par Squadron : n’ajoutez que des dépôts de confiance.',
+  addGithubHelp: 'Squadron installe sa dernière release et propose chaque nouvelle en mise à jour. Non relue par Squadron : n’ajoutez que des dépôts de confiance.',
   addLocal: 'Ajouter une extension locale',
   addLocalSub: 'Une extension que vous développez, chargée depuis son dossier',
   about: 'À propos',
