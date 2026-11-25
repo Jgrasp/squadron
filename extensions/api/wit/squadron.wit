@@ -1,4 +1,4 @@
-package squadron:api@1.16.0;
+package squadron:api@1.17.0;
 
 interface types {
   /// The agent a call is about.
@@ -37,7 +37,7 @@ interface types {
   record request {
     method: string,
     url: string,
-    /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads, `{{<account>.<field>}}` by a field of one of its accounts, and `{{base64:<a>:<b>}}` by the base64 of the values of `a` and `b` joined by `:`, as HTTP Basic auth wants.
+    /// `{{name}}` in a value is replaced by the extension's secret `name`, which the extension never reads, `{{<account>.<field>}}` by a field of one of its accounts, and `{{base64:<a>:<b>}}` by the base64 of the values of `a` and `b` joined by `:`, as HTTP Basic auth wants. Since 1.17.0, `{{json:<name>}}` gives the value escaped for a JSON string, without the quotes.
     headers: list<tuple<string, string>>,
     /// Since 1.16.0, with the header `Content-Type: application/x-www-form-urlencoded`, `{{…}}` in the body is replaced as in `headers`, percent-encoded.
     body: option<string>,
@@ -213,6 +213,10 @@ interface host {
   fetch-capture: func(request: request, account: string, fields: list<tuple<string, string>>) -> result<response, string>;
   /// Opens the account form of the extension over Squadron, to add an account or, with `account`, to change that one, and returns the id of the form at once. `values` is a JSON object of text and host fields to fill in, `{}` for none. The event `account.form` then gives `{ "form": "…", "account": "<id>" }` once the user saved it, or `{ "form": "…", "error": "…" }` once they closed it. Opening another form closes the one open. Since 1.16.0.
   open-account: func(account: option<string>, values: string) -> result<string, string>;
+  /// Removes the field `field`, of kind `captured`, from the account `account` and from the system keyring, for example to sign in again once the service revoked a refresh token. Since 1.17.0.
+  forget: func(account: string, field: string) -> result<_, string>;
+  /// The ids of the fields of kind `secret` and `captured` that are set on the account `account`, never their values. Inside `check-account`, it answers for the account being checked, saved or not. Since 1.17.0.
+  account-secrets: func(account: string) -> result<list<string>, string>;
 }
 
 /// The exports every version of the API has. Squadron binds to it, so that an extension built before 1.6.0 still loads.

@@ -1972,26 +1972,10 @@ fn extensions_tool_reply(
 }
 
 #[tauri::command]
-async fn extension_exec(
-    dir: PathBuf,
-    command: String,
-    id: String,
-    secrets: Vec<String>,
-) -> Result<(bool, String), String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        let mut env = Vec::new();
-        for name in secrets {
-            if let Some(value) = forge::read_secret(&wasm::secret_key(&id, &name)?)? {
-                env.push((
-                    format!("SQUADRON_{}", name.to_uppercase().replace('-', "_")),
-                    value,
-                ));
-            }
-        }
-        extension_tools::exec(&dir, &command, &env)
-    })
-    .await
-    .map_err(|e| e.to_string())?
+async fn extension_exec(dir: PathBuf, command: String) -> Result<(bool, String), String> {
+    tauri::async_runtime::spawn_blocking(move || extension_tools::exec(&dir, &command))
+        .await
+        .map_err(|e| e.to_string())?
 }
 
 #[tauri::command]

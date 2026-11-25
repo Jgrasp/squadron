@@ -347,7 +347,7 @@ world squadron-extension {
 - **Domaines** : `permissions.network` liste des noms d'hôte exacts. Ils passent par la même popup d'accord que les commandes (« Requêtes HTTPS vers api.github.com »). Un domaine nouveau redemande l'accord.
 - **`host::fetch`** : HTTPS seulement, vers un hôte autorisé, 30 s et 8 Mo au plus. Une redirection vers un hôte non autorisé n'est pas suivie : l'extension reçoit la réponse 3xx.
 - **Jeton dans une requête** : `{{token}}` dans la valeur d'un en-tête, par exemple `("Authorization", "Bearer {{token}}")`. Squadron le remplace par le secret, et le remplace par `[secret]` s'il revient dans la réponse. Seulement dans les en-têtes, pas dans l'URL ni le corps.
-- **Jeton dans une commande** : un outil avec `command` reçoit chaque secret renseigné en variable `SQUADRON_<SECRET>`, par exemple `SQUADRON_TOKEN`. La commande est fixe et l'utilisateur l'a lue dans la popup.
+- **Pas de jeton pour un outil avec `command`** : depuis l'API 1.17, il ne reçoit plus les secrets en variables `SQUADRON_<SECRET>`, et sa sortie va à l'agent. Un outil qui a besoin d'un jeton est écrit dans le WASM, avec `host::fetch` ou `host::exec-input`.
 - **Pas de jeton pour `host::exec`** : il autorise un programme avec n'importe quels arguments (`git -c alias.x='!env' x` lance un shell), donc le WASM pourrait relire la variable. Une extension en WASM passe par `host::fetch`.
 - **Pas de jeton pour `terminal.run`** : la commande est tapée dans le terminal de l'agent, déjà lancé.
 
@@ -606,6 +606,13 @@ fn forge(call: String, input: String) -> Result<String, String> {
 - **`captured` fields**: a field kind of `contributes.accounts.fields` that the user never types. The form shows its label and "Received from the service and saved in the system keyring" or "Filled in by the extension after you sign in"; it is never required, and saving the form keeps it. Removing the account drops it.
 - **`host::open-account(account, values) -> result<string, string>`**: opens Settings on the extension's page with its account form unfolded, `account` to edit one (none to add), `values` a JSON object of text or host fields to prefill. Answers at once with a form id; the extension's `on-event` later gets `account.form` with `{ "form": id, "account": saved id }` or `{ "form": id, "error": "…" }` when the user cancels, closes Settings or another `open-account` of the same extension replaces it. Async, so the extension's single worker keeps serving its events, tools and panels while the user types.
 - An extension that imports `fetch-capture` or `open-account` does not load in a Squadron older than API 1.16; the object form of `permissions.exec` and the `captured` kind are refused by an older Squadron's manifest check.
+
+### JSON escaping, forgetting captured fields, tools without secrets (API 1.17)
+
+- **`{{json:<name>}}`**: wherever `{{…}}` is resolved (headers, form bodies, `exec-input`), gives the value escaped for a JSON string, without the quotes: `"password":"{{json:acct.password}}"`. The raw and escaped values are both scrubbed from the answer.
+- **`host::forget(account, field)`**: removes a `captured` field from the account and from the keyring, so that the extension can ask for a new sign-in after the service revoked a refresh token. Refuses a field of another kind.
+- **`host::account-secrets(account) -> list<string>`**: the ids of the `secret` and `captured` fields that are set, never their values. Inside `check-account` it answers for the account under test, saved or not. The `account` record is unchanged, so extensions built against older versions still load.
+- **Tools with `command`** no longer receive `SQUADRON_<SECRET>` environment variables.
 
 ### Skills (`contributes.skills`)
 
