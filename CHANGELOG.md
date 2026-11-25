@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.63.0 · 2026-11-25
+
+### Getting started
+- On first launch, Squadron offers a guided tour that plays a sample project, acme-shop, through 45 stops. Replay it, or a single chapter, from Settings › Squadron › Quick start.
+
+### Extensions
+- Add an extension from its repository on GitHub, GitLab (self-hosted included) or Bitbucket with From a repository in Extensions: Squadron installs its latest release and offers each new one as an update.
+- Marketplaces can live on GitHub, GitLab, Bitbucket or at any .json URL.
+- Extensions now install from their own repository's release, so a new version is available as soon as it is published.
+
 ## 0.62.0 · 2026-11-24
 
 ### Usage

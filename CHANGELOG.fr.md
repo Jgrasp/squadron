@@ -1,5 +1,15 @@
 # Nouveautés
 
+## 0.63.0 · 2026-11-25
+
+### Prise en main
+- Au premier lancement, Squadron propose une visite guidée qui déroule un projet d’exemple, acme-shop, en 45 étapes. Rejouez-la, ou un seul chapitre, depuis Réglages › Squadron › Démarrage rapide.
+
+### Extensions
+- Ajoutez une extension depuis son dépôt GitHub, GitLab (auto-hébergé compris) ou Bitbucket avec Depuis un dépôt dans Extensions : Squadron installe sa dernière release et propose chaque nouvelle en mise à jour.
+- Les marketplaces peuvent être sur GitHub, GitLab, Bitbucket ou à n’importe quelle URL .json.
+- Les extensions s’installent depuis la release de leur propre dépôt : une nouvelle version est disponible dès sa publication.
+
 ## 0.62.0 · 2026-11-24
 
 ### Usage
