@@ -10,6 +10,7 @@
 - Secrets can be escaped for JSON, so a password with quotes, backslashes or line breaks no longer breaks the JSON an extension hands a program.
 - An extension can drop a token it kept, to have you sign in again once the service revoked it, and can tell whether a secret of an account is set without reading it.
 - Extension tools that run a command no longer receive secrets in their environment.
+- An extension can sign you in to a service through your browser (OAuth): Squadron receives the answer and keeps the code in the system keyring, out of the extension's reach.
 
 ## 0.63.0 · 2026-11-25
 
