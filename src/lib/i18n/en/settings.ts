@@ -362,6 +362,7 @@ export default {
   advisorHint: 'Claude consults it at key moments',
   advisorInherited: 'Inherited',
   advisorInheritedHint: 'From your Claude Code settings',
+  advisorAutoHint: 'Sonnet for Haiku, Opus for Sonnet, none for Opus',
   advisorNone: 'None',
   advisorBelow: 'Cannot advise {model}: the advisor must be at least as capable as the main model',
   advisorSonnet: 'A cheap second opinion',

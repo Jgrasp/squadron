@@ -74,6 +74,7 @@
     const next: Record<string, string> = { ...$state.snapshot(own) }
     if (value) next[field] = value
     else delete next[field]
+    if (field === 'model' && value === AUTO) next.advisor = AUTO
     act(() => (project ? editProject(project.path, { defaults: next as Defaults }) : saveSettings({ ...$state.snapshot(settings), defaults: next as Options })))
   }
 

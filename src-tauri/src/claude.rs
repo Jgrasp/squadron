@@ -161,7 +161,8 @@ impl Options {
             return Err(format!("Unknown agent: {agent}"));
         }
         if let Some(advisor) = &self.advisor
-            && (!advisor.starts_with(|c: char| c.is_ascii_alphanumeric())
+            && (advisor == AUTO
+                || !advisor.starts_with(|c: char| c.is_ascii_alphanumeric())
                 || !advisor.chars().all(model_id))
         {
             return Err(format!("Unknown advisor: {advisor}"));
@@ -176,6 +177,9 @@ impl Options {
         }
         if known.effort == AUTO {
             known.effort = "high".into();
+        }
+        if known.advisor.as_deref() == Some(AUTO) {
+            known.advisor = Some(NO_ADVISOR.into());
         }
         known.check()
     }
@@ -827,6 +831,14 @@ mod tests {
         };
         assert!(half.check().is_err());
         assert!(half.check_defaults().is_ok());
+        let auto_advisor = Options {
+            model: "sonnet".into(),
+            effort: "high".into(),
+            advisor: Some(AUTO.into()),
+            ..auto
+        };
+        assert!(auto_advisor.check().is_err());
+        assert!(auto_advisor.check_defaults().is_ok());
     }
 
     fn real_turn(dir: &Path, resume: Option<&str>, fork: bool, prompt: &str) -> (String, String) {

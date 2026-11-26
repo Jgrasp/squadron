@@ -340,7 +340,7 @@ export function shelveHidden() {
       }, () => {})
 }
 
-export const shownAgent = () => (projects.overview || projects.usage ? undefined : agents.current[projects.current])
+export const shownAgent = () => (projects.overview || projects.usage ? undefined : selected(projects.current)?.id)
 
 export const archivable = (agent: Agent) =>
   ['done', 'interrupted', 'error'].includes(agent.status) && !agent.asks.length && !agent.remote && !agent.pinned && !agent.pullWait && agent.id !== shownAgent()
