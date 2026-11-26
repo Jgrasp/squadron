@@ -364,6 +364,7 @@ export default {
   advisorHint: 'Claude le consulte aux moments clés',
   advisorInherited: 'Hérité',
   advisorInheritedHint: 'Depuis vos réglages Claude Code',
+  advisorAutoHint: 'Sonnet pour Haiku, Opus pour Sonnet, aucun pour Opus',
   advisorNone: 'Aucun',
   advisorBelow: 'Ne peut pas conseiller {model} : le conseiller doit être au moins aussi capable que le modèle principal',
   advisorSonnet: 'Un second avis bon marché',

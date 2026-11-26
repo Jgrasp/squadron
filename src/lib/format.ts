@@ -51,6 +51,7 @@ export function advisorChoices(model: string) {
   const list = models()
   return [
     { value: '', label: t('settings.advisorInherited'), detail: t('settings.advisorInheritedHint') },
+    { value: 'auto', label: t('settings.auto'), detail: t('settings.advisorAutoHint') },
     { value: 'none', label: t('settings.advisorNone') },
     ...advisors(list).map((value) => ({ value, label: modelLabel(value), detail: t(ADVICE[value]), off: !advises(value, model, list) })),
   ]
@@ -60,7 +61,7 @@ export const advisorLabel = (advisor?: string) => (!advisor ? t('settings.adviso
 
 export const advising = (options: Options) => !!options.advisor && options.advisor !== 'none'
 
-export const advisorIdle = (options: Options) => advising(options) && !advises(options.advisor!, options.model, models())
+export const advisorIdle = (options: Options) => advising(options) && options.advisor !== 'auto' && !advises(options.advisor!, options.model, models())
 
 const EFFORTS: Record<string, Key> = {
   low: 'settings.effortLow',

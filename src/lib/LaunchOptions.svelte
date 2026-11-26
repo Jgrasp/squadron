@@ -40,6 +40,7 @@
 
   function pickModel(value: string) {
     options.model = value
+    if (value === AUTO) options.advisor = AUTO
     const supported = catalog.find((m) => m.value === value)?.supportedEffortLevels
     if (supported?.length && options.effort !== AUTO && !supported.includes(options.effort)) options.effort = supported[supported.length - 1] as Options['effort']
   }
@@ -77,7 +78,7 @@
     {@render field('model', t('settings.model'), modelLabel(options.model), modelChoices, options.model, pickModel)}
     {@render field('effort', t('settings.effort'), noEffort ? '—' : effortLabel(options.effort), effortChoices, options.effort, (v) => (options.effort = v as Options['effort']))}
     {#if advising(options)}
-      <div class="advisor" class:idle={advisorIdle(options)}><dt>{t('settings.advisor')}</dt><dd>{modelLabel(options.advisor!)}</dd></div>
+      <div class="advisor" class:idle={advisorIdle(options)}><dt>{t('settings.advisor')}</dt><dd>{#if options.advisor === AUTO}<span class="spark" aria-hidden="true">✦</span>{/if}{modelLabel(options.advisor!)}</dd></div>
     {/if}
   </dl>
   <button type="button" class="btn btn-secondary launch" aria-expanded={expanded} onclick={() => (expanded = !expanded)}>
