@@ -108,7 +108,7 @@ listen<{ id: string; agent: string; tool: string; args: unknown }>('extensions-t
   const caller = find(agent)
   if (!found || !caller) return reply(false, found ? 'Only agents started by Squadron can use extension tools.' : `The tool ${tool} is no longer available.`)
   try {
-    if (!found.command) return reply(true, await invoke<string>('extensions_wasm_tool', { id: found.extension, name: found.tool, input: JSON.stringify(args ?? {}), agent: info(caller) }))
+    if (!found.command) return reply(true, await invoke<string>('extensions_wasm_tool', { id: found.extension, name: found.tool, input: JSON.stringify(args ?? {}), agent: info(caller), call: id }))
     const [ok, text] = await invoke<[boolean, string]>('extension_exec', { dir: workdir(caller), command: found.command })
     reply(ok, text || '(no output)')
   } catch (e) {

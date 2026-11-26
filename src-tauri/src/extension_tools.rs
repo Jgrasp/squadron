@@ -1,7 +1,8 @@
 use crate::pilot::Call;
 use rmcp::model::{
     CallToolRequestParams, CallToolResponse, CallToolResult, ContentBlock, ListToolsResult,
-    PaginatedRequestParams, ServerCapabilities, ServerConfig, SubscriptionFilter, Tool,
+    PaginatedRequestParams, ResourceContents, ServerCapabilities, ServerConfig, SubscriptionFilter,
+    Tool,
 };
 use rmcp::service::{NotificationContext, RequestContext, SubscriptionContext, SubscriptionSink};
 use rmcp::{ErrorData, Peer, RoleServer, ServerHandler};
@@ -19,6 +20,7 @@ const TIMEOUT: Duration = Duration::from_secs(120);
 const MAX_OUTPUT: usize = 30_000;
 
 type Pending = Arc<Mutex<HashMap<String, oneshot::Sender<(bool, String)>>>>;
+type Attached = Arc<Mutex<HashMap<String, Vec<ContentBlock>>>>;
 
 #[derive(Deserialize, Clone, Debug, PartialEq)]
 pub struct ExtensionTool {
@@ -34,6 +36,7 @@ pub struct Tools {
     peers: Arc<Mutex<Vec<Peer<RoleServer>>>>,
     sinks: Arc<Mutex<Vec<SubscriptionSink>>>,
     pending: Pending,
+    attached: Attached,
     next: Arc<AtomicU64>,
     notify: Arc<dyn Fn(Call) + Send + Sync>,
 }
@@ -45,6 +48,7 @@ impl Tools {
             peers: Default::default(),
             sinks: Default::default(),
             pending: Default::default(),
+            attached: Default::default(),
             next: Default::default(),
             notify: Arc::new(notify),
         }
@@ -77,6 +81,16 @@ impl Tools {
             .lock()
             .unwrap()
             .retain(|s| !closed.contains(s.id()));
+    }
+
+    pub fn attach(&self, id: &str, files: Vec<crate::wasm::ToolFile>) {
+        if files.is_empty() || !self.pending.lock().unwrap().contains_key(id) {
+            return;
+        }
+        self.attached
+            .lock()
+            .unwrap()
+            .insert(id.into(), files.into_iter().map(block).collect());
     }
 
     pub fn reply(&self, id: &str, ok: bool, text: String) -> Result<(), String> {
@@ -156,7 +170,7 @@ impl ServerHandler for Tools {
         let (tx, rx) = oneshot::channel();
         self.pending.lock().unwrap().insert(id.clone(), tx);
         (self.notify)(Call {
-            id,
+            id: id.clone(),
             agent,
             tool: request.name.to_string(),
             args: Value::Object(request.arguments.unwrap_or_default()),
@@ -164,7 +178,12 @@ impl ServerHandler for Tools {
         let (ok, text) = rx
             .await
             .unwrap_or_else(|_| (false, "Squadron did not answer.".into()));
-        let content = vec![ContentBlock::text(text)];
+        let files = self.attached.lock().unwrap().remove(&id);
+        let content = match files {
+            Some(files) if ok && text.is_empty() => files,
+            Some(files) if ok => [vec![ContentBlock::text(text)], files].concat(),
+            _ => vec![ContentBlock::text(text)],
+        };
         Ok(if ok {
             CallToolResult::success(content)
         } else {
@@ -172,6 +191,18 @@ impl ServerHandler for Tools {
         }
         .into())
     }
+}
+
+fn block(file: crate::wasm::ToolFile) -> ContentBlock {
+    use base64::Engine;
+    let data = base64::engine::general_purpose::STANDARD.encode(&file.bytes);
+    if file.mime.starts_with("image/") {
+        return ContentBlock::image(data, file.mime);
+    }
+    ContentBlock::resource(
+        ResourceContents::blob(data, format!("extension-data:///{}", file.name))
+            .with_mime_type(file.mime),
+    )
 }
 
 fn shell(command: &str) -> std::process::Command {
@@ -307,6 +338,28 @@ pub fn exec(dir: &Path, command: &str) -> Result<(bool, String), String> {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn hands_images_as_images_and_pdfs_as_resources() {
+        let file = |mime, name: &str| crate::wasm::ToolFile {
+            mime,
+            name: name.into(),
+            bytes: b"hi".to_vec(),
+        };
+        let image = serde_json::to_value(block(file("image/png", "a.png"))).unwrap();
+        assert_eq!(image["type"], "image");
+        assert_eq!(image["mimeType"], "image/png");
+        assert_eq!(image["data"], "aGk=");
+        let pdf = serde_json::to_value(block(file("application/pdf", "x/b.pdf"))).unwrap();
+        assert_eq!(pdf["type"], "resource");
+        assert_eq!(pdf["resource"]["mimeType"], "application/pdf");
+        assert_eq!(pdf["resource"]["blob"], "aGk=");
+        assert_eq!(pdf["resource"]["uri"], "extension-data:///x/b.pdf");
+
+        let tools = Tools::new(|_| {});
+        tools.attach("1", vec![file("image/png", "a.png")]);
+        assert!(tools.attached.lock().unwrap().is_empty());
+    }
 
     #[test]
     fn runs_in_the_folder_and_reports_failures() {

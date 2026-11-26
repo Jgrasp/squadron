@@ -2075,12 +2075,18 @@ async fn extensions_wasm_tool(
     name: String,
     input: String,
     agent: Option<wasm::AgentInfo>,
+    call: Option<String>,
 ) -> Result<String, String> {
-    tauri::async_runtime::spawn_blocking(move || {
-        app.state::<wasm::Runtime>().tool(&id, &name, &input, agent)
+    let (text, files) = tauri::async_runtime::spawn_blocking({
+        let app = app.clone();
+        move || app.state::<wasm::Runtime>().tool(&id, &name, &input, agent)
     })
     .await
-    .map_err(|e| e.to_string())?
+    .map_err(|e| e.to_string())??;
+    if let Some(call) = call {
+        app.state::<extension_tools::Tools>().attach(&call, files);
+    }
+    Ok(text)
 }
 
 #[tauri::command]

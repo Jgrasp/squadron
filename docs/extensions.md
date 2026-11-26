@@ -622,6 +622,12 @@ When the browser comes back on `/` with the right `state`, Squadron keeps `code`
 
 The extension then exchanges the code with `fetch-capture`, `code={{<account>.<field>}}` and `redirect_uri` set to the returned address in a form body, captures the tokens into other `captured` fields, and drops the code with `forget`. PKCE stays in the extension: it puts `code_challenge` in `url` and keeps the verifier in its state. A service that needs an exact registered redirect, port included, cannot use it.
 
+### Files in a tool's result (API 1.19)
+
+`host::tool-file(path) -> result<_, string>`, called while `call-tool` runs, adds a file of the extension's data folder to the tool's result, after its text, so the agent sees it without a `Read` outside its project (which asks for permission). `path` is what `download` or `data-dir` gives, `~/…` included; `inside_data` checks it as for `open-file`, symlinks resolved. The type comes from the first bytes: PNG, JPEG, GIF and WebP become MCP `image` blocks, 5 MB at most each; a PDF becomes an embedded `resource` with a `blob`, `application/pdf`, and the URI `extension-data:///<path in the data folder>`. 8 files and 20 MB at most per call. Squadron keeps them in Rust (`Tools::attach`, under the MCP call id) and never sends them through the webview. They are dropped when `call-tool` fails, and refused outside it; `shareTool` and `releaseTool` ignore them.
+
+Claude Code resizes the images. It inlines a PDF as a `document` only when its host sets an inline PDF size, which a local session does not: there the PDF is saved to a file of Claude Code's own and the agent gets its path.
+
 ### Skills (`contributes.skills`)
 
 `"skills": ["skills/share"]` : des dossiers de l'extension, chacun avec un `SKILL.md`, qui deviennent des skills de tous les agents, nommés `<extension>:<dossier>`. Ils passent par la même popup d'accord (« Donne à vos agents les skills share »). Squadron les recopie dans `<config>/extensions-plugins/<id>/`, avec un `.claude-plugin/plugin.json`, et lance Claude Code avec `--plugin-dir` sur ce dossier. Comme les options, ils valent pour les agents lancés ou relancés après l'accord.

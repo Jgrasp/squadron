@@ -1,4 +1,4 @@
-package squadron:api@1.18.0;
+package squadron:api@1.19.0;
 
 interface types {
   /// The agent a call is about.
@@ -219,6 +219,8 @@ interface host {
   account-secrets: func(account: string) -> result<list<string>, string>;
   /// Runs an OAuth authorization in the user's browser. Squadron listens on a free port of 127.0.0.1, replaces `{{redirect}}` in `url` by that address, URL-encoded, and `{{state}}` by a value it checks on the way back, opens `url` in the browser and returns the redirect address at once, for the exchange of the code. `url` is https, to the host of the account or a host of `permissions.network`. Once the browser comes back, the code goes into the field `field`, of kind `captured`, of the account `account` without the extension seeing it, and the event `account.authorized` gives `{ "account": "…", "field": "…" }`, or with an `error` when the service refused, after 5 minutes without answer, or when another authorization of the extension replaced it. The extension then exchanges the code with `fetch-capture`, the code as `{{<account>.<field>}}`. Since 1.18.0.
   authorize: func(account: string, url: string, field: string) -> result<string, string>;
+  /// While `call-tool` runs, adds a file of the extension's data folder to the tool's result, after its text, so that the agent sees it without reading the file: a PNG, JPEG, GIF or WebP image of 5 MB at most, or a PDF. The type comes from the file's content, not its name. 8 files and 20 MB at most per call; refused outside `call-tool`, and dropped when `call-tool` returns an error. Claude Code shows the image; a PDF goes as an embedded resource, which Claude Code shows whole when the session allows it and otherwise saves to a file of its own and gives the agent its path. Since 1.19.0.
+  tool-file: func(path: string) -> result<_, string>;
 }
 
 /// The exports every version of the API has. Squadron binds to it, so that an extension built before 1.6.0 still loads.

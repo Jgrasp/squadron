@@ -47,6 +47,9 @@ const QUEUED_PAGE_EVENTS: usize = 50;
 const QUEUED_PAGE_BYTES: usize = 8 << 20;
 const POSTED: usize = 4 << 20;
 const POOL: usize = 4;
+const MAX_TOOL_IMAGE: u64 = 5 << 20;
+const MAX_TOOL_FILES: u64 = 20 << 20;
+const TOOL_FILES: usize = 8;
 const AUTHORIZE: Duration = Duration::from_secs(300);
 const POLLED: [&str; 3] = ["lists", "runs", "pull"];
 
@@ -243,7 +246,7 @@ enum Job {
         String,
         String,
         Option<Agent>,
-        mpsc::Sender<Result<String, String>>,
+        mpsc::Sender<Result<(String, Vec<ToolFile>), String>>,
     ),
     Check(Trial, mpsc::Sender<Result<Result<String, String>, String>>),
     Allow(Vec<String>, Vec<String>),
@@ -287,6 +290,14 @@ struct Host {
     panels: Vec<String>,
     kept: Arc<Mutex<Kept>>,
     deadline: Instant,
+    files: Option<Vec<ToolFile>>,
+}
+
+#[derive(Debug)]
+pub struct ToolFile {
+    pub mime: &'static str,
+    pub name: String,
+    pub bytes: Vec<u8>,
 }
 
 #[derive(Default)]
@@ -781,12 +792,45 @@ impl squadron::api::host::Host for Host {
     }
 
     fn open_file(&mut self, path: String) -> Result<(), String> {
-        let path = match (path.strip_prefix("~/"), std::env::home_dir()) {
-            (Some(rest), Some(home)) => home.join(rest),
-            _ => PathBuf::from(path),
-        };
-        let file = inside_data(&self.data, &path)?;
-        crate::open_attachment(file)
+        crate::open_attachment(inside_data(&self.data, &home(&path))?)
+    }
+
+    fn tool_file(&mut self, path: String) -> Result<(), String> {
+        let files = self
+            .files
+            .as_ref()
+            .ok_or("Files go into a tool's result only while call-tool runs.")?;
+        if files.len() >= TOOL_FILES {
+            return Err(format!("A tool's result holds {TOOL_FILES} files at most."));
+        }
+        let total: u64 = files.iter().map(|f| f.bytes.len() as u64).sum();
+        let file = inside_data(&self.data, &home(&path))?;
+        let size = std::fs::metadata(&file).map_err(|e| e.to_string())?.len();
+        if total + size > MAX_TOOL_FILES {
+            return Err(format!(
+                "A tool's result holds {} MB of files at most.",
+                MAX_TOOL_FILES >> 20
+            ));
+        }
+        let bytes = std::fs::read(&file).map_err(|e| e.to_string())?;
+        let mime = file_type(&bytes)
+            .ok_or("Only PNG, JPEG, GIF and WebP images and PDFs go into a tool's result.")?;
+        if mime != "application/pdf" && bytes.len() as u64 > MAX_TOOL_IMAGE {
+            return Err(format!(
+                "An image in a tool's result is {} MB at most.",
+                MAX_TOOL_IMAGE >> 20
+            ));
+        }
+        let root = self.data.canonicalize().map_err(|e| e.to_string())?;
+        let name = file
+            .strip_prefix(&root)
+            .unwrap_or(&file)
+            .to_string_lossy()
+            .replace('\\', "/");
+        if let Some(files) = self.files.as_mut() {
+            files.push(ToolFile { mime, name, bytes });
+        }
+        Ok(())
     }
 
     fn accounts(&mut self) -> Vec<Account> {
@@ -1081,6 +1125,38 @@ fn data_file(data: &Path, name: &str) -> Result<PathBuf, String> {
         return Err(format!("{name} is not a file name inside the data folder."));
     }
     Ok(data.join(path))
+}
+
+fn home(path: &str) -> PathBuf {
+    match (path.strip_prefix("~/"), std::env::home_dir()) {
+        (Some(rest), Some(home)) => home.join(rest),
+        _ => PathBuf::from(path),
+    }
+}
+
+fn file_type(bytes: &[u8]) -> Option<&'static str> {
+    match bytes {
+        [0x89, b'P', b'N', b'G', ..] => Some("image/png"),
+        [0xFF, 0xD8, 0xFF, ..] => Some("image/jpeg"),
+        [b'G', b'I', b'F', b'8', ..] => Some("image/gif"),
+        [
+            b'R',
+            b'I',
+            b'F',
+            b'F',
+            _,
+            _,
+            _,
+            _,
+            b'W',
+            b'E',
+            b'B',
+            b'P',
+            ..,
+        ] => Some("image/webp"),
+        [b'%', b'P', b'D', b'F', b'-', ..] => Some("application/pdf"),
+        _ => None,
+    }
 }
 
 fn inside_data(data: &Path, path: &Path) -> Result<PathBuf, String> {
@@ -1502,6 +1578,7 @@ impl Maker {
             panels: panels.to_vec(),
             kept: self.kept.clone(),
             deadline: Instant::now() + ANSWER,
+            files: None,
         }
     }
 
@@ -1959,9 +2036,13 @@ impl Runtime {
                         }
                     }
                     Job::Tool(name, input, agent, reply) => {
-                        match bindings.call_call_tool(&mut *store, &name, &input, agent.as_ref()) {
+                        store.data_mut().files = Some(Vec::new());
+                        let called =
+                            bindings.call_call_tool(&mut *store, &name, &input, agent.as_ref());
+                        let files = store.data_mut().files.take().unwrap_or_default();
+                        match called {
                             Ok(result) => {
-                                let _ = reply.send(result);
+                                let _ = reply.send(result.map(|text| (text, files)));
                                 None
                             }
                             Err(e) => {
@@ -2114,7 +2195,7 @@ impl Runtime {
         name: &str,
         input: &str,
         agent: Option<AgentInfo>,
-    ) -> Result<String, String> {
+    ) -> Result<(String, Vec<ToolFile>), String> {
         let (reply, answer) = mpsc::channel();
         let agent = self.veiled(id, agent);
         self.sender(id)?
@@ -2252,7 +2333,7 @@ mod tests {
         runtime.run("hello", "count", None).unwrap();
         runtime.run("hello", "count", None).unwrap();
         assert_eq!(
-            runtime.tool("hello", "clicks", "{}", None).unwrap(),
+            runtime.tool("hello", "clicks", "{}", None).unwrap().0,
             "The Count button was clicked 2 times."
         );
         runtime.run("hello", "greet", Some(agent.clone())).unwrap();
@@ -2332,10 +2413,22 @@ mod tests {
         assert_eq!(answer["title"]["en"], "Could not reach nowhere.invalid");
         assert!(!answer["detail"].as_str().unwrap().contains("t0k"));
 
+        let picture = states.with_file_name("extensions-data").join("hello");
+        std::fs::create_dir_all(&picture).unwrap();
+        std::fs::write(picture.join("picture.png"), b"\x89PNG\r\n\x1a\nhello").unwrap();
+        let (text, files) = runtime.tool("hello", "picture", "{}", None).unwrap();
+        assert_eq!(text, "The picture of Hello.");
+        assert_eq!(files.len(), 1);
+        assert_eq!(
+            (files[0].mime, files[0].name.as_str()),
+            ("image/png", "picture.png")
+        );
+        assert_eq!(files[0].bytes, b"\x89PNG\r\n\x1a\nhello");
+
         let restarted = Runtime::new(states, |_| {}).unwrap();
         assert!(restarted.sync(vec![spec(vec![])]).is_empty());
         assert_eq!(
-            restarted.tool("hello", "clicks", "{}", None).unwrap(),
+            restarted.tool("hello", "clicks", "{}", None).unwrap().0,
             "The Count button was clicked 4 times."
         );
 
@@ -2352,7 +2445,7 @@ mod tests {
         });
         assert!(set.sync(vec![spec(vec![])]).is_empty());
         assert_eq!(
-            set.tool("hello", "options", "{}", None).unwrap(),
+            set.tool("hello", "options", "{}", None).unwrap().0,
             r#"{"greeting":"Bonjour","tone":"plain"}"#
         );
         set.run("hello", "greet", Some(ada)).unwrap();
@@ -2404,8 +2497,81 @@ mod tests {
             panels: vec!["main".into(), "other".into()],
             kept: Default::default(),
             deadline: Instant::now() + ANSWER,
+            files: None,
         };
         (host, told)
+    }
+
+    #[test]
+    fn puts_data_files_into_a_tool_result_only_while_a_tool_runs() {
+        use squadron::api::host::Host as _;
+        let (mut host, _) = host(&[], |_, _| Ok(Value::Null));
+        let jpeg = host.data.join("shots/a.jpg");
+        std::fs::create_dir_all(jpeg.parent().unwrap()).unwrap();
+        std::fs::write(&jpeg, [0xFF, 0xD8, 0xFF, 0xE0]).unwrap();
+        std::fs::write(host.data.join("b.pdf"), b"%PDF-1.7").unwrap();
+        std::fs::write(host.data.join("c.txt"), b"plain").unwrap();
+        std::fs::write(
+            host.data.join("big.png"),
+            [&b"\x89PNG"[..], &vec![0; MAX_TOOL_IMAGE as usize]].concat(),
+        )
+        .unwrap();
+        let outside =
+            std::env::temp_dir().join(format!("squadron-outside-{}.png", uuid::Uuid::new_v4()));
+        std::fs::write(&outside, b"\x89PNG").unwrap();
+        #[cfg(unix)]
+        std::os::unix::fs::symlink(&outside, host.data.join("link.png")).unwrap();
+        let data = host.data.clone();
+        let path = |name: &str| data.join(name).to_string_lossy().into_owned();
+
+        assert!(
+            host.tool_file(path("shots/a.jpg"))
+                .unwrap_err()
+                .contains("only while call-tool runs")
+        );
+        host.files = Some(Vec::new());
+        host.tool_file(path("shots/a.jpg")).unwrap();
+        host.tool_file(path("b.pdf")).unwrap();
+        assert!(
+            host.tool_file(path("c.txt"))
+                .unwrap_err()
+                .contains("Only PNG")
+        );
+        assert!(
+            host.tool_file(path("big.png"))
+                .unwrap_err()
+                .contains("5 MB")
+        );
+        assert!(
+            host.tool_file(outside.to_string_lossy().into())
+                .unwrap_err()
+                .contains("data folder")
+        );
+        assert!(host.tool_file(path("shots/../../escape.png")).is_err());
+        #[cfg(unix)]
+        assert!(
+            host.tool_file(path("link.png"))
+                .unwrap_err()
+                .contains("data folder")
+        );
+        let files = host.files.take().unwrap();
+        let got: Vec<_> = files.iter().map(|f| (f.mime, f.name.as_str())).collect();
+        assert_eq!(
+            got,
+            [("image/jpeg", "shots/a.jpg"), ("application/pdf", "b.pdf")]
+        );
+
+        host.files = Some(Vec::new());
+        for _ in 0..TOOL_FILES {
+            host.tool_file(path("b.pdf")).unwrap();
+        }
+        assert!(
+            host.tool_file(path("b.pdf"))
+                .unwrap_err()
+                .contains("8 files")
+        );
+        let _ = std::fs::remove_file(outside);
+        let _ = std::fs::remove_dir_all(&host.data);
     }
 
     #[test]
@@ -3918,7 +4084,7 @@ mod tests {
         assert_eq!(unknown["code"], "unsupported");
         runtime.forge("forge", "lists", "{}").unwrap().unwrap_err();
         assert_eq!(
-            runtime.tool("forge", "unsupported", "{}", None).unwrap(),
+            runtime.tool("forge", "unsupported", "{}", None).unwrap().0,
             "1"
         );
 
@@ -3931,10 +4097,10 @@ mod tests {
             runtime.forge("forge", "bump", "{}").unwrap().unwrap();
         }
         assert_eq!(
-            runtime.tool("forge", "wait-603", "{}", None).unwrap(),
+            runtime.tool("forge", "wait-603", "{}", None).unwrap().0,
             "603"
         );
-        assert_eq!(runtime.tool("forge", "bumps", "{}", None).unwrap(), "3");
+        assert_eq!(runtime.tool("forge", "bumps", "{}", None).unwrap().0, "3");
         let saved: Map<String, Value> =
             serde_json::from_slice(&std::fs::read(states.join("forge.json")).unwrap()).unwrap();
         assert_eq!(saved.len(), 11, "{saved:?}");
@@ -3947,11 +4113,11 @@ mod tests {
         assert!(runtime.sync(vec![forge_spec(&dir, vec![])]).is_empty());
         let runtime = Arc::new(runtime);
         at_once(&runtime, &["400", "400", "400"]);
-        assert_eq!(runtime.tool("forge", "waits", "{}", None).unwrap(), "1");
+        assert_eq!(runtime.tool("forge", "waits", "{}", None).unwrap().0, "1");
         at_once(&runtime, &["400", "401"]);
-        assert_eq!(runtime.tool("forge", "waits", "{}", None).unwrap(), "2");
+        assert_eq!(runtime.tool("forge", "waits", "{}", None).unwrap().0, "2");
         assert_eq!(
-            runtime.tool("forge", "wait-401", "{}", None).unwrap(),
+            runtime.tool("forge", "wait-401", "{}", None).unwrap().0,
             "401"
         );
     }

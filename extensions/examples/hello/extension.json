@@ -1,7 +1,7 @@
 {
   "id": "hello",
-  "version": "1.2.0",
-  "squadron": ">=0.49.0",
+  "version": "1.3.0",
+  "squadron": ">=0.66.0",
   "api": 1,
   "name": { "en": "Hello", "fr": "Hello" },
   "description": { "en": "Example extension written in Rust", "fr": "Extension d’exemple écrite en Rust" },
@@ -17,6 +17,7 @@
       { "name": "changed_files", "description": "Lists the files changed in your folder, from git status." },
       { "name": "clicks", "description": "Tells how many times the user clicked the Count button." },
       { "name": "options", "description": "The options of the Hello extension, as the user set them in Settings." },
+      { "name": "picture", "description": "Shows the picture of Hello, picture.png of its data folder." },
       { "name": "github_user", "description": "The GitHub account of the user, from the token set in Settings › Extensions." }
     ],
     "panels": [{ "id": "main", "title": { "en": "Hello", "fr": "Hello" }, "page": "panel/index.html" }],
