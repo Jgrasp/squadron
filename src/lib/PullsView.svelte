@@ -382,10 +382,10 @@
       : reviewer && status
         ? { label: agentLabel(status), title: t('review.agentReviewing', { name: reviewer.name }), always: true, icon: 'persona', status, run: () => show(reviewer) }
         : asking(pull)}
-  {@const more = [openOn(pull), ...(mergesHere(pull, 'menu') ? [merging(pull)] : []), ...(reviewer && again ? [{ label: t('review.goToAgent', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...ignoring(pull)]}
+  {@const more = [...(mergesHere(pull, 'menu') ? [merging(pull)] : []), openOn(pull), ...(reviewer && again ? [{ label: t('review.goToAgent', { name: reviewer.name }), run: () => show(reviewer) }] : []), ...ignoring(pull)]}
   <article class:done>
     <span class="verdict {state[0]}">{state[1]}</span>
-    {@render about(pull)}
+    {@render about(pull, mergesHere(pull, 'menu'))}
     {#if mergesHere(pull, 'second')}
       {@render split(`review-${pull.number}`, { main: merging(pull), more, lead: agentChoice, frozen: starting(pull), first: reviewing, firstPrimary: primary, firstPressed: opened?.number === pull.number })}
     {:else}
@@ -441,7 +441,7 @@
   </div>
 {/snippet}
 
-{#snippet about(pull: Pull)}
+{#snippet about(pull: Pull, ready = false)}
   <span class="author" title={t('review.by', { author: pull.author })}><Avatar name={pull.author} src={pull.author_avatar} size={30} /></span>
   <div class="about">
     <strong>{pull.title}</strong>
@@ -451,6 +451,7 @@
     </span>
   </div>
   <span class="facts">
+    {#if ready}<span class="tag ready">{t('review.readyToMerge')}</span>{/if}
     {#if pull.conflicts}<span class="tag bad" title={t('review.conflictsWith', { base: pull.base })}>{t('review.conflicts')}</span>{/if}
     {#if pull.checks}
       <span class="tag {pull.checks}" title={t('review.checksTitle')}
@@ -825,6 +826,11 @@
     color: var(--text-2);
     font-size: 12px;
     white-space: nowrap;
+  }
+
+  .tag.ready {
+    background: var(--ok-bg);
+    color: var(--ok-text);
   }
 
   .tag.failing,

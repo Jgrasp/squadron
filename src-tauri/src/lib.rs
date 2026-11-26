@@ -515,7 +515,7 @@ impl Default for Config {
             notify_runs: "failures".into(),
             notify_remote: "keep".into(),
             remote_new_agents: false,
-            merge_others: "second".into(),
+            merge_others: "menu".into(),
             merge_method: "repo".into(),
             merge_review: "banner".into(),
             pulls_others: false,
