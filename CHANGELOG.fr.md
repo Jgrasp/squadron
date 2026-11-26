@@ -1,5 +1,17 @@
 # Nouveautés
 
+## 0.66.0 · 2026-11-26
+
+### Extensions
+- Un outil d’extension peut remettre une image ou un PDF à l’agent dans sa réponse : l’agent voit l’image tout de suite, sans ouvrir le fichier ni vous demander de permission.
+
+### Pull requests
+- Les agents de revue lisent la description de la pull request, son ticket lié et les commentaires déjà publiés.
+- Sur les pull requests des autres, Fusionner passe par défaut dans le menu ▾, et une étiquette Prête à fusionner s’affiche quand elle peut l’être.
+
+### Agents
+- Le temps écoulé depuis la fin d’un agent s’affiche en jours, semaines et mois, ou sous forme de date.
+
 ## 0.65.1 · 2026-11-26
 
 ### Agents

@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.66.0 · 2026-11-26
+
+### Extensions
+- An extension tool can hand the agent an image or a PDF in its answer: the agent sees the image at once, without opening the file or asking you for permission.
+
+### Pull requests
+- Review agents read the pull request description, its linked ticket and the comments already posted.
+- On other people's pull requests, Merge moves into the ▾ menu by default, and a Ready to merge tag shows when it can be merged.
+
+### Agents
+- The time since an agent finished shows in days, weeks and months, or as a date.
+
 ## 0.65.1 · 2026-11-26
 
 ### Agents
