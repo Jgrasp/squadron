@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.65.0 · 2026-11-26
+
+### Agents
+- Auto mode now asks Sonnet instead of Haiku: anything that needs a look at your project gets Sonnet or Opus, and leaks, intermittent bugs and redesigns get Opus.
+- The advisor can be set to Auto along with an Auto model: Sonnet advises Haiku, Opus advises Sonnet, Opus has none.
+- Auto is no longer hidden by the model and effort menus being cut off in the New agent dialog.
+
+### Extensions
+- Launch agent from an extension works in a project whose agents are all archived.
+
 ## 0.64.0 · 2026-11-25
 
 ### Settings
