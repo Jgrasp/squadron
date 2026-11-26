@@ -1,5 +1,10 @@
 # Nouveautés
 
+## 0.65.1 · 2026-11-26
+
+### Agents
+- Le mode Auto garde Haiku pour les questions dont la réponse est la même pour tout le monde : un message sur votre propre situation, même dans un outil externe (ce que vous avez fait, ce que vous voyez, vos réglages ou vos données, un message transmis par un client), part sur Sonnet ou Opus.
+
 ## 0.65.0 · 2026-11-26
 
 ### Agents
