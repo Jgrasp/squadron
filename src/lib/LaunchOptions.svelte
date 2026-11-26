@@ -36,6 +36,7 @@
   const noEffort = $derived(levels?.length === 0)
   let openKey = $state<'model' | 'effort' | null>(null)
   let expanded = $state(false)
+  let anchor = $state({ left: 0, bottom: 0 })
 
   function pickModel(value: string) {
     options.model = value
@@ -48,12 +49,16 @@
 
 {#snippet field(key: 'model' | 'effort', label: string, value: string, choices: { value: string; label: string; detail?: string; off?: boolean }[], selected: string, onpick: (v: string) => void)}
   <div class="pick" class:open={openKey === key}>
-    <button type="button" class="field-trigger" aria-haspopup="listbox" aria-expanded={openKey === key} onclick={() => (openKey = openKey === key ? null : key)}>
+    <button type="button" class="field-trigger" aria-haspopup="listbox" aria-expanded={openKey === key} onclick={(e) => {
+      const r = e.currentTarget.getBoundingClientRect()
+      anchor = { left: r.left, bottom: innerHeight - r.top + 2 }
+      openKey = openKey === key ? null : key
+    }}>
       <dt>{label}</dt>
       <dd>{#if selected === AUTO}<span class="spark" aria-hidden="true">✦</span>{/if}{value}<svg class="chev" width="10" height="10" viewBox="0 0 24 24" aria-hidden="true"><path d="M6 15l6-6 6 6" /></svg></dd>
     </button>
     {#if openKey === key}
-      <div class="option-menu" role="listbox" aria-label={label}>
+      <div class="option-menu" role="listbox" aria-label={label} style:position="fixed" style:left="{anchor.left}px" style:right="auto" style:bottom="{anchor.bottom}px">
         {#each choices as choice (choice.value)}
           <button type="button" role="option" aria-selected={choice.value === selected} disabled={choice.off} onclick={() => ((openKey = null), onpick(choice.value))}>
             <strong>{choice.label}</strong>
