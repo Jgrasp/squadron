@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.67.0 · 2026-11-26
+
+### Pull requests
+- Agents can open a pull request on Bitbucket, GitHub, GitLab or Azure DevOps with your account, without a token: ask them to open the pull request of their branch.
+
 ## 0.66.0 · 2026-11-26
 
 ### Extensions
