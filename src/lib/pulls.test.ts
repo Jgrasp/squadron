@@ -2,11 +2,12 @@ import { beforeEach, describe, expect, it, vi } from 'vitest'
 import type { Lists, Pull } from './pulls.svelte'
 import type { Agent } from './stream'
 
-const forge = vi.hoisted(() => ({ lists: {} as Omit<Lists, 'error'>, pull: null as unknown, calls: [] as string[], offline: false }))
+const forge = vi.hoisted(() => ({ lists: {} as Omit<Lists, 'error'>, pull: null as unknown, calls: [] as string[], offline: false, created: null as unknown }))
 
 vi.mock('@tauri-apps/api/core', () => ({
-  invoke: vi.fn(async (command: string) => {
+  invoke: vi.fn(async (command: string, args?: unknown) => {
     forge.calls.push(command)
+    if (command === 'create_pull') return { ...(forge.pull as object), created: (forge.created = args) }
     if (command === 'pull_lists') return structuredClone(forge.lists)
     if (forge.offline) throw new Error('offline')
     if (command === 'numbered_pull') return structuredClone(forge.pull)
@@ -22,7 +23,7 @@ vi.mock('./forges.svelte', () => ({ forgeName: (host: string) => host, providedL
 const pushed = vi.hoisted(() => ({ ref: null as { branch: string } | { url: string } | null }))
 vi.mock('./pushed', () => ({ pushedTo: () => pushed.ref }))
 
-const { pullToOpen, awaitsChecks, ignore, ignored, ignoredPulls, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, pullWait, refreshPull, tidyMerged, unignore, waitsFor } = await import('./pulls.svelte')
+const { pullOf, openPull, pullToOpen, awaitsChecks, ignore, ignored, ignoredPulls, lists, lookUpLists, lookUpNumbered, numbered, openReview, owned, pullWait, refreshPull, tidyMerged, unignore, waitsFor } = await import('./pulls.svelte')
 
 const pull = (number: number, more: Partial<Pull> = {}): Pull => ({
   host: 'github',
@@ -210,5 +211,17 @@ describe('opening a pull request', () => {
     expect(pullToOpen({ ...agent, project: '/elsewhere' } as Agent)).toBeNull()
     expect(pullToOpen({ ...agent, review: { project: '/p', number: 1 } } as unknown as Agent)).toBeNull()
     pushed.ref = null
+  })
+})
+
+describe('opening a pull request', () => {
+  it('opens it from the agent worktree with the user account and links it to the agent', async () => {
+    forge.pull = pull(42, { branch: 'dev/UDM-1189', base: 'feature/UDM-1189' })
+    const agent = { id: 'c1', project: '/p', worktree: { path: '/p/.claude/worktrees/udm' } } as unknown as Agent
+    const fields = { branch: 'dev/UDM-1189', base: 'feature/UDM-1189', title: 'UDM-1189', description: 'Export', draft: true }
+    const opened = await openPull(agent, fields)
+    expect(forge.created).toEqual({ dir: '/p/.claude/worktrees/udm', ...fields })
+    expect(opened.number).toBe(42)
+    expect(pullOf(agent)?.number).toBe(42)
   })
 })

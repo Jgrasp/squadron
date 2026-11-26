@@ -18,6 +18,7 @@ When your task moves into a git worktree that you made yourself (a script, git w
 To start an agent in a worktree a script made, pass its path to start_agent. \
 When a task needs a folder that is not yet a Squadron project, add it with add_project. \
 During a long task made of many items, show where you are on your card with set_progress. \
+To open a pull request on Bitbucket, GitHub, GitLab or Azure DevOps, call create_pull: Squadron opens it with the user's account, without a token. \
 To name a Kanban task in a reply, link it as [its code or title](squadron:task/<card id>), with the card id that overview or create_card gives: Squadron shows a chip the user clicks to see the task, or a card when the link opens a list item. \
 To keep the user informed in your own layout, fill the panel under your conversation header with set_info_panel. \
 When you produce a document or a page the user will read, keep or iterate on, such as a report, a plan, a diagram, a mock-up or a clickable prototype, make it an artifact (a folder in $SQUADRON_ARTIFACTS, or publish_artifact for a single file) instead of only writing it in the conversation, and update it as it changes. \
@@ -212,6 +213,21 @@ struct UpdatePull {
     description: Option<String>,
     /// Project name or path. Your own project when left empty.
     project: Option<String>,
+}
+
+#[derive(Deserialize, Serialize, schemars::JsonSchema)]
+#[serde(deny_unknown_fields)]
+struct CreatePull {
+    /// The branch to merge, already pushed.
+    source: String,
+    /// The branch it merges into.
+    target: String,
+    /// The title.
+    title: String,
+    /// The description, in Markdown.
+    description: String,
+    /// Opens it as a draft. Not a draft when left empty.
+    draft: Option<bool>,
 }
 
 #[derive(Deserialize, Serialize, schemars::JsonSchema)]
@@ -550,6 +566,16 @@ impl Pilot {
         Parameters(args): Parameters<UpdatePull>,
     ) -> String {
         self.forward(&parts, "update_pull", json!(args)).await
+    }
+
+    /// Opens a pull request on Bitbucket, GitHub, GitLab or Azure DevOps from a pushed branch of your project into another, with the user's account: no token needed: use it instead of gh, another forge CLI or MCP server. Squadron then links it to you.
+    #[tool]
+    async fn create_pull(
+        &self,
+        Extension(parts): Extension<http::request::Parts>,
+        Parameters(args): Parameters<CreatePull>,
+    ) -> String {
+        self.forward(&parts, "create_pull", json!(args)).await
     }
 
     /// Returns the instructions given to the agents Squadron starts to review a pull request of a project: the global prompt, the project's own when it has one, and the one used.
@@ -924,6 +950,46 @@ mod tests {
                 .any(|c| c.args["total"] == 4 && c.args["place"] == "below")
         );
         assert!(progress.last().unwrap().args["total"].is_null());
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    #[ignore = "runs the real claude"]
+    async fn real_claude_opens_a_pull_request_for_its_branch() {
+        let (calls, _) = drive_in(
+            "haiku",
+            "I pushed my branch to Bitbucket. Open its pull request into feature/UDM-1189, titled “UDM-1189 Export the segments”, with a one-line description.",
+            |_| "Opened pull request #42 from dev/UDM-1189 into feature/UDM-1189: https://bitbucket.org/acme/shop/pull-requests/42".to_string(),
+            |dir| {
+                let sh = |args: &[&str]| {
+                    let out = std::process::Command::new("git").current_dir(dir).args(args).output().unwrap();
+                    assert!(out.status.success(), "{}", String::from_utf8_lossy(&out.stderr));
+                };
+                sh(&["init", "-q", "-b", "feature/UDM-1189"]);
+                sh(&["config", "user.email", "t@t"]);
+                sh(&["config", "user.name", "t"]);
+                sh(&["remote", "add", "origin", "git@bitbucket.org:acme/shop.git"]);
+                std::fs::write(dir.join("export.js"), "export const segments = []\n").unwrap();
+                sh(&["add", "."]);
+                sh(&["commit", "-qm", "Start"]);
+                sh(&["update-ref", "refs/remotes/origin/feature/UDM-1189", "HEAD"]);
+                sh(&["checkout", "-qb", "dev/UDM-1189"]);
+                std::fs::write(dir.join("export.js"), "export const segments = ['all']\n").unwrap();
+                sh(&["commit", "-qam", "Export the segments"]);
+                sh(&["update-ref", "refs/remotes/origin/dev/UDM-1189", "HEAD"]);
+            },
+        )
+        .await;
+        let opened: Vec<_> = calls.iter().filter(|c| c.tool == "create_pull").collect();
+        assert_eq!(opened.len(), 1);
+        assert_eq!(opened[0].args["source"], "dev/UDM-1189");
+        assert_eq!(opened[0].args["target"], "feature/UDM-1189");
+        assert!(
+            !opened[0].args["description"]
+                .as_str()
+                .unwrap()
+                .trim()
+                .is_empty()
+        );
     }
 
     #[tokio::test(flavor = "multi_thread")]

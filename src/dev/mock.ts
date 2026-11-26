@@ -1166,6 +1166,10 @@ mockIPC(
       case 'update_pull':
       case 'merge_pull':
         return
+      case 'create_pull': {
+        const f = args as { branch: string; base: string; title: string; description: string; draft: boolean }
+        return { host: 'bitbucket', number: 2201, title: f.title, description: f.description, url: 'https://bitbucket.org/orbit/orbit/pull-requests/2201', state: 'open', draft: f.draft, approvals: 0, changes_requested: false, comments: 0, checks: null, branch: f.branch, base: f.base, head: 'd'.repeat(40), author: 'Quentin Briais', updated: new Date().toISOString(), author_avatar: '', reviewed: null, conflicts: false, mergeable: false, reviewed_head: null, reviewed_at: null, head_at: null, reviewers: [] }
+      }
       case 'post_remarks':
         return { done: (args as { drafts: unknown[] }).drafts.length, said: true, error: null }
       case 'git_changes':
