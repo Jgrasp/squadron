@@ -118,6 +118,10 @@ impl Extension for Hello {
             }
             "clicks" => Ok(format!("The Count button was clicked {} times.", count())),
             "options" => Ok(host::options()),
+            "picture" => {
+                host::tool_file(&format!("{}/picture.png", host::data_dir()))?;
+                Ok("The picture of Hello.".into())
+            }
             "github_user" => {
                 let answer = host::fetch(&Request {
                     method: "GET".into(),
