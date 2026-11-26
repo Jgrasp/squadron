@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.65.1 · 2026-11-26
+
+### Agents
+- Auto mode keeps Haiku for questions whose answer is the same for anyone: a message about your own situation, even in an outside tool (what you did, what you see, your settings or data, a message forwarded from a client), goes to Sonnet or Opus.
+
 ## 0.65.0 · 2026-11-26
 
 ### Agents
