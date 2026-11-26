@@ -460,6 +460,7 @@ struct Config {
     chips_motion: String,
     chips_every: u32,
     chips_scope: String,
+    ago_style: String,
     usage: bool,
     tour_offered: bool,
 }
@@ -522,6 +523,7 @@ impl Default for Config {
             chips_motion: "down".into(),
             chips_every: 3,
             chips_scope: "all".into(),
+            ago_style: "days".into(),
             usage: true,
             tour_offered: false,
         }
@@ -582,6 +584,9 @@ impl Settings {
         }
         if !["all", "selected"].contains(&config.chips_scope.as_str()) {
             return Err(format!("Unknown chip rotation: {}", config.chips_scope));
+        }
+        if !["days", "weeks", "date"].contains(&config.ago_style.as_str()) {
+            return Err(format!("Unknown time style: {}", config.ago_style));
         }
         if !["off", "shake", "sound"].contains(&config.tab_ring.as_str()) {
             return Err(format!("Unknown tab ring: {}", config.tab_ring));
