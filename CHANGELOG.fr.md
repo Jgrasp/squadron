@@ -1,5 +1,10 @@
 # Nouveautés
 
+## 0.67.0 · 2026-11-26
+
+### Pull requests
+- Les agents peuvent ouvrir une pull request sur Bitbucket, GitHub, GitLab ou Azure DevOps avec votre compte, sans token : demandez-leur d’ouvrir la pull request de leur branche.
+
 ## 0.66.0 · 2026-11-26
 
 ### Extensions
