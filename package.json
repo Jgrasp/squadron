@@ -10,6 +10,7 @@
     "app": "node scripts/app.mjs",
     "test": "vitest run --passWithNoTests",
     "act": "gh act push",
+    "eval:auto": "AUTO_EVAL=1 vitest run scripts/auto.eval.test.ts",
     "check": "svelte-check --tsconfig ./tsconfig.app.json && tsc -p tsconfig.node.json && vitest run --passWithNoTests && cargo fmt --manifest-path src-tauri/Cargo.toml --check && cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings && cargo test --manifest-path src-tauri/Cargo.toml"
   },
   "devDependencies": {
