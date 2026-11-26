@@ -122,7 +122,7 @@ export const settings = $state<Config>({
   notify_runs: 'failures',
   notify_remote: 'keep',
   remote_new_agents: false,
-  merge_others: 'second',
+  merge_others: 'menu',
   merge_review: 'banner',
   merge_method: 'repo',
   pulls_others: false,
