@@ -1,6 +1,7 @@
 import { models } from './catalogs.svelte'
 import { advises, advisors, modelName } from './commands'
 import { date, number, t, type Key } from './i18n/index.svelte'
+import { settings } from './settings.svelte'
 import type { Agent, Options } from './stream'
 
 export const cost = (usd: number) => {
@@ -30,7 +31,12 @@ export function ago(at: number, now: number) {
   if (min < 1) return t('format.justNow')
   if (min < 60) return t('format.minutesAgo', { count: min })
   if (min < 24 * 60) return t('format.hoursAgo', { count: Math.floor(min / 60) })
-  return t('review.daysAgo', { count: Math.floor(min / 1440) })
+  const days = Math.floor(min / 1440)
+  if (settings.ago_style === 'date') return date(at, { month: 'short', day: 'numeric', year: days > 300 ? 'numeric' : undefined })
+  if (settings.ago_style === 'days' || days < 14) return t('review.daysAgo', { count: days })
+  if (days < 60) return t('format.weeksAgo', { count: Math.floor(days / 7) })
+  if (days < 365) return t('format.monthsAgo', { count: Math.floor(days / 30) })
+  return t('format.yearsAgo', { count: Math.floor(days / 365) })
 }
 
 export const time = (at: number) => date(at, { hour: '2-digit', minute: '2-digit' })

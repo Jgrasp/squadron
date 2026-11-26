@@ -4,6 +4,7 @@
   import { errorText, LANGUAGES, systemLocale, t, type Key } from './i18n/index.svelte'
   import { saveSettings, settings, type ChipsMotion, type Config, type ProjectsEffect, type TabEffect, type TabOrder, type TabRing } from './settings.svelte'
   import AgentChips from './AgentChips.svelte'
+  import { ago } from './format'
   import type { Chip } from './newAgentDraft'
 
   const EFFECTS: [TabEffect, Key, Key, number][] = [
@@ -36,6 +37,11 @@
   const SCOPES: [Config['chips_scope'], Key, Key][] = [
     ['all', 'settings.chipsScopeAll', 'settings.chipsScopeAllHint'],
     ['selected', 'settings.chipsScopeSelected', 'settings.chipsScopeSelectedHint'],
+  ]
+  const AGO: [Config['ago_style'], Key][] = [
+    ['days', 'settings.agoDays'],
+    ['weeks', 'settings.agoWeeks'],
+    ['date', 'settings.agoDate'],
   ]
   const SAMPLE: Chip[] = [
     { extension: 'jira', key: 'LR-295', title: 'Suspension flow' },
@@ -78,6 +84,7 @@
   const projects = $derived(PROJECT_EFFECTS.find(([id]) => id === settings.projects_effect))
   const steps = $derived(STEPS.find(([id]) => id === settings.steps))
   const motion = $derived(MOTIONS.find(([id]) => id === settings.chips_motion))
+  const sampleAgo = $derived(settings.ago_style && ago(Date.now() - 50 * 86_400_000, Date.now()))
   const scope = $derived(SCOPES.find(([id]) => id === settings.chips_scope))
 
   async function change(patch: Partial<Config>) {
@@ -169,6 +176,19 @@
       </div>
     </div>
   {/if}
+  <div class="option">
+    <span class="label"><strong>{t('settings.agoStyle')}</strong><small>{t('settings.agoStyleHint')}</small></span>
+    <div class="segments" role="group" aria-label={t('settings.agoStyle')}>
+      {#each AGO as [id, title] (id)}
+        <button aria-pressed={settings.ago_style === id} onclick={() => change({ ago_style: id })}>{t(title)}</button>
+      {/each}
+    </div>
+  </div>
+  <div class="option sub">
+    <div class="sample-list">
+      <div class="sample-agent"><span class="ok" aria-hidden="true">✓</span><strong>LR-293 {t('settings.agoSampleName')}</strong><small>{t('shell.doneAgo', { ago: sampleAgo })}</small></div>
+    </div>
+  </div>
 </div>
 
 <h3>{t('settings.conversation')}</h3>
@@ -340,6 +360,38 @@
 
   .sample.card::after {
     border-radius: inherit;
+  }
+
+  .option.sub:has(.sample-list) {
+    min-height: 0;
+    padding: 14px;
+  }
+
+  .sample-list {
+    width: 304px;
+    max-width: 100%;
+    box-sizing: border-box;
+    padding: 12px;
+    border-radius: 6px;
+    background: var(--bg-sidebar);
+  }
+
+  .sample-agent {
+    display: grid;
+    grid-template-columns: auto 1fr;
+    column-gap: 8px;
+    padding: 12px 14px;
+    border-radius: 6px;
+    background: var(--surface-1);
+    box-shadow: inset 0 0 0 1px var(--border-strong);
+  }
+
+  .sample-agent .ok {
+    color: var(--ok-text);
+  }
+
+  .sample-agent small {
+    grid-column: 2;
   }
 
   .sample.chips {

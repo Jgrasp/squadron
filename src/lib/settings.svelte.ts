@@ -75,6 +75,7 @@ export type Config = {
   chips_motion: ChipsMotion
   chips_every: 2 | 3 | 5
   chips_scope: 'all' | 'selected'
+  ago_style: 'days' | 'weeks' | 'date'
   usage: boolean
   tour_offered: boolean
 }
@@ -129,6 +130,7 @@ export const settings = $state<Config>({
   chips_motion: 'down',
   chips_every: 3,
   chips_scope: 'all',
+  ago_style: 'days',
   usage: true,
   tour_offered: false,
 })

@@ -1,5 +1,6 @@
 import { afterEach, describe, expect, it } from 'vitest'
 import { ago, duration } from './format'
+import { settings } from './settings.svelte'
 import { english, errorText, parts, setLanguage, t } from './i18n/index.svelte'
 
 afterEach(() => setLanguage('system'))
@@ -18,6 +19,16 @@ describe('i18n', () => {
     setLanguage('fr')
     expect(ago(0, 5 * 60_000)).toBe('il y a 5 min')
     expect(duration(65_000)).toBe('1 min 05 s')
+  })
+
+  it('scales long ages to the chosen style', () => {
+    const day = 86_400_000
+    settings.ago_style = 'weeks'
+    expect(ago(0, 50 * day)).toBe('7 weeks ago')
+    expect(ago(0, 100 * day)).toBe('3 months ago')
+    settings.ago_style = 'date'
+    expect(ago(0, 50 * day)).toMatch(/Jan/)
+    settings.ago_style = 'days'
   })
 
   it('splits a message around its values', () => {
