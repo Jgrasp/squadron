@@ -14,6 +14,7 @@ describe('i18n', () => {
 
   it('picks plural forms and formats numbers', () => {
     expect(ago(0, 5 * 60_000)).toBe('5 min ago')
+    expect(ago(0, 148 * 3_600_000)).toBe('6 days ago')
     setLanguage('fr')
     expect(ago(0, 5 * 60_000)).toBe('il y a 5 min')
     expect(duration(65_000)).toBe('1 min 05 s')

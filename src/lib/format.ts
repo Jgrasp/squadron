@@ -29,7 +29,8 @@ export function ago(at: number, now: number) {
   const min = Math.floor((now - at) / 60_000)
   if (min < 1) return t('format.justNow')
   if (min < 60) return t('format.minutesAgo', { count: min })
-  return t('format.hoursAgo', { count: Math.floor(min / 60) })
+  if (min < 24 * 60) return t('format.hoursAgo', { count: Math.floor(min / 60) })
+  return t('review.daysAgo', { count: Math.floor(min / 1440) })
 }
 
 export const time = (at: number) => date(at, { hour: '2-digit', minute: '2-digit' })
