@@ -25,3 +25,4 @@ dist-ssr
 .vitest
 .worktrees/
 .claude/worktrees/
+scripts/auto.cases.local.json

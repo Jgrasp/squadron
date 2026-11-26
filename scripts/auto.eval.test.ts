@@ -1,5 +1,5 @@
 import { execFile } from 'node:child_process'
-import { readFileSync } from 'node:fs'
+import { existsSync, readFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
 import { promisify } from 'node:util'
 import { describe, expect, it } from 'vitest'
@@ -56,7 +56,11 @@ const fresh: Case[] = [
   ["Je comprends pas pourquoi le menu ne s'ouvre pas sur macOS", usual],
 ]
 
-const RUNS = 3
+const LABELS: Record<string, string[]> = { h: quick, hs: [...quick, ...usual], s: usual, so: [...usual, ...deep], o: deep }
+const local = new URL('./auto.cases.local.json', import.meta.url)
+const real: Case[] = existsSync(local) ? JSON.parse(readFileSync(local, 'utf8')).map((c: { text: string; label: string }) => [c.text, LABELS[c.label]]) : []
+
+const RUNS = Number(process.env.AUTO_EVAL_RUNS ?? 3)
 const prompt = readFileSync(new URL('../src/lib/autoPrompt.md', import.meta.url), 'utf8').trim()
 const rust = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 const format = JSON.parse(`"${/const LAUNCH_FORMAT: &str = "(.*)";/.exec(rust)![1]}"`)
@@ -85,4 +89,8 @@ describe.runIf(process.env.AUTO_EVAL)('auto launch picks', () => {
 
 describe.runIf(process.env.AUTO_EVAL)('auto launch picks on messages the prompt was not tuned on', () => {
   it.concurrent.each(fresh)('%s', check, 60_000)
+})
+
+describe.runIf(process.env.AUTO_EVAL && real.length)('auto launch picks on real first messages', () => {
+  it.concurrent.each(real)('%s', check, 60_000)
 })
