@@ -22,14 +22,14 @@ const cases: Case[] = [
 
   ['Bug : On voit pas le auto ici', usual],
   ["Je suis déjà à 8% alors que ça fait que 10min que j'ai commencé. Pourquoi ça tabasse autant mon abonnement aujourd'hui ????", usual],
-  ['Renomme le bouton Envoyer en Soumettre', usual],
+  ['Renomme le bouton Envoyer en Soumettre', [...quick, ...usual]],
   ['ça crash au démarrage', usual],
   ["Pourquoi l'app est lente quand j'ouvre un gros projet ?", usual],
   ['Ajoute un test pour la fonction settle dans autoLaunch', usual],
   ['le push marche plus', usual],
   ['Les onglets se ferment tout seuls quand je change de projet', usual],
   ['La CI met 25 min, tu peux regarder ?', [...usual, 'opus · high']],
-  ['Relis la PR 98 et dis-moi si c’est bon', usual],
+  ['Relis la PR 98 et dis-moi si c’est bon', [...usual, ...deep]],
   ['Le badge rouge est moche', usual],
   ['Quelle version de Tauri on utilise ?', ['sonnet · low', ...usual]],
   ['Trie les agents par date de dernière activité dans la sidebar', usual],
@@ -58,16 +58,19 @@ const fresh: Case[] = [
 
 const LABELS: Record<string, string[]> = { h: quick, hs: [...quick, ...usual], s: usual, so: [...usual, ...deep], o: deep }
 const local = new URL('./auto.cases.local.json', import.meta.url)
-const real: Case[] = existsSync(local) ? JSON.parse(readFileSync(local, 'utf8')).map((c: { text: string; label: string }) => [c.text, LABELS[c.label]]) : []
+type Real = { text: string; label: string; holdout?: boolean }
+const real: Real[] = existsSync(local) ? JSON.parse(readFileSync(local, 'utf8')) : []
+const realCases = (holdout: boolean): Case[] => real.filter((c) => !!c.holdout === holdout).map((c) => [c.text, LABELS[c.label]])
 
 const RUNS = Number(process.env.AUTO_EVAL_RUNS ?? 3)
 const prompt = readFileSync(new URL('../src/lib/autoPrompt.md', import.meta.url), 'utf8').trim()
 const rust = readFileSync(new URL('../src-tauri/src/lib.rs', import.meta.url), 'utf8')
 const format = JSON.parse(`"${/const LAUNCH_FORMAT: &str = "(.*)";/.exec(rust)![1]}"`)
+const [judge, judgeEffort] = /const LAUNCH_JUDGE: \(&str, &str\) = \("(\w+)", "(\w+)"\);/.exec(rust)!.slice(1)
 const run = promisify(execFile)
 
 async function pick(text: string) {
-  const args = ['-p', '--model', 'haiku', '--effort', 'low', '--output-format', 'json', '--tools', '', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--system-prompt', `${prompt}\n\n${format}`, '--', text]
+  const args = ['-p', '--model', judge, '--effort', judgeEffort, '--output-format', 'json', '--tools', '', '--strict-mcp-config', '--setting-sources', 'project', '--no-session-persistence', '--system-prompt', `${prompt}\n\n${format}`, '--', text]
   const { stdout } = await run('claude', args, { cwd: tmpdir(), timeout: 20_000 })
   try {
     const result: string = JSON.parse(stdout).result
@@ -92,5 +95,9 @@ describe.runIf(process.env.AUTO_EVAL)('auto launch picks on messages the prompt 
 })
 
 describe.runIf(process.env.AUTO_EVAL && real.length)('auto launch picks on real first messages', () => {
-  it.concurrent.each(real)('%s', check, 60_000)
+  it.concurrent.each(realCases(false))('%s', check, 60_000)
+})
+
+describe.runIf(process.env.AUTO_EVAL && real.length)('auto launch picks on real first messages the prompt was not tuned on', () => {
+  it.concurrent.each(realCases(true))('%s', check, 60_000)
 })
