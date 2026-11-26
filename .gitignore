@@ -25,4 +25,5 @@ dist-ssr
 .vitest
 .worktrees/
 .claude/worktrees/
+.impeccable/
 scripts/auto.cases.local.json
