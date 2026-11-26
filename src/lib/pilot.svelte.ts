@@ -13,7 +13,7 @@ import { all, arrangeSlot, hidden, labelOf } from './layout-slots.svelte'
 import { defaultsFor, editProject, inspect, projects, set, setCards, type Project } from './projects.svelte'
 import { saveSettings, settings } from './settings.svelte'
 import { SLOTS, type Slot } from './slots'
-import { inRound, judge, lookUpAll, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, threadRoots, type Pull, type Remark } from './pulls.svelte'
+import { inRound, judge, lookUpAll, openPull, pullOf, REVIEW_PROMPT, reviewPrompt, reviews, threadRoots, type Pull, type Remark } from './pulls.svelte'
 import { workdir, type Agent, type Options } from './stream'
 import { english, t } from './i18n/index.svelte'
 import { PANEL_MAX_HTML, panelHeight } from './infopanel'
@@ -376,6 +376,14 @@ const tools: Record<string, (caller: Agent, args: Record<string, any>) => unknow
     lookUpAll(true)
     const changed = [title && 'title', description && 'description'].filter(Boolean).join(' and ')
     return `Changed the ${changed} of pull request #${number}.`
+  },
+
+  create_pull: async (caller, args) => {
+    const [source, target, title] = [args.source, args.target, args.title].map((v) => String(v ?? '').trim())
+    if (!source || !target) throw new Error('Give the source branch and the target branch.')
+    if (!title) throw new Error('The title is empty.')
+    const pull = await openPull(caller, { branch: source, base: target, title, description: String(args.description ?? ''), draft: args.draft === true })
+    return `Opened pull request #${pull.number} from ${source} into ${target}: ${pull.url}`
   },
 
   read_pull_comments: async (caller, args) => {

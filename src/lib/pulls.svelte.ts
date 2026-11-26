@@ -373,7 +373,7 @@ export function pullToOpen(agent: Agent) {
 }
 
 export async function openPull(agent: Agent, fields: { branch: string; base: string; title: string; description: string; draft: boolean }) {
-  owned[agent.id] = await invoke<Pull>('create_pull', { dir: workdir(agent), ...fields })
+  return (owned[agent.id] = await invoke<Pull>('create_pull', { dir: workdir(agent), ...fields }))
 }
 
 export function lookUpAgent(agent: Agent, force = false) {
