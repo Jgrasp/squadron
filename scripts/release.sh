@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-repo=Jgrasp/squadron
+repo=akki-team/squadron
 cd "$(dirname "$0")/.."
 root=$PWD
 . "$HOME/.cargo/env"

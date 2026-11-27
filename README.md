@@ -7,12 +7,12 @@ A desktop app to drive several Claude Code agents side by side: a tab for each p
 Install [Claude Code](https://docs.claude.com/en/docs/claude-code/setup) and log in once in a terminal with `claude auth login`. Then, on Linux or macOS:
 
 ```bash
-curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | bash
+curl -fsSL https://raw.githubusercontent.com/akki-team/squadron/main/install.sh | bash
 ```
 
 **Linux.** On Ubuntu and Debian it installs the `.deb` package, which uses the system's WebKit, and asks for your password. Elsewhere it puts the AppImage in `~/.local/bin` and adds Squadron to your applications; AppImages need FUSE (`libfuse2`).
 
-**macOS.** It puts Squadron in `/Applications`, for Apple Silicon and Intel Macs. You can also download the `.dmg` from the [latest release](https://github.com/Jgrasp/squadron/releases/latest): Squadron is not notarized by Apple, so on first launch macOS refuses to open it; open **System Settings › Privacy & Security** and click **Open Anyway**, once.
+**macOS.** It puts Squadron in `/Applications`, for Apple Silicon and Intel Macs. You can also download the `.dmg` from the [latest release](https://github.com/akki-team/squadron/releases/latest): Squadron is not notarized by Apple, so on first launch macOS refuses to open it; open **System Settings › Privacy & Security** and click **Open Anyway**, once.
 
 Squadron checks for updates every ten minutes, and on demand from its menu with **Check for updates**: when one is out, the status bar shows **Update**, and one click downloads it, installs it and restarts. The `.deb` asks for your password to install the update.
 

@@ -250,10 +250,16 @@ pub type Keyring<'a> = &'a dyn Fn(&str, &str, Option<&str>) -> Result<(), String
 
 impl Extensions {
     pub fn choices(&self) -> Choices {
-        std::fs::read_to_string(&self.file)
+        let mut choices: Choices = std::fs::read_to_string(&self.file)
             .ok()
             .and_then(|text| serde_json::from_str(&text).ok())
-            .unwrap_or_default()
+            .unwrap_or_default();
+        for origin in choices.origins.values_mut() {
+            if origin.eq_ignore_ascii_case(MOVED_OFFICIAL) {
+                *origin = OFFICIAL.into();
+            }
+        }
+        choices
     }
 
     pub fn save(&self, choices: &Choices) -> Result<(), String> {
@@ -611,7 +617,8 @@ impl Extensions {
     }
 }
 
-pub const OFFICIAL: &str = "Jgrasp/squadron-extensions";
+pub const OFFICIAL: &str = "akki-team/squadron-extensions";
+const MOVED_OFFICIAL: &str = "Jgrasp/squadron-extensions";
 const MAX_ARCHIVE: usize = 50 << 20;
 const MAX_UNPACKED: u64 = 200 << 20;
 const MAX_FILES: usize = 2000;
@@ -1704,8 +1711,8 @@ mod tests {
     #[test]
     fn reads_the_repositories_of_a_registry() {
         let registry = serde_json::json!({
-            "hello": { "repository": "https://github.com/Jgrasp/squadron-extensions", "path": "examples/hello" },
-            "jira": { "repository": "https://github.com/Jgrasp/squadron-jira" },
+            "hello": { "repository": "https://github.com/akki-team/squadron-extensions", "path": "examples/hello" },
+            "jira": { "repository": "https://github.com/akki-team/squadron-jira" },
             "git": { "repository": "https://github.com/me/ext.git/" },
             "Bad": { "repository": "https://github.com/me/x" },
             "lab": { "repository": "https://gitlab.com/me/x" },
@@ -1724,7 +1731,7 @@ mod tests {
                 ("git".into(), "https://github.com/me/ext".into()),
                 (
                     "jira".into(),
-                    "https://github.com/Jgrasp/squadron-jira".into()
+                    "https://github.com/akki-team/squadron-jira".into()
                 ),
                 ("lab".into(), "https://gitlab.com/me/x".into()),
             ]
@@ -1735,27 +1742,27 @@ mod tests {
     fn takes_archives_only_from_the_source_or_the_listed_repository() {
         let place = |s: &str| Place::parse(s).unwrap();
         let official = place(OFFICIAL);
-        let jira = place("Jgrasp/squadron-jira");
+        let jira = place("akki-team/squadron-jira");
         let ok =
-            "https://github.com/Jgrasp/squadron-jira/releases/download/v0.5.0/jira-0.5.0.tar.gz";
+            "https://github.com/akki-team/squadron-jira/releases/download/v0.5.0/jira-0.5.0.tar.gz";
         assert!(archive_allowed(&official, Some(&jira), ok));
         assert!(!archive_allowed(&official, None, ok));
         assert!(archive_allowed(
             &official,
             None,
-            "https://github.com/Jgrasp/squadron-extensions/releases/download/jira-0.5.0/jira-0.5.0.tar.gz"
+            "https://github.com/akki-team/squadron-extensions/releases/download/jira-0.5.0/jira-0.5.0.tar.gz"
         ));
         assert!(archive_allowed(
-            &place("jgrasp/squadron-extensions"),
-            Some(&place("jgrasp/squadron-jira")),
+            &place("Akki-Team/squadron-extensions"),
+            Some(&place("Akki-Team/squadron-jira")),
             ok
         ));
         for evil in [
-            "https://github.com/Jgrasp/squadron-jira/releases/download/../../../../evil/x/a.tar.gz",
-            "https://github.com/Jgrasp/squadron-jira/releases/download/%2e%2e/%2E%2E/%2e%2e/%2e%2e/evil/a.tar.gz",
-            "https://github.com/Jgrasp/squadron-jira-evil/releases/download/v1/a.tar.gz",
-            "http://github.com/Jgrasp/squadron-jira/releases/download/v1/a.tar.gz",
-            "https://github.com.evil.com/Jgrasp/squadron-jira/a.tar.gz",
+            "https://github.com/akki-team/squadron-jira/releases/download/../../../../evil/x/a.tar.gz",
+            "https://github.com/akki-team/squadron-jira/releases/download/%2e%2e/%2E%2E/%2e%2e/%2e%2e/evil/a.tar.gz",
+            "https://github.com/akki-team/squadron-jira-evil/releases/download/v1/a.tar.gz",
+            "http://github.com/akki-team/squadron-jira/releases/download/v1/a.tar.gz",
+            "https://github.com.evil.com/akki-team/squadron-jira/a.tar.gz",
         ] {
             assert!(!archive_allowed(&official, Some(&jira), evil), "{evil}");
         }
@@ -1788,7 +1795,7 @@ mod tests {
         m.add_source("me/ext").unwrap();
         m.add_source("me/ext").unwrap();
         m.add_source(OFFICIAL).unwrap();
-        m.add_source("jgrasp/Squadron-Extensions").unwrap();
+        m.add_source("Akki-Team/Squadron-Extensions").unwrap();
         m.add_source("ME/EXT").unwrap();
         m.add_source("https://gitlab.com/me/ext.git").unwrap();
         assert_eq!(
@@ -1796,7 +1803,7 @@ mod tests {
             "me/ext"
         );
         assert_eq!(
-            m.add_source("https://github.com/Jgrasp/squadron-extensions.git")
+            m.add_source("https://github.com/akki-team/squadron-extensions.git")
                 .unwrap(),
             OFFICIAL
         );
@@ -1942,6 +1949,17 @@ mod tests {
         assert_eq!(listing.accounts["jira"].len(), 1);
         assert_eq!(listing.disabled, vec!["jira"]);
         assert!(listing.origins.is_empty());
+    }
+
+    #[test]
+    fn follows_the_official_source_to_akki_team() {
+        let m = extensions();
+        let mut choices = m.choices();
+        choices.origins.insert("jira".into(), MOVED_OFFICIAL.into());
+        choices.origins.insert("own".into(), "me/ext".into());
+        m.save(&choices).unwrap();
+        assert_eq!(m.list().origins["jira"], OFFICIAL);
+        assert_eq!(m.list().origins["own"], "me/ext");
     }
 
     #[test]

@@ -410,7 +410,7 @@ export function panelOpening(panels: Panel[], extension: string, id: string, pro
 
 export const boundsKey = (label: string) => `extension-window:${label}`
 
-export const OFFICIAL = 'Jgrasp/squadron-extensions'
+export const OFFICIAL = 'akki-team/squadron-extensions'
 
 export type CatalogEntry = {
   id: string

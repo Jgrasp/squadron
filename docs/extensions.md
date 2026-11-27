@@ -1,6 +1,6 @@
 # Squadron — Extensions et pilotage par IA (étude)
 
-> Guide des auteurs d'extensions (en anglais, public) : https://github.com/Jgrasp/squadron-extensions/blob/main/docs/guide.md. Ce document-ci est l'étude et le journal des décisions.
+> Guide des auteurs d'extensions (en anglais, public) : https://github.com/akki-team/squadron-extensions/blob/main/docs/guide.md. Ce document-ci est l'étude et le journal des décisions.
 
 Trois sujets :
 
@@ -663,7 +663,7 @@ Un élément de l'emplacement `artifact.actions` devient une destination de part
 
 Sur le modèle de Zed : chaque extension vit dans son dépôt, un dépôt central la recense, et c'est la CI de ce dépôt qui la compile.
 
-- **Dépôt `Jgrasp/squadron-extensions`** :
+- **Dépôt `akki-team/squadron-extensions`** :
   - `registry.json` : une entrée par extension, `{ "repository", "commit", "path", "version" }`. On publie ou on met à jour par une PR relue, une extension par PR. Changer le commit sans changer la version fait échouer la PR ;
   - `api/` : le crate `squadron_extension_api` et son WIT, recopiés depuis `extensions/api` de Squadron, qui reste la référence ;
   - `examples/hello` : l'extension d'exemple, publiée depuis ce dépôt ;
@@ -683,7 +683,7 @@ Sur le modèle de Zed : chaque extension vit dans son dépôt, un dépôt centra
 - **Désinstaller** : retire ses secrets du trousseau, supprime son dossier et oublie ses accords. Un dossier local se retire, il ne se désinstalle pas.
 - **Notes de version** : chaque extension a un `CHANGELOG.md` à côté de son `extension.json`, une section `## <version> · <AAAA-MM-JJ>` par version publiée, la plus récente en haut, puis une ligne `- ` par changement visible par l'utilisateur (20 lignes au plus, 300 caractères par ligne, ni image ni HTML). Traductions dans `CHANGELOG.<langue>.md`, l'anglais servant de repli. Une PR qui monte la version sans section pour elle est refusée. La CI (`scripts/changelog.mjs` de `squadron-extensions`) recopie les 20 sections les plus récentes dans `index.json` (`changelog: [{ version, date, notes: { en: [...], fr: [...] } }]`). Règles détaillées dans le guide des auteurs.
 - **Mises à jour** : vérifiées au lancement puis toutes les 6 heures. Une notification par version, et le bouton « N extension updates » dans la barre d'état, qui ouvre la liste : mise à jour ligne par ligne ou toutes, « What's new » avec les notes des versions entre celle installée et la nouvelle, accès nouveaux annoncés. Jamais d'installation automatique. Une mise à jour qui ajoute une commande ou un domaine redemande l'accord.
-- **Sources** : `Jgrasp/squadron-extensions` est la source officielle, toujours présente. L'utilisateur peut ajouter d'autres sources : l'URL https d'un dépôt GitHub, GitLab (gitlab.com ou auto-hébergé, sous-groupes compris) ou Bitbucket, `propriétaire/dépôt` pour GitHub, ou l'URL d'un fichier `.json`. Les fichiers d'un dépôt se lisent sur sa branche par défaut (`HEAD`). Une source est une marketplace (un `registry.json` ou un `index.json` comme l'officiel), ou, par « Depuis un dépôt », un dépôt d'extension dont la dernière release porte un `catalog.json`. Squadron vérifie à l'ajout qu'il trouve l'un des trois. Leurs extensions sont marquées « Non officielle ».
+- **Sources** : `akki-team/squadron-extensions` est la source officielle, toujours présente. L'utilisateur peut ajouter d'autres sources : l'URL https d'un dépôt GitHub, GitLab (gitlab.com ou auto-hébergé, sous-groupes compris) ou Bitbucket, `propriétaire/dépôt` pour GitHub, ou l'URL d'un fichier `.json`. Les fichiers d'un dépôt se lisent sur sa branche par défaut (`HEAD`). Une source est une marketplace (un `registry.json` ou un `index.json` comme l'officiel), ou, par « Depuis un dépôt », un dépôt d'extension dont la dernière release porte un `catalog.json`. Squadron vérifie à l'ajout qu'il trouve l'un des trois. Leurs extensions sont marquées « Non officielle ».
   - Une archive ne vient que du dépôt de la source qui l'a listée ou du dépôt d'extension que cette source liste pour cet id.
   - Si deux sources publient le même id, l'officielle est proposée d'abord.
   - Squadron retient la source de chaque extension installée (`origins` dans `extensions.json`) et ne propose ses mises à jour que depuis cette source : une autre source ne peut pas la remplacer.
