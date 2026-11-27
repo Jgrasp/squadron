@@ -530,15 +530,11 @@ export async function reviewWithAgent(project: string, pull: Pull) {
     .filter(Boolean)
     .join('\n\n')
   const before = agents.current[project]
-  const id = await create(project, t('review.agentName', { number: String(pull.number) }), defaultsFor(project), prompt, { dir })
+  const review = { project, number: pull.number, base: pull.base, title: pull.title, head: pull.head }
+  const id = await create(project, t('review.agentName', { number: String(pull.number) }), defaultsFor(project), prompt, { dir, review })
   if (before) agents.current[project] = before
   else delete agents.current[project]
-  const agent = agents.list.find((a) => a.id === id)
-  if (agent) {
-    agent.review = { project, number: pull.number, base: pull.base, title: pull.title, head: pull.head }
-    roundFor(`${project}#${pull.number}`, pull.head, id)
-    persist(agent)
-  }
+  roundFor(`${project}#${pull.number}`, pull.head, id)
   return id
 }
 
