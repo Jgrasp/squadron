@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, ownerOf, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, themesOf, toolsOf, validate } from './extensions'
+import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, ownerOf, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, effectOf, themeOf, themesOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -84,6 +84,18 @@ describe('extensions', () => {
   it('only lets colors into the theme', () => {
     expect(keys({ ...lando, contributes: { theme: { accent: 'red; } body { display: none' } } })).toEqual(['extensions.badTheme'])
     expect(keys({ ...lando, contributes: { theme: { accent: 'rgb(10, 20, 30)' } } })).toEqual([])
+  })
+
+  it('accepts a snow effect only within its bounds', () => {
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow' } } })).toEqual([])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow', area: 'header', density: 150, speed: 0.2, wind: -1, shape: 'crystals', pile: true } } })).toEqual([])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'rain' } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { density: 40 } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow', density: 500 } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow', color: 'red' } } })).toEqual(['extensions.badEffect'])
+    const found = [{ dir: '/x/xmas', linked: false, error: null, manifest: { ...lando, id: 'xmas', contributes: { effect: { kind: 'snow', pile: true } } } }]
+    expect(effectOf(load(found, []), 'xmas')).toEqual({ kind: 'snow', pile: true })
+    expect(effectOf(load(found, []), 'other')).toBeNull()
   })
 
   it('keeps the first extension that claims an id and contributes only enabled valid extensions', () => {

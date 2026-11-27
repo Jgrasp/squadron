@@ -224,6 +224,9 @@ Brand on the left (in dev, a "dev · {instance}" badge, 180px at most, the insta
 
 **Context panel** (`ContextPanel`, opened by ContextGauge): 460px, `--bg-main`, radius 6px, menu outline + shadow. At the top "Context" 600 and Usage / Settings segments (`--surface-2`, active `--text`/`--ink` 700). Usage: 8px progress bar `--surface-3` filled per source, 2px `--text-faint` line at the auto-compaction threshold; two `--surface-1` tiles (mono 18px); sections in uppercase 11px; 30px rows (26px nested, `--border-strong` left hairline), 18px chevron `--surface-3`, 9px source dot, total mono 12.5px `--text-2`, "≈" before an estimate. Source colors: Claude Code `--text-faint`, Squadron `--remote-dot`, configuration `--persona`, MCP servers `--background`, plugins and plugin calls `--advisor`, conversation `--ok`, hooks and reminders `--ok-line`. 16px plugin logo with radius 4px. Bottom: "Compaction" and a 36px `--surface-2` field that holds the "Compact now" button. Settings: 48px rows separated by `--border`, `Select` on the right.
 
+### Theme effect
+`Snow.svelte`, drawn when the chosen theme extension declares `contributes.effect` with `kind: "snow"`: fixed canvas over the whole window (or the 54px header with `area: "header"`), z-index 45, click-through, `#FFFFFF` flakes at 35 to 90 % opacity by depth, dots or crystals of three strokes; with `pile`, a 92 % white pile 7px high at most on top of the status bar. Off under reduced motion and while the window is hidden.
+
 ### Conversation
 - **User message**: light bubble on the right, 540px max, padding 12px 16px.
 - **Message not read yet**: under the bubble, 11.5px `--text-dim` line (like "Sent via remote control") as long as Claude Code has not picked it up during an action, followed by the "Stop it and read now" link 600 `--accent-link` (`--accent-soft` on hover) that interrupts the current action.

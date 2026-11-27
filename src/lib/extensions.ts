@@ -75,7 +75,7 @@ export type Manifest = {
   logo?: string
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string>; forge?: Forge }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string>; effect?: Effect; forge?: Forge }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null; logo?: string | null }
@@ -105,6 +105,17 @@ const oneLine = (v: unknown) => typeof v === 'string' && !!v.trim() && !/[\x00-\
 const RESERVED = ['-p', '--print', '--input-format', '--output-format', '--replay-user-messages', '--model', '--effort', '--permission-mode', '--append-system-prompt', '--agent', '--advisor', '-r', '--resume', '-c', '--continue', '--fork-session', '--resume-session-at', '--session-id', '--mcp-config', '--strict-mcp-config', '--permission-prompt-tool', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '-w', '--worktree', '--settings', '--setting-sources', '--allowedTools', '--allowed-tools', '--tools', '--plugin-dir', '--plugin-url', '--agents', '--system-prompt', '--system-prompt-file', '--append-system-prompt-file']
 
 const COLOR = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d.,%\s/]+\))$/i
+
+export type Effect = { kind: 'snow'; area?: 'window' | 'header'; density?: number; speed?: number; size?: number; wind?: number; shape?: 'dots' | 'crystals'; pile?: boolean }
+
+export const EFFECT = { density: [5, 150, 40], speed: [0.2, 2.5, 1], size: [0.5, 2, 1], wind: [-1, 1, 0.2] } as const
+
+const EFFECT_CHOICES: Record<string, readonly unknown[]> = { kind: ['snow'], area: ['window', 'header'], shape: ['dots', 'crystals'], pile: [true, false] }
+
+const effectOk = (e: unknown) =>
+  isObject(e) &&
+  e.kind !== undefined &&
+  Object.entries(e).every(([k, v]) => (k in EFFECT ? typeof v === 'number' && v >= EFFECT[k as keyof typeof EFFECT][0] && v <= EFFECT[k as keyof typeof EFFECT][1] : !!EFFECT_CHOICES[k]?.includes(v)))
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
@@ -308,6 +319,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))
       problems.push(['extensions.badTheme'])
+    if (contributes.effect !== undefined && !effectOk(contributes.effect)) problems.push(['extensions.badEffect'])
   }
   return problems.length ? { problems } : { manifest: raw as Manifest, problems }
 }
@@ -503,6 +515,8 @@ export const updatesOf = (list: Extension[], entries: CatalogEntry[], origins: R
     return !!here && originOf(origins, c.id) === c.source && newer(c.version, here.version)
   })
 
-export const themesOf = (extensions: Extension[]) => active(extensions).filter((m) => Object.keys(m.manifest.contributes?.theme ?? {}).length)
+export const themesOf = (extensions: Extension[]) => active(extensions).filter((m) => Object.keys(m.manifest.contributes?.theme ?? {}).length || m.manifest.contributes?.effect)
 
 export const themeOf = (extensions: Extension[], id: string) => themesOf(extensions).find((m) => m.id === id)?.manifest.contributes?.theme ?? {}
+
+export const effectOf = (extensions: Extension[], id: string) => themesOf(extensions).find((m) => m.id === id)?.manifest.contributes?.effect ?? null

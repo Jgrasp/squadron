@@ -152,6 +152,7 @@ export default {
   fromFolder: 'A folder on this computer',
   fromFolderHint: 'It reloads at every build and replaces the installed version with the same id.',
   fromSource: 'Another source',
+  badEffect: 'The effect is { "kind": "snow" } with optional area (window, header), density (5–150), speed (0.2–2.5), size (0.5–2), wind (−1–1), shape (dots, crystals) and pile (true, false).',
   badTheme: 'The theme maps variable names to colors, like { "accent": "#4fa3e0" }.',
   manageTitle: 'Manage extensions',
   allExtensions: 'All extensions',
