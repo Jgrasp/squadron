@@ -223,9 +223,10 @@
     agents.list.findLast((a) => a.project === project.path && !a.review && a.skills.length)?.skills ?? agents.list.findLast((a) => a.skills.length)?.skills ?? [],
   )
   const commands = $derived(
-    ((catalogs[project.path] ?? Object.values(catalogs).at(-1))?.commands ?? skills.map((name) => ({ name, description: '' }))).filter((c) =>
-      skills.some((s) => s === c.name || s.endsWith(`:${c.name}`)),
-    ),
+    catalogs[project.path]?.commands.filter((c) => !c.builtin) ??
+      (Object.values(catalogs).at(-1)?.commands ?? skills.map((name) => ({ name, description: '' }))).filter((c) =>
+        skills.some((s) => s === c.name || s.endsWith(`:${c.name}`)),
+      ),
   )
   const stage = $derived.by(() => {
     if (text === dismissed || mentions.found) return null
