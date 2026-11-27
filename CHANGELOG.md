@@ -1,5 +1,10 @@
 # Changelog
 
+## 0.68.1 · 2026-11-27
+
+### Fixes
+- The status bar no longer flags newer Claude Code versions as untested, only versions older than the minimum Squadron needs.
+
 ## 0.68.0 · 2026-11-27
 
 ### Interface
