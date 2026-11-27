@@ -461,6 +461,7 @@ struct Config {
     chips_every: u32,
     chips_scope: String,
     ago_style: String,
+    theme: String,
     usage: bool,
     tour_offered: bool,
 }
@@ -524,6 +525,7 @@ impl Default for Config {
             chips_every: 3,
             chips_scope: "all".into(),
             ago_style: "days".into(),
+            theme: String::new(),
             usage: true,
             tour_offered: false,
         }

@@ -1,10 +1,12 @@
 <script lang="ts">
   import { chime } from './chime'
   import { ALWAYS } from './groups'
-  import { errorText, LANGUAGES, systemLocale, t, type Key } from './i18n/index.svelte'
+  import { errorText, LANGUAGES, locale, systemLocale, t, type Key } from './i18n/index.svelte'
   import { saveSettings, settings, type ChipsMotion, type Config, type ProjectsEffect, type TabEffect, type TabOrder, type TabRing } from './settings.svelte'
   import AgentChips from './AgentChips.svelte'
   import { ago } from './format'
+  import { text, themesOf } from './extensions'
+  import { extensions } from './extensions.svelte'
   import type { Chip } from './newAgentDraft'
 
   const EFFECTS: [TabEffect, Key, Key, number][] = [
@@ -75,6 +77,7 @@
   ]
 
   let error = $state('')
+  const themes = $derived(themesOf(extensions.list))
   const custom = $derived(!WIDTHS.some(([px]) => px === settings.conversation_width))
   let dragged = $state(0)
   const width = $derived(dragged || settings.conversation_width || 1100)
@@ -235,6 +238,13 @@
     <span class="label"><strong>{t('settings.artifactsExpire')}</strong><small>{t('settings.artifactsExpireHint')}</small></span>
     <select class="field" value={settings.artifacts_after_days} onchange={(e) => change({ artifacts_after_days: Number(e.currentTarget.value) })}>
       {#each KEEP as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}
+    </select>
+  </label>
+  <label class="option">
+    <span class="label"><strong>{t('settings.theme')}</strong><small>{t('settings.themeHint')}</small></span>
+    <select class="field" value={themes.some((m) => m.id === settings.theme) ? settings.theme : ''} onchange={(e) => change({ theme: e.currentTarget.value })}>
+      <option value="">{t('settings.themeDefault')}</option>
+      {#each themes as m (m.id)}<option value={m.id}>{text(m.manifest.name, locale())}</option>{/each}
     </select>
   </label>
   <label class="option">

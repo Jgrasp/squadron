@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, ownerOf, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, toolsOf, validate } from './extensions'
+import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, ownerOf, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, themesOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -95,7 +95,14 @@ describe('extensions', () => {
       ['broken', ['extensions.unreadable']],
     ])
     expect(itemsOf(extensions, 'agent.tools').map((i) => i.key)).toEqual(['lando.logs'])
-    expect(themeOf(extensions)).toEqual({ accent: '#4fa3e0' })
+    expect(themeOf(extensions, 'lando')).toEqual({ accent: '#4fa3e0' })
+    expect(themeOf(extensions, '')).toEqual({})
+    expect(themeOf(extensions, 'broken')).toEqual({})
+    const night = { ...lando, id: 'night', contributes: { theme: { accent: '#101010' } } }
+    const both = load([found('/m/lando', lando), found('/m/night', night)], [])
+    expect(themesOf(both).map((m) => m.id)).toEqual(['lando', 'night'])
+    expect(themeOf(both, 'lando')).toEqual({ accent: '#4fa3e0' })
+    expect(themeOf(load([found('/m/lando', lando), found('/m/night', night)], ['lando']), 'lando')).toEqual({})
     expect(itemsOf(load([found('/m/lando', lando)], ['lando']), 'agent.tools')).toEqual([])
   })
 

@@ -1,7 +1,7 @@
 <script lang="ts">
   import { locale, t } from './i18n/index.svelte'
-  import { PAGE_THEME, text, themeOf, type Panel } from './extensions'
-  import { extensions, onPanelPost, panelClosed, panelHovered, panelMessage, setOption } from './extensions.svelte'
+  import { PAGE_THEME, text, type Panel } from './extensions'
+  import { currentTheme, extensions, onPanelPost, panelClosed, panelHovered, panelMessage, setOption } from './extensions.svelte'
   import SidePanel from './SidePanel.svelte'
   import type { Agent } from './stream'
 
@@ -25,7 +25,7 @@
   })
 
   $effect(() => {
-    themeOf(extensions.list)
+    currentTheme()
     theme()
   })
 

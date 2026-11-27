@@ -503,4 +503,6 @@ export const updatesOf = (list: Extension[], entries: CatalogEntry[], origins: R
     return !!here && originOf(origins, c.id) === c.source && newer(c.version, here.version)
   })
 
-export const themeOf = (extensions: Extension[]) => Object.assign({}, ...active(extensions).map((m) => m.manifest.contributes?.theme ?? {})) as Record<string, string>
+export const themesOf = (extensions: Extension[]) => active(extensions).filter((m) => Object.keys(m.manifest.contributes?.theme ?? {}).length)
+
+export const themeOf = (extensions: Extension[], id: string) => themesOf(extensions).find((m) => m.id === id)?.manifest.contributes?.theme ?? {}
