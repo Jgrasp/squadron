@@ -1,5 +1,18 @@
 # Nouveautés
 
+## 0.68.0 · 2026-11-27
+
+### Interface
+- Réglages › Thème affiche une carte par thème avec un aperçu dans ses couleurs et choisit le thème d’extension appliqué : plusieurs extensions de thème peuvent rester installées.
+- Réglages › Préférences › Continuer en arrière-plan : fermer la fenêtre masque Squadron pendant que ses agents continuent de travailler, et son icône dans la barre système le rouvre ou le quitte.
+
+### Mises à jour
+- Squadron est désormais sur github.com/akki-team/squadron : les mises à jour, le script d’installation et les extensions officielles en viennent, et vos extensions installées continuent de recevoir leurs mises à jour.
+
+### Correctifs
+- Sur macOS, Squadron ne plante plus au lancement quand une extension WebAssembly est installée.
+- Les skills activés seulement dans les réglages locaux d’un projet restent proposés dans Nouvel agent après le passage d’un agent de revue.
+
 ## 0.67.0 · 2026-11-26
 
 ### Pull requests
