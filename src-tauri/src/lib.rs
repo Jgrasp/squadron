@@ -462,6 +462,7 @@ struct Config {
     chips_scope: String,
     ago_style: String,
     usage: bool,
+    background: bool,
     tour_offered: bool,
 }
 
@@ -525,6 +526,7 @@ impl Default for Config {
             chips_scope: "all".into(),
             ago_style: "days".into(),
             usage: true,
+            background: false,
             tour_offered: false,
         }
     }
@@ -3525,11 +3527,18 @@ pub fn run() {
         })
         .build(tauri::generate_context!())
         .expect("error while building tauri application")
-        .run(|app, event| {
-            if let RunEvent::Exit = event {
+        .run(|app, event| match event {
+            RunEvent::Exit => {
                 app.state::<Agents>().stop_all();
                 app.state::<Terminals>().close_all();
             }
+            #[cfg(target_os = "macos")]
+            RunEvent::Reopen { .. } => {
+                if let Some(main) = app.get_webview_window("main") {
+                    let _ = main.show();
+                }
+            }
+            _ => {}
         });
 }
 

@@ -232,6 +232,10 @@
     <input class="switch" type="checkbox" role="switch" checked={settings.usage} onchange={(e) => change({ usage: e.currentTarget.checked })} />
   </label>
   <label class="option">
+    <span class="label"><strong>{t('settings.background')}</strong><small>{t('settings.backgroundHint')}</small></span>
+    <input class="switch" type="checkbox" role="switch" checked={settings.background} onchange={(e) => change({ background: e.currentTarget.checked })} />
+  </label>
+  <label class="option">
     <span class="label"><strong>{t('settings.artifactsExpire')}</strong><small>{t('settings.artifactsExpireHint')}</small></span>
     <select class="field" value={settings.artifacts_after_days} onchange={(e) => change({ artifacts_after_days: Number(e.currentTarget.value) })}>
       {#each KEEP as [days, text] (days)}<option value={days}>{t(text, { count: days })}</option>{/each}

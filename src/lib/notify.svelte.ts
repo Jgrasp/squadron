@@ -70,6 +70,7 @@ export function testNotification() {
 async function open(target: Target) {
   const window = getCurrentWindow()
   await window.unminimize().catch(() => {})
+  await window.show().catch(() => {})
   await window.setFocus().catch(() => {})
   const agent = target.agent ? find(target.agent) : undefined
   if (agent || target.pulls) ui.settings = null

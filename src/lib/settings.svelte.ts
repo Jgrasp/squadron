@@ -77,6 +77,7 @@ export type Config = {
   chips_scope: 'all' | 'selected'
   ago_style: 'days' | 'weeks' | 'date'
   usage: boolean
+  background: boolean
   tour_offered: boolean
 }
 
@@ -132,6 +133,7 @@ export const settings = $state<Config>({
   chips_scope: 'all',
   ago_style: 'days',
   usage: true,
+  background: false,
   tour_offered: false,
 })
 

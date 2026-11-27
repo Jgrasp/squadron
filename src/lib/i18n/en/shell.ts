@@ -3,6 +3,7 @@ export default {
   squadronMenu: 'Squadron menu',
   version: 'Version {version} · {platform}',
   quit: 'Quit',
+  showWindow: 'Show Squadron',
   projects: 'Projects',
   overview: 'Overview',
   overviewTitle: 'Overview ({key} jumps to the next agent waiting for you)',

@@ -32,7 +32,7 @@ shell-words = "1.1.1"
 sha2 = "0.10"
 tar = "0.4"
 flate2 = "1"
-tauri = { version = "2.12.4", features = ["unstable"] }
+tauri = { version = "2.12.4", features = ["unstable", "tray-icon"] }
 tauri-plugin-dialog = "2"
 tauri-plugin-log = "2"
 tauri-plugin-opener = "2"

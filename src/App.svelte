@@ -16,6 +16,7 @@
   import { loadSettings, settings, shortcut } from './lib/settings.svelte'
   import { agents, archive, archiveIdle, closeAll, create, find, followWaits, rescan, restore, selected, shelveHidden, show, sleepIdle, waitingDetail } from './lib/agents.svelte'
   import { run, ui } from './lib/actions.svelte'
+  import { showWindow, tray } from './lib/tray'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
   import { checkUpdates, loadExtensions } from './lib/extensions.svelte'
@@ -68,14 +69,14 @@ import './lib/extensionWindows.svelte'
       const agent = find(id)
       if (!agent) return
       show(agent)
-      getCurrentWindow().setFocus()
+      showWindow()
     },
     diff(id) {
       const agent = find(id)
       if (!agent) return
       show(agent)
       setPanel(agent.project, 'diff')
-      getCurrentWindow().setFocus()
+      showWindow()
     },
     archive: (ids) => Promise.all(ids.filter(find).map((id) => archive(id))),
   }
@@ -143,9 +144,13 @@ import './lib/extensionWindows.svelte'
     let asking = false
     const unlisten = appWindow.onCloseRequested(async (event) => {
       event.preventDefault()
+      const quitting = ui.quitting
+      ui.quitting = false
+      if (settings.background && !quitting) return appWindow.hide()
       if (asking) return
       const busy = agents.list.filter((a) => a.status === 'working')
       asking = busy.length > 0
+      if (busy.length) await showWindow().catch(() => {})
       if (
         busy.length &&
         !(await ask(t('shell.quitAsk', { count: busy.length }), {
@@ -160,6 +165,14 @@ import './lib/extensionWindows.svelte'
     })
     return () => {
       unlisten.then((stop) => stop())
+    }
+  })
+
+  $effect(() => {
+    if (!settings.background) return
+    const closing = tray({ show: t('shell.showWindow'), quit: t('shell.quit') }, () => run('quit', {}))
+    return () => {
+      closing.then((close) => close())
     }
   })
 
