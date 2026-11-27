@@ -42,7 +42,8 @@
       "rpm": { "depends": ["libayatana-appindicator-gtk3"] }
     },
     "macOS": {
-      "signingIdentity": "-"
+      "signingIdentity": "-",
+      "hardenedRuntime": false
     }
   },
   "plugins": {
