@@ -3,7 +3,7 @@ import { listen } from '@tauri-apps/api/event'
 import { getCurrentWindow } from '@tauri-apps/api/window'
 import { SvelteSet } from 'svelte/reactivity'
 import { apiSignal, noted, type ClaudeApi } from './activity'
-import { models, remember } from './catalogs.svelte'
+import { catalogs, models, remember } from './catalogs.svelte'
 import { resolveAuto, settle as settleAuto } from './autoLaunch'
 import { isDemo } from './demoId'
 import { EDITS } from './diff'
@@ -241,7 +241,7 @@ listen<{ id: string; line: string }>('agent-line', ({ payload }) => {
   if (d.type === 'result' || d.subtype === 'init' || d.response?.response?.maxTokens) persist(agent)
   if (d.type === 'rate_limit_event' && d.rate_limit_info?.unifiedWindows) track(d.rate_limit_info.unifiedWindows)
   noteApi(apiSignal(d))
-  if (d.type === 'control_response' && d.response?.response?.commands) remember(agent.project, d.response.response)
+  if (d.type === 'control_response' && d.response?.response?.commands && !(agent.review && catalogs[agent.project])) remember(agent.project, d.response.response)
   if (d.type === 'control_response' && d.response?.request_id?.startsWith('mcp:')) mcpAnswered(agent.id, d.response)
   if (d.type === 'result' && agent.status === 'done') deliver(agent)
   if (d.type === 'result' && agent.toolsPending) toolsArrived(agent)
@@ -837,14 +837,15 @@ export function reply(agent: Agent, text: string) {
   return true
 }
 
-type Launch = { from?: { by: string; id?: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[]; link?: Chip }
+type Launch = { from?: { by: string; id?: string }; goal?: string; worktree?: string | null; dir?: string; files?: string[]; link?: Chip; review?: Agent['review'] }
 
-export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [], link }: Launch = {}) {
+export async function create(project: string, name: string, options: Options, text: string, { from, goal = '', worktree = null, dir, files = [], link, review }: Launch = {}) {
   const fallback = text.trim().split(/\s+/).slice(0, 5).join(' ')
   agents.list.push(newAgent(crypto.randomUUID(), project, name || fallback || t('common.newAgent'), options))
   const agent = agents.list.at(-1)!
   if (goal) agent.goal = { condition: goal, state: 'planned', relaunches: 0, reason: '' }
   if (dir) agent.worktree = { path: dir, branch: '' }
+  if (review) agent.review = review
   if (link) agent.chips = [link]
   if (worktree) flaggedWorktree.add(agent.id)
   if (from) agent.entries.push({ kind: 'launched', at: Date.now(), by: from.by })

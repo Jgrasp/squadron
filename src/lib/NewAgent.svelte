@@ -220,7 +220,7 @@
   let pick = $state(0)
   const mentions = new Mention(() => text, () => project.path)
   const skills = $derived(
-    agents.list.findLast((a) => a.project === project.path && a.skills.length)?.skills ?? agents.list.findLast((a) => a.skills.length)?.skills ?? [],
+    agents.list.findLast((a) => a.project === project.path && !a.review && a.skills.length)?.skills ?? agents.list.findLast((a) => a.skills.length)?.skills ?? [],
   )
   const commands = $derived(
     ((catalogs[project.path] ?? Object.values(catalogs).at(-1))?.commands ?? skills.map((name) => ({ name, description: '' }))).filter((c) =>
