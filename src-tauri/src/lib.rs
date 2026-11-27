@@ -1033,8 +1033,8 @@ fn claude_version(path: String) -> Result<String, String> {
 }
 
 #[tauri::command]
-fn tested_claude_version() -> &'static str {
-    claude::TESTED_VERSION
+fn min_claude_version() -> &'static str {
+    claude::MIN_VERSION
 }
 
 #[tauri::command]
@@ -3244,7 +3244,7 @@ pub fn run() {
             set_settings,
             set_claude_path,
             claude_version,
-            tested_claude_version,
+            min_claude_version,
             suggest_title,
             suggest_launch,
             remove_rule,

@@ -19,7 +19,7 @@
   let load = $state<Load | null>(null)
   let version = $state('')
   let claude = $state('')
-  let tested = $state('')
+  let min = $state('')
 
   const extensionUpdates = $derived(updatesOf(extensions.list, catalog.entries ?? [], extensions.origins).length)
 
@@ -35,8 +35,8 @@
   })
 
   onMount(() => {
-    invoke<string>('tested_claude_version')
-      .then((v) => (tested = v))
+    invoke<string>('min_claude_version')
+      .then((v) => (min = v))
       .catch(() => {})
     getVersion()
       .then((v) => (version = v))
@@ -71,8 +71,8 @@
 
 <footer class="status">
   {#if version}<span class="item">Squadron <span class="mono">{version}</span></span>{/if}
-  {#if claude && tested && claude !== tested}
-    <span class="item" title={t('shell.claudeUntestedTitle', { tested })}>Claude Code <span class="mono">{claude}</span><span class="untested">{t('shell.claudeUntested')}</span></span>
+  {#if claude && min && claude.localeCompare(min, undefined, { numeric: true }) < 0}
+    <span class="item" title={t('shell.claudeTooOldTitle', { min })}>Claude Code <span class="mono">{claude}</span><span class="too-old">{t('shell.claudeTooOld')}</span></span>
   {/if}
   {#if load}
     <span class="item" title={t('shell.processorLoad')}>
@@ -192,7 +192,7 @@
     background: var(--wait-btn);
   }
 
-  .untested {
+  .too-old {
     color: var(--err-text);
   }
 
