@@ -1,5 +1,10 @@
 # Nouveautés
 
+## 0.68.1 · 2026-11-27
+
+### Correctifs
+- La barre d’état ne signale plus les versions récentes de Claude Code comme non testées, seulement celles plus anciennes que le minimum requis par Squadron.
+
 ## 0.68.0 · 2026-11-27
 
 ### Interface
