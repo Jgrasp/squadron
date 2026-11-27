@@ -1,5 +1,18 @@
 # Changelog
 
+## 0.68.0 · 2026-11-27
+
+### Interface
+- Settings › Theme shows a card per theme with a preview in its colors and picks which extension theme applies, so several theme extensions can stay installed.
+- Settings › Preferences › Keep running in the background: closing the window hides Squadron while its agents keep working, and its tray icon brings it back or quits.
+
+### Updates
+- Squadron now lives at github.com/akki-team/squadron: updates, the install script and the official extensions come from there, and your installed extensions keep receiving their updates.
+
+### Fixes
+- On macOS, Squadron no longer crashes on launch when a WebAssembly extension is installed.
+- Skills enabled only in a project's local settings stay offered in New agent after a review agent has run.
+
 ## 0.67.0 · 2026-11-26
 
 ### Pull requests
