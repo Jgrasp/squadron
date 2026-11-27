@@ -75,7 +75,7 @@ export type Manifest = {
   logo?: string
   wasm?: string
   permissions?: Permissions
-  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string>; forge?: Forge }
+  contributes?: { args?: string[]; skills?: string[]; items?: ExtensionItem[]; tools?: ExtensionTool[]; secrets?: ExtensionSecret[]; accounts?: Accounts; panels?: ManifestPanel[]; settings?: Settings; theme?: Record<string, string>; effect?: Effect; forge?: Forge }
 }
 
 export type Found = { dir: string; linked: boolean; manifest: unknown; error: string | null; logo?: string | null }
@@ -105,6 +105,41 @@ const oneLine = (v: unknown) => typeof v === 'string' && !!v.trim() && !/[\x00-\
 const RESERVED = ['-p', '--print', '--input-format', '--output-format', '--replay-user-messages', '--model', '--effort', '--permission-mode', '--append-system-prompt', '--agent', '--advisor', '-r', '--resume', '-c', '--continue', '--fork-session', '--resume-session-at', '--session-id', '--mcp-config', '--strict-mcp-config', '--permission-prompt-tool', '--dangerously-skip-permissions', '--allow-dangerously-skip-permissions', '-w', '--worktree', '--settings', '--setting-sources', '--allowedTools', '--allowed-tools', '--tools', '--plugin-dir', '--plugin-url', '--agents', '--system-prompt', '--system-prompt-file', '--append-system-prompt-file']
 
 const COLOR = /^(#[0-9a-f]{3,8}|(rgb|rgba|hsl|hsla)\([\d.,%\s/]+\))$/i
+
+export const EFFECTS = {
+  snow: { numbers: { density: [5, 150, 40], speed: [0.2, 2.5, 1], size: [0.5, 2, 1], wind: [-1, 1, 0.2] }, choices: { area: ['window', 'header'], shape: ['dots', 'crystals'], pile: [false, true] } },
+  matrix: { numbers: { density: [0.1, 1, 0.5], speed: [0.2, 2.5, 1], size: [10, 22, 14], opacity: [0.05, 1, 0.25], trail: [4, 30, 16] }, choices: { color: ['green', 'accent', 'ok'] } },
+  fireflies: { numbers: { density: [5, 60, 18], speed: [0.2, 2.5, 0.6], size: [0.5, 2, 1] }, choices: { color: ['warm', 'green', 'accent'] } },
+  embers: { numbers: { density: [5, 80, 30], speed: [0.2, 2.5, 1], size: [0.5, 2.5, 1.4] }, choices: { color: ['accent', 'soft', 'gold'] } },
+  stars: { numbers: { density: [10, 200, 70], twinkle: [0.2, 3, 1], shooting: [0, 20, 6] }, choices: { area: ['header', 'window'], color: ['white', 'blue', 'soft'] } },
+  rain: { numbers: { density: [5, 150, 50], speed: [0.4, 2.5, 1], wind: [-1, 1, -0.3], length: [6, 40, 18] }, choices: { splash: [true, false], color: ['blue', 'white', 'soft'] } },
+  aurora: { numbers: { speed: [0.2, 3, 1], intensity: [0.1, 1, 0.3], bands: [1, 4, 3] }, choices: { area: ['top', 'header'], color: ['aurora', 'theme'] } },
+} as const satisfies Record<string, { numbers: Record<string, readonly [number, number, number]>; choices: Record<string, readonly (string | boolean)[]> }>
+
+export type EffectKind = keyof typeof EFFECTS
+
+export type Effect = { kind: EffectKind } & Record<string, string | number | boolean>
+
+const schemaOf = (kind: unknown) => (typeof kind === 'string' && Object.hasOwn(EFFECTS, kind) ? (EFFECTS[kind as EffectKind] as { numbers: Record<string, readonly number[]>; choices: Record<string, readonly unknown[]> }) : null)
+
+const effectOk = (e: unknown) => {
+  const schema = isObject(e) ? schemaOf(e.kind) : null
+  return (
+    !!schema &&
+    Object.entries(e as Record<string, unknown>).every(([k, v]) =>
+      k === 'kind' ? true : Object.hasOwn(schema.numbers, k) ? typeof v === 'number' && v >= schema.numbers[k][0] && v <= schema.numbers[k][1] : Object.hasOwn(schema.choices, k) && schema.choices[k].includes(v),
+    )
+  )
+}
+
+export const effectOptions = (e: Effect) => {
+  const schema = schemaOf(e.kind)!
+  return {
+    ...Object.fromEntries(Object.entries(schema.numbers).map(([k, [, , v]]) => [k, v])),
+    ...Object.fromEntries(Object.entries(schema.choices).map(([k, [v]]) => [k, v])),
+    ...e,
+  } as Record<string, number> & Record<string, string | boolean>
+}
 
 const isObject = (v: unknown): v is Record<string, unknown> => typeof v === 'object' && v !== null && !Array.isArray(v)
 
@@ -308,6 +343,7 @@ export function validate(raw: unknown, taken: string[] = []): { manifest?: Manif
     const theme = contributes.theme ?? {}
     if (!isObject(theme) || Object.entries(theme).some(([k, v]) => !/^[a-z0-9-]+$/.test(k) || typeof v !== 'string' || !COLOR.test(v.trim())))
       problems.push(['extensions.badTheme'])
+    if (contributes.effect !== undefined && !effectOk(contributes.effect)) problems.push(['extensions.badEffect'])
   }
   return problems.length ? { problems } : { manifest: raw as Manifest, problems }
 }
@@ -503,6 +539,8 @@ export const updatesOf = (list: Extension[], entries: CatalogEntry[], origins: R
     return !!here && originOf(origins, c.id) === c.source && newer(c.version, here.version)
   })
 
-export const themesOf = (extensions: Extension[]) => active(extensions).filter((m) => Object.keys(m.manifest.contributes?.theme ?? {}).length)
+export const themesOf = (extensions: Extension[]) => active(extensions).filter((m) => Object.keys(m.manifest.contributes?.theme ?? {}).length || m.manifest.contributes?.effect)
 
 export const themeOf = (extensions: Extension[], id: string) => themesOf(extensions).find((m) => m.id === id)?.manifest.contributes?.theme ?? {}
+
+export const effectOf = (extensions: Extension[], id: string) => themesOf(extensions).find((m) => m.id === id)?.manifest.contributes?.effect ?? null

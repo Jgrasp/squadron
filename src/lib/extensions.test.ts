@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, ownerOf, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, themeOf, themesOf, toolsOf, validate } from './extensions'
+import { active, argsOf, catalogOf, fits, grantsOf, itemsOf, load, needsAgent, newer, OFFICIAL, ownerOf, panelOpening, panelsOf, shownOf, skillsOf, spotlightOf, updatesOf, EFFECTS, effectOf, effectOptions, themeOf, themesOf, toolsOf, validate } from './extensions'
 
 const lando = {
   id: 'lando',
@@ -84,6 +84,28 @@ describe('extensions', () => {
   it('only lets colors into the theme', () => {
     expect(keys({ ...lando, contributes: { theme: { accent: 'red; } body { display: none' } } })).toEqual(['extensions.badTheme'])
     expect(keys({ ...lando, contributes: { theme: { accent: 'rgb(10, 20, 30)' } } })).toEqual([])
+  })
+
+  it('accepts a known effect only within its bounds', () => {
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow' } } })).toEqual([])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow', area: 'header', density: 150, speed: 0.2, wind: -1, shape: 'crystals', pile: true } } })).toEqual([])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'confetti' } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { density: 40 } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow', density: 500 } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'snow', color: 'red' } } })).toEqual(['extensions.badEffect'])
+    const found = [{ dir: '/x/xmas', linked: false, error: null, manifest: { ...lando, id: 'xmas', contributes: { effect: { kind: 'snow', pile: true } } } }]
+    expect(effectOf(load(found, []), 'xmas')).toEqual({ kind: 'snow', pile: true })
+    expect(effectOf(load(found, []), 'other')).toBeNull()
+  })
+
+  it('checks every effect against its own bounds and fills in its defaults', () => {
+    for (const kind of Object.keys(EFFECTS)) expect(keys({ ...lando, contributes: { effect: { kind } } })).toEqual([])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'matrix', opacity: 0.5, color: 'ok' } } })).toEqual([])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'matrix', shape: 'dots' } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'aurora', area: 'window' } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'rain', splash: 'yes' } } })).toEqual(['extensions.badEffect'])
+    expect(keys({ ...lando, contributes: { effect: { kind: 'toString' } } })).toEqual(['extensions.badEffect'])
+    expect(effectOptions({ kind: 'snow', pile: true })).toEqual({ kind: 'snow', density: 40, speed: 1, size: 1, wind: 0.2, area: 'window', shape: 'dots', pile: true })
   })
 
   it('keeps the first extension that claims an id and contributes only enabled valid extensions', () => {

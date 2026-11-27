@@ -153,6 +153,7 @@ export default {
   fromFolder: 'Un dossier sur cet ordinateur',
   fromFolderHint: 'Elle se recharge à chaque build et remplace la version installée qui porte le même identifiant.',
   fromSource: 'Une autre source',
+  badEffect: 'L’effet demande un kind parmi snow, matrix, fireflies, embers, stars, rain et aurora, et seulement les options de ce kind dans leurs bornes (voir le guide des extensions).',
   badTheme: 'Le thème associe des noms de variables à des couleurs, comme { "accent": "#4fa3e0" }.',
   manageTitle: 'Gérer les extensions',
   allExtensions: 'Toutes les extensions',

@@ -19,7 +19,8 @@
   import { showWindow, tray } from './lib/tray'
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
-  import { checkUpdates, loadExtensions } from './lib/extensions.svelte'
+  import { checkUpdates, currentEffect, loadExtensions } from './lib/extensions.svelte'
+  import Effect from './lib/Effect.svelte'
 import './lib/extensionFeed.svelte'
 import './lib/extensionWindows.svelte'
   import { sweep } from './lib/cleanup.svelte'
@@ -235,6 +236,10 @@ import './lib/extensionWindows.svelte'
   {/if}
   <StatusBar />
 </div>
+
+{#if currentEffect()}
+  <Effect fx={currentEffect()!} />
+{/if}
 
 {#if ui.projects}
   <ProjectsPanel />

@@ -12,7 +12,8 @@ import { ask, message } from './asking.svelte'
 import { notify } from './notify.svelte'
 import { errorText, locale, t } from './i18n/index.svelte'
 import { layout, setPanel } from './layout.svelte'
-import { active, AGENTS, EXEC_SECRETS, execOf, argsOf, PROJECTS, USAGE, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
+import { MediaQuery } from 'svelte/reactivity'
+import { active, AGENTS, EXEC_SECRETS, execOf, argsOf, PROJECTS, USAGE, ARGS, catalogOf, EXEC, SKILLS, skillsOf, type Source, grantsOf, itemsOf, spotlightOf, load, NET, panelsOf, text, effectOf, themeOf, toolsOf, updatesOf, type Account, type CatalogEntry, type OptionValue, type Found, type Item, type Extension, type Panel, type Text } from './extensions'
 import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { waitingKind } from './activity'
@@ -391,6 +392,10 @@ async function answerHost(reply: string, call: string, id: string) {
 const seen = new Map<string, string>()
 
 export const currentTheme = () => themeOf(extensions.list, settings.theme)
+
+const reduced = new MediaQuery('(prefers-reduced-motion: reduce)')
+
+export const currentEffect = () => (reduced.current ? null : effectOf(extensions.list, settings.theme))
 
 let themed: string[] = []
 

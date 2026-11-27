@@ -152,6 +152,7 @@ export default {
   fromFolder: 'A folder on this computer',
   fromFolderHint: 'It reloads at every build and replaces the installed version with the same id.',
   fromSource: 'Another source',
+  badEffect: 'The effect needs a kind among snow, matrix, fireflies, embers, stars, rain and aurora, and only that kind’s options within their bounds (see the extension guide).',
   badTheme: 'The theme maps variable names to colors, like { "accent": "#4fa3e0" }.',
   manageTitle: 'Manage extensions',
   allExtensions: 'All extensions',
