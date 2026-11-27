@@ -17,6 +17,7 @@
   import { nameOf, pageOf, problemOf, sorted, updateOf, waitingOf } from './extension-pages.svelte'
   import PluginSettings from './PluginSettings.svelte'
   import PreferenceSettings from './PreferenceSettings.svelte'
+  import ThemeSettings from './ThemeSettings.svelte'
   import AgentSettings from './AgentSettings.svelte'
   import ShortcutSettings from './ShortcutSettings.svelte'
   import McpServers from './McpServers.svelte'
@@ -57,6 +58,7 @@
       'settings.groupInterface',
       [
         ['preferences', 'settings.tabPreferences'],
+        ['theme', 'settings.tabTheme'],
         ['notifications', 'settings.tabNotifications'],
         ['shortcuts', 'settings.tabShortcuts'],
         ['layout', 'settings.tabLayout'],
@@ -232,6 +234,8 @@
       <ShortcutSettings />
     {:else if tab === 'preferences'}
       <PreferenceSettings />
+    {:else if tab === 'theme'}
+      <ThemeSettings />
     {:else if tab === 'agents'}
       <AgentSettings />
     {:else}

@@ -28,6 +28,7 @@ const TABS: [SettingsTab, Key][] = [
   ['claude', 'settings.tabClaude'],
   ['hosting', 'settings.tabHosting'],
   ['preferences', 'settings.tabPreferences'],
+  ['theme', 'settings.tabTheme'],
   ['notifications', 'settings.tabNotifications'],
   ['shortcuts', 'settings.tabShortcuts'],
   ['layout', 'settings.tabLayout'],
