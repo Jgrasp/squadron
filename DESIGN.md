@@ -150,6 +150,7 @@ One exception outside waiting: the estimated time of the welcome popup (clock, m
 | `#4FA3E0`, `#7CC47C`, `#E3B341`, `#6FA0D0`, `#3CC39A`, `#E07A9B`, `#A8A29E` | User-chosen colors (extensions, project palette) |
 | `#7FD1D9`, `#8DB4E8`, `#A8E3E8`, `#B3CDF0`, `#C9A6FF`, `#DCC5FF` | Terminal ANSI palette |
 | `#4ADE80`, `#FB923C`, `#F87171` | ContextGauge levels |
+| `#7DFFA0`, `#2FD16B`, `#F4DC8A`, `#9EF0B4`, `#5FF0B0` | Theme effects: code rain, fireflies and embers, aurora (`effects.ts`) |
 
 The CodeMirror and xterm themes copy tokens as hexadecimal (JS objects): keep the same values.
 
@@ -224,8 +225,8 @@ Brand on the left (in dev, a "dev · {instance}" badge, 180px at most, the insta
 
 **Context panel** (`ContextPanel`, opened by ContextGauge): 460px, `--bg-main`, radius 6px, menu outline + shadow. At the top "Context" 600 and Usage / Settings segments (`--surface-2`, active `--text`/`--ink` 700). Usage: 8px progress bar `--surface-3` filled per source, 2px `--text-faint` line at the auto-compaction threshold; two `--surface-1` tiles (mono 18px); sections in uppercase 11px; 30px rows (26px nested, `--border-strong` left hairline), 18px chevron `--surface-3`, 9px source dot, total mono 12.5px `--text-2`, "≈" before an estimate. Source colors: Claude Code `--text-faint`, Squadron `--remote-dot`, configuration `--persona`, MCP servers `--background`, plugins and plugin calls `--advisor`, conversation `--ok`, hooks and reminders `--ok-line`. 16px plugin logo with radius 4px. Bottom: "Compaction" and a 36px `--surface-2` field that holds the "Compact now" button. Settings: 48px rows separated by `--border`, `Select` on the right.
 
-### Theme effect
-`Snow.svelte`, drawn when the chosen theme extension declares `contributes.effect` with `kind: "snow"`: fixed canvas over the whole window (or the 54px header with `area: "header"`), z-index 45, click-through, `#FFFFFF` flakes at 35 to 90 % opacity by depth, dots or crystals of three strokes; with `pile`, a 92 % white pile 7px high at most on top of the status bar. Off under reduced motion and while the window is hidden.
+### Theme effects
+`Effect.svelte` draws, with `effects.ts`, the `contributes.effect` of the chosen theme extension: fixed canvas over the whole window (54px header with `area: "header"`, top 180px with `area: "top"`), z-index 45, click-through, off under reduced motion and while the window is hidden. Snow: `#FFFFFF` flakes at 35 to 90 % opacity by depth, dots or crystals of three strokes, optional 92 % white pile 7px high at most on top of the status bar. Code rain (`matrix`): DM Mono katakana and digits, head `#7DFFA0`, trail `#2FD16B` (or `--accent-soft` / `--accent`, `--ok-text` / `--ok`), 25 % by default. Fireflies: `#F4DC8A`, `#9EF0B4` or `--accent`, a 5× halo at 12 %. Embers: `--accent`, `--accent-soft` or `#F4DC8A`, rising from the status bar. Stars: white, `--remote-text` or `--accent-soft`, white shooting star. Rain: `--remote-text`, white or `--accent-soft` streaks, rings on the status bar. Aurora: additive bands `#5FF0B0`, `--remote-dot`, `--advisor`, or `--ok`, `--accent`, `--advisor`.
 
 ### Conversation
 - **User message**: light bubble on the right, 540px max, padding 12px 16px.

@@ -20,7 +20,7 @@
   import Customize from './lib/Customize.svelte'
   import { loadLayout } from './lib/layout-slots.svelte'
   import { checkUpdates, currentEffect, loadExtensions } from './lib/extensions.svelte'
-  import Snow from './lib/Snow.svelte'
+  import Effect from './lib/Effect.svelte'
 import './lib/extensionFeed.svelte'
 import './lib/extensionWindows.svelte'
   import { sweep } from './lib/cleanup.svelte'
@@ -238,7 +238,7 @@ import './lib/extensionWindows.svelte'
 </div>
 
 {#if currentEffect()}
-  <Snow snow={currentEffect()!} />
+  <Effect fx={currentEffect()!} />
 {/if}
 
 {#if ui.projects}
