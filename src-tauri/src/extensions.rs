@@ -1394,11 +1394,11 @@ mod tests {
             ("site", "https://Acme.atlassian.net/jira/"),
             ("email", "me@acme.com"),
             ("token", "t0k"),
-            ("pin", "1234"),
+            ("pin", "p1n-code"),
         ]);
         let a = m.save_account("jira", None, &full, &keyring).unwrap();
         let file = std::fs::read_to_string(&m.file).unwrap();
-        assert!(!file.contains("t0k") && !file.contains("1234"));
+        assert!(!file.contains("t0k") && !file.contains("p1n-code"));
         let saved = &m.accounts("jira")[0];
         assert_eq!(saved.host.as_deref(), Some("acme.atlassian.net"));
         assert_eq!(saved.values["email"], "me@acme.com");
