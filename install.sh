@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 set -euo pipefail
-repo=Jgrasp/squadron
+repo=akki-team/squadron
 manifest=$(curl -fsSL "https://github.com/$repo/releases/latest/download/latest.json")
 pick() { printf '%s\n' "$manifest" | sed -n "s/.*\"url\": *\"\([^\"]*\.$1\)\".*/\1/p" | head -1; }
 

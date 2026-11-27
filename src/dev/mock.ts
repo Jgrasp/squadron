@@ -1083,7 +1083,7 @@ mockIPC(
       case 'extensions_catalog':
         return [
           {
-            source: 'Jgrasp/squadron-extensions',
+            source: 'akki-team/squadron-extensions',
             official: true,
             index: {
               api: 1,
@@ -1093,7 +1093,7 @@ mockIPC(
                   version: '0.1.0',
                   name: { en: 'GitHub' },
                   description: { en: 'Pull requests and GitHub Actions runs of your GitHub projects in Squadron: review, comment, merge' },
-                  repository: 'https://github.com/Jgrasp/squadron-github',
+                  repository: 'https://github.com/akki-team/squadron-github',
                   archive: 'https://example.invalid/github-0.1.0.tar.gz',
                   sha256: '0',
                   permissions: { network: ['api.github.com'] },
@@ -1104,7 +1104,7 @@ mockIPC(
                   version: '0.1.0',
                   name: { en: 'Bitbucket' },
                   description: { en: 'Pull requests and Pipelines runs of your Bitbucket Cloud projects in Squadron: review, comment, merge' },
-                  repository: 'https://github.com/Jgrasp/squadron-bitbucket',
+                  repository: 'https://github.com/akki-team/squadron-bitbucket',
                   archive: 'https://example.invalid/bitbucket-0.1.0.tar.gz',
                   sha256: '0',
                   permissions: { network: ['api.bitbucket.org'] },
@@ -1115,7 +1115,7 @@ mockIPC(
                   version: '0.1.0',
                   name: { en: 'GitLab' },
                   description: { en: 'Merge requests and pipelines of your GitLab projects in Squadron, on gitlab.com or your own server: review, comment, merge' },
-                  repository: 'https://github.com/Jgrasp/squadron-gitlab',
+                  repository: 'https://github.com/akki-team/squadron-gitlab',
                   archive: 'https://example.invalid/gitlab-0.1.0.tar.gz',
                   sha256: '0',
                   permissions: { network: ['gitlab.com'] },
@@ -1126,7 +1126,7 @@ mockIPC(
                   version: '0.1.0',
                   name: { en: 'Azure DevOps' },
                   description: { en: 'Pull requests and pipeline builds of your Azure DevOps projects in Squadron: review, comment, merge' },
-                  repository: 'https://github.com/Jgrasp/squadron-azure',
+                  repository: 'https://github.com/akki-team/squadron-azure',
                   archive: 'https://example.invalid/azure-0.1.0.tar.gz',
                   sha256: '0',
                   permissions: { network: ['dev.azure.com'] },
@@ -1336,7 +1336,7 @@ mockIPC(
           disabled: JSON.parse(localStorage.getItem('extensions-disabled') ?? '[]'),
           approved: JSON.parse(localStorage.getItem('extensions-approved') ?? '{}'),
           sources: [],
-          origins: { jira: 'Jgrasp/squadron-extensions', lando: 'Jgrasp/squadron-extensions', 'team-share': 'Jgrasp/squadron-extensions' },
+          origins: { jira: 'akki-team/squadron-extensions', lando: 'akki-team/squadron-extensions', 'team-share': 'akki-team/squadron-extensions' },
           accounts: JSON.parse(localStorage.getItem('extensions-accounts') ?? DEMO_ACCOUNTS),
           extensions: [
             {

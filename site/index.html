@@ -164,7 +164,7 @@ a:focus-visible,button:focus-visible{outline:2px solid #F7C7AA;outline-offset:2p
 <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px 24px; font-size: 14px; font-weight: 500">
 <a href="#features" style="color: #CFC5BE; text-decoration: none; padding: 12px 0">Features</a>
 <a href="#conversation" style="color: #CFC5BE; text-decoration: none; padding: 12px 0">Conversation</a>
-<a href="https://github.com/Jgrasp/squadron" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6; text-decoration: none">
+<a href="https://github.com/akki-team/squadron" style="display: flex; align-items: center; gap: 8px; min-height: 40px; padding: 0 14px; border-radius: 4px; box-shadow: inset 0 0 0 1px #3D3531; color: #D8CDC6; text-decoration: none">
 <img src="assets/github.png" alt="" width="18" height="18" style="display: block; width: 18px; height: 18px; object-fit: contain">
 GitHub
 </a>
@@ -199,17 +199,17 @@ GitHub
 </div>
 <sc-if value="{{osLinux}}" hint-placeholder-val="{{ true }}">
 <div class="sq-in" style="width: 100%; display: flex; align-items: center; gap: 8px; padding: 8px 8px 8px 20px; background: #26211E; border-radius: 6px; box-shadow: inset 0 0 0 1px #3D3531; box-sizing: border-box">
-<div style="flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap; font-family: 'DM Mono', ui-monospace, monospace; font-size: 14px; color: #EDE6E1; padding: 10px 0"><span style="color: #6E625B; user-select: none">$ </span>curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | bash</div>
+<div style="flex: 1 1 auto; min-width: 0; overflow-x: auto; white-space: nowrap; font-family: 'DM Mono', ui-monospace, monospace; font-size: 14px; color: #EDE6E1; padding: 10px 0"><span style="color: #6E625B; user-select: none">$ </span>curl -fsSL https://raw.githubusercontent.com/akki-team/squadron/main/install.sh | bash</div>
 <button type="button" sc-camel-on-click="{{copyCmd}}" style="flex: 0 0 auto; min-width: 88px; min-height: 44px; padding: 0 18px; border: 0; border-radius: 4px; background: #E08A5B; color: #24120A; font-family: inherit; font-size: 14px; font-weight: 700; cursor: pointer">{{copyLabel}}</button>
 </div>
 </sc-if>
 <sc-if value="{{osMac}}" hint-placeholder-val="{{ false }}">
-<a class="sq-in" href="https://github.com/Jgrasp/squadron/releases/download/v%VERSION%/Squadron_%VERSION%_universal.dmg" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 6px; background: #E08A5B; color: #24120A; font-size: 16px; font-weight: 700; text-decoration: none"><svg width="18" height="18" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>Download for macOS</a>
+<a class="sq-in" href="https://github.com/akki-team/squadron/releases/download/v%VERSION%/Squadron_%VERSION%_universal.dmg" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 6px; background: #E08A5B; color: #24120A; font-size: 16px; font-weight: 700; text-decoration: none"><svg width="18" height="18" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>Download for macOS</a>
 </sc-if>
 <sc-if value="{{osWin}}" hint-placeholder-val="{{ false }}">
-<a class="sq-in" href="https://github.com/Jgrasp/squadron/releases/download/v%VERSION%/Squadron_%VERSION%_x64-setup.exe" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 6px; background: #E08A5B; color: #24120A; font-size: 16px; font-weight: 700; text-decoration: none"><svg width="18" height="18" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>Download for Windows</a>
+<a class="sq-in" href="https://github.com/akki-team/squadron/releases/download/v%VERSION%/Squadron_%VERSION%_x64-setup.exe" style="display: inline-flex; align-items: center; justify-content: center; gap: 10px; min-height: 52px; padding: 0 28px; border-radius: 6px; background: #E08A5B; color: #24120A; font-size: 16px; font-weight: 700; text-decoration: none"><svg width="18" height="18" sc-camel-view-box="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true"><path d="M12 4v11"></path><path d="M7 10l5 5 5-5"></path><path d="M5 20h14"></path></svg>Download for Windows</a>
 </sc-if>
-<span style="font-size: 13.5px; color: #A89C94">Needs <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> · v%VERSION% · <a href="https://github.com/Jgrasp/squadron/releases">All releases</a></span>
+<span style="font-size: 13.5px; color: #A89C94">Needs <a href="https://docs.claude.com/en/docs/claude-code/setup">Claude Code</a> · v%VERSION% · <a href="https://github.com/akki-team/squadron/releases">All releases</a></span>
 </div>
 
 <div role="img" aria-label="Squadron in action: an agent works, asks to run a command, waits in copper until it is allowed, then finishes" style="margin-top: 36px; width: 100%; max-width: 1200px; height: 680px; display: flex; flex-direction: column; overflow: hidden; border-radius: 8px; background: #141110; box-shadow: 0 0 0 1px #3D3531, 0 30px 80px rgba(0,0,0,0.6); text-align: left; font-size: 13.5px; line-height: 1.4; color: #EDE6E1">
@@ -897,7 +897,7 @@ The reports table gets an **Export CSV** action.
 </div>
 <div style="flex: 1 1 400px; max-width: 520px; display: flex; flex-direction: column; gap: 14px">
 <p style="margin: 0; color: #B3A79F; text-wrap: pretty">Extensions add buttons, menu entries, panels, colors and tools your agents can call. Install them from the catalog in one click, or load a folder you are writing: it reloads at every build. Nothing runs until you allow it.</p>
-<a href="https://github.com/Jgrasp/squadron-extensions/blob/main/docs/guide.md" style="align-self: flex-start; font-size: 15px; font-weight: 600; color: #F0A57A; text-decoration: none">Write an extension →</a>
+<a href="https://github.com/akki-team/squadron-extensions/blob/main/docs/guide.md" style="align-self: flex-start; font-size: 15px; font-weight: 600; color: #F0A57A; text-decoration: none">Write an extension →</a>
 </div>
 </div>
 <figure style="margin: 0">
@@ -1213,9 +1213,9 @@ The reports table gets an **Export CSV** action.
 <span style="font-size: 13px; font-weight: 700; letter-spacing: 0.12em">SQUADRON</span>
 </div>
 <div style="display: flex; flex-wrap: wrap; gap: 4px 28px; font-size: 14px; font-weight: 500">
-<a href="https://github.com/Jgrasp/squadron" style="display: flex; align-items: center; gap: 8px; color: #CFC5BE; text-decoration: none; padding: 10px 0"><img src="assets/github.png" alt="" width="16" height="16" style="display: block; width: 16px; height: 16px; object-fit: contain">GitHub</a>
-<a href="https://github.com/Jgrasp/squadron/releases" style="color: #CFC5BE; text-decoration: none; padding: 10px 0">Releases</a>
-<a href="https://github.com/Jgrasp/squadron/issues" style="color: #CFC5BE; text-decoration: none; padding: 10px 0">Issues</a>
+<a href="https://github.com/akki-team/squadron" style="display: flex; align-items: center; gap: 8px; color: #CFC5BE; text-decoration: none; padding: 10px 0"><img src="assets/github.png" alt="" width="16" height="16" style="display: block; width: 16px; height: 16px; object-fit: contain">GitHub</a>
+<a href="https://github.com/akki-team/squadron/releases" style="color: #CFC5BE; text-decoration: none; padding: 10px 0">Releases</a>
+<a href="https://github.com/akki-team/squadron/issues" style="color: #CFC5BE; text-decoration: none; padding: 10px 0">Issues</a>
 </div>
 </div>
 </footer>
@@ -1366,7 +1366,7 @@ const wait = st === 8 || st === 9;
 const work = (st >= 3 && st <= 7) || (st >= 10 && st <= 12);
 const fin = st >= 13 || st < 3;
 const lastByStep = ['PR #2108 · Open · 1/2 approved', 'PR #2108 · Open · 1/2 approved', 'PR #2108 · Open · 1/2 approved', 'Thinking…', 'Read searchService.ts', 'Edit searchService.ts', 'Bash vendor/bin/phpunit', 'Bash vendor/bin/phpunit', 'Waiting for your approval · Bash', 'Waiting for your approval · Bash', 'Bash npm install @acme/sdk', 'Bash npm install @acme/sdk', 'Writing…'];
-const CMD = 'curl -fsSL https://raw.githubusercontent.com/Jgrasp/squadron/main/install.sh | bash';
+const CMD = 'curl -fsSL https://raw.githubusercontent.com/akki-team/squadron/main/install.sh | bash';
 const OSES = [
 { id: 'mac', label: 'macOS', logo: 'assets/os-mac.png' },
 { id: 'win', label: 'Windows', logo: 'assets/os-windows.png' },
