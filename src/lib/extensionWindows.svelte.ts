@@ -2,8 +2,8 @@ import { emitTo, listen } from '@tauri-apps/api/event'
 import { availableMonitors, getCurrentWindow } from '@tauri-apps/api/window'
 import { getAllWebviewWindows, WebviewWindow } from '@tauri-apps/api/webviewWindow'
 import { find, shownAgent } from './agents.svelte'
-import { boundsKey, PAGE_THEME, panelsOf, text, themeOf, windowOf, type OptionValue, type Panel } from './extensions'
-import { extensions, onPanelPost, panelClosed, panelMessage, setOption } from './extensions.svelte'
+import { boundsKey, PAGE_THEME, panelsOf, text, windowOf, type OptionValue, type Panel } from './extensions'
+import { currentTheme, extensions, onPanelPost, panelClosed, panelMessage, setOption } from './extensions.svelte'
 import { locale } from './i18n/index.svelte'
 
 export type Gesture = { focused: boolean; hovered: boolean; visible: boolean }
@@ -120,7 +120,7 @@ if (main) {
         }
     })
     $effect(() => {
-      themeOf(extensions.list)
+      currentTheme()
       void extensions.options
       for (const panel of windowed()) {
         void extensions.options[panel.extension]

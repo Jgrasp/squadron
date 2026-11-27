@@ -17,6 +17,7 @@ export type SettingsTab =
   | 'plugins'
   | 'hosting'
   | 'preferences'
+  | 'theme'
   | 'notifications'
   | 'shortcuts'
   | 'layout'
@@ -25,7 +26,7 @@ export type SettingsTab =
   | 'about'
   | 'quickstart'
 
-const TABS = ['projects', 'agents', 'claude', 'plugins', 'mcp', 'hosting', 'preferences', 'notifications', 'shortcuts', 'layout', 'discover', 'about', 'quickstart']
+const TABS = ['projects', 'agents', 'claude', 'plugins', 'mcp', 'hosting', 'preferences', 'theme', 'notifications', 'shortcuts', 'layout', 'discover', 'about', 'quickstart']
 
 export const rememberSettingsTab = (tab: SettingsTab) => TABS.includes(tab) && localStorage.setItem('squadron.settings-tab', tab)
 

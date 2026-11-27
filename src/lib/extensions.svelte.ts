@@ -17,6 +17,7 @@ import type { Slot } from './slots'
 import { workdir, type Agent } from './stream'
 import { waitingKind } from './activity'
 import { type as typeInTerminal } from './terminals.svelte'
+import { settings } from './settings.svelte'
 
 export const extensions = $state({ list: [] as Extension[], sources: [] as string[], origins: {} as Record<string, string>, accounts: {} as Record<string, Account[]>, options: {} as Record<string, Record<string, OptionValue>>, errors: {} as Record<string, string>, unloaded: [] as string[], shown: {} as Record<string, { badge?: string | null; label?: string | null }> })
 
@@ -389,11 +390,13 @@ async function answerHost(reply: string, call: string, id: string) {
 
 const seen = new Map<string, string>()
 
+export const currentTheme = () => themeOf(extensions.list, settings.theme)
+
 let themed: string[] = []
 
 $effect.root(() => {
   $effect(() => {
-    const theme = themeOf(extensions.list)
+    const theme = currentTheme()
     const style = document.documentElement.style
     for (const name of themed) style.removeProperty(`--${name}`)
     themed = Object.keys(theme)

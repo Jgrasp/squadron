@@ -1,6 +1,6 @@
 <script lang="ts">
-  import { PAGE_THEME, themeOf } from './extensions'
-  import { extensions, onPanelPost, SETTINGS_PAGE, setOption, settingsMessage } from './extensions.svelte'
+  import { PAGE_THEME } from './extensions'
+  import { currentTheme, extensions, onPanelPost, SETTINGS_PAGE, setOption, settingsMessage } from './extensions.svelte'
 
   let { extension, page, title }: { extension: string; page: string; title: string } = $props()
 
@@ -18,7 +18,7 @@
   const options = () => frame?.contentWindow?.postMessage({ squadron: 'options', values: $state.snapshot(extensions.options[extension] ?? {}) }, '*')
 
   $effect(() => {
-    themeOf(extensions.list)
+    currentTheme()
     theme()
   })
 
