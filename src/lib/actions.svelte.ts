@@ -32,13 +32,14 @@ export const rememberSettingsTab = (tab: SettingsTab) => TABS.includes(tab) && l
 
 export const lastSettingsTab = () => (TABS.find((tab) => tab === localStorage.getItem('squadron.settings-tab')) ?? 'projects') as SettingsTab
 
-export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', settingsAnchor: '', adding: null as string | null, drops: 0, finding: 0, drawer: false, updates: false })
+export const ui = $state({ projects: false, creating: false, customizing: false, searching: false, settings: null as SettingsTab | null, settingsProject: '', settingsAnchor: '', adding: null as string | null, drops: 0, finding: 0, drawer: false, updates: false, quitting: false })
 
 export type Context = { project?: Project; agent?: Agent }
 
 export function run(action: Action, { project, agent }: Context) {
   switch (action) {
     case 'quit':
+      ui.quitting = true
       return getCurrentWindow().close()
     case 'jump':
       if (!jumpToWaiting()) (projects.usage = false), (projects.overview = true)

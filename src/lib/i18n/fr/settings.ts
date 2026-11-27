@@ -196,6 +196,8 @@ export default {
   archiveIdleHint: 'Terminés, interrompus ou arrêtés sur une erreur depuis ce délai. Les agents au travail ou qui vous attendent restent.',
   usage: 'Page Usage',
   usageHint: 'Un bouton Usage dans l’en-tête et sur les limites du forfait montre ce qui a consommé vos tokens, tous projets confondus. Lit vos transcripts Claude Code à l’ouverture.',
+  background: 'Continuer en arrière-plan',
+  backgroundHint: 'Fermer la fenêtre masque Squadron : ses agents continuent de travailler. Son icône dans la barre système, ou relancer Squadron, rouvre la fenêtre.',
   artifactsExpire: 'Nettoyer les artifacts',
   artifactsExpireHint: 'Sans changement depuis ce délai : supprimé avec ses partages. Une extension ou le menu ⋯ de l’artifact peut le garder plus longtemps.',
   archiveYear: 'Après un an',

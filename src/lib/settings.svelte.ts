@@ -78,6 +78,7 @@ export type Config = {
   ago_style: 'days' | 'weeks' | 'date'
   theme: string
   usage: boolean
+  background: boolean
   tour_offered: boolean
 }
 
@@ -134,6 +135,7 @@ export const settings = $state<Config>({
   ago_style: 'days',
   theme: '',
   usage: true,
+  background: false,
   tour_offered: false,
 })
 

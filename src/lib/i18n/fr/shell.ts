@@ -5,6 +5,7 @@ export default {
   squadronMenu: 'Menu Squadron',
   version: 'Version {version} · {platform}',
   quit: 'Quitter',
+  showWindow: 'Afficher Squadron',
   projects: 'Projets',
   overview: 'Vue d’ensemble',
   overviewTitle: 'Vue d’ensemble ({key} passe au prochain agent qui vous attend)',
